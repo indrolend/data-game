@@ -1,0 +1,38 @@
+﻿{
+  "schema": 1,
+  "id": "indrolend.digital-breakdown-apk",
+  "name": "Digital Breakdown",
+  "actions": {
+    "status": {
+      "label": "Status",
+      "command": "git status --short --branch",
+      "requires": ["git"]
+    },
+    "diff-check": {
+      "label": "Check Diff",
+      "command": "git diff --check",
+      "requires": ["git"]
+    },
+    "server-check": {
+      "label": "Check Multiplayer Server",
+      "command": "npm --prefix .\\multiplayer-server run check",
+      "requires": ["node", "npm"]
+    },
+    "server-test": {
+      "label": "Test Multiplayer Server",
+      "command": "npm --prefix .\\multiplayer-server test",
+      "requires": ["node", "npm"]
+    },
+    "verify-gameplay": {
+      "label": "Verify Gameplay",
+      "commands": {
+        "windows": ".\\scripts\\verify-gameplay.ps1",
+        "unix": "./scripts/verify-gameplay.sh"
+      },
+      "requires": ["git", "cmake", "ctest", "compiler"],
+      "artifacts": [
+        "build/gameplay-checks/Release/*.exe"
+      ]
+    }
+  }
+}
