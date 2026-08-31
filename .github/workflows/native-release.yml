@@ -56,29 +56,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $stage = 'dist/windows/DigitalBreakdown'
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
-
-          $candidates = @(
-            'build/desktop-release/bin/Release/DigitalBreakdown.exe',
-            'build/desktop-release/bin/DigitalBreakdown.exe'
-          )
-          $exe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $exe) { throw 'DigitalBreakdown.exe was not produced.' }
-
-          Copy-Item $exe "$stage/DigitalBreakdown.exe"
-          @{
-            commit = '${{ github.sha }}'
-            shortCommit = '${{ github.sha }}'.Substring(0, 7)
-            platform = 'windows-x64'
-            configuration = 'Release'
-            portable = $true
-            workflow = '${{ github.workflow }}'
-            runId = '${{ github.run_id }}'
-            builtAt = (Get-Date).ToUniversalTime().ToString('o')
-          } | ConvertTo-Json | Set-Content "$stage/build-info.json" -Encoding UTF8
-
-          Compress-Archive -Path "$stage/*" -DestinationPath 'dist/DigitalBreakdown-Windows.zip' -Force
+          ./tools/release/package-windows.ps1 `
+            -BuildDirectory 'build/desktop-release' `
+            -Commit '${{ github.sha }}' `
+            -Version '0.1.0-rc.1'
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v4

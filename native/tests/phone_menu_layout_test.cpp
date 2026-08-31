@@ -3,6 +3,7 @@
 
 #include "Game.hpp"
 #include "PhoneDisplayLayout.hpp"
+#include "../../native-desktop/DesktopBindings.hpp"
 
 namespace {
 
@@ -88,36 +89,47 @@ int main() {
     state.localSettings.menuScroll = 0.0f;
     PhoneMenuPageViewModel controlsModel = makePhoneMenuPageModel(state);
     assert(controlsModel.tablePage);
-    assert(controlsModel.selectableCount == 14);
-    assert(controlsModel.elementCount == 17);
+    assert(controlsModel.selectableCount == 13);
+    assert(controlsModel.elementCount == 16);
     assert(controlsModel.elements[0].kind == PhoneMenuRowKind::Section);
     assert(!controlsModel.elements[0].selectable);
     assert(selectionElement(controlsModel, 0).bindingAction == 0);
     assert(selectionElement(controlsModel, 5).bindingAction == 5);
     assert(selectionElement(controlsModel, 6).bindingAction == 6);
-    assert(selectionElement(controlsModel, 9).bindingAction == 9);
-    assert(selectionElement(controlsModel, 10).action == PhoneMenuAction::AdjustMouse);
-    assert(selectionElement(controlsModel, 11).action == PhoneMenuAction::AdjustController);
-    assert(selectionElement(controlsModel, 12).action == PhoneMenuAction::Defaults);
-    assert(selectionElement(controlsModel, 13).action == PhoneMenuAction::Back);
+    assert(selectionElement(controlsModel, 6).label == "Attack");
+    assert(selectionElement(controlsModel, 6).value == "F");
+    assert(selectionElement(controlsModel, 7).value == "Q");
+    assert(selectionElement(controlsModel, 8).bindingAction == 8);
+    assert(selectionElement(controlsModel, 8).value == "C");
+    assert(selectionElement(controlsModel, 9).action == PhoneMenuAction::AdjustMouse);
+    assert(selectionElement(controlsModel, 10).action == PhoneMenuAction::AdjustController);
+    assert(selectionElement(controlsModel, 11).action == PhoneMenuAction::Defaults);
+    assert(selectionElement(controlsModel, 12).action == PhoneMenuAction::Back);
 
     PhoneDisplayMenuLayout controlsTop = makePhoneDisplayMenuLayout(state);
     assert(controlsTop.title == "Controls");
-    assert(controlsTop.selectableCount == 14);
-    assert(controlsTop.rowCount == 17);
+    assert(controlsTop.selectableCount == 13);
+    assert(controlsTop.rowCount == 16);
     assert(controlsTop.maxScroll > 0.0f);
     assert(controlsTop.rows[0].kind == PhoneMenuRowKind::Section);
     assert(controlsTop.rows[7].kind == PhoneMenuRowKind::Section);
-    assert(controlsTop.rows[12].kind == PhoneMenuRowKind::Section);
+    assert(controlsTop.rows[11].kind == PhoneMenuRowKind::Section);
     assert(selectionRow(controlsTop, 0).action == PhoneMenuAction::Rebind);
     expectVisibleRowsInsideSafe(controlsTop);
 
-    state.hud.menuSelection = 13;
-    state.localSettings.menuScroll = phoneDisplayScrollForSelection(controlsTop, 13);
+    state.hud.menuSelection = 12;
+    state.localSettings.menuScroll = phoneDisplayScrollForSelection(controlsTop, 12);
     PhoneDisplayMenuLayout controlsBottom = makePhoneDisplayMenuLayout(state);
     assert(controlsBottom.scrollOffset > 0.0f);
-    assert(selectionRow(controlsBottom, 13).action == PhoneMenuAction::Back);
+    assert(selectionRow(controlsBottom, 12).action == PhoneMenuAction::Back);
     expectVisibleRowsInsideSafe(controlsBottom);
+
+    std::array<int, 10> mistakenDefaults{{87,83,65,68,340,32,67,81,86,70}};
+    assert(migrateLegacyKeyboardBindings(mistakenDefaults));
+    assert(mistakenDefaults == DEFAULT_KEYBOARD_BINDINGS);
+    std::array<int, 10> customBindings{{87,83,65,68,340,32,88,81,67,0}};
+    assert(!migrateLegacyKeyboardBindings(customBindings));
+    assert(customBindings[6] == 88);
 
     state.localSettings.menuPage = LocalMenuPage::Audio;
     state.localSettings.menuScroll = 0.0f;
