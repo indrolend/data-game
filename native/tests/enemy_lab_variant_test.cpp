@@ -19,7 +19,7 @@ int main() {
     const auto support=enemyLabProfile(EnemyLabVariant::SupportDriven);
     assert(animator.presentation.ordinaryGait==EnemyGaitAuthority::AuthoredAnimation);
     assert(euphoria.presentation.ordinaryGait==EnemyGaitAuthority::PhysicalContacts);
-    assert(feral.presentation.ordinaryGait==EnemyGaitAuthority::AuthoredAnimation);
+    assert(feral.presentation.ordinaryGait==EnemyGaitAuthority::PhysicalContacts);
     assert(predator.traversal.aggressiveRouting&&predator.traversal.mayJumpGap);
     assert(feral.traversal.aggressiveRouting&&feral.consequences.impactResponse>euphoria.consequences.impactResponse);
     assert(predator.motor.speedScale>animator.motor.speedScale);
