@@ -3888,6 +3888,7 @@ void Game::updateTargets(float dt) {
                 locomotionInput.dt=dt;
                 locomotionInput.grounded=supportedBefore;
                 locomotionInput.fallen=physicalBody.fallen;
+                locomotionInput.constrainTrajectory=relentlessAuthority;
                 const auto feet=gameplay::updateEnemyLocomotion(
                     locomotion,locomotionInput,queryFootSupport);
                 gameplay::PhysicalEnemyBodyInput bodyInput{};
@@ -4478,15 +4479,18 @@ void Game::updateTargets(float dt) {
                 const auto feet=gameplay::enemyLocomotionOutput(locomotion);
                 const Vec3 facing{-std::sin(t.visualYaw),0.0f,-std::cos(t.visualYaw)};
                 const float inverseScale=1.0f/std::max(0.001f,t.scale);
-                const auto projectFoot=[&](const Vec3& plant,float weight,float& forward,float& height,float& visualWeight){
+                const auto projectFoot=[&](const Vec3& plant,float load,float contact,float& forward,float& height,float& visualWeight){
                     const Vec3 relative=plant-t.pos;
                     forward=clampf(dot3(relative,facing)*inverseScale,-0.32f,0.32f);
                     height=clampf(relative.y*inverseScale,-0.14f,0.26f);
-                    visualWeight=clampf(weight,0.0f,1.0f);
+                    // Contact, not load, decides whether the visible foot is
+                    // pinned. During unloading the foot remains on the ground
+                    // even though its force contribution is fading.
+                    visualWeight=clampf(std::max(load,contact*0.92f),0.0f,1.0f);
                 };
-                projectFoot(feet.leftFootPosition,feet.leftLoad,
+                projectFoot(feet.leftFootPosition,feet.leftLoad,feet.leftContact,
                             t.physicalLeftFootForward,t.physicalLeftFootHeight,t.physicalLeftFootWeight);
-                projectFoot(feet.rightFootPosition,feet.rightLoad,
+                projectFoot(feet.rightFootPosition,feet.rightLoad,feet.rightContact,
                             t.physicalRightFootForward,t.physicalRightFootHeight,t.physicalRightFootWeight);
                 t.physicalLeftFootWorld=feet.leftFootPosition;
                 t.physicalRightFootWorld=feet.rightFootPosition;

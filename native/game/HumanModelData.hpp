@@ -32,7 +32,7 @@ struct HumanModelLegPlant {
 
 inline float humanLegLateralPlantAngle(float lateral) {
   if (!std::isfinite(lateral)) lateral = 0.0f;
-  return std::atan2(std::clamp(lateral, -0.30f, 0.30f), 0.58f);
+  return std::atan2(std::clamp(lateral, -0.30f, 0.30f), 0.74f);
 }
 
 struct HumanModelLook { float yaw = 0.0f, pitch = 0.0f; };
@@ -348,8 +348,12 @@ private:
     x += (target - x) * weight;
     const float lateral = left ? plant.leftLateral : plant.rightLateral;
     const float lateralAngle = humanLegLateralPlantAngle(lateral);
-    const float lateralTarget = region == RigThigh ? lateralAngle
-        : (region == RigShin ? -lateralAngle * 0.35f : -lateralAngle * 0.65f);
+    // Lateral reach belongs at the hip. Counter-rotating the shin made the
+    // knee solve sideways while the pelvis and foot still faced forward,
+    // producing a bowed/waddling silhouette. Keep one stable knee bend plane
+    // and let the ankle counter the hip roll to keep the sole level.
+    const float lateralTarget = region == RigThigh ? lateralAngle * 0.78f
+        : (region == RigShin ? 0.0f : -lateralAngle * 0.78f);
     z += lateralTarget * weight;
     eulerToQuaternion(x, y, z, q);
   }

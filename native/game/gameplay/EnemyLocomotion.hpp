@@ -45,6 +45,8 @@ struct EnemyLocomotionState {
     float stanceTime = 0.0f;
     Vec3 committedTravelDirection{};
     float directionalCommitmentTimer = 0.0f;
+    Vec3 feasibleTravelDirection{};
+    float feasibleSpeed = 0.0f;
     float crouch = 0.0f;
     float recoveryUrgency = 0.0f;
     EnemyRecoveryPhase recoveryPhase = EnemyRecoveryPhase::None;
@@ -75,6 +77,7 @@ struct EnemyLocomotionInput {
     float dt = 0.0f;
     bool grounded = true;
     bool fallen = false;
+    bool constrainTrajectory = false;
 };
 
 struct EnemyLocomotionOutput {
@@ -132,6 +135,8 @@ inline void initializeEnemyLocomotion(
     locomotion.stanceTime = 0.0f;
     locomotion.committedTravelDirection = forward;
     locomotion.directionalCommitmentTimer = 0.0f;
+    locomotion.feasibleTravelDirection = forward;
+    locomotion.feasibleSpeed = 0.0f;
     locomotion.crouch = 0.0f;
     locomotion.recoveryUrgency = 0.0f;
     locomotion.physicalGaitPhase = 0.0f;
@@ -272,6 +277,48 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
         locomotion.directionalCommitmentTimer = 0.16f;
     }
 
+    // Intention can turn instantly; a supported pelvis cannot. Condition the
+    // route request into a trajectory that the current stance can execute.
+    // This is locomotion authority, not new behavior: the destination remains
+    // unchanged while sharp reversals become brake, plant, turn, then travel.
+    if (!input.constrainTrajectory) {
+        locomotion.feasibleTravelDirection = locomotion.committedTravelDirection;
+        locomotion.feasibleSpeed = requestedSpeed;
+    } else if (horizontalLength(locomotion.feasibleTravelDirection) < 0.5f) {
+        locomotion.feasibleTravelDirection = forward;
+    }
+    const Vec3 feasibleDirection = enemyLocomotionHorizontalDirection(
+        locomotion.feasibleTravelDirection, forward);
+    const Vec3 committedDirection = enemyLocomotionHorizontalDirection(
+        locomotion.committedTravelDirection, feasibleDirection);
+    const float feasibleYaw = std::atan2(-feasibleDirection.x, -feasibleDirection.z);
+    const float committedYaw = std::atan2(-committedDirection.x, -committedDirection.z);
+    const float trajectoryError = enemyLocomotionAngleDelta(feasibleYaw, committedYaw);
+    const float stanceAuthority = std::max(0.18f, std::min(1.0f,
+        (locomotion.left.contact * locomotion.left.load
+            + locomotion.right.contact * locomotion.right.load)));
+    const float maximumTrajectoryTurn = (1.25f + input.brace * 0.55f)
+        * stanceAuthority * dt;
+    const float trajectoryTurn = input.constrainTrajectory
+        ? std::max(-maximumTrajectoryTurn,
+            std::min(maximumTrajectoryTurn, trajectoryError))
+        : trajectoryError;
+    const float nextTrajectoryYaw = feasibleYaw + trajectoryTurn;
+    locomotion.feasibleTravelDirection = {
+        -std::sin(nextTrajectoryYaw), 0.0f, -std::cos(nextTrajectoryYaw)};
+    const float alignment = std::max(0.0f, dot3(
+        locomotion.feasibleTravelDirection, committedDirection));
+    const float facingAlignment = std::max(0.0f, dot3(
+        locomotion.feasibleTravelDirection, forward));
+    const float turnSpeedScale = alignment * alignment
+        * (0.18f + 0.82f * facingAlignment * facingAlignment);
+    const float feasibleSpeedTarget = input.constrainTrajectory
+        ? requestedSpeed * turnSpeedScale : requestedSpeed;
+    const float speedResponse = feasibleSpeedTarget < locomotion.feasibleSpeed
+        ? 8.5f : 3.2f;
+    locomotion.feasibleSpeed += (feasibleSpeedTarget - locomotion.feasibleSpeed)
+        * std::min(1.0f, dt * speedResponse);
+
     const float leftSupportLoad = locomotion.left.planted ? locomotion.left.load : 0.0f;
     const float rightSupportLoad = locomotion.right.planted ? locomotion.right.load : 0.0f;
     const Vec3 projectedCom = input.bodyPosition
@@ -317,7 +364,7 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
         if (stance.planted && stance.contact > 0.20f) {
             const float side = swingIndex == 0 ? 1.0f : -1.0f;
             const float stanceWidth = 0.12f + locomotion.crouch * 0.05f;
-            Vec3 stepDirection = locomotion.committedTravelDirection;
+            Vec3 stepDirection = locomotion.feasibleTravelDirection;
             if (recoveryStep && horizontalLength(supportEscape) > 0.001f)
                 stepDirection = supportEscape * (1.0f / horizontalLength(supportEscape));
             if (!travelStep && rotationalStep) {
@@ -447,13 +494,23 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
     // The body cannot outrun its own stride cycle. Higher-level requested
     // speed changes commitment and target reach, but stance geometry bounds
     // the velocity that loaded feet can physically support.
+    // One complete step takes roughly 0.42 seconds and reaches about 0.36 m.
+    // Keeping root demand within that achievable cadence prevents the pelvis
+    // from dragging a world-planted foot beyond the leg's reachable geometry.
+    const float attainableStrideSpeed = input.constrainTrajectory
+        ? 0.92f + locomotion.recoveryUrgency * 0.10f
+        : 1.35f + locomotion.recoveryUrgency * 0.12f;
     const float supportLimitedSpeed = std::min(
-        requestedSpeed, (1.35f + locomotion.recoveryUrgency * 0.12f)
+        locomotion.feasibleSpeed, attainableStrideSpeed
             * (1.0f + std::max(-1.0f, std::min(1.0f, input.individuality)) * 0.12f));
-    output.supportedDesiredVelocity = locomotion.committedTravelDirection
+    output.supportedDesiredVelocity = locomotion.feasibleTravelDirection
         * (supportLimitedSpeed * plantedAuthority
             * std::max(0.35f, std::min(1.0f, input.traction)));
-    output.desiredYaw = input.bodyYaw + turnError * plantedAuthority;
+    const float feasibleYawError = enemyLocomotionAngleDelta(
+        input.bodyYaw, std::atan2(-locomotion.feasibleTravelDirection.x,
+            -locomotion.feasibleTravelDirection.z));
+    output.desiredYaw = input.bodyYaw
+        + (input.constrainTrajectory ? feasibleYawError : turnError) * plantedAuthority;
     output.correctiveStepActive = locomotion.recoveryUrgency > 0.08f
         && locomotion.swingFoot >= 0;
     output.turnStepActive = rotationalStep && locomotion.swingFoot >= 0;

@@ -74,6 +74,7 @@ int main() {
     input.bodyVelocity = {0.0f, 0.0f, -1.25f};
     input.desiredTravelDirection = {0.0f, 0.0f, -1.0f};
     input.desiredSpeed = 2.0f;
+    input.constrainTrajectory = true;
     initializeEnemyLocomotion(cruising, input, flatSupport);
     float maximumCruiseUrgency = 0.0f;
     float supportedCruiseSpeed = 0.0f;
@@ -84,11 +85,32 @@ int main() {
             supportedCruiseSpeed, horizontalLength(cruise.supportedDesiredVelocity));
     }
     assert(maximumCruiseUrgency < 0.05f);
-    assert(supportedCruiseSpeed > 1.20f);
+    assert(supportedCruiseSpeed > 0.82f);
+    assert(supportedCruiseSpeed < 1.02f);
+
+    // An instantaneous lateral target change must not become an instantaneous
+    // sideways root request. The feet first brake and rotate a feasible travel
+    // trajectory over multiple supported frames.
+    EnemyLocomotionState turning{};
+    input.bodyPosition = {};
+    input.bodyVelocity = {0.0f, 0.0f, -0.85f};
+    input.bodyYaw = 0.0f;
+    input.desiredTravelDirection = {1.0f, 0.0f, 0.0f};
+    input.desiredSpeed = 2.0f;
+    input.desiredYaw = -1.57079632679f;
+    initializeEnemyLocomotion(turning, input, flatSupport);
+    const auto firstTurn = updateEnemyLocomotion(turning, input, flatSupport);
+    assert(firstTurn.supportedDesiredVelocity.x > 0.0f);
+    assert(firstTurn.supportedDesiredVelocity.x < 0.08f);
+    assert(horizontalLength(firstTurn.supportedDesiredVelocity) < 0.20f);
+    for (int frame = 0; frame < 90; ++frame)
+        updateEnemyLocomotion(turning, input, flatSupport);
+    assert(turning.feasibleTravelDirection.x > 0.80f);
 
     // A route commitment supplied by collision handling survives the direct
     // navigation request long enough for the feet to execute the turn.
     EnemyLocomotionState routed{};
+    input.constrainTrajectory = false;
     input.bodyPosition = {};
     input.bodyVelocity = {};
     input.desiredTravelDirection = {0.0f, 0.0f, -1.0f};

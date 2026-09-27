@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 
@@ -25,7 +26,7 @@ int main() {
         previous=current;
     }
     const float beforeShove=distanceToData(game.state());
-    assert(beforeShove<initialDistance-2.0f);
+    assert(beforeShove<initialDistance-1.25f);
     assert(retreatFrames<8);
     assert(game.zombieV1Telemetry()[0].active);
     assert(game.zombieV1Telemetry()[0].relentless);
@@ -41,8 +42,9 @@ int main() {
     moving.setEnemyIntentionMode(gameplay::EnemyIntentionMode::RelentlessZombie);
     moving.setEnemyLabVariant(gameplay::EnemyLabVariant::FeralHybrid);
     moving.debugStartZombieV1Benchmark();
-    for(int frame=0;frame<150;++frame){
-        moving.networkMutableState().player.pos.x=4.0f*static_cast<float>(frame)/149.0f;
+    for(int frame=0;frame<240;++frame){
+        const int lateralFrame=std::min(frame,149);
+        moving.networkMutableState().player.pos.x=4.0f*static_cast<float>(lateralFrame)/149.0f;
         moving.update(1.0f/60.0f);
     }
     assert(moving.state().targets[0].pos.x>0.45f);
