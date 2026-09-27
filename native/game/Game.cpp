@@ -3920,6 +3920,7 @@ void Game::updateTargets(float dt) {
                 bodyInput.supportRecoveryReady=feet.supportRecoveryReady;
                 bodyInput.supportDrivenLocomotion=
                     labProfile.locomotionAuthority==gameplay::EnemyLocomotionAuthority::PhysicalSupport;
+                bodyInput.fallRequiresExternalDisruption=relentlessAuthority;
                 physicalBody.gaitPhase=feet.gaitPhase;
                 const auto body=gameplay::updatePhysicalEnemyBody(physicalBody,bodyInput,t.visualYaw);
                 physicalBody.gaitPhase=feet.gaitPhase;

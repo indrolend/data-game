@@ -50,6 +50,7 @@ int main() {
     assert(moving.state().targets[0].pos.x>0.45f);
     const Vec3 movingToData=moving.state().player.pos-moving.state().targets[0].pos;
     const auto& movingTelemetry=moving.zombieV1Telemetry()[0];
+    assert(!movingTelemetry.fallen);
     assert(movingTelemetry.requestedSteering.x*movingToData.x+
            movingTelemetry.requestedSteering.z*movingToData.z>0.0f);
     return 0;

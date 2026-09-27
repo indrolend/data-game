@@ -63,6 +63,7 @@ struct PhysicalEnemyBodyInput {
     bool turnStepActive = false;
     bool supportRecoveryReady = false;
     bool supportDrivenLocomotion = false;
+    bool fallRequiresExternalDisruption = false;
 };
 
 struct PhysicalEnemyBodyOutput {
@@ -352,7 +353,18 @@ inline PhysicalEnemyBodyOutput updatePhysicalEnemyBody(
             const bool recoveryWindow = recoveryUrgency > 0.08f
                 && outsideSupport < 0.72f
                 && body.supportFailureTime < 0.62f;
-            if (!recoveryWindow) {
+            const bool planningMismatch = input.fallRequiresExternalDisruption
+                && input.grounded && body.impactInstability < 0.12f;
+            if (planningMismatch) {
+                // A target-vector change is not a shove. If ordinary pursuit
+                // temporarily asks more than the stance can supply, brake and
+                // give the stepping authority time to recover support instead
+                // of converting a planning error into a backward knockdown.
+                const float braking = std::exp(-8.0f * dt);
+                velocity.x *= braking;
+                velocity.z *= braking;
+                body.supportFailureTime = std::min(body.supportFailureTime, 0.30f);
+            } else if (!recoveryWindow) {
                 body.fallen = true;
                 body.recovery = 0.0f;
                 body.rollVelocity += std::max(
