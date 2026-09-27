@@ -33,9 +33,6 @@ struct PhysicalEnemyBodyState {
     float rightPlantWeight = 0.0f;
     bool leftFootPlanted = false;
     bool rightFootPlanted = false;
-    bool supportAnchorInitialized = false;
-    Vec3 previousSupportCenter{};
-    Vec3 supportDrivenVelocity{};
 };
 
 struct PhysicalEnemyBodyInput {
@@ -315,29 +312,38 @@ inline PhysicalEnemyBodyOutput updatePhysicalEnemyBody(
     }
 
     if (input.supportDrivenLocomotion) {
-        // Physical-support authority: root travel is earned only when the
-        // weighted support center advances during a real contact/load transfer.
-        // Desired velocity still plans steps, but it cannot translate the body.
-        const Vec3 supportCenter=physicalSupportCuePosition(body,input.bodyPosition);
-        if (!body.supportAnchorInitialized || support.totalWeight<=minimumSupportWeight || body.fallen) {
-            body.previousSupportCenter=supportCenter;
-            body.supportDrivenVelocity={};
-            body.supportAnchorInitialized=support.totalWeight>minimumSupportWeight;
-        } else if (dt>0.00001f) {
-            Vec3 earned=(supportCenter-body.previousSupportCenter)*(1.0f/dt);
-            earned.y=0.0f;
-            const float earnedSpeed=horizontalLength(earned);
-            const float speedLimit=std::max(0.0f,requestedSpeed)*1.08f+0.05f;
-            if (earnedSpeed>speedLimit&&earnedSpeed>0.0001f)earned=earned*(speedLimit/earnedSpeed);
-            body.supportDrivenVelocity += (earned-body.supportDrivenVelocity)*std::min(1.0f,dt*18.0f);
-            body.previousSupportCenter=supportCenter;
+        // A real stance foot does not move the pelvis by changing the weighted
+        // support-center position. Hip/knee/ankle motors push against a fixed
+        // contact and physics accelerates the pelvis. Approximate that lowest
+        // joint layer with a bounded ground-reaction force. The request is
+        // never assigned to velocity: without a loaded, reachable contact no
+        // propulsive force exists and external momentum is left untouched.
+        float reachableLoad=0.0f;
+        const auto accumulateStance=[&](bool planted,float load,const Vec3& foot){
+            if(!planted||load<=0.0f)return;
+            const Vec3 leg=finitePhysicalVector(input.bodyPosition)-foot;
+            const float horizontalReach=horizontalLength(leg);
+            const float verticalReach=std::abs(leg.y);
+            if(horizontalReach<=0.68f&&verticalReach<=0.44f)
+                reachableLoad+=load;
+        };
+        accumulateStance(body.leftFootPlanted,body.leftPlantWeight,body.leftFootPlant);
+        accumulateStance(body.rightFootPlanted,body.rightPlantWeight,body.rightFootPlant);
+        const float stanceAuthority=body.fallen?0.0f:std::max(0.0f,std::min(1.0f,reachableLoad));
+        if(stanceAuthority>minimumSupportWeight&&contact>0.01f){
+            Vec3 jointGroundReaction=desiredVelocity-velocity;
+            jointGroundReaction.y=0.0f;
+            const float torqueLimitedAcceleration=(3.8f+brace*1.4f)
+                *surfaceTraction*stanceAuthority;
+            const float requestedAcceleration=horizontalLength(jointGroundReaction);
+            if(requestedAcceleration>torqueLimitedAcceleration&&requestedAcceleration>0.001f)
+                jointGroundReaction=jointGroundReaction*(torqueLimitedAcceleration/requestedAcceleration);
+            velocity+=jointGroundReaction*dt;
+        } else if(body.fallen){
+            const float drag=std::exp(-4.2f*dt);
+            velocity.x*=drag;
+            velocity.z*=drag;
         }
-        const float authority=body.fallen?0.0f:std::max(0.0f,std::min(1.0f,support.totalWeight));
-        velocity.x=body.supportDrivenVelocity.x*authority;
-        velocity.z=body.supportDrivenVelocity.z*authority;
-    } else {
-        body.supportAnchorInitialized=false;
-        body.supportDrivenVelocity={};
     }
 
     if (!body.fallen && support.totalWeight > minimumSupportWeight) {

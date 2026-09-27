@@ -62,7 +62,7 @@ constexpr EnemyLabProfile enemyLabProfile(EnemyLabVariant variant) {
             return {EnemyLocomotionAuthority::KinematicRoot,{1.22f,1.18f,0.62f},{true,true,true,true,true,true},
                     {EnemyGaitAuthority::AuthoredAnimation,0.82f,0.24f},{0.55f,0.46f,1.08f}};
         case EnemyLabVariant::FeralHybrid:
-            return {EnemyLocomotionAuthority::KinematicRoot,{1.28f,1.12f,0.92f},{true,true,true,true,true,true},
+            return {EnemyLocomotionAuthority::PhysicalSupport,{1.28f,1.12f,0.92f},{true,true,true,true,true,true},
                     {EnemyGaitAuthority::PhysicalContacts,1.0f,0.88f},{1.0f,1.0f,1.18f}};
         case EnemyLabVariant::SupportDriven:
             return {EnemyLocomotionAuthority::PhysicalSupport,{1.0f,1.0f,0.62f},{true,true,true,true,true,true},

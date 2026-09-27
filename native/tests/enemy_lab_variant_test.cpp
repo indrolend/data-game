@@ -24,6 +24,7 @@ int main() {
     assert(feral.traversal.aggressiveRouting&&feral.consequences.impactResponse>euphoria.consequences.impactResponse);
     assert(predator.motor.speedScale>animator.motor.speedScale);
     assert(animator.locomotionAuthority==EnemyLocomotionAuthority::KinematicRoot);
+    assert(feral.locomotionAuthority==EnemyLocomotionAuthority::PhysicalSupport);
     assert(support.locomotionAuthority==EnemyLocomotionAuthority::PhysicalSupport);
     std::cout<<"ENEMY_LAB_VARIANTS_OK selection=5 authorities=SEPARATE support=ROOT_BYPASS_DISABLED\n";
 }

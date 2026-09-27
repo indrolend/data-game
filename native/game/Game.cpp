@@ -4436,8 +4436,6 @@ void Game::updateTargets(float dt) {
                             }
                             next=t.pos;
                             t.vel=gameplay::physicalEnemyCollisionVelocity(t.vel,obstructionNormal);
-                            if(labProfile.locomotionAuthority==gameplay::EnemyLocomotionAuthority::PhysicalSupport)
-                                runtimePool.bodies[i].supportDrivenVelocity=t.vel;
                         }
                         else if(physicalPursuit){
                             // Collision chooses a new intention; it does not rotate
@@ -4460,8 +4458,6 @@ void Game::updateTargets(float dt) {
                         }
                         chooseHumanWalkTarget(i);next=t.pos;
                         t.vel=gameplay::physicalEnemyCollisionVelocity(t.vel,obstructionNormal);
-                        if(labProfile.locomotionAuthority==gameplay::EnemyLocomotionAuthority::PhysicalSupport)
-                            runtimePool.bodies[i].supportDrivenVelocity=t.vel;
                     }
                     const float travelled=horizontalLength(next-t.pos);if(travelled>0.00001f){t.pos=next;if(!physicalPursuit){const Vec3 physicalDirection=normalized(Vec3{t.vel.x,0,t.vel.z});t.visualYaw=std::atan2(-physicalDirection.x,-physicalDirection.z);}t.visualWalkPhase+=travelled*HUMAN_WALK_PHASE_PER_METER;}
                     if(!physicalPursuit)t.locomotionAmount=travelled>0.00001f?1.0f:0.0f;
