@@ -3889,6 +3889,10 @@ void Game::updateTargets(float dt) {
                 locomotionInput.grounded=supportedBefore;
                 locomotionInput.fallen=physicalBody.fallen;
                 locomotionInput.constrainTrajectory=relentlessAuthority;
+                locomotionInput.trajectoryTurnScale=enemyPhysicsLabTuning_.trajectoryTurnScale;
+                locomotionInput.strideScale=enemyPhysicsLabTuning_.strideScale;
+                locomotionInput.swingDurationScale=enemyPhysicsLabTuning_.swingDurationScale;
+                locomotionInput.maximumLegReach=enemyPhysicsLabTuning_.maximumLegReach;
                 const auto feet=gameplay::updateEnemyLocomotion(
                     locomotion,locomotionInput,queryFootSupport);
                 gameplay::PhysicalEnemyBodyInput bodyInput{};
@@ -3921,6 +3925,8 @@ void Game::updateTargets(float dt) {
                 bodyInput.supportDrivenLocomotion=
                     labProfile.locomotionAuthority==gameplay::EnemyLocomotionAuthority::PhysicalSupport;
                 bodyInput.fallRequiresExternalDisruption=relentlessAuthority;
+                bodyInput.stanceAccelerationScale=enemyPhysicsLabTuning_.stanceAccelerationScale;
+                bodyInput.maximumLegReach=enemyPhysicsLabTuning_.maximumLegReach;
                 physicalBody.gaitPhase=feet.gaitPhase;
                 const auto body=gameplay::updatePhysicalEnemyBody(physicalBody,bodyInput,t.visualYaw);
                 physicalBody.gaitPhase=feet.gaitPhase;
@@ -4292,7 +4298,8 @@ void Game::updateTargets(float dt) {
                     const float variation=relentlessAuthority?1.0f:0.82f+0.18f*std::sin(static_cast<float>(i)*12.9898f);
                     const float behaviorTravelScale=state_.multiplayer.enabled?1.0f:behavior.travelScale;
                     const float labSpeed=state_.multiplayer.enabled?1.0f:labProfile.motor.speedScale;
-                    const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation*behaviorTravelScale*labSpeed;
+                    const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation*behaviorTravelScale*labSpeed
+                        *enemyPhysicsLabTuning_.speedScale;
                     if(physicalPursuit){
                         Vec3 nearestAllyDirection{};float nearestAllyDistance=10.0f;
                         for(int allyIndex=0;allyIndex<TARGET_COUNT;++allyIndex){

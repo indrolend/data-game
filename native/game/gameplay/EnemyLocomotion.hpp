@@ -78,6 +78,10 @@ struct EnemyLocomotionInput {
     bool grounded = true;
     bool fallen = false;
     bool constrainTrajectory = false;
+    float trajectoryTurnScale = 1.0f;
+    float strideScale = 1.0f;
+    float swingDurationScale = 1.0f;
+    float maximumLegReach = 0.64f;
 };
 
 struct EnemyLocomotionOutput {
@@ -298,6 +302,7 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
         (locomotion.left.contact * locomotion.left.load
             + locomotion.right.contact * locomotion.right.load)));
     const float maximumTrajectoryTurn = (1.25f + input.brace * 0.55f)
+        * std::max(0.20f, std::min(3.0f, input.trajectoryTurnScale))
         * stanceAuthority * dt;
     const float trajectoryTurn = input.constrainTrajectory
         ? std::max(-maximumTrajectoryTurn,
@@ -370,9 +375,10 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
             if (!travelStep && rotationalStep) {
                 stepDirection = {-std::sin(input.desiredYaw), 0.0f, -std::cos(input.desiredYaw)};
             }
-            const float stride = recoveryStep
+            const float stride = (recoveryStep
                 ? 0.24f + locomotion.recoveryUrgency * 0.24f
-                : std::min(0.48f, 0.24f + requestedSpeed * 0.075f);
+                : std::min(0.48f, 0.24f + requestedSpeed * 0.075f))
+                * std::max(0.45f, std::min(1.65f, input.strideScale));
             EnemyFootSupport targetSupport{};
             bool reachable = false;
             constexpr float reachScales[] = {1.0f, 0.70f, 0.45f};
@@ -383,7 +389,7 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
                 const EnemyFootSupport candidateSupport = querySupport(candidate);
                 const Vec3 hipDelta = candidateSupport.position - input.bodyPosition;
                 if (candidateSupport.valid
-                    && horizontalLength(hipDelta) <= 0.62f
+                    && horizontalLength(hipDelta) <= std::max(0.35f, std::min(0.85f, input.maximumLegReach))
                     && std::abs(hipDelta.y) <= 0.38f) {
                     targetSupport = candidateSupport;
                     reachable = true;
@@ -419,8 +425,9 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
                 swing.swingProgress = 0.0f;
             }
         } else if (swing.phase == EnemyFootPhase::Swing) {
-            const float swingDuration = std::max(0.16f, 0.27f - requestedSpeed * 0.018f
-                - locomotion.recoveryUrgency * 0.09f);
+            const float swingDuration = std::max(0.10f, (0.27f - requestedSpeed * 0.018f
+                - locomotion.recoveryUrgency * 0.09f)
+                * std::max(0.45f, std::min(1.80f, input.swingDurationScale)));
             swing.swingProgress = std::min(1.0f, swing.swingProgress + dt / swingDuration);
             const float p = swing.swingProgress;
             swing.position = swing.swingStart * (1.0f - p) + swing.swingTarget * p;
@@ -435,7 +442,7 @@ inline EnemyLocomotionOutput updateEnemyLocomotion(
         } else if (swing.phase == EnemyFootPhase::SeekingContact) {
             const EnemyFootSupport contactSupport = querySupport(swing.swingTarget);
             if (contactSupport.valid
-                && horizontalLength(contactSupport.position - input.bodyPosition) <= 0.64f
+                && horizontalLength(contactSupport.position - input.bodyPosition) <= std::max(0.35f, std::min(0.85f, input.maximumLegReach))
                 && std::abs(contactSupport.position.y - input.bodyPosition.y) <= 0.40f) {
                 swing.position = contactSupport.position;
                 swing.plantPosition = contactSupport.position;

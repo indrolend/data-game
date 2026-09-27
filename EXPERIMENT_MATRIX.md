@@ -68,6 +68,14 @@ perception + memory -> cognition -> pursuit intention
 
 ## Visual playtest checklist
 
+For rapid parameter work, launch the production-code physics harness:
+
+```text
+DigitalBreakdown.exe --enemy-physics-lab
+```
+
+The panel edits the live `EnemyPhysicsLabTuning` consumed by the normal locomotion and physical-body update. Use Up/Down to select a knob, Left/Right to adjust it, Space to pause, N to advance exactly one fixed simulation step, R to reset the same deterministic fixture, 1/2/3 for stationary/circle/sprint DATA scenarios, and 4/5 for shove/knockdown impulses. The six initial knobs are requested speed, stance-force scale, trajectory-turn rate, stride scale, swing-time scale, and maximum leg reach. These overrides are local to the running lab and are not serialized or applied to multiplayer.
+
 Run every variant through the same room/seed and inspect:
 
 1. Forward sprint silhouette: knees bend forward, feet do not read as alternating tip-toes, and translation agrees with cadence.

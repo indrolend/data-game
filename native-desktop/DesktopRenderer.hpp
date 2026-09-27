@@ -10,6 +10,14 @@
 #include <vector>
 #include "../native/game/TvGifWall.hpp"
 
+struct EnemyPhysicsLabOverlay {
+    bool active=false;
+    bool paused=false;
+    int selected=0;
+    int scenario=0;
+    EnemyPhysicsLabTuning tuning{};
+};
+
 class DesktopRenderer {
 public:
     static void drawBox(const Vec3& position, const Vec3& scale, float pitch, float yaw, float roll, float r, float g, float b, float a = 1.0f);
@@ -20,7 +28,8 @@ public:
     void draw(const GameState& state, const DeveloperCodecState* codec=nullptr,
               const std::array<gameplay::EnemyPerceptionState, TARGET_COUNT>* enemyPerceptions=nullptr,
               const std::array<gameplay::ZombieV1Telemetry, TARGET_COUNT>* zombieTelemetry=nullptr,
-              bool showZombieDiagnostics=false) const;
+              bool showZombieDiagnostics=false,
+              const EnemyPhysicsLabOverlay* enemyPhysicsLab=nullptr) const;
 
 private:
     static void drawFacetedRock(const early_browser_visuals::EnvironmentPropSpec& prop, int roomSeed, int roomIndex, int propIndex, float zOffset, const VisualColor& color);
@@ -59,5 +68,6 @@ private:
     void drawPhoneDisplayTexture(const GameState& state) const;
     void drawHud(const GameState& state) const;
     void drawDeveloperCodec(const DeveloperCodecState& codec) const;
+    void drawEnemyPhysicsLab(const EnemyPhysicsLabOverlay& lab,const gameplay::ZombieV1Telemetry* telemetry) const;
     void drawDoorDataMosh(const GameState& state) const;
 };

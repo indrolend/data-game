@@ -61,6 +61,8 @@ struct PhysicalEnemyBodyInput {
     bool supportRecoveryReady = false;
     bool supportDrivenLocomotion = false;
     bool fallRequiresExternalDisruption = false;
+    float stanceAccelerationScale = 1.0f;
+    float maximumLegReach = 0.68f;
 };
 
 struct PhysicalEnemyBodyOutput {
@@ -324,7 +326,7 @@ inline PhysicalEnemyBodyOutput updatePhysicalEnemyBody(
             const Vec3 leg=finitePhysicalVector(input.bodyPosition)-foot;
             const float horizontalReach=horizontalLength(leg);
             const float verticalReach=std::abs(leg.y);
-            if(horizontalReach<=0.68f&&verticalReach<=0.44f)
+            if(horizontalReach<=std::max(0.35f,std::min(0.85f,input.maximumLegReach))&&verticalReach<=0.44f)
                 reachableLoad+=load;
         };
         accumulateStance(body.leftFootPlanted,body.leftPlantWeight,body.leftFootPlant);
@@ -334,6 +336,7 @@ inline PhysicalEnemyBodyOutput updatePhysicalEnemyBody(
             Vec3 jointGroundReaction=desiredVelocity-velocity;
             jointGroundReaction.y=0.0f;
             const float torqueLimitedAcceleration=(3.8f+brace*1.4f)
+                *std::max(0.20f,std::min(3.0f,input.stanceAccelerationScale))
                 *surfaceTraction*stanceAuthority;
             const float requestedAcceleration=horizontalLength(jointGroundReaction);
             if(requestedAcceleration>torqueLimitedAcceleration&&requestedAcceleration>0.001f)

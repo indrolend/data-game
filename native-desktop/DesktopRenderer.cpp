@@ -1387,7 +1387,7 @@ void DesktopRenderer::drawDoorDataMosh(const GameState& state) const {
     glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_BLEND);glDisable(GL_TEXTURE_2D);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);
 }
 
-void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec,const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>* enemyPerceptions,const std::array<gameplay::ZombieV1Telemetry,TARGET_COUNT>* zombieTelemetry,bool showZombieDiagnostics) const {
+void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec,const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>* enemyPerceptions,const std::array<gameplay::ZombieV1Telemetry,TARGET_COUNT>* zombieTelemetry,bool showZombieDiagnostics,const EnemyPhysicsLabOverlay* enemyPhysicsLab) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto roomPlan=early_browser_visuals::roomPlan(state.roomSeed,state.roomIndex);
     const float horizontalSpeed=std::sqrt(state.player.vel.x*state.player.vel.x+state.player.vel.z*state.player.vel.z);
@@ -1810,8 +1810,38 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         }
     }
     if(hudVisible_)drawHud(state);
+    if(enemyPhysicsLab&&enemyPhysicsLab->active)drawEnemyPhysicsLab(*enemyPhysicsLab,zombieTelemetry?&(*zombieTelemetry)[0]:nullptr);
     if(codec&&codec->open)drawDeveloperCodec(*codec);
     glFlush();
+}
+
+void DesktopRenderer::drawEnemyPhysicsLab(const EnemyPhysicsLabOverlay& lab,const gameplay::ZombieV1Telemetry* telemetry) const{
+    glDisable(GL_DEPTH_TEST);glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();
+    const auto quad=[](float x,float y,float w,float h,float r,float g,float b,float a){glColor4f(r,g,b,a);glBegin(GL_QUADS);glVertex2f(x,y);glVertex2f(x+w,y);glVertex2f(x+w,y+h);glVertex2f(x,y+h);glEnd();};
+    const auto text=[&](const std::string& value,float x,float y,float scale,float r=0.86f,float g=0.96f,float b=1.0f,float a=0.96f){float pen=x;for(char c:value){if(c==' '){pen+=6*scale;continue;}const auto rows=bitmapGlyph(c);for(int row=0;row<7;++row)for(int col=0;col<5;++col)if(rows[row]&(1u<<(4-col)))quad(pen+col*scale,y+row*scale,scale,scale,r,g,b,a);pen+=6*scale;}};
+    const char* scenarios[]={"STATIONARY","CIRCLE","SPRINT"};
+    const char* names[]={"SPEED","STANCE FORCE","TURN RATE","STRIDE","SWING TIME","LEG REACH"};
+    const float values[]={lab.tuning.speedScale,lab.tuning.stanceAccelerationScale,lab.tuning.trajectoryTurnScale,lab.tuning.strideScale,lab.tuning.swingDurationScale,lab.tuning.maximumLegReach};
+    const float x=18.0f,y=18.0f,w=360.0f,h=326.0f;
+    quad(x,y,w,h,0.005f,0.012f,0.016f,0.90f);quad(x,y,w,2,0.08f,0.95f,1.0f,0.92f);
+    text("ENEMY PHYSICS LAB",x+14,y+12,1.45f,0.72f,1.0f,0.92f);
+    text(std::string(lab.paused?"PAUSED":"RUNNING")+"  SCENARIO "+scenarios[std::max(0,std::min(2,lab.scenario))],x+14,y+34,1.0f,lab.paused?1.0f:0.55f,lab.paused?0.72f:1.0f,0.72f);
+    for(int i=0;i<6;++i){
+        const float rowY=y+62.0f+i*31.0f;const bool selected=i==lab.selected;
+        if(selected)quad(x+8,rowY-5,w-16,25,0.08f,0.56f,0.64f,0.28f);
+        char value[32]{};std::snprintf(value,sizeof(value),"%.2f",values[i]);
+        text(std::string(selected?"> ":"  ")+names[i],x+14,rowY,1.0f);
+        text(value,x+278,rowY,1.0f,1.0f,0.88f,0.42f);
+        const float normalized=clampf((values[i]-0.2f)/2.8f,0.0f,1.0f);
+        quad(x+14,rowY+17,310,3,0.12f,0.20f,0.23f,0.9f);quad(x+14,rowY+17,310*normalized,3,0.12f,0.92f,1.0f,0.9f);
+    }
+    text("UP/DOWN SELECT   LEFT/RIGHT TUNE",x+14,y+252,0.85f);
+    text("SPACE PAUSE   N STEP   R RESET",x+14,y+269,0.85f);
+    text("1 STATIC  2 CIRCLE  3 SPRINT",x+14,y+286,0.85f);
+    text("4 SIDE SHOVE  5 KNOCKDOWN",x+14,y+303,0.85f);
+    if(telemetry&&telemetry->active){char line[128]{};std::snprintf(line,sizeof(line),"REQ %.2f  ACT %.2f  LOAD %.2f/%.2f  ERR %.2f",telemetry->requestedSpeed,horizontalLength(telemetry->actualVelocity),telemetry->leftLoad,telemetry->rightLoad,telemetry->supportError);text(line,x+14,y+h+10,0.88f,0.74f,1.0f,0.76f);}
+    glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_BLEND);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);
 }
 
 void DesktopRenderer::drawDeveloperCodec(const DeveloperCodecState& codec) const{

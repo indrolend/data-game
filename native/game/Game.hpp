@@ -825,6 +825,15 @@ struct GameState {
 struct HostRemotePeerSimulationIsolationAccess;
 struct SoulProjectileLifecycleAccess;
 
+struct EnemyPhysicsLabTuning {
+    float speedScale=1.0f;
+    float stanceAccelerationScale=1.0f;
+    float trajectoryTurnScale=1.0f;
+    float strideScale=1.0f;
+    float swingDurationScale=1.0f;
+    float maximumLegReach=0.68f;
+};
+
 class Game {
 public:
     void reset();
@@ -843,6 +852,8 @@ public:
     void debugStartRoomInspector();
     void debugStartZombieV1Benchmark();
     void debugApplyEnemyImpulse(int targetIndex,const Vec3& worldImpulse);
+    void setEnemyPhysicsLabTuning(const EnemyPhysicsLabTuning& tuning) { enemyPhysicsLabTuning_=tuning; }
+    const EnemyPhysicsLabTuning& enemyPhysicsLabTuning() const { return enemyPhysicsLabTuning_; }
     bool debugSpawnStoredSoul();
     void debugFillBattery();
     WorldSupportSample debugPlayerSupportAt(float x,float z) const { return getPlayerSupport(x,z); }
@@ -910,6 +921,7 @@ private:
         int perceptionCursor = 0;
     };
     GameState state_;
+    EnemyPhysicsLabTuning enemyPhysicsLabTuning_{};
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
     int simulationPlayerId_ = 0;
 

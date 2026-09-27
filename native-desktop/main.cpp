@@ -138,6 +138,9 @@ struct HostState {
     LocalSettingsState savedSettings;
     std::chrono::steady_clock::time_point nextSaveAttempt{};
     bool saveFailureReported = false;
+    EnemyPhysicsLabOverlay enemyPhysicsLab{};
+    bool enemyPhysicsLabStep=false;
+    double enemyPhysicsLabTime=0.0;
 };
 
 struct DesktopGamepadInput {
@@ -1060,6 +1063,32 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         }
         return;
     }
+    if(host->enemyPhysicsLab.active&&action==GLFW_PRESS){
+        auto& lab=host->enemyPhysicsLab;
+        const auto reset=[&](){const auto tuning=lab.tuning;host->game.debugStartZombieV1Benchmark();host->game.setEnemyLabVariant(gameplay::EnemyLabVariant::FeralHybrid);host->game.setEnemyIntentionMode(gameplay::EnemyIntentionMode::RelentlessZombie);host->game.setEnemyPhysicsLabTuning(tuning);host->enemyPhysicsLabTime=0.0;};
+        if(key==GLFW_KEY_SPACE){lab.paused=!lab.paused;host->enemyPhysicsLabStep=false;return;}
+        if(key==GLFW_KEY_N){lab.paused=true;host->enemyPhysicsLabStep=true;return;}
+        if(key==GLFW_KEY_R){reset();return;}
+        if(key==GLFW_KEY_UP){lab.selected=(lab.selected+5)%6;return;}
+        if(key==GLFW_KEY_DOWN){lab.selected=(lab.selected+1)%6;return;}
+        if(key==GLFW_KEY_1||key==GLFW_KEY_2||key==GLFW_KEY_3){lab.scenario=key-GLFW_KEY_1;reset();return;}
+        if(key==GLFW_KEY_4){host->game.debugApplyEnemyImpulse(0,{3.2f,0.0f,0.0f});return;}
+        if(key==GLFW_KEY_5){host->game.debugApplyEnemyImpulse(0,{5.8f,0.0f,2.2f});return;}
+        if(key==GLFW_KEY_LEFT||key==GLFW_KEY_RIGHT){
+            const float direction=key==GLFW_KEY_RIGHT?1.0f:-1.0f;
+            float* value=nullptr;float step=0.05f,minimum=0.20f,maximum=3.0f;
+            switch(lab.selected){
+                case 0:value=&lab.tuning.speedScale;break;
+                case 1:value=&lab.tuning.stanceAccelerationScale;break;
+                case 2:value=&lab.tuning.trajectoryTurnScale;break;
+                case 3:value=&lab.tuning.strideScale;minimum=0.45f;maximum=1.65f;break;
+                case 4:value=&lab.tuning.swingDurationScale;minimum=0.45f;maximum=1.80f;break;
+                case 5:value=&lab.tuning.maximumLegReach;step=0.01f;minimum=0.35f;maximum=0.85f;break;
+            }
+            if(value)*value=clampf(*value+direction*step,minimum,maximum);
+            host->game.setEnemyPhysicsLabTuning(lab.tuning);return;
+        }
+    }
     if(action==GLFW_PRESS&&host->game.state().attractMode){host->game.dismissAttractMode();setMouseCaptured(window,*host,false);return;}
 
     if(action==GLFW_PRESS&&host->game.state().localSettings.rebindingAction>=0){auto& settings=host->game.networkMutableState().localSettings;if(key==GLFW_KEY_ESCAPE){settings.rebindingAction=-1;return;}const int actionIndex=settings.rebindingAction;int conflict=-1;for(int i=0;i<9;++i)if(i!=actionIndex&&settings.keyboardBindings[i]==key){conflict=i;break;}const int old=settings.keyboardBindings[actionIndex];settings.keyboardBindings[actionIndex]=key;if(conflict>=0)settings.keyboardBindings[conflict]=old;settings.rebindingAction=-1;host->audio.playMenuCue(true);return;}
@@ -1478,6 +1507,7 @@ void printUsage() {
     std::printf("  --enemy-motor NAME   Select relentless (default) or existing intention authority.\n");
     std::printf("  --zombie-v1-benchmark  Start flat ground with one DATA and one zombie.\n");
     std::printf("  --zombie-debug       Draw intention, velocity, support, foot-target, and COM evidence.\n");
+    std::printf("  --enemy-physics-lab  Open the live one-enemy locomotion tuning harness.\n");
     std::printf("  --automation-playtest  Keep local play running across automation focus changes.\n");
     std::printf("  --room-inspector     Cycle deterministic room premises for playtesting.\n");
     std::printf("  --room-inspector-premise N  Select a fixed inspector premise for deterministic capture.\n");
@@ -2010,6 +2040,7 @@ int main(int argc, char** argv) {
         else {std::fprintf(stderr,"ENEMY_MOTOR_INVALID value=%s\n",value);return 2;}
     }
     const bool zombieV1Benchmark=hasArg(argc,argv,"--zombie-v1-benchmark");
+    const bool enemyPhysicsLab=hasArg(argc,argv,"--enemy-physics-lab");
     const bool zombieDebug=hasArg(argc,argv,"--zombie-debug");
     const bool automationPlaytest=hasArg(argc,argv,"--automation-playtest");
     const bool agentPlaytest=hasArg(argc,argv,"--agent-playtest");
@@ -2151,7 +2182,8 @@ int main(int argc, char** argv) {
         host.game.debugStartRallyLab();
         std::printf("RALLY_LAB_READY souls=1 enemies=0 controls=Q/F/Space+F/vacuum\n");
     }
-    if(zombieV1Benchmark){host.game.debugStartZombieV1Benchmark();std::printf("ZOMBIE_V1_BENCHMARK_READY enemies=1 terrain=flat data_distance=10\n");}
+    if(zombieV1Benchmark||enemyPhysicsLab){host.game.debugStartZombieV1Benchmark();std::printf("ZOMBIE_V1_BENCHMARK_READY enemies=1 terrain=flat data_distance=10\n");}
+    if(enemyPhysicsLab){host.enemyPhysicsLab.active=true;host.codec.showZombieDiagnostics=true;host.game.setEnemyLabVariant(gameplay::EnemyLabVariant::FeralHybrid);host.game.setEnemyIntentionMode(gameplay::EnemyIntentionMode::RelentlessZombie);host.game.setEnemyPhysicsLabTuning(host.enemyPhysicsLab.tuning);std::printf("ENEMY_PHYSICS_LAB_READY pause=SPACE step=N reset=R scenarios=1/2/3 impulses=4/5 tune=ARROWS\n");}
     if(captureVictory){
         GameState& fixture=host.game.networkMutableState();
         fixture.started=true;fixture.attractMode=false;fixture.cinematic.introActive=false;fixture.uiPaused=false;
@@ -2464,7 +2496,8 @@ int main(int argc, char** argv) {
         const auto now = std::chrono::steady_clock::now();
         const double elapsed = std::chrono::duration<double>(now - previous).count();
         previous = now;
-        if (!capturePath&&!captureDemo) simulationAccumulator += std::min(elapsed, MAX_FRAME_DELTA_SECONDS);
+        if (!capturePath&&!captureDemo&&(!host.enemyPhysicsLab.active||!host.enemyPhysicsLab.paused)) simulationAccumulator += std::min(elapsed, MAX_FRAME_DELTA_SECONDS);
+        if(host.enemyPhysicsLab.active&&host.enemyPhysicsLab.paused&&host.enemyPhysicsLabStep)simulationAccumulator=SIMULATION_STEP_SECONDS;
 
         const DesktopGamepadInput gamepad=pollGamepad(window,host);
         if(host.game.state().attractMode&&(std::abs(gamepad.moveX)>0.25f||std::abs(gamepad.moveZ)>0.25f||std::abs(gamepad.lookX)>0.25f||std::abs(gamepad.lookY)>0.25f||gamepad.vacuumHeld||gamepad.sprintHeld||gamepad.jumpPressed||gamepad.meleePressed||gamepad.shootPressed||gamepad.cameraPressed||gamepad.dodgePressed)){
@@ -2540,20 +2573,28 @@ int main(int argc, char** argv) {
 
         int simulationSteps=0;
         bool droppedAccumulator=false;
-        if (capturePath||captureDemo) {
-            previousCamera = host.game.state().camera;
-            previousPhoneTransform = host.game.state().phoneTransform;
-            previousPresentation = capturePresentation(host.game.state());
+        const auto updateSimulation=[&](){
+            previousCamera=host.game.state().camera;previousPhoneTransform=host.game.state().phoneTransform;previousPresentation=capturePresentation(host.game.state());
+            if(host.enemyPhysicsLab.active){
+                auto& fixture=host.game.networkMutableState();const float phase=static_cast<float>(host.enemyPhysicsLabTime);
+                const float dataY=fixture.player.pos.y;
+                if(host.enemyPhysicsLab.scenario==0)fixture.player.pos={0.0f,dataY,5.0f};
+                else if(host.enemyPhysicsLab.scenario==1)fixture.player.pos={std::sin(phase*0.85f)*4.0f,dataY,2.0f+std::cos(phase*0.85f)*4.0f};
+                else fixture.player.pos={std::sin(phase*0.62f)*6.0f,dataY,5.0f};
+                fixture.player.vel={};host.game.setEnemyPhysicsLabTuning(host.enemyPhysicsLab.tuning);
+            }
             host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));
+            if(host.enemyPhysicsLab.active)host.enemyPhysicsLabTime+=SIMULATION_STEP_SECONDS;
+        };
+        if (capturePath||captureDemo) {
+            updateSimulation();
             simulationSteps=1;
         } else {
             while (simulationAccumulator >= SIMULATION_STEP_SECONDS && simulationSteps < MAX_SIMULATION_STEPS_PER_FRAME) {
-                previousCamera = host.game.state().camera;
-                previousPhoneTransform = host.game.state().phoneTransform;
-                previousPresentation = capturePresentation(host.game.state());
-                host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));
+                updateSimulation();
                 simulationAccumulator -= SIMULATION_STEP_SECONDS;
                 ++simulationSteps;
+                if(host.enemyPhysicsLab.active&&host.enemyPhysicsLab.paused){host.enemyPhysicsLabStep=false;break;}
             }
             if (simulationSteps == MAX_SIMULATION_STEPS_PER_FRAME && simulationAccumulator >= SIMULATION_STEP_SECONDS){
                 droppedAccumulator=true;
@@ -2653,7 +2694,8 @@ int main(int argc, char** argv) {
         }
         const auto renderBegin=std::chrono::steady_clock::now();
         host.renderer.draw(renderState,&host.codec,&host.game.enemyPerceptions(),
-            &host.game.zombieV1Telemetry(),host.codec.showZombieDiagnostics);
+            &host.game.zombieV1Telemetry(),host.codec.showZombieDiagnostics,
+            host.enemyPhysicsLab.active?&host.enemyPhysicsLab:nullptr);
         if(host.automationCaptureDelayFrames>0&&--host.automationCaptureDelayFrames==0){
             glFinish();
             const auto path=automationPlaytestCapturePath();
