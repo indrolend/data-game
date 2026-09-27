@@ -374,6 +374,7 @@ PhoneDisplayMode phoneDisplayModeForState(const GameState& state) {
             case LocalMenuPage::Controls: return PhoneDisplayMode::Controls;
             case LocalMenuPage::Audio: return PhoneDisplayMode::Audio;
             case LocalMenuPage::Graphics: return PhoneDisplayMode::Graphics;
+            case LocalMenuPage::Developer: return PhoneDisplayMode::Settings;
         }
     }
     return state.hud.lowBattery ? PhoneDisplayMode::Warning : PhoneDisplayMode::Gameplay;

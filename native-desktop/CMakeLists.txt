@@ -14,7 +14,7 @@ enable_testing()
 include(FetchContent)
 
 set(DB_CHANNEL "experimental" CACHE STRING "Digital Breakdown release channel")
-set(DB_SAVE_FORMAT_VERSION "4" CACHE STRING "Digital Breakdown persistent save format version")
+set(DB_SAVE_FORMAT_VERSION "5" CACHE STRING "Digital Breakdown persistent save format version")
 option(DB_STOREFRONT_RELEASE "Build the locked-down solo storefront player surface" ON)
 option(DB_ENABLE_DEVELOPER_CONSOLE "Enable the interactive in-game developer console" OFF)
 string(TIMESTAMP DB_BUILD_DATE "%Y.%m.%d" UTC)

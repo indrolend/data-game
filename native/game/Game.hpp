@@ -547,7 +547,7 @@ struct SecretTvState {
     float knockPan = 0.0f;
 };
 
-enum class LocalMenuPage : unsigned char { Main, Online, JoinCode, Settings, Controls, Audio, Graphics };
+enum class LocalMenuPage : unsigned char { Main, Online, JoinCode, Settings, Controls, Audio, Graphics, Developer };
 
 struct LocalMenuHistoryEntry {
     LocalMenuPage page = LocalMenuPage::Main;
@@ -567,6 +567,9 @@ struct LocalSettingsState {
     bool portalWindow = true;
     bool particles = true;
     bool fpsCounter = false;
+    bool developerMode = false;
+    bool developerBuildIdentity = true;
+    bool developerDiagnostics = true;
     float mouseLookSensitivity = 1.0f;
     float touchLookSensitivity = 1.0f;
     float controllerLookSensitivity = 1.15f;

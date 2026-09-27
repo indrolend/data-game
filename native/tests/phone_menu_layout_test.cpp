@@ -179,6 +179,29 @@ int main() {
     assert(selectionRow(graphics, 3).label == "Frame Rate");
     expectVisibleRowsInsideSafe(graphics);
 
+    state.localSettings.menuPage = LocalMenuPage::Settings;
+    state.localSettings.developerMode = false;
+    PhoneMenuPageViewModel settings = makePhoneMenuPageModel(state);
+    assert(settings.selectableCount == 5);
+    assert(selectionElement(settings, 3).action == PhoneMenuAction::ToggleDeveloperMode);
+    assert(selectionElement(settings, 3).value == "Off");
+    assert(selectionElement(settings, 4).action == PhoneMenuAction::Back);
+
+    state.localSettings.developerMode = true;
+    settings = makePhoneMenuPageModel(state);
+    assert(settings.selectableCount == 6);
+    assert(selectionElement(settings, 3).value == "On");
+    assert(selectionElement(settings, 4).action == PhoneMenuAction::DeveloperTools);
+    state.localSettings.menuPage = LocalMenuPage::Developer;
+    PhoneMenuPageViewModel developer = makePhoneMenuPageModel(state);
+    assert(developer.title == "Developer Tools");
+    assert(developer.tablePage);
+    assert(selectionElement(developer, 0).action == PhoneMenuAction::ToggleBuildIdentity);
+    assert(selectionElement(developer, 1).action == PhoneMenuAction::ToggleDeveloperDiagnostics);
+    assert(selectionElement(developer, 2).action == PhoneMenuAction::OpenDeveloperConsole);
+    assert(selectionElement(developer, 3).action == PhoneMenuAction::LaunchEnemyPhysicsLab);
+    assert(selectionElement(developer, developer.selectableCount - 1).action == PhoneMenuAction::Back);
+
     assert(phoneMenuCycleIndex(0, 1, 3) == 1);
     assert(phoneMenuCycleIndex(2, 1, 3) == 0);
     assert(phoneMenuCycleIndex(0, -1, 3) == 2);

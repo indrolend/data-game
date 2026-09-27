@@ -37,6 +37,16 @@ enum class PhoneMenuAction : unsigned char {
     ToggleShadows,
     ToggleParticles,
     ToggleFps,
+    ToggleDeveloperMode,
+    DeveloperTools,
+    ToggleBuildIdentity,
+    ToggleDeveloperDiagnostics,
+    OpenDeveloperConsole,
+    LaunchEnemyPhysicsLab,
+    LaunchRoomInspector,
+    LaunchTraversalLab,
+    LaunchRallyLab,
+    LaunchCartLab,
     CheckUpdates,
     Restart
 };
@@ -180,6 +190,7 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuItem(page, "Controls", PhoneMenuAction::Controls);
         addPhoneMenuItem(page, "Audio", PhoneMenuAction::Audio);
         addPhoneMenuItem(page, "Graphics", PhoneMenuAction::Graphics);
+        if(state.localSettings.developerMode)addPhoneMenuItem(page, "Developer Tools", PhoneMenuAction::DeveloperTools);
         addPhoneMenuItem(page, "Exit Run", PhoneMenuAction::ExitRun);
     } else if (state.localSettings.menuPage == LocalMenuPage::Main) {
         addPhoneMenuItem(page, "Play", PhoneMenuAction::Solo);
@@ -215,6 +226,8 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuItem(page, "Controls", PhoneMenuAction::Controls);
         addPhoneMenuItem(page, "Audio", PhoneMenuAction::Audio);
         addPhoneMenuItem(page, "Graphics", PhoneMenuAction::Graphics);
+        addPhoneMenuToggle(page, "Developer Mode", state.localSettings.developerMode, PhoneMenuAction::ToggleDeveloperMode);
+        if(state.localSettings.developerMode)addPhoneMenuItem(page, "Developer Tools", PhoneMenuAction::DeveloperTools);
         if (PhoneMenuSelfUpdateAvailable) addPhoneMenuItem(page, "Check Updates", PhoneMenuAction::CheckUpdates);
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else if (state.localSettings.menuPage == LocalMenuPage::Controls) {
@@ -246,7 +259,7 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuToggle(page, "Music", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
         addPhoneMenuToggle(page, "Sound Effects", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
-    } else {
+    } else if(state.localSettings.menuPage == LocalMenuPage::Graphics) {
         const char* presets[] = {"Legacy", "Normal", "Pretty"};
         page.title = "Graphics";
         page.tablePage = true;
@@ -254,6 +267,19 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuToggle(page, "Shadows", state.localSettings.shadows, PhoneMenuAction::ToggleShadows);
         addPhoneMenuToggle(page, "Particles", state.localSettings.particles, PhoneMenuAction::ToggleParticles);
         addPhoneMenuToggle(page, "Frame Rate", state.localSettings.fpsCounter, PhoneMenuAction::ToggleFps);
+        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
+    } else {
+        page.title = "Developer Tools";
+        page.tablePage = true;
+        addPhoneMenuToggle(page, "Build SHA", state.localSettings.developerBuildIdentity, PhoneMenuAction::ToggleBuildIdentity);
+        addPhoneMenuToggle(page, "Diagnostics", state.localSettings.developerDiagnostics, PhoneMenuAction::ToggleDeveloperDiagnostics);
+        addPhoneMenuItem(page, "Command Console", PhoneMenuAction::OpenDeveloperConsole);
+        addPhoneMenuSection(page, "System Labs");
+        addPhoneMenuItem(page, "Enemy Physics", PhoneMenuAction::LaunchEnemyPhysicsLab);
+        addPhoneMenuItem(page, "Room Inspector", PhoneMenuAction::LaunchRoomInspector);
+        addPhoneMenuItem(page, "Traversal", PhoneMenuAction::LaunchTraversalLab);
+        addPhoneMenuItem(page, "Rally", PhoneMenuAction::LaunchRallyLab);
+        addPhoneMenuItem(page, "Cart", PhoneMenuAction::LaunchCartLab);
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     }
     return page;

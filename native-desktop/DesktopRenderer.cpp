@@ -1,4 +1,5 @@
 #include "DesktopRenderer.hpp"
+#include "BuildIdentity.hpp"
 #include "ShoppingCartGeometry.hpp"
 #include "HumanVisual.hpp"
 #include "BitmapFont.hpp"
@@ -727,6 +728,9 @@ std::uint64_t phoneDisplayRenderKey(const GameState& state) {
     hashPhoneDisplayValue(hash, state.localSettings.shadows ? 1u : 0u);
     hashPhoneDisplayValue(hash, state.localSettings.particles ? 1u : 0u);
     hashPhoneDisplayValue(hash, state.localSettings.fpsCounter ? 1u : 0u);
+    hashPhoneDisplayValue(hash, state.localSettings.developerMode ? 1u : 0u);
+    hashPhoneDisplayValue(hash, state.localSettings.developerBuildIdentity ? 1u : 0u);
+    hashPhoneDisplayValue(hash, state.localSettings.developerDiagnostics ? 1u : 0u);
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(0, state.localSettings.graphicsPreset)));
     hashPhoneDisplayFloat(hash, state.localSettings.musicVolume, 100.0f);
     hashPhoneDisplayFloat(hash, state.localSettings.sfxVolume, 100.0f);
@@ -1115,6 +1119,14 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     const float menuUiScale=clampf(std::min(static_cast<float>(width_)/1280.0f,static_cast<float>(height_)/720.0f),0.55f,1.8f);
     const float menuCanvasW=static_cast<float>(width_)/menuUiScale,menuCanvasH=static_cast<float>(height_)/menuUiScale;
     if(state.localSettings.fpsCounter){const std::string fps="FPS "+std::to_string(static_cast<int>(std::round(displayedFps)));text(fps,width_-fps.size()*7.2f-12,68,1.2f,0.72f,1.0f,0.90f);}
+    if(state.localSettings.developerMode&&state.localSettings.developerBuildIdentity){
+        const auto& build=desktopBuildIdentity();
+        const std::string badge="DEV  "+build.commitShort+"  "+build.buildConfiguration;
+        const float scale=1.05f,w=badge.size()*6.0f*scale+16.0f,x=width_-w-12.0f;
+        quad(x,12.0f,w,23.0f,0.005f,0.012f,0.016f,0.72f);
+        quad(x,12.0f,2.0f,23.0f,Pass7Visual::AcidChartreuse.r,Pass7Visual::AcidChartreuse.g,Pass7Visual::AcidChartreuse.b,0.88f);
+        text(badge,x+9.0f,19.0f,scale,0.72f,1.0f,0.82f,0.95f);
+    }
     if(state.attractMode){
         const float cx=width_*0.5f;
         const float exitLinear=state.cinematic.attractExitActive?clampf(state.cinematic.attractExitElapsed/0.62f,0.0f,1.0f):0.0f;

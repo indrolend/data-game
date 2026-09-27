@@ -83,7 +83,9 @@ bool samePersistentSettings(const LocalSettingsState& a,const LocalSettingsState
         a.musicMuted==b.musicMuted&&a.sfxMuted==b.sfxMuted&&
         a.graphicsPreset==b.graphicsPreset&&a.shadows==b.shadows&&
         a.portalWindow==b.portalWindow&&a.particles==b.particles&&
-        a.fpsCounter==b.fpsCounter&&a.mouseLookSensitivity==b.mouseLookSensitivity&&
+        a.fpsCounter==b.fpsCounter&&a.developerMode==b.developerMode&&
+        a.developerBuildIdentity==b.developerBuildIdentity&&a.developerDiagnostics==b.developerDiagnostics&&
+        a.mouseLookSensitivity==b.mouseLookSensitivity&&
         a.touchLookSensitivity==b.touchLookSensitivity&&
         a.controllerLookSensitivity==b.controllerLookSensitivity&&
         a.controllerTriggerSensitivity==b.controllerTriggerSensitivity&&
@@ -142,6 +144,8 @@ struct HostState {
     bool enemyPhysicsLabStep=false;
     double enemyPhysicsLabTime=0.0;
 };
+
+void setDeveloperCodecOpen(GLFWwindow* window,HostState& host,bool open);
 
 struct DesktopGamepadInput {
     float moveX = 0.0f;
@@ -244,12 +248,13 @@ std::filesystem::path legacyTemporaryProgressionSavePath(){return std::filesyste
 std::filesystem::path progressionBackupPath(const std::filesystem::path& path){return path.wstring()+L".bak";}
 bool loadProgression(Game& game,const std::filesystem::path& path){
     std::ifstream input(path);std::string magic;int version=0,shot=0,lunge=0,attack=0;long long tokens=0;
-    if(!(input>>magic>>version>>tokens>>shot>>lunge>>attack)||magic!="DBPROG"||version<1||version>4)return false;
+    if(!(input>>magic>>version>>tokens>>shot>>lunge>>attack)||magic!="DBPROG"||version<1||version>5)return false;
     LocalSettingsState settings=game.state().localSettings;
     if(version>=2){
         if(!(input>>settings.musicVolume>>settings.sfxVolume>>settings.musicMuted>>settings.sfxMuted>>settings.graphicsPreset>>settings.shadows>>settings.portalWindow>>settings.particles>>settings.fpsCounter>>settings.mouseLookSensitivity>>settings.touchLookSensitivity>>settings.controllerLookSensitivity))return false;
         if(version>=3&&!(input>>settings.controllerTriggerSensitivity))return false;
         if(version>=4&&!(input>>settings.controllerVibration))return false;
+        if(version>=5&&!(input>>settings.developerMode>>settings.developerBuildIdentity>>settings.developerDiagnostics))return false;
         for(int& key:settings.keyboardBindings)if(!(input>>key))return false;
         // Repair known historical default layouts without overwriting valid
         // custom bindings. Some version-2 builds wrote two settings values in
@@ -282,7 +287,7 @@ bool saveProgression(const PermanentProgressionState& progression,const LocalSet
         if(error)return false;
     }
     const std::filesystem::path temporary=path.wstring()+L".tmp";
-    {std::ofstream output(temporary,std::ios::trunc);if(!output)return false;output<<"DBPROG 4 "<<progression.tokens<<' '<<progression.levels[0]<<' '<<progression.levels[1]<<' '<<progression.levels[2]<<' '<<settings.musicVolume<<' '<<settings.sfxVolume<<' '<<settings.musicMuted<<' '<<settings.sfxMuted<<' '<<settings.graphicsPreset<<' '<<settings.shadows<<' '<<settings.portalWindow<<' '<<settings.particles<<' '<<settings.fpsCounter<<' '<<settings.mouseLookSensitivity<<' '<<settings.touchLookSensitivity<<' '<<settings.controllerLookSensitivity<<' '<<settings.controllerTriggerSensitivity<<' '<<settings.controllerVibration;for(int key:settings.keyboardBindings)output<<' '<<key;output<<'\n';output.flush();if(!output)return false;}
+    {std::ofstream output(temporary,std::ios::trunc);if(!output)return false;output<<"DBPROG 5 "<<progression.tokens<<' '<<progression.levels[0]<<' '<<progression.levels[1]<<' '<<progression.levels[2]<<' '<<settings.musicVolume<<' '<<settings.sfxVolume<<' '<<settings.musicMuted<<' '<<settings.sfxMuted<<' '<<settings.graphicsPreset<<' '<<settings.shadows<<' '<<settings.portalWindow<<' '<<settings.particles<<' '<<settings.fpsCounter<<' '<<settings.mouseLookSensitivity<<' '<<settings.touchLookSensitivity<<' '<<settings.controllerLookSensitivity<<' '<<settings.controllerTriggerSensitivity<<' '<<settings.controllerVibration<<' '<<settings.developerMode<<' '<<settings.developerBuildIdentity<<' '<<settings.developerDiagnostics;for(int key:settings.keyboardBindings)output<<' '<<key;output<<'\n';output.flush();if(!output)return false;}
     if(!replaceProgressionFile(temporary,path)){std::filesystem::remove(temporary,error);return false;}
     const std::filesystem::path backup=progressionBackupPath(path),backupTemporary=backup.wstring()+L".tmp";
     error.clear();
@@ -309,11 +314,14 @@ int runSaveRoundtripTest(){
     settings.graphicsPreset=2;settings.shadows=true;settings.portalWindow=false;settings.particles=true;settings.fpsCounter=true;
     settings.mouseLookSensitivity=1.30f;settings.touchLookSensitivity=0.80f;settings.controllerLookSensitivity=1.45f;
     settings.controllerTriggerSensitivity=2;settings.controllerVibration=2;
+    settings.developerMode=true;settings.developerBuildIdentity=false;settings.developerDiagnostics=true;
     settings.keyboardBindings[0]=73;settings.keyboardBindings[9]=88;
     LocalSettingsState transientSettings=settings;transientSettings.menuPage=LocalMenuPage::Controls;transientSettings.menuScroll=280.0f;transientSettings.menuHistoryDepth=2;transientSettings.rebindingAction=4;
     LocalSettingsState changedSettings=settings;changedSettings.sfxVolume=0.21f;
     LocalSettingsState reboundSettings=settings;reboundSettings.keyboardBindings[3]=74;
-    const bool dirtyDetectionOk=samePersistentSettings(settings,transientSettings)&&!samePersistentSettings(settings,changedSettings)&&!samePersistentSettings(settings,reboundSettings);
+    LocalSettingsState developerChanged=settings;developerChanged.developerMode=false;
+    const bool dirtyDetectionOk=samePersistentSettings(settings,transientSettings)&&!samePersistentSettings(settings,changedSettings)&&
+        !samePersistentSettings(settings,reboundSettings)&&!samePersistentSettings(settings,developerChanged);
     if(!saveProgression(source.state().progression.permanent,settings,path)){std::printf("SAVE_ROUNDTRIP_FAILED write\n");return 1;}
     Game restored;
     const bool loaded=loadProgression(restored,path);
@@ -325,15 +333,16 @@ int runSaveRoundtripTest(){
         !loadedSettings.portalWindow&&loadedSettings.particles&&loadedSettings.fpsCounter&&
         std::abs(loadedSettings.mouseLookSensitivity-1.30f)<0.001f&&std::abs(loadedSettings.touchLookSensitivity-0.80f)<0.001f&&
         std::abs(loadedSettings.controllerLookSensitivity-1.45f)<0.001f&&loadedSettings.controllerTriggerSensitivity==2&&
-        loadedSettings.controllerVibration==2&&loadedSettings.keyboardBindings[0]==73&&loadedSettings.keyboardBindings[9]==88;
+        loadedSettings.controllerVibration==2&&loadedSettings.developerMode&&!loadedSettings.developerBuildIdentity&&
+        loadedSettings.developerDiagnostics&&loadedSettings.keyboardBindings[0]==73&&loadedSettings.keyboardBindings[9]==88;
     const auto legacyLoads=[&](int version){
-        {std::ofstream legacy(path,std::ios::trunc);legacy<<"DBPROG "<<version<<" 23 1 2 3";if(version>=2){legacy<<" 0.4 0.6 1 0 1 0 1 1 0 1.2 0.9 1.4";if(version>=3)legacy<<" 2";for(int key:settings.keyboardBindings)legacy<<' '<<key;}legacy<<'\n';}
+        {std::ofstream legacy(path,std::ios::trunc);legacy<<"DBPROG "<<version<<" 23 1 2 3";if(version>=2){legacy<<" 0.4 0.6 1 0 1 0 1 1 0 1.2 0.9 1.4";if(version>=3)legacy<<" 2";if(version>=4)legacy<<" 2";for(int key:settings.keyboardBindings)legacy<<' '<<key;}legacy<<'\n';}
         Game legacyGame;if(!loadProgression(legacyGame,path))return false;const auto& legacyState=legacyGame.state();
         return legacyState.progression.permanent.tokens==23&&legacyState.progression.permanent.levels==std::array<int,3>{1,2,3}&&
             (version<2||(std::abs(legacyState.localSettings.musicVolume-0.4f)<0.001f&&legacyState.localSettings.keyboardBindings[0]==73))&&
             (version<3||legacyState.localSettings.controllerTriggerSensitivity==2);
     };
-    const bool legacyVersionsOk=legacyLoads(1)&&legacyLoads(2)&&legacyLoads(3);
+    const bool legacyVersionsOk=legacyLoads(1)&&legacyLoads(2)&&legacyLoads(3)&&legacyLoads(4);
     LocalSettingsState mistakenDefaults=settings;
     mistakenDefaults.keyboardBindings={{87,83,65,68,340,32,67,81,86,70}};
     const bool mistakenDefaultsWritten=saveProgression(source.state().progression.permanent,mistakenDefaults,path);
@@ -361,7 +370,7 @@ int runSaveRoundtripTest(){
     Game futureRejected;const bool futureRejectedOk=!loadProgression(futureRejected,path);
     const bool allValid=matches&&dirtyDetectionOk&&legacyVersionsOk&&mistakenDefaultsMigrated&&shiftedDefaultsMigrated&&defaultActionsRouted&&corruptRejected&&recoveredOk&&primaryRepaired&&futureRejectedOk;
     std::error_code cleanupError;std::filesystem::remove(path,cleanupError);std::filesystem::remove(progressionBackupPath(path),cleanupError);std::filesystem::remove(root,cleanupError);
-    std::printf("SAVE_ROUNDTRIP_%s format=4 dirty_detection=%d legacy_versions=%d default_bindings_migrated=%d shifted_bindings_migrated=%d default_actions_routed=%d corruption_rejected=%d backup_recovered=%d primary_repaired=%d future_rejected=%d\n",allValid?"OK":"FAILED",dirtyDetectionOk?1:0,legacyVersionsOk?1:0,mistakenDefaultsMigrated?1:0,shiftedDefaultsMigrated?1:0,defaultActionsRouted?1:0,corruptRejected?1:0,recoveredOk?1:0,primaryRepaired?1:0,futureRejectedOk?1:0);
+    std::printf("SAVE_ROUNDTRIP_%s format=5 dirty_detection=%d legacy_versions=%d default_bindings_migrated=%d shifted_bindings_migrated=%d default_actions_routed=%d corruption_rejected=%d backup_recovered=%d primary_repaired=%d future_rejected=%d\n",allValid?"OK":"FAILED",dirtyDetectionOk?1:0,legacyVersionsOk?1:0,mistakenDefaultsMigrated?1:0,shiftedDefaultsMigrated?1:0,defaultActionsRouted?1:0,corruptRejected?1:0,recoveredOk?1:0,primaryRepaired?1:0,futureRejectedOk?1:0);
     return allValid?0:1;
 }
 
@@ -610,7 +619,7 @@ bool adjustMenuSetting(HostState& host,int direction){
     state.cinematic.textInteraction=0.65f;
     return true;
 }
-bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;switch(selectedPhoneAction(state)){case PhoneMenuAction::MusicMute:settings.musicMuted=!settings.musicMuted;break;case PhoneMenuAction::SfxMute:settings.sfxMuted=!settings.sfxMuted;break;case PhoneMenuAction::ToggleShadows:settings.shadows=!settings.shadows;break;case PhoneMenuAction::ToggleParticles:settings.particles=!settings.particles;break;case PhoneMenuAction::ToggleFps:settings.fpsCounter=!settings.fpsCounter;break;default:return false;}state.cinematic.textInteraction=0.65f;return true;}
+bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;switch(selectedPhoneAction(state)){case PhoneMenuAction::MusicMute:settings.musicMuted=!settings.musicMuted;break;case PhoneMenuAction::SfxMute:settings.sfxMuted=!settings.sfxMuted;break;case PhoneMenuAction::ToggleShadows:settings.shadows=!settings.shadows;break;case PhoneMenuAction::ToggleParticles:settings.particles=!settings.particles;break;case PhoneMenuAction::ToggleFps:settings.fpsCounter=!settings.fpsCounter;break;case PhoneMenuAction::ToggleDeveloperMode:settings.developerMode=!settings.developerMode;if(!settings.developerMode){host.codec.open=false;host.codec.showColliders=false;host.codec.showZombieDiagnostics=false;host.enemyPhysicsLab.active=false;}break;case PhoneMenuAction::ToggleBuildIdentity:if(!settings.developerMode)return false;settings.developerBuildIdentity=!settings.developerBuildIdentity;break;case PhoneMenuAction::ToggleDeveloperDiagnostics:if(!settings.developerMode)return false;settings.developerDiagnostics=!settings.developerDiagnostics;host.codec.showZombieDiagnostics=settings.developerDiagnostics;break;default:return false;}state.cinematic.textInteraction=0.65f;return true;}
 
 void setMenuSelection(HostState& host,int selection) {
     const int count=menuItemCount(host.game.state());
@@ -675,6 +684,29 @@ int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double wi
     return -1;
 }
 
+void startEnemyPhysicsLab(GLFWwindow* window,HostState& host){
+    host.game.debugStartZombieV1Benchmark();
+    host.game.setEnemyLabVariant(gameplay::EnemyLabVariant::FeralHybrid);
+    host.game.setEnemyIntentionMode(gameplay::EnemyIntentionMode::RelentlessZombie);
+    host.enemyPhysicsLab=EnemyPhysicsLabOverlay{};host.enemyPhysicsLab.active=true;
+    host.enemyPhysicsLabTime=0.0;host.enemyPhysicsLabStep=false;
+    host.game.setEnemyPhysicsLabTuning(host.enemyPhysicsLab.tuning);
+    host.codec.showZombieDiagnostics=host.game.state().localSettings.developerDiagnostics;
+    setMouseCaptured(window,host,true);
+}
+
+bool activateDeveloperTool(GLFWwindow* window,HostState& host,PhoneMenuAction action){
+    if(!host.game.state().localSettings.developerMode)return false;
+    if(action==PhoneMenuAction::DeveloperTools){pushMenuPage(host,LocalMenuPage::Developer);return true;}
+    if(action==PhoneMenuAction::OpenDeveloperConsole){setDeveloperCodecOpen(window,host,true);return true;}
+    if(action==PhoneMenuAction::LaunchEnemyPhysicsLab){startEnemyPhysicsLab(window,host);return true;}
+    if(action==PhoneMenuAction::LaunchRoomInspector){host.game.debugStartRoomInspector();host.codec.showZombieDiagnostics=false;setMouseCaptured(window,host,true);return true;}
+    if(action==PhoneMenuAction::LaunchTraversalLab){host.game.debugStartTraversalLab();host.codec.showZombieDiagnostics=false;setMouseCaptured(window,host,true);return true;}
+    if(action==PhoneMenuAction::LaunchRallyLab){host.game.debugStartRallyLab();host.codec.showZombieDiagnostics=false;setMouseCaptured(window,host,true);return true;}
+    if(action==PhoneMenuAction::LaunchCartLab){host.game.debugStartCartLab();host.codec.showZombieDiagnostics=false;setMouseCaptured(window,host,true);return true;}
+    return false;
+}
+
 void activateMenuSelection(GLFWwindow* window,HostState& host) {
     GameState& state=host.game.networkMutableState();const int selection=state.hud.menuSelection;state.cinematic.textInteraction=0.42f;
     host.audio.playMenuCue(true);
@@ -695,6 +727,7 @@ void activateMenuSelection(GLFWwindow* window,HostState& host) {
         else if(row.action==PhoneMenuAction::Controls)pushMenuPage(host,LocalMenuPage::Controls);
         else if(row.action==PhoneMenuAction::Audio)pushMenuPage(host,LocalMenuPage::Audio);
         else if(row.action==PhoneMenuAction::Graphics)pushMenuPage(host,LocalMenuPage::Graphics);
+        else if(activateDeveloperTool(window,host,row.action)){}
         else if(row.action==PhoneMenuAction::ExitRun){host.multiplayer.disconnect();host.game.prepareStartScreen();setMouseCaptured(window,host,false);openMenuRoot(host);}
         else if(row.action==PhoneMenuAction::Back){if(!popMenuPage(host))setMouseCaptured(window,host,true);}
         else if(row.action==PhoneMenuAction::Rebind&&row.bindingAction>=0){settings.rebindingAction=row.bindingAction;}
@@ -717,6 +750,7 @@ void activateMenuSelection(GLFWwindow* window,HostState& host) {
         else if(action==PhoneMenuAction::Controls)pushMenuPage(host,LocalMenuPage::Controls);
         else if(action==PhoneMenuAction::Audio)pushMenuPage(host,LocalMenuPage::Audio);
         else if(action==PhoneMenuAction::Graphics)pushMenuPage(host,LocalMenuPage::Graphics);
+        else if(activateDeveloperTool(window,host,action)){}
         else if(action==PhoneMenuAction::CheckUpdates)host.updater.checkForUpdates(desktopBuildIdentity());
         else if(action==PhoneMenuAction::Back){
             if(host.multiplayer.role()!=DesktopMultiplayer::Role::Offline)host.multiplayer.disconnect();
@@ -1046,7 +1080,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     if (!host) return;
     if(action==GLFW_PRESS&&host->playtestPolicy.automation)host->automationCaptureDelayFrames=8;
 #if DB_ENABLE_DEVELOPER_CONSOLE
-    if(key==GLFW_KEY_GRAVE_ACCENT&&action==GLFW_PRESS){setDeveloperCodecOpen(window,*host,!host->codec.open);return;}
+    if(key==GLFW_KEY_GRAVE_ACCENT&&action==GLFW_PRESS&&host->game.state().localSettings.developerMode){setDeveloperCodecOpen(window,*host,!host->codec.open);return;}
 #endif
     if(host->codec.open){
         if(action!=GLFW_PRESS&&action!=GLFW_REPEAT)return;
@@ -2145,7 +2179,8 @@ int main(int argc, char** argv) {
     host.game.reset();
     host.game.setEnemyLabVariant(enemyLabVariant);
     host.game.setEnemyIntentionMode(enemyIntentionMode);
-    host.codec.showZombieDiagnostics=zombieDebug;
+    host.codec.showZombieDiagnostics=zombieDebug||
+        (host.game.state().localSettings.developerMode&&host.game.state().localSettings.developerDiagnostics);
     std::printf("ENEMY_VARIANT_SELECTED name=%s\n",gameplay::enemyLabVariantName(enemyLabVariant).data());
     std::printf("ENEMY_MOTOR_SELECTED name=%s\n",enemyIntentionMode==gameplay::EnemyIntentionMode::RelentlessZombie?"relentless":"existing");
     if((!capturePath&&!captureDemo&&!agentPlaytest)||captureStart)host.game.prepareAttractScreen();
@@ -2183,7 +2218,7 @@ int main(int argc, char** argv) {
         std::printf("RALLY_LAB_READY souls=1 enemies=0 controls=Q/F/Space+F/vacuum\n");
     }
     if(zombieV1Benchmark||enemyPhysicsLab){host.game.debugStartZombieV1Benchmark();std::printf("ZOMBIE_V1_BENCHMARK_READY enemies=1 terrain=flat data_distance=10\n");}
-    if(enemyPhysicsLab){host.enemyPhysicsLab.active=true;host.codec.showZombieDiagnostics=true;host.game.setEnemyLabVariant(gameplay::EnemyLabVariant::FeralHybrid);host.game.setEnemyIntentionMode(gameplay::EnemyIntentionMode::RelentlessZombie);host.game.setEnemyPhysicsLabTuning(host.enemyPhysicsLab.tuning);std::printf("ENEMY_PHYSICS_LAB_READY pause=SPACE step=N reset=R scenarios=1/2/3 impulses=4/5 tune=ARROWS\n");}
+    if(enemyPhysicsLab){auto& settings=host.game.networkMutableState().localSettings;settings.developerMode=true;settings.developerDiagnostics=true;host.enemyPhysicsLab.active=true;host.codec.showZombieDiagnostics=true;host.game.setEnemyLabVariant(gameplay::EnemyLabVariant::FeralHybrid);host.game.setEnemyIntentionMode(gameplay::EnemyIntentionMode::RelentlessZombie);host.game.setEnemyPhysicsLabTuning(host.enemyPhysicsLab.tuning);std::printf("ENEMY_PHYSICS_LAB_READY pause=SPACE step=N reset=R scenarios=1/2/3 impulses=4/5 tune=ARROWS\n");}
     if(captureVictory){
         GameState& fixture=host.game.networkMutableState();
         fixture.started=true;fixture.attractMode=false;fixture.cinematic.introActive=false;fixture.uiPaused=false;
