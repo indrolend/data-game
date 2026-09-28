@@ -8,6 +8,7 @@
 namespace evidence {
 
 inline constexpr int EnemyObstructionTicks = 1200;
+inline constexpr int EnemyContactTicks = 60;
 inline constexpr float EnemyRadius = 0.5f;
 
 inline void configureEnemyObstruction(Game& game) {
@@ -143,6 +144,98 @@ inline const char* behaviorMode(const EnemyObstructionObservation& observation) 
     if(observation.stalledTicks>=30)return "stalled";
     if(observation.obstructionClearance<0.75f)return "routing_obstruction";
     return "pursuit";
+}
+
+inline void configureEnemyContact(Game& game) {
+    game.reset();
+    GameState& state=game.networkMutableState();
+    state.started=true;
+    state.uiPaused=false;
+    state.attractMode=false;
+    state.roomClear=true;
+    state.requiredSouls=0;
+    state.depositedSouls=0;
+    state.cinematic.introActive=false;
+    state.upgradeMenu.active=false;
+    state.localSettings.graphicsPreset=1;
+    state.localSettings.shadows=true;
+    state.localSettings.portalWindow=false;
+    state.localSettings.particles=false;
+    state.localSettings.fpsCounter=false;
+    state.localSettings.mobileFraming=false;
+    for(auto& target:state.targets)target=TargetState{};
+    for(auto& collider:state.roomColliders)collider=RoomCollider{};
+    state.debug.colliderCount=0;
+    state.enemyAttackOwner=-1;
+    state.enemyAttackCadence=0.0f;
+
+    state.player.pos={0.0f,0.08f,0.0f};
+    state.player.vel={};
+    state.player.grounded=true;
+    state.player.battery=100.0f;
+
+    TargetState& enemy=state.targets[0];
+    enemy.alive=true;
+    enemy.slurpable=false;
+    enemy.pos={-1.25f,0.08f,0.0f};
+    enemy.walkTarget=state.player.pos;
+    enemy.armor=2.0f;
+    enemy.health=1.0f;
+    enemy.attackCooldown=0.0f;
+    enemy.attackVariant=-1;
+    enemy.visibility=1.0f;
+    state.camera.firstPerson=false;
+}
+
+struct EnemyContactObservation {
+    int tick=0;
+    Vec3 enemyPosition{};
+    Vec3 enemyVelocity{};
+    Vec3 playerPosition{};
+    Vec3 playerVelocity{};
+    Vec3 attackDirection{};
+    float distance=0.0f;
+    float attackTimer=0.0f;
+    float attackProgress=0.0f;
+    float playerBattery=0.0f;
+    float batteryDelta=0.0f;
+    int attackVariant=0;
+    int attackOwner=-1;
+    bool attackActive=false;
+    bool attackHit=false;
+    bool finiteValues=true;
+};
+
+inline EnemyContactObservation observeEnemyContact(const Game& game,int tick) {
+    const GameState& state=game.state();
+    const TargetState& enemy=state.targets[0];
+    EnemyContactObservation result;
+    result.tick=tick;
+    result.enemyPosition=enemy.pos;
+    result.enemyVelocity=enemy.vel;
+    result.playerPosition=state.player.pos;
+    result.playerVelocity=state.player.vel;
+    result.attackDirection=enemy.attackDirection;
+    result.distance=horizontalLength(Vec3{state.player.pos.x-enemy.pos.x,0.0f,state.player.pos.z-enemy.pos.z});
+    result.attackTimer=enemy.attackTimer;
+    result.attackProgress=enemy.attackTimer>0.0f?1.0f-clampf(enemy.attackTimer/HUMAN_SWING_ATTACK_DURATION,0.0f,1.0f):0.0f;
+    result.playerBattery=state.player.battery;
+    result.attackVariant=enemy.attackVariant;
+    result.attackOwner=state.enemyAttackOwner;
+    result.attackActive=enemy.attackTimer>0.0f;
+    result.attackHit=enemy.attackHit;
+    result.finiteValues=finite(enemy.pos)&&finite(enemy.vel)&&finite(state.player.pos)&&finite(state.player.vel)&&
+        finite(enemy.attackDirection)&&std::isfinite(result.distance)&&std::isfinite(result.attackTimer)&&
+        std::isfinite(result.playerBattery);
+    return result;
+}
+
+inline const char* contactMode(const EnemyContactObservation& observation) {
+    if(observation.attackActive&&!observation.attackHit&&observation.attackProgress<HUMAN_SWING_COMMIT_PHASE)return "windup";
+    if(observation.attackActive&&!observation.attackHit)return "swing";
+    if(observation.attackActive&&observation.attackHit)return "hit_recovery";
+    if(observation.attackHit)return "recovered";
+    return "contact_ready";
 }
 
 } // namespace evidence
