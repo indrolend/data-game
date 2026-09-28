@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cmath>
 #include "Math.hpp"
 #include "VisualIdentity.hpp"
 
@@ -52,18 +51,20 @@ struct SceneAtmosphere {
     float fogDensity=0.0f;
 };
 
-inline SceneAtmosphere sceneAtmosphere(float time,int roomIndex,float phonePower){
-    const float omenPulse=0.5f+0.5f*std::sin(time*0.73f+static_cast<float>(roomIndex)*0.41f);
-    const float roomThreat=clampf((static_cast<float>(roomIndex)-1.0f)/18.0f,0.0f,1.0f);
+inline SceneAtmosphere sceneAtmosphere(float phonePower){
     const float phonePulse=clampf(phonePower,0.0f,1.0f);
     return {
-        {0.003f+omenPulse*0.004f,0.002f,0.009f+roomThreat*0.008f},
-        {0.018f+omenPulse*0.012f,0.014f,0.030f+roomThreat*0.018f},
-        {0.48f+roomThreat*0.12f,0.055f+omenPulse*0.035f,0.13f+roomThreat*0.16f},
-        {0.04f,0.30f+omenPulse*0.10f,0.52f+roomThreat*0.18f},
-        {0.18f*phonePulse,1.05f*phonePulse,1.32f*phonePulse},
-        {0.010f+roomThreat*0.018f,0.002f,0.024f+omenPulse*0.012f},
-        0.020f+roomThreat*0.010f+omenPulse*0.003f
+        Pass7Visual::Background,
+        DesktopSceneLighting.ambient,
+        {DesktopSceneLighting.sun.color.r*DesktopSceneLighting.sun.intensity,
+            DesktopSceneLighting.sun.color.g*DesktopSceneLighting.sun.intensity,
+            DesktopSceneLighting.sun.color.b*DesktopSceneLighting.sun.intensity},
+        {DesktopSceneLighting.fill.color.r*DesktopSceneLighting.fill.intensity,
+            DesktopSceneLighting.fill.color.g*DesktopSceneLighting.fill.intensity,
+            DesktopSceneLighting.fill.color.b*DesktopSceneLighting.fill.intensity},
+        {0.12f*phonePulse,0.74f*phonePulse,0.92f*phonePulse},
+        DesktopSceneLighting.fog.color,
+        DesktopSceneLighting.fog.density
     };
 }
 
