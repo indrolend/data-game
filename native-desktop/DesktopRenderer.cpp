@@ -392,6 +392,97 @@ void cpuText(CpuCanvas& canvas, const std::string& text, float x, float baseline
     }
 }
 
+float cpuStencilTextWidth(const std::string& text, float px, bool = true) {
+    constexpr float horizontalScale = 0.84f;
+    constexpr float trackingEm = 0.018f;
+    if (text.empty()) return 0.0f;
+    return cpuTextWidth(text, px, true) * horizontalScale +
+        static_cast<float>(text.size() - 1) * px * trackingEm;
+}
+
+void cpuStencilText(CpuCanvas& canvas, const std::string& text, float x, float baseline, float px,
+                    float r, float g, float b, float a, float appearanceAge, bool centered = false) {
+    const MenuFontAtlas& font = cpuMenuFont(true);
+    if (!font.cpuReady || text.empty()) return;
+    constexpr float horizontalScale = 0.84f;
+    constexpr float trackingEm = 0.018f;
+    float pen = centered ? x - cpuStencilTextWidth(text, px) * 0.5f : x;
+    const float scale = stbtt_ScaleForPixelHeight(&font.info, px);
+    std::uint32_t seed = 2166136261u;
+    for (unsigned char c : text) { seed = (seed ^ c) * 16777619u; }
+    const float age = std::max(0.0f, appearanceAge);
+    const bool sprayLeftToRight = (seed & 1u) == 0u;
+    int previous = 0;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        seed = (seed ^ (static_cast<std::uint32_t>(c) + static_cast<std::uint32_t>(i) * 131u)) * 16777619u;
+        if (previous) pen += static_cast<float>(stbtt_GetCodepointKernAdvance(&font.info, previous, c)) * scale * horizontalScale;
+        int advance = 0, bearing = 0;
+        stbtt_GetCodepointHMetrics(&font.info, c, &advance, &bearing);
+        const float jitterX = (static_cast<float>((seed >> 4) & 7u) - 3.5f) * 0.12f;
+        const float jitterY = (static_cast<float>((seed >> 9) & 7u) - 3.5f) * 0.11f;
+        const float order = text.size() <= 1 ? 0.0f : static_cast<float>(i) / static_cast<float>(text.size() - 1);
+        const float directionalOrder = sprayLeftToRight ? order : 1.0f - order;
+        const float reveal = clampf((age - directionalOrder * 0.105f) / 0.085f, 0.0f, 1.0f);
+        const float easedReveal = reveal * reveal * (3.0f - 2.0f * reveal);
+        const float travel = (sprayLeftToRight ? -1.0f : 1.0f) * (1.0f - easedReveal) * px * 0.055f;
+        if (c != ' ') {
+            int bw = 0, bh = 0, xoff = 0, yoff = 0;
+            unsigned char* bitmap = stbtt_GetCodepointBitmap(&font.info, scale, scale, c, &bw, &bh, &xoff, &yoff);
+            const int compressedW = std::max(1, static_cast<int>(std::ceil(static_cast<float>(bw) * horizontalScale)));
+            const bool stencilBridge = compressedW >= 8 && c != 'I' && c != 'i' && c != 'l' && c != '1';
+            const float bridgeCenter = 0.30f + static_cast<float>((seed >> 13) & 3u) * 0.13f;
+            const int bridgeHalfWidth = px >= 42.0f ? 1 : 0;
+            const auto stamp = [&](float offsetX, float offsetY, float alphaScale) {
+                for (int yy = 0; yy < bh; ++yy) {
+                    const float yn = bh > 1 ? static_cast<float>(yy) / static_cast<float>(bh - 1) : 0.0f;
+                    const int rowNoise = static_cast<int>((seed + static_cast<std::uint32_t>(yy) * 1103515245u) >> 29) - 3;
+                    const float edgeShift = static_cast<float>(rowNoise) * 0.08f * (1.0f - easedReveal);
+                    for (int dx = 0; dx < compressedW; ++dx) {
+                        const int bridgeX = static_cast<int>(std::round(bridgeCenter * static_cast<float>(compressedW - 1)));
+                        if (stencilBridge && reveal < 0.96f && std::abs(dx - bridgeX) <= bridgeHalfWidth && yn > 0.20f && yn < 0.80f) continue;
+                        const int sourceX = std::min(bw - 1, static_cast<int>(static_cast<float>(dx) / horizontalScale));
+                        unsigned char ink = 0;
+                        for (int sy = std::max(0, yy - 1); sy <= std::min(bh - 1, yy + 1); ++sy) {
+                            for (int sx = std::max(0, sourceX - 1); sx <= std::min(bw - 1, sourceX + 1); ++sx) {
+                                ink = std::max(ink, bitmap[sy * bw + sx]);
+                            }
+                        }
+                        const float alpha = static_cast<float>(ink) / 255.0f * a * alphaScale * easedReveal;
+                        if (alpha <= 0.01f) continue;
+                        const int pxOut = static_cast<int>(std::floor(pen + static_cast<float>(xoff) * horizontalScale + static_cast<float>(dx) + jitterX + edgeShift + travel + offsetX));
+                        const int py = static_cast<int>(std::floor(baseline + static_cast<float>(yoff + yy) + jitterY + offsetY));
+                        if (pxOut < 0 || pxOut >= canvas.w || py < 0 || py >= canvas.h) continue;
+                        const int at = (py * canvas.w + pxOut) * 4;
+                        canvas.pixels[at + 0] = static_cast<unsigned char>(static_cast<float>(canvas.pixels[at + 0]) * (1.0f - alpha) + r * 255.0f * alpha);
+                        canvas.pixels[at + 1] = static_cast<unsigned char>(static_cast<float>(canvas.pixels[at + 1]) * (1.0f - alpha) + g * 255.0f * alpha);
+                        canvas.pixels[at + 2] = static_cast<unsigned char>(static_cast<float>(canvas.pixels[at + 2]) * (1.0f - alpha) + b * 255.0f * alpha);
+                        canvas.pixels[at + 3] = 255;
+                    }
+                }
+            };
+            if (bitmap && bw > 0 && bh > 0) {
+                if (easedReveal < 1.0f) stamp(0.85f, 0.45f, 0.30f * (1.0f - easedReveal));
+                stamp(0.0f, 0.0f, 1.0f);
+            }
+            stbtt_FreeBitmap(bitmap, nullptr);
+            if ((seed & 3u) != 0u) {
+                const float fleck = std::max(1.0f, px * (0.025f + static_cast<float>((seed >> 15) & 1u) * 0.012f));
+                const float glyphWidth = static_cast<float>(advance) * scale * horizontalScale;
+                const float fleckX = pen + jitterX + glyphWidth * (0.12f + static_cast<float>((seed >> 17) & 7u) * 0.10f);
+                const float fleckY = baseline - px * (0.18f + static_cast<float>((seed >> 21) & 7u) * 0.075f);
+                const float leadingMist = reveal > 0.0f && reveal < 1.0f
+                    ? 1.0f - std::abs(reveal - 0.38f) / 0.62f
+                    : 0.0f;
+                cpuRect(canvas, fleckX + travel * 1.7f, fleckY, fleck, fleck, r, g, b,
+                        a * 0.42f * clampf(leadingMist, 0.0f, 1.0f));
+            }
+        }
+        pen += static_cast<float>(advance) * scale * horizontalScale + px * trackingEm;
+        previous = c;
+    }
+}
+
 void drawPaletteMenuTitle(const std::string& text, float centerX, float centerY, float px, float time, float opacity = 1.0f) {
     const MenuFontAtlas& font = cpuMenuFont(true);
     if (!font.cpuReady || text.empty()) return;
@@ -502,7 +593,8 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         return;
     }
 
-    const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state);
+    const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuStencilTextWidth);
+    const float stencilAppearanceAge = display.transitionProgress * 0.24f;
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
             float pen = layout.logicalW * 0.5f - cpuTextWidth(layout.title, layout.titlePx, true) * 0.5f;
@@ -522,14 +614,14 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
                 pen += cpuTextWidth(letter, layout.titlePx, true) + 2.0f;
             }
         } else {
-            cpuText(canvas, layout.title, layout.logicalW * 0.5f, layout.titleCenterY + layout.titlePx * 0.34f, layout.titlePx, 0.90f, 0.97f, 1.0f, 0.96f, true, true);
+            cpuStencilText(canvas, layout.title, layout.logicalW * 0.5f, layout.titleCenterY + layout.titlePx * 0.34f, layout.titlePx, 0.90f, 0.97f, 1.0f, 0.96f, stencilAppearanceAge, true);
         }
     }
     if (layout.joinCode) {
         const std::string room = state.multiplayer.roomCode.data();
         std::string typed;
         for (int i = 0; i < 6; ++i) { typed += i < static_cast<int>(room.size()) ? room[i] : '_'; if (i < 5) typed += ' '; }
-        cpuText(canvas, typed, layout.logicalW * 0.5f, layout.content.y + layout.content.h * 0.50f, 46.0f, 0.88f, 1.0f, 1.0f, 0.94f, true, true);
+        cpuStencilText(canvas, typed, layout.logicalW * 0.5f, layout.content.y + layout.content.h * 0.50f, 46.0f, 0.88f, 1.0f, 1.0f, 0.94f, stencilAppearanceAge, true);
     }
     for (int i = 0; i < layout.rowCount; ++i) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
@@ -545,7 +637,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             continue;
         }
         if (row.kind == PhoneMenuRowKind::Section) {
-            cpuText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, Pass7Visual::MetallicTeal.r, Pass7Visual::MetallicTeal.g, Pass7Visual::MetallicTeal.b, 0.62f, true);
+            cpuStencilText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, Pass7Visual::MetallicTeal.r, Pass7Visual::MetallicTeal.g, Pass7Visual::MetallicTeal.b, 0.62f, stencilAppearanceAge);
             continue;
         }
         if (selected) {
@@ -554,10 +646,10 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         }
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
-            cpuText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f, alpha, selected);
-            const float valueWidth=cpuTextWidth(row.value,row.fontPx,selected);
+            cpuStencilText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f, alpha, stencilAppearanceAge);
+            const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
-            cpuText(canvas, row.value, valueLeft, row.baselineY, row.fontPx, selected ? Pass7Visual::AcidChartreuse.r : Pass7Visual::MetallicTeal.r, selected ? Pass7Visual::AcidChartreuse.g : Pass7Visual::MetallicTeal.g, selected ? Pass7Visual::AcidChartreuse.b : Pass7Visual::MetallicTeal.b, selected ? 0.98f : 0.78f, selected);
+            cpuStencilText(canvas, row.value, valueLeft, row.baselineY, row.fontPx, selected ? Pass7Visual::AcidChartreuse.r : Pass7Visual::MetallicTeal.r, selected ? Pass7Visual::AcidChartreuse.g : Pass7Visual::MetallicTeal.g, selected ? Pass7Visual::AcidChartreuse.b : Pass7Visual::MetallicTeal.b, selected ? 0.98f : 0.78f, stencilAppearanceAge);
             if(selected&&row.horizontal==PhoneMenuHorizontal::Adjust){
                 const int palettePhase=static_cast<int>(std::floor(state.time*8.0f));
                 const VisualColor leftColor=Pass7Visual::DataMosaicPalette[palettePhase%25];
@@ -567,7 +659,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
                 cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,rightColor.r,rightColor.g,rightColor.b,0.92f);
             }
         } else {
-            cpuText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f, alpha, selected, state.dead && row.action == PhoneMenuAction::Restart);
+            cpuStencilText(canvas, row.label, state.dead && row.action == PhoneMenuAction::Restart ? layout.logicalW * 0.5f : row.labelX, row.baselineY, row.fontPx, selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f, alpha, stencilAppearanceAge, state.dead && row.action == PhoneMenuAction::Restart);
         }
     }
 }
