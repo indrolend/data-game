@@ -1169,7 +1169,7 @@ void DesktopRenderer::drawDoorDataMosh(const GameState& state) const {
 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
-    const auto atmosphere=render_contract::sceneAtmosphere(state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount);
+    const auto atmosphere=render_contract::sceneAtmosphere(state.vacuum.power*0.62f+state.energy.dischargePositionAmount);
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); glEnable(GL_LIGHT1); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
