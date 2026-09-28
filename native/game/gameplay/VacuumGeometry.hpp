@@ -8,11 +8,13 @@
 namespace gameplay {
 
 struct VacuumGeometryConfig {
-    float attractionRange = 15.5f;
-    float attractionConeRadius = 2.35f;
+    float attractionRange = 20.0f;
+    float attractionConeRadius = 3.25f;
     float captureCylinderRadius = 1.75f;
     float captureCylinderHeight = 2.25f;
 };
+
+inline constexpr VacuumGeometryConfig VACUUM_GEOMETRY{};
 
 inline bool insideCaptureCylinder(
     const Vec3& point,
