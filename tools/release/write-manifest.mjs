@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 
 const releaseDir = process.argv[2] ?? "release";
-const repository = process.env.GITHUB_REPOSITORY ?? "indrolend/digital-breakdown-apk";
+const repository = process.env.GITHUB_REPOSITORY ?? "indrolend/data-game";
 const commit = process.env.GITHUB_SHA ?? "local";
 const shortCommit = commit.slice(0, 7);
 const runId = process.env.GITHUB_RUN_ID ?? "local";
