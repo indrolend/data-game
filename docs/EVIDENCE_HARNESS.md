@@ -10,6 +10,12 @@ Run the first scenario from the repository root:
 .\tools\dbdev.ps1 evidence -Scenario enemy-obstruction
 ```
 
+Available scenarios:
+
+- `enemy-obstruction`: pursuit, detour, collision clearance, and stall behavior.
+- `enemy-contact`: one windup, committed swing, hit, knockback, battery cost,
+  and recovery cycle.
+
 Use `-Output PATH` to select a bundle directory. Without it, `dbdev` creates a
 unique directory under `artifacts/evidence/<scenario>/` using the timestamp,
 commit, and dirty state. Existing manifests are never overwritten.

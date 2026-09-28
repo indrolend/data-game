@@ -20,7 +20,7 @@ param(
     [string]$Command = 'status',
     [ValidateSet('game','rally','traversal','rooms','tv-room','tv-enter')]
     [string]$Mode = 'game',
-    [ValidateSet('enemy-obstruction')]
+    [ValidateSet('enemy-obstruction','enemy-contact')]
     [string]$Scenario = 'enemy-obstruction',
     [string]$Output,
     [ValidateSet('Debug','Release')]
@@ -108,7 +108,7 @@ function Show-Help {
     Write-Host '  desktop-build [-Configuration Debug|Release] [-Reconfigure]'
     Write-Host '  desktop-run   [-Configuration Debug|Release] [-Reconfigure]'
     Write-Host '  desktop-test | desktop-smoke | room-smoke'
-    Write-Host '  evidence -Scenario enemy-obstruction [-Output PATH]'
+    Write-Host '  evidence -Scenario enemy-obstruction|enemy-contact [-Output PATH]'
     Write-Host '  playtest -Mode game|rally|traversal|rooms|tv-room|tv-enter [-Automation]'
     Write-Host '  ui | release-windows | diagnostics'
 }
