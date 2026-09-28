@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const cpp = fs.readFileSync(path.join(root, "native-network/MultiplayerProtocol.hpp"), "utf8");
+const cpp = fs.readFileSync(path.join(root, "network/MultiplayerProtocol.hpp"), "utf8");
 const worker = fs.readFileSync(path.join(root, "multiplayer-server/src/protocol.ts"), "utf8");
 
 function read(name, text, pattern) {
@@ -24,4 +24,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Protocol consistency OK: protocol=${cppProtocol} nativeGameplay=${cppGameplay}`);
+console.log(`Protocol consistency OK: protocol=${cppProtocol} clientGameplay=${cppGameplay}`);

@@ -1,0 +1,71 @@
+#pragma once
+
+#include "Math.hpp"
+#include "VisualIdentity.hpp"
+
+namespace render_contract {
+
+enum class ShadingModel : unsigned char { Unlit, ColorGraded, NormalLit };
+enum class TextureId : unsigned char { None, FieldGrass, CityAsphalt };
+enum class ShadowQuality : unsigned char { Off, Cheap, Directional };
+
+constexpr ShadowQuality shadowQualityFor(int graphicsPreset,bool shadowsEnabled,bool directionalSupported){
+    if(!shadowsEnabled)return ShadowQuality::Off;
+    return graphicsPreset>=2&&directionalSupported?ShadowQuality::Directional:ShadowQuality::Cheap;
+}
+
+struct MaterialDefinition {
+    VisualColor baseColor{1.0f,1.0f,1.0f};
+    ShadingModel shading=ShadingModel::ColorGraded;
+    float opacity=1.0f;
+    bool fog=true;
+    TextureId texture=TextureId::None;
+    float textureWorldScale=1.0f;
+};
+
+constexpr MaterialDefinition sceneMatte(VisualColor color,float opacity=1.0f){return {color,ShadingModel::ColorGraded,opacity,true,TextureId::None,1.0f};}
+constexpr MaterialDefinition normalLit(VisualColor color,float opacity=1.0f){return {color,ShadingModel::NormalLit,opacity,true,TextureId::None,1.0f};}
+constexpr MaterialDefinition unlit(VisualColor color,float opacity=1.0f){return {color,ShadingModel::Unlit,opacity,false,TextureId::None,1.0f};}
+inline constexpr MaterialDefinition FieldOpenGround{VisualIdentity::FieldGround,ShadingModel::ColorGraded,1.0f,true,TextureId::FieldGrass,2.4f};
+inline constexpr MaterialDefinition CityGround{{0.24f,0.26f,0.28f},ShadingModel::ColorGraded,1.0f,true,TextureId::CityAsphalt,3.2f};
+struct DirectionalLightDefinition { Vec3 direction{};VisualColor color{1,1,1};float intensity=1.0f; };
+struct FogDefinition { VisualColor color{};float density=0.0f; };
+struct SceneLightingDefinition {
+    VisualColor ambient{};
+    DirectionalLightDefinition sun{};
+    DirectionalLightDefinition fill{};
+    FogDefinition fog{};
+};
+
+inline const SceneLightingDefinition DesktopSceneLighting{
+    {0.32f,0.43f,0.34f},{{30.0f,60.0f,25.0f},{1,1,1},1.0f},
+    {{-20.0f,25.0f,-30.0f},{0.20f,0.28f,0.35f},1.0f},{VisualIdentity::Background,0.018f}};
+
+struct SceneAtmosphere {
+    VisualColor background{};
+    VisualColor ambient{};
+    VisualColor sun{};
+    VisualColor fill{};
+    VisualColor phone{};
+    VisualColor fog{};
+    float fogDensity=0.0f;
+};
+
+inline SceneAtmosphere sceneAtmosphere(float phonePower){
+    const float phonePulse=clampf(phonePower,0.0f,1.0f);
+    return {
+        VisualIdentity::Background,
+        DesktopSceneLighting.ambient,
+        {DesktopSceneLighting.sun.color.r*DesktopSceneLighting.sun.intensity,
+            DesktopSceneLighting.sun.color.g*DesktopSceneLighting.sun.intensity,
+            DesktopSceneLighting.sun.color.b*DesktopSceneLighting.sun.intensity},
+        {DesktopSceneLighting.fill.color.r*DesktopSceneLighting.fill.intensity,
+            DesktopSceneLighting.fill.color.g*DesktopSceneLighting.fill.intensity,
+            DesktopSceneLighting.fill.color.b*DesktopSceneLighting.fill.intensity},
+        {0.12f*phonePulse,0.74f*phonePulse,0.92f*phonePulse},
+        DesktopSceneLighting.fog.color,
+        DesktopSceneLighting.fog.density
+    };
+}
+
+} // namespace render_contract

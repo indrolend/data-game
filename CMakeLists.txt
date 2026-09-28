@@ -1,0 +1,442 @@
+cmake_minimum_required(VERSION 3.22)
+
+project(DigitalBreakdown LANGUAGES C CXX)
+
+# MSVC is identified by project(), so set the runtime immediately afterward
+# and before any targets or dependencies are configured. This keeps
+# DigitalBreakdown and static libraries such as GLFW on /MT rather than /MD.
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+enable_testing()
+
+include(FetchContent)
+
+set(DB_CHANNEL "experimental" CACHE STRING "Digital Breakdown release channel")
+set(DB_SAVE_FORMAT_VERSION "4" CACHE STRING "Digital Breakdown persistent save format version")
+option(DB_STOREFRONT_RELEASE "Build the locked-down solo storefront player surface" ON)
+option(DB_ENABLE_DEVELOPER_CONSOLE "Enable the interactive in-game developer console" OFF)
+string(TIMESTAMP DB_BUILD_DATE "%Y.%m.%d" UTC)
+string(TIMESTAMP DB_BUILD_TIME "%Y-%m-%dT%H:%M:%SZ" UTC)
+if(NOT DEFINED DB_HUMAN_VERSION)
+    set(DB_HUMAN_VERSION "experimental-${DB_BUILD_DATE}")
+endif()
+if(NOT DEFINED DB_COMMIT_SHA)
+    execute_process(
+        COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" rev-parse HEAD
+        OUTPUT_VARIABLE DB_COMMIT_SHA
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+if(NOT DB_COMMIT_SHA)
+    set(DB_COMMIT_SHA "unknown")
+endif()
+string(SUBSTRING "${DB_COMMIT_SHA}" 0 7 DB_COMMIT_SHORT)
+if(WIN32)
+    set(DB_PLATFORM "windows")
+elseif(APPLE)
+    set(DB_PLATFORM "macos")
+else()
+    set(DB_PLATFORM "linux")
+endif()
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" DB_ARCHITECTURE)
+if(DB_ARCHITECTURE MATCHES "^(amd64|x86_64)$")
+    set(DB_ARCHITECTURE "x64")
+elseif(DB_ARCHITECTURE MATCHES "^(aarch64|arm64)$")
+    set(DB_ARCHITECTURE "arm64")
+endif()
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/desktop/BuildIdentity.cpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/BuildIdentity.cpp"
+    @ONLY
+)
+
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+if(UNIX AND NOT APPLE)
+    # The initial Linux release contract targets Steam-compatible X11 hosts.
+    # Wayland can be added later as an independently validated backend.
+    set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
+endif()
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG a74efa0d5628b74adc0426af4c5710e287fa7c2c # 3.4
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(glfw)
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d # 0.11.25
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(miniaudio)
+if(UNIX AND NOT WIN32)
+    set(USE_TLS ON CACHE BOOL "" FORCE)
+    if(APPLE)
+        set(USE_OPEN_SSL OFF CACHE BOOL "" FORCE)
+    else()
+        set(USE_OPEN_SSL ON CACHE BOOL "" FORCE)
+        find_package(OpenSSL REQUIRED)
+    endif()
+    set(IXWEBSOCKET_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        ixwebsocket
+        GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git
+        GIT_TAG 2efe037c9cc96fd536774f17bdb5215161ee5087 # v11.4.6
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(ixwebsocket)
+endif()
+find_package(OpenGL REQUIRED)
+
+set(DB_GAME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/game")
+
+add_executable(
+    DigitalBreakdown
+    desktop/main.cpp
+    desktop/DesktopRenderer.cpp
+    desktop/DesktopAudio.cpp
+    desktop/DesktopMultiplayer.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/BuildIdentity.cpp"
+    "${miniaudio_SOURCE_DIR}/miniaudio.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+if(WIN32)
+    target_sources(DigitalBreakdown PRIVATE desktop/ControllerInputWin.cpp desktop/ControllerRumbleWin.cpp)
+elseif(APPLE)
+    target_sources(DigitalBreakdown PRIVATE desktop/ControllerRumbleMac.m)
+    set_source_files_properties(desktop/ControllerRumbleMac.m PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+else()
+    target_sources(DigitalBreakdown PRIVATE desktop/ControllerRumbleStub.cpp)
+endif()
+
+target_include_directories(
+    DigitalBreakdown
+    PRIVATE
+    "${DB_GAME_ROOT}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/desktop"
+    "${CMAKE_CURRENT_SOURCE_DIR}/desktop/third_party/stb"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
+    "${miniaudio_SOURCE_DIR}"
+)
+
+target_compile_features(DigitalBreakdown PRIVATE cxx_std_17)
+target_compile_definitions(DigitalBreakdown PRIVATE
+    GLFW_INCLUDE_NONE
+    DB_BUILD_CONFIGURATION="$<CONFIG>"
+    DB_STOREFRONT_RELEASE=$<BOOL:${DB_STOREFRONT_RELEASE}>
+    DB_ENABLE_DEVELOPER_CONSOLE=$<BOOL:${DB_ENABLE_DEVELOPER_CONSOLE}>
+)
+
+target_link_libraries(
+    DigitalBreakdown
+    PRIVATE
+    glfw
+    OpenGL::GL
+)
+if(UNIX AND NOT WIN32)
+    target_link_libraries(DigitalBreakdown PRIVATE ixwebsocket)
+endif()
+if(APPLE)
+    target_link_libraries(DigitalBreakdown PRIVATE "-framework AppKit" "-framework GameController" "-framework CoreHaptics")
+    set_target_properties(DigitalBreakdown PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Digital Breakdown"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.indrolend.digitalbreakdown"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1.0"
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/desktop/Info.plist.in"
+    )
+endif()
+if(WIN32)
+    target_link_libraries(DigitalBreakdown PRIVATE xinput9_1_0)
+endif()
+
+add_executable(
+    MultiplayerProtocolTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_protocol_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(MultiplayerProtocolTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(MultiplayerProtocolTest PRIVATE cxx_std_17)
+
+add_executable(
+    MultiplayerDeterminismTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_determinism_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(MultiplayerDeterminismTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network" "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(MultiplayerDeterminismTest PRIVATE cxx_std_17)
+
+add_executable(
+    HostRemotePeerSimulationIsolationTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/host_remote_peer_simulation_isolation_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(HostRemotePeerSimulationIsolationTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(HostRemotePeerSimulationIsolationTest PRIVATE cxx_std_17)
+
+add_executable(
+    MultiplayerConnectionStateTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_connection_state_test.cpp"
+)
+target_include_directories(MultiplayerConnectionStateTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(MultiplayerConnectionStateTest PRIVATE cxx_std_17)
+
+add_executable(
+    GameplayRoleAndSoulMotionTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_role_and_soul_motion_test.cpp"
+)
+target_include_directories(GameplayRoleAndSoulMotionTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(GameplayRoleAndSoulMotionTest PRIVATE cxx_std_17)
+
+add_executable(
+    GameplayGeometryAndConfigTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_geometry_and_config_test.cpp"
+)
+target_include_directories(GameplayGeometryAndConfigTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(GameplayGeometryAndConfigTest PRIVATE cxx_std_17)
+
+add_executable(
+    TargetLifecycleTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/target_lifecycle_test.cpp"
+)
+target_include_directories(TargetLifecycleTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(TargetLifecycleTest PRIVATE cxx_std_17)
+
+add_executable(
+    StateLayoutContractsTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/state_layout_contracts_test.cpp"
+)
+target_include_directories(StateLayoutContractsTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(StateLayoutContractsTest PRIVATE cxx_std_17)
+
+add_executable(
+    PhoneBodyContractTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_body_contract_test.cpp"
+)
+target_include_directories(PhoneBodyContractTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(PhoneBodyContractTest PRIVATE cxx_std_17)
+
+add_executable(
+    PhoneMenuLayoutTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_menu_layout_test.cpp"
+)
+target_include_directories(PhoneMenuLayoutTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(PhoneMenuLayoutTest PRIVATE cxx_std_17)
+
+add_executable(
+    MenuNavigationTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/menu_navigation_test.cpp"
+)
+target_include_directories(MenuNavigationTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(MenuNavigationTest PRIVATE cxx_std_17)
+
+add_executable(
+    PhoneDisplayStateTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_display_state_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(PhoneDisplayStateTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(PhoneDisplayStateTest PRIVATE cxx_std_17)
+
+add_executable(RoomEnvironmentTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_environment_test.cpp")
+target_include_directories(RoomEnvironmentTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(RoomEnvironmentTest PRIVATE cxx_std_17)
+
+add_executable(MaterialResponseTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/material_response_test.cpp")
+target_include_directories(MaterialResponseTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(MaterialResponseTest PRIVATE cxx_std_17)
+
+add_executable(FacetedRockTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/faceted_rock_test.cpp")
+target_include_directories(FacetedRockTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(FacetedRockTest PRIVATE cxx_std_17)
+
+add_executable(SlopeSupportTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/slope_support_test.cpp")
+target_include_directories(SlopeSupportTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SlopeSupportTest PRIVATE cxx_std_17)
+
+add_executable(SurfaceGeometryTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/surface_geometry_test.cpp")
+target_include_directories(SurfaceGeometryTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SurfaceGeometryTest PRIVATE cxx_std_17)
+
+add_executable(RuinGeometryTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/ruin_geometry_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(RuinGeometryTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(RuinGeometryTest PRIVATE cxx_std_17)
+
+add_executable(HouseGeometryTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/house_geometry_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(HouseGeometryTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(HouseGeometryTest PRIVATE cxx_std_17)
+
+add_executable(TreeGeometryTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/tree_geometry_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(TreeGeometryTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(TreeGeometryTest PRIVATE cxx_std_17)
+
+add_executable(MarkerPillarGeometryTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/marker_pillar_geometry_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(MarkerPillarGeometryTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(MarkerPillarGeometryTest PRIVATE cxx_std_17)
+
+add_executable(SlopeTraversalFixtureTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/slope_traversal_fixture_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(SlopeTraversalFixtureTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SlopeTraversalFixtureTest PRIVATE cxx_std_17)
+
+add_executable(RenderContractsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/render_contracts_test.cpp")
+target_include_directories(RenderContractsTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(RenderContractsTest PRIVATE cxx_std_17)
+
+add_executable(EnemyEvidenceScenarioTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_evidence_scenario_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(EnemyEvidenceScenarioTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(EnemyEvidenceScenarioTest PRIVATE cxx_std_17)
+
+add_executable(DesktopPlaytestPolicyTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/desktop_playtest_policy_test.cpp")
+target_include_directories(DesktopPlaytestPolicyTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(DesktopPlaytestPolicyTest PRIVATE cxx_std_17)
+
+add_executable(DeveloperCodecTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_codec_test.cpp")
+target_include_directories(DeveloperCodecTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(DeveloperCodecTest PRIVATE cxx_std_17)
+
+add_executable(
+    SoulEconomyTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/soul_economy_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(SoulEconomyTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SoulEconomyTest PRIVATE cxx_std_17)
+
+add_executable(
+    SoulProjectileLifecycleTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/soul_projectile_lifecycle_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(SoulProjectileLifecycleTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SoulProjectileLifecycleTest PRIVATE cxx_std_17)
+
+add_executable(
+    TraversalCalibrationTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/traversal_calibration_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(TraversalCalibrationTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(TraversalCalibrationTest PRIVATE cxx_std_17)
+
+add_executable(
+    GameplayFlowProbe
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_flow_probe.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(GameplayFlowProbe PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(GameplayFlowProbe PRIVATE cxx_std_17)
+
+add_executable(
+    RoomProgressionProbe
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_progression_probe.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(RoomProgressionProbe PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(RoomProgressionProbe PRIVATE cxx_std_17)
+
+add_executable(
+    DeterministicInputSoak
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/deterministic_input_soak.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(DeterministicInputSoak PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(DeterministicInputSoak PRIVATE cxx_std_17)
+
+add_executable(
+    SecretTvPolicyTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/secret_tv_policy_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(SecretTvPolicyTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SecretTvPolicyTest PRIVATE cxx_std_17)
+
+add_test(NAME GameplayRoleAndSoulMotionTest COMMAND GameplayRoleAndSoulMotionTest)
+add_test(NAME MultiplayerProtocolTest COMMAND MultiplayerProtocolTest)
+add_test(NAME MultiplayerDeterminismTest COMMAND MultiplayerDeterminismTest)
+add_test(NAME HostRemotePeerSimulationIsolationTest COMMAND HostRemotePeerSimulationIsolationTest)
+add_test(NAME MultiplayerConnectionStateTest COMMAND MultiplayerConnectionStateTest)
+add_test(NAME GameplayGeometryAndConfigTest COMMAND GameplayGeometryAndConfigTest)
+add_test(NAME TargetLifecycleTest COMMAND TargetLifecycleTest)
+add_test(NAME StateLayoutContractsTest COMMAND StateLayoutContractsTest)
+add_test(NAME PhoneBodyContractTest COMMAND PhoneBodyContractTest)
+add_test(NAME PhoneMenuLayoutTest COMMAND PhoneMenuLayoutTest)
+add_test(NAME MenuNavigationTest COMMAND MenuNavigationTest)
+add_test(NAME PhoneDisplayStateTest COMMAND PhoneDisplayStateTest)
+add_test(NAME RoomEnvironmentTest COMMAND RoomEnvironmentTest)
+add_test(NAME MaterialResponseTest COMMAND MaterialResponseTest)
+add_test(NAME FacetedRockTest COMMAND FacetedRockTest)
+add_test(NAME SlopeSupportTest COMMAND SlopeSupportTest)
+add_test(NAME SurfaceGeometryTest COMMAND SurfaceGeometryTest)
+add_test(NAME RuinGeometryTest COMMAND RuinGeometryTest)
+add_test(NAME HouseGeometryTest COMMAND HouseGeometryTest)
+add_test(NAME TreeGeometryTest COMMAND TreeGeometryTest)
+add_test(NAME MarkerPillarGeometryTest COMMAND MarkerPillarGeometryTest)
+add_test(NAME SlopeTraversalFixtureTest COMMAND SlopeTraversalFixtureTest)
+add_test(NAME SlopeTraversalCheck COMMAND SlopeTraversalFixtureTest --check)
+add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
+add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
+add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
+add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)
+add_test(NAME SoulEconomyTest COMMAND SoulEconomyTest)
+add_test(NAME SoulProjectileLifecycleTest COMMAND SoulProjectileLifecycleTest)
+add_test(NAME TraversalCalibrationTest COMMAND TraversalCalibrationTest)
+add_test(NAME DesktopSaveRecoveryTest COMMAND DigitalBreakdown --save-roundtrip-test)
+add_test(NAME GameplayFlowProbe COMMAND GameplayFlowProbe)
+add_test(NAME RoomProgressionProbe COMMAND RoomProgressionProbe)
+add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
+add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
+
+if(WIN32)
+    target_link_libraries(DigitalBreakdown PRIVATE winmm winhttp)
+endif()
+
+if(APPLE)
+    set(DB_RUNTIME_ASSET_DIR "$<TARGET_BUNDLE_DIR:DigitalBreakdown>/Contents/Resources")
+else()
+    set(DB_RUNTIME_ASSET_DIR "$<TARGET_FILE_DIR:DigitalBreakdown>")
+endif()
+
+add_custom_command(TARGET DigitalBreakdown POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/desktop/audio" "${DB_RUNTIME_ASSET_DIR}/audio"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/desktop/fonts" "${DB_RUNTIME_ASSET_DIR}/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/models" "${DB_RUNTIME_ASSET_DIR}/models"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/tv" "${DB_RUNTIME_ASSET_DIR}/tv-gifs")
+
+if(APPLE)
+    install(TARGETS DigitalBreakdown BUNDLE DESTINATION .)
+else()
+    install(TARGETS DigitalBreakdown RUNTIME DESTINATION DigitalBreakdown)
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/desktop/audio" DESTINATION DigitalBreakdown)
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/desktop/fonts" DESTINATION DigitalBreakdown)
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/models/" DESTINATION DigitalBreakdown/models)
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tv/" DESTINATION DigitalBreakdown/tv-gifs)
+endif()
+
+if(MSVC)
+    target_compile_options(DigitalBreakdown PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(DigitalBreakdown PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+set_target_properties(
+    DigitalBreakdown
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+)
