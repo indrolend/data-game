@@ -16,13 +16,15 @@ if (!/^[0-9a-f]{40}$/i.test(commit) || /^0+$/.test(commit)) {
   throw new Error(`Invalid release commit: ${commit}`);
 }
 
-const protocolHeader = fs.readFileSync("native-network/MultiplayerProtocol.hpp", "utf8");
+const protocolHeader = fs.readFileSync("network/MultiplayerProtocol.hpp", "utf8");
 const readVersion = (name) => {
   const value = Number(protocolHeader.match(new RegExp(`${name}\\s*=\\s*(\\d+)`))?.[1]);
   if (!Number.isSafeInteger(value)) throw new Error(`Missing ${name}`);
   return value;
 };
-const identity = JSON.parse(fs.readFileSync("tools/release/build-identity.json", "utf8"));
+const cmake = fs.readFileSync("CMakeLists.txt", "utf8");
+const saveFormatVersion = Number(cmake.match(/DB_SAVE_FORMAT_VERSION\s+"?(\d+)"?/)?.[1]);
+if (!Number.isSafeInteger(saveFormatVersion)) throw new Error("Missing DB_SAVE_FORMAT_VERSION");
 const output = values.get("--output");
 const buildInfo = {
   schemaVersion: 1,
@@ -37,7 +39,7 @@ const buildInfo = {
   portable: values.get("--portable") === "true",
   protocolVersion: readVersion("PROTOCOL_VERSION"),
   gameplayVersion: readVersion("GAMEPLAY_VERSION"),
-  saveFormatVersion: Number(identity.saveFormatVersion),
+  saveFormatVersion,
   builtAt: new Date().toISOString(),
   workflow: process.env.GITHUB_WORKFLOW ?? "local",
   runId: process.env.GITHUB_RUN_ID ?? "local",
