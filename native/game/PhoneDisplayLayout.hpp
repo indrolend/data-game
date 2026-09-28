@@ -7,6 +7,36 @@
 #include <array>
 #include <string>
 
+namespace PhoneDisplayStyle {
+constexpr float SafeMarginX = 0.12f;
+constexpr float SafeMarginTop = 0.12f;
+constexpr float SafeMarginBottom = 0.16f;
+constexpr float HeaderHeight = 0.16f;
+constexpr float FooterHeight = 0.12f;
+constexpr float TextInset = 0.08f;
+constexpr float TwoColumnLabelShare = 0.56f;
+constexpr float TwoColumnGap = 20.0f;
+constexpr float TitlePx = 56.0f;
+constexpr float PaletteTitlePx = 74.0f;
+constexpr float RowPx = 52.0f;
+constexpr float TableRowPx = 43.0f;
+constexpr float SectionPx = 32.0f;
+}
+
+using PhoneDisplayTextMeasure = float (*)(const std::string&, float, bool);
+
+inline float estimatePhoneDisplayTextWidth(const std::string& text, float px, bool) {
+    return static_cast<float>(text.size()) * px * 0.60f;
+}
+
+inline float fitPhoneDisplayTextPx(const std::string& text, float preferredPx, float availableWidth,
+                                   bool semibold, PhoneDisplayTextMeasure measure) {
+    if (text.empty() || availableWidth <= 0.0f) return preferredPx;
+    const float width = measure(text, preferredPx, semibold);
+    if (width <= availableWidth || width <= 0.0f) return preferredPx;
+    return std::max(1.0f, preferredPx * availableWidth / width);
+}
+
 struct PhoneDisplayRect {
     float x = 0.0f;
     float y = 0.0f;
@@ -27,6 +57,9 @@ struct PhoneDisplayMenuRow {
     PhoneDisplayRect hit;
     float labelX = 0.0f;
     float valueRightX = 0.0f;
+    float labelMaxWidth = 0.0f;
+    float valueMaxWidth = 0.0f;
+    float minimumTextGap = 0.0f;
     float baselineY = 0.0f;
     float fontPx = 34.0f;
     bool selectable = false;
@@ -46,6 +79,7 @@ struct PhoneDisplayMenuLayout {
     std::string title;
     float titleCenterY = 0.0f;
     float titlePx = 52.0f;
+    float titleMaxWidth = 0.0f;
     std::array<PhoneDisplayMenuRow, MaxRows> rows{};
     int rowCount = 0;
     int selectableCount = 0;
@@ -64,7 +98,8 @@ inline void addPhoneDisplayRow(PhoneDisplayMenuLayout& layout, PhoneDisplayMenuR
     layout.rows[layout.rowCount++] = row;
 }
 
-inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state) {
+inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(
+    const GameState& state, PhoneDisplayTextMeasure measure = estimatePhoneDisplayTextWidth) {
     const PhoneMenuPageViewModel page = makePhoneMenuPageModel(state);
     PhoneDisplayMenuLayout layout;
     layout.title = page.title;
@@ -74,17 +109,19 @@ inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state)
 
     const float w = static_cast<float>(layout.logicalW);
     const float h = static_cast<float>(layout.logicalH);
-    const float marginX = w * 0.12f;
-    const float marginTop = h * 0.12f;
-    const float marginBottom = h * 0.16f;
+    const float marginX = w * PhoneDisplayStyle::SafeMarginX;
+    const float marginTop = h * PhoneDisplayStyle::SafeMarginTop;
+    const float marginBottom = h * PhoneDisplayStyle::SafeMarginBottom;
     layout.safe = {marginX, marginTop, w - marginX * 2.0f, h - marginTop - marginBottom};
-    const float headerH = h * 0.16f;
-    const float footerH = h * 0.12f;
+    const float headerH = h * PhoneDisplayStyle::HeaderHeight;
+    const float footerH = h * PhoneDisplayStyle::FooterHeight;
     layout.header = {layout.safe.x, layout.safe.y, layout.safe.w, headerH};
     layout.footer = {layout.safe.x, layout.safe.y + layout.safe.h - footerH, layout.safe.w, footerH};
     layout.content = {layout.safe.x, layout.safe.y + headerH, layout.safe.w, layout.safe.h - headerH - footerH};
     layout.titleCenterY = layout.header.y + layout.header.h * 0.50f;
-    layout.titlePx = page.paletteTitle ? 74.0f : 56.0f;
+    layout.titleMaxWidth = layout.header.w;
+    const float preferredTitlePx = page.paletteTitle ? PhoneDisplayStyle::PaletteTitlePx : PhoneDisplayStyle::TitlePx;
+    layout.titlePx = fitPhoneDisplayTextPx(layout.title, preferredTitlePx, layout.titleMaxWidth, true, measure);
     layout.scrollOffset = std::max(0.0f, state.localSettings.menuScroll);
 
     for (int i = 0; i < page.elementCount; ++i) {
@@ -97,7 +134,8 @@ inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state)
         row.label = element.label;
         row.value = element.value;
         row.selectable = element.selectable;
-        row.fontPx = element.kind == PhoneMenuRowKind::Section ? 32.0f : (page.tablePage ? 43.0f : 52.0f);
+        row.fontPx = element.kind == PhoneMenuRowKind::Section ? PhoneDisplayStyle::SectionPx
+            : (page.tablePage ? PhoneDisplayStyle::TableRowPx : PhoneDisplayStyle::RowPx);
         addPhoneDisplayRow(layout, row);
     }
 
@@ -129,8 +167,8 @@ inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state)
             row.hit = row.visual;
             row.visible = true;
             row.baselineY = row.visual.y + row.visual.h * 0.5f + row.fontPx * 0.34f;
-            row.labelX = page.tablePage ? layout.safe.x + layout.safe.w * 0.08f : layout.safe.x + layout.safe.w * 0.38f;
-            row.valueRightX = row.visual.x + row.visual.w * 0.92f;
+            row.labelX = page.tablePage ? layout.safe.x + layout.safe.w * PhoneDisplayStyle::TextInset : layout.safe.x + layout.safe.w * 0.38f;
+            row.valueRightX = row.visual.x + row.visual.w * (1.0f - PhoneDisplayStyle::TextInset);
             continue;
         }
         const float contentCy = firstContentCenterY + static_cast<float>(scrollingRowIndex++) * preferredStep;
@@ -146,12 +184,28 @@ inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state)
             ? row.visual
             : PhoneDisplayRect{};
         row.baselineY = cy + row.fontPx * 0.34f;
-        row.labelX = page.tablePage ? layout.safe.x + layout.safe.w * 0.08f : layout.safe.x + layout.safe.w * 0.38f;
-        row.valueRightX = layout.safe.x + layout.safe.w * 0.92f;
+        row.labelX = page.tablePage ? layout.safe.x + layout.safe.w * PhoneDisplayStyle::TextInset : layout.safe.x + layout.safe.w * 0.38f;
+        row.valueRightX = layout.safe.x + layout.safe.w * (1.0f - PhoneDisplayStyle::TextInset);
         if (row.kind == PhoneMenuRowKind::Section) {
-            row.labelX = layout.safe.x + layout.safe.w * 0.08f;
+            row.labelX = layout.safe.x + layout.safe.w * PhoneDisplayStyle::TextInset;
             row.hit = {};
         }
+    }
+    for (int i = 0; i < layout.rowCount; ++i) {
+        PhoneDisplayMenuRow& row = layout.rows[i];
+        const float textRight = layout.safe.x + layout.safe.w * (1.0f - PhoneDisplayStyle::TextInset);
+        row.labelMaxWidth = std::max(0.0f, textRight - row.labelX);
+        if (row.kind != PhoneMenuRowKind::TwoColumn) continue;
+        row.minimumTextGap = PhoneDisplayStyle::TwoColumnGap;
+        const float combinedWidth = std::max(0.0f, row.valueRightX - row.labelX - row.minimumTextGap);
+        row.labelMaxWidth = combinedWidth * PhoneDisplayStyle::TwoColumnLabelShare;
+        row.valueMaxWidth = combinedWidth - row.labelMaxWidth;
+        const float labelPx = fitPhoneDisplayTextPx(row.label, row.fontPx, row.labelMaxWidth,
+                                                     row.selectable, measure);
+        const float valuePx = fitPhoneDisplayTextPx(row.value, row.fontPx, row.valueMaxWidth,
+                                                     row.selectable, measure);
+        row.fontPx = std::min(labelPx, valuePx);
+        row.baselineY = row.visual.y + row.visual.h * 0.5f + row.fontPx * 0.34f;
     }
     return layout;
 }
