@@ -40,9 +40,10 @@ The reported lighting regression and missing day/night behavior remain a separat
 
 ## Git trajectory
 
-- `codex/phone-ui-hardening` is the narrow pass based directly on current `origin/main`. Commit `2080861dd90092fe1a17bdf02153db6766bc77bf`.
-- `codex/phone-text-effects` preserves the text-effect implementation on the presentation/lighting baseline used during visual iteration. Commit `80595150c5d2caa7e4a15dc3581d41267d7102af`.
-- `codex/phone-ui-convergence` is the recommended review branch. It starts at current `origin/main`, includes the hardening pass, and then applies the restrained spray-on renderer effect.
+- [`codex/phone-ui-hardening`](https://github.com/indrolend/digital-breakdown-apk/tree/codex/phone-ui-hardening) is the narrow pass based directly on current `origin/main`. Commit [`2080861`](https://github.com/indrolend/digital-breakdown-apk/commit/2080861dd90092fe1a17bdf02153db6766bc77bf).
+- [`codex/phone-text-effects`](https://github.com/indrolend/digital-breakdown-apk/tree/codex/phone-text-effects) preserves the text-effect implementation on the presentation/lighting baseline used during visual iteration. Commit [`8059515`](https://github.com/indrolend/digital-breakdown-apk/commit/80595150c5d2caa7e4a15dc3581d41267d7102af).
+- [`codex/phone-ui-convergence`](https://github.com/indrolend/digital-breakdown-apk/tree/codex/phone-ui-convergence) is the recommended review branch. It starts at current `origin/main`, includes the hardening pass, and then applies the restrained spray-on renderer effect.
+- [Pull request #122](https://github.com/indrolend/digital-breakdown-apk/pull/122) is the recommended path into `main`.
 
 ## Recommended convergence sequence
 
