@@ -19,8 +19,8 @@ constexpr float TwoColumnGap = 20.0f;
 constexpr float TitlePx = 56.0f;
 constexpr float PaletteTitlePx = 74.0f;
 constexpr float RowPx = 52.0f;
-constexpr float TableRowPx = 43.0f;
-constexpr float SectionPx = 32.0f;
+constexpr float TableRowPx = 46.0f;
+constexpr float SectionPx = 34.0f;
 }
 
 using PhoneDisplayTextMeasure = float (*)(const std::string&, float, bool);
