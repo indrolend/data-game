@@ -30,7 +30,7 @@ run_logged build cmake --build "$BUILD_DIR" --config Release --target \
   GameplayRoleAndSoulMotionTest \
   GameplayGeometryAndConfigTest \
   TargetLifecycleTest \
-  GameplayStateContractsTest \
+  StateLayoutContractsTest \
   PhoneBodyContractTest \
   PhoneMenuLayoutTest \
   MenuNavigationTest \

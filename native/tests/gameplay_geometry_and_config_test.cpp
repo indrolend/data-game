@@ -4,6 +4,7 @@
 #include "gameplay/MeleeConfig.hpp"
 #include "gameplay/VacuumGeometry.hpp"
 #include "world/RoomCoordinates.hpp"
+#include "world/RoomGeometry.hpp"
 
 namespace {
 
@@ -14,7 +15,8 @@ bool near(float a, float b, float epsilon = 0.0001f) {
 } // namespace
 
 int main() {
-    const world::RoomCoordinates rooms{42.0f};
+    static_assert(world::RoomWidth == 30.0f && world::RoomDepth == 42.0f && world::RoomWallHeight == 7.2f);
+    const world::RoomCoordinates rooms{};
 
     assert(near(rooms.wrapLocalZ(0.0f), 0.0f));
     assert(near(rooms.wrapLocalZ(21.0f), -21.0f));
@@ -30,7 +32,9 @@ int main() {
     assert(disabled.tileIndex(17.0f) == 0);
     assert(near(disabled.nearestPeriodicZ(17.0f, -100.0f), 17.0f));
 
-    gameplay::VacuumGeometryConfig geometry;
+    constexpr gameplay::VacuumGeometryConfig geometry=gameplay::VACUUM_GEOMETRY;
+    static_assert(geometry.attractionRange==20.0f&&geometry.attractionConeRadius==3.25f&&
+        geometry.captureCylinderRadius==1.75f&&geometry.captureCylinderHeight==2.25f);
     const Vec3 camera{0.0f, 1.0f, 0.0f};
     const Vec3 forward{0.0f, 0.0f, -1.0f};
     assert(gameplay::insideVacuumOffer({0.0f, 1.0f, -5.0f}, camera, forward, geometry));

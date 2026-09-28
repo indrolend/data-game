@@ -5,7 +5,10 @@
 #include "gameplay/TargetRoles.hpp"
 #include "gameplay/MeleeConfig.hpp"
 #include "gameplay/TraversalCapabilities.hpp"
+#include "gameplay/VacuumGeometry.hpp"
 #include "EarlyBrowserVisuals.hpp"
+#include "world/RoomGeometry.hpp"
+#include "world/RoomCoordinates.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -17,9 +20,9 @@
 #include <sstream>
 
 namespace {
-constexpr float ROOM_WIDTH = 30.0f;
-constexpr float ROOM_DEPTH = 42.0f;
-constexpr float ROOM_WALL_HEIGHT = 7.2f;
+constexpr float ROOM_WIDTH = world::RoomWidth;
+constexpr float ROOM_DEPTH = world::RoomDepth;
+constexpr float ROOM_WALL_HEIGHT = world::RoomWallHeight;
 constexpr float GROUND_Y = 0.08f;
 constexpr float ROOM_EXIT_Z = -ROOM_DEPTH * 0.5f + 1.15f;
 constexpr float ROOM_START_Z = ROOM_DEPTH * 0.5f - 5.5f;
@@ -89,10 +92,6 @@ constexpr float DEATH_PRESENTATION_SCALE = 0.18f;
 constexpr float VACUUM_MOVE_MULT = 0.58f;
 constexpr float VACUUM_CHARGE_SPEED = 5.5f;
 constexpr float VACUUM_DECAY_SPEED = 6.0f;
-constexpr float SOUL_ATTRACTION_RANGE = 20.0f;
-constexpr float SOUL_ATTRACTION_CONE_RADIUS = 3.25f;
-constexpr float SOUL_CAPTURE_CYLINDER_RADIUS = 1.75f;
-constexpr float SOUL_CAPTURE_CYLINDER_HEIGHT = 2.25f;
 constexpr float SOUL_LATCH_DISTANCE = 0.48f;
 constexpr float SOUL_SEAL_DISTANCE = 0.14f;
 constexpr float SOUL_RECOIL_DURATION = 0.55f;
@@ -164,15 +163,6 @@ constexpr float POWERUP_STOCK_BASE_MAX = 85.0f;
 constexpr float POWERUP_STOCK_PER_STACK = 32.0f;
 constexpr float TARGET_HITFLASH_DECAY_PER_FRAME = 0.045f;
 constexpr float VACUUM_DAMAGE = 0.28f;
-
-bool withinVacuumOffer(const CameraState& camera,const Vec3& point,float range,float coneRadius){
-    const Vec3 toBody=point-camera.pos;
-    const float forwardDistance=dot3(toBody,camera.forward);
-    if(forwardDistance<=0.0f||forwardDistance>range)return false;
-    const Vec3 radial=toBody-camera.forward*forwardDistance;
-    const float allowedRadius=coneRadius*(0.24f+forwardDistance/range);
-    return lengthSq(radial)<=allowedRadius*allowedRadius;
-}
 
 constexpr float MELEE_COMBO_WINDOW = 0.720f;
 constexpr float AIR_MELEE_LATERAL_RETENTION = 0.52f;
@@ -832,7 +822,7 @@ void Game::updateFlowerPowerups(float dt) {
         flower.rotationY += dt * 1.35f;
         Vec3 flowerWorld=flower.pos;
         flowerWorld.z=wrapZ(flower.pos.z)+getRoomTileOriginZ(getRoomTileIndex(state_.phoneTransform.vacuumPullPoint.z));
-        const bool vacuumOffered=state_.vacuum.active&&state_.vacuum.power>0.32f&&withinVacuumOffer(state_.camera,flowerWorld,SOUL_ATTRACTION_RANGE,SOUL_ATTRACTION_CONE_RADIUS);
+        const bool vacuumOffered=state_.vacuum.active&&state_.vacuum.power>0.32f&&gameplay::insideVacuumOffer(flowerWorld,state_.camera.pos,state_.camera.forward,gameplay::VACUUM_GEOMETRY);
         if(vacuumOffered){
             flower.vacuumAttracted=true;
             Vec3 delta=state_.phoneTransform.vacuumPullPoint-flowerWorld;
@@ -1123,15 +1113,15 @@ float Game::seededRoomValue(float offset) const {
 }
 
 int Game::getRoomTileIndex(float z) const {
-    return static_cast<int>(std::floor((z + ROOM_DEPTH * 0.5f) / ROOM_DEPTH));
+    return world::RoomCoordinates{}.tileIndex(z);
 }
 
 float Game::getRoomTileOriginZ(int tileIndex) const {
-    return static_cast<float>(tileIndex) * ROOM_DEPTH;
+    return world::RoomCoordinates{}.tileOriginZ(tileIndex);
 }
 
 float Game::wrapZ(float z) const {
-    return z - getRoomTileOriginZ(getRoomTileIndex(z));
+    return world::RoomCoordinates{}.wrapLocalZ(z);
 }
 
 void Game::buildRoomColliders() {
@@ -3833,12 +3823,8 @@ void Game::updateVacuum(float dt) {
         }
         return state_.phoneTransform.position+rotate(state_.phoneTransform.orientation,local);
     };
-    auto insideCylinder = [&](const Vec3& p) {
-        const Vec3 d = p - state_.phoneTransform.position;
-        return d.x*d.x + d.z*d.z <= SOUL_CAPTURE_CYLINDER_RADIUS*SOUL_CAPTURE_CYLINDER_RADIUS &&
-            std::abs(d.y) <= SOUL_CAPTURE_CYLINDER_HEIGHT * 0.5f;
-    };
-    auto inOffer = [&](const Vec3& p) {return withinVacuumOffer(state_.camera,p,SOUL_ATTRACTION_RANGE,SOUL_ATTRACTION_CONE_RADIUS);};
+    auto insideCylinder = [&](const Vec3& p) {return gameplay::insideCaptureCylinder(p,state_.phoneTransform.position,gameplay::VACUUM_GEOMETRY);};
+    auto inOffer = [&](const Vec3& p) {return gameplay::insideVacuumOffer(p,state_.camera.pos,state_.camera.forward,gameplay::VACUUM_GEOMETRY);};
 
     int offeredFreeSoul = -1;
     float offeredScore = 1e9f;
@@ -3876,7 +3862,7 @@ void Game::updateVacuum(float dt) {
         const float soulMass = t.brute ? 1.45f : 1.0f;
         if (t.soulState == SoulState::Attracted) {
             Vec3 delta = pullPoint - soulWorld; const float d = std::max(length(delta), 0.001f);
-            const float proximity = 1.0f - clampf(d / SOUL_ATTRACTION_RANGE, 0.0f, 1.0f);
+            const float proximity = 1.0f - clampf(d / gameplay::VACUUM_GEOMETRY.attractionRange, 0.0f, 1.0f);
             const float speed = v.power * (5.5f + smooth01(proximity)*10.5f + (insideCylinder(soulWorld)?13.0f:0.0f)) / soulMass;
             Vec3 next = soulWorld + normalized(delta) * std::min(d, speed*dt);
             next=keepOutsidePhoneSolid(next,insideCylinder(soulWorld));

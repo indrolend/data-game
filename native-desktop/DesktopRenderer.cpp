@@ -8,6 +8,7 @@
 #include "CitySurfaceTexture.hpp"
 #include "FacetedRock.hpp"
 #include "MarkerPillarGeometry.hpp"
+#include "world/RoomGeometry.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -38,10 +39,10 @@ namespace {
 float displayedFps=60.0f;
 int fpsFrames=0;
 auto fpsWindowStart=std::chrono::steady_clock::now();
-constexpr float ROOM_WIDTH = 30.0f;
-constexpr float ROOM_DEPTH = 42.0f;
+constexpr float ROOM_WIDTH = world::RoomWidth;
+constexpr float ROOM_DEPTH = world::RoomDepth;
 constexpr int ROOM_VISUAL_HORIZON = 2;
-constexpr float ROOM_WALL_HEIGHT = 7.2f;
+constexpr float ROOM_WALL_HEIGHT = world::RoomWallHeight;
 constexpr float PI = 3.14159265358979323846f;
 constexpr float SHADOW_PROJECTION_SCALE = 0.5f;
 

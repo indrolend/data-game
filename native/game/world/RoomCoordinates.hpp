@@ -2,10 +2,12 @@
 
 #include <cmath>
 
+#include "RoomGeometry.hpp"
+
 namespace world {
 
 struct RoomCoordinates {
-    float depth = 42.0f;
+    float depth = RoomDepth;
 
     float wrapLocalZ(float worldZ) const noexcept {
         if (depth <= 0.0f) return worldZ;

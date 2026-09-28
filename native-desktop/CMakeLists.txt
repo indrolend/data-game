@@ -220,11 +220,11 @@ target_include_directories(TargetLifecycleTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(TargetLifecycleTest PRIVATE cxx_std_17)
 
 add_executable(
-    GameplayStateContractsTest
-    "${CMAKE_CURRENT_SOURCE_DIR}/../native/tests/gameplay_state_contracts_test.cpp"
+    StateLayoutContractsTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/../native/tests/state_layout_contracts_test.cpp"
 )
-target_include_directories(GameplayStateContractsTest PRIVATE "${DB_GAME_ROOT}")
-target_compile_features(GameplayStateContractsTest PRIVATE cxx_std_17)
+target_include_directories(StateLayoutContractsTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(StateLayoutContractsTest PRIVATE cxx_std_17)
 
 add_executable(
     PhoneBodyContractTest
@@ -370,7 +370,7 @@ add_test(NAME HostRemotePeerSimulationIsolationTest COMMAND HostRemotePeerSimula
 add_test(NAME MultiplayerConnectionStateTest COMMAND MultiplayerConnectionStateTest)
 add_test(NAME GameplayGeometryAndConfigTest COMMAND GameplayGeometryAndConfigTest)
 add_test(NAME TargetLifecycleTest COMMAND TargetLifecycleTest)
-add_test(NAME GameplayStateContractsTest COMMAND GameplayStateContractsTest)
+add_test(NAME StateLayoutContractsTest COMMAND StateLayoutContractsTest)
 add_test(NAME PhoneBodyContractTest COMMAND PhoneBodyContractTest)
 add_test(NAME PhoneMenuLayoutTest COMMAND PhoneMenuLayoutTest)
 add_test(NAME MenuNavigationTest COMMAND MenuNavigationTest)
