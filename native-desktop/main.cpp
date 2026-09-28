@@ -10,6 +10,7 @@
 #include "ControllerInput.hpp"
 #include "Game.hpp"
 #include "gameplay/TargetRoles.hpp"
+#include "diagnostics/EnemyEvidenceScenario.hpp"
 #include "PhoneDisplayLayout.hpp"
 
 #ifdef _WIN32
@@ -1460,6 +1461,7 @@ void printUsage() {
     std::printf("  --capture-width N --capture-height N  Set capture framebuffer dimensions.\n");
     std::printf("  --capture-hide-hud  Hide framebuffer HUD elements in visual captures.\n");
     std::printf("  --perf-trace FILE   Record one-second runtime performance summaries as CSV.\n");
+    std::printf("  --evidence-scenario NAME --evidence-output DIR  Run a deterministic visual/runtime evidence scenario.\n");
     std::printf("  --net-latency-ms N --net-jitter-ms N  Enable explicit deterministic network impairment.\n");
     std::printf("  --net-drop-snapshot-every N --net-drop-input-every N --net-seed N\n");
 }
@@ -1714,6 +1716,112 @@ int runRoomInspectorSmoke(Game& game){
     std::printf("ROOM_INSPECTOR_SMOKE_%s normal_solo=%s\n",ok?"OK":"FAILED",(!normal.state().roomInspector&&normal.state().roomIndex==1)?"CLEAN":"LEAKED");
     return ok?0:1;
 }
+
+int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){
+        std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());
+        return 4;
+    }
+    std::error_code directoryError;
+    std::filesystem::create_directories(outputDirectory/"frames"/"clean",directoryError);
+    std::filesystem::create_directories(outputDirectory/"frames"/"diagnostic",directoryError);
+    if(directoryError){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=create_output path=%s\n",outputDirectory.string().c_str());return 4;}
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc);
+    std::ofstream events(outputDirectory/"events.ndjson",std::ios::trunc);
+    if(!timeline||!events){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=open_evidence_files\n");return 4;}
+
+    evidence::configureEnemyObstruction(host.game);
+    host.renderer.setHudVisible(false);
+    evidence::EnemyObstructionTracker tracker;
+    tracker.reset(host.game);
+    std::vector<std::string> capturedFrames;
+    bool captureFailed=false;
+    auto capture=[&](int tick,const char* label,const evidence::EnemyObstructionObservation& observation){
+        GameState renderState=host.game.state();
+        renderState.camera.pos={0.0f,8.5f,12.5f};
+        renderState.camera.lookTarget={0.0f,0.6f,0.0f};
+        renderState.camera.forward=normalized(renderState.camera.lookTarget-renderState.camera.pos);
+        renderState.camera.verticalFovDegrees=48.0f;
+        renderState.camera.firstPerson=false;
+        char stem[96]{};std::snprintf(stem,sizeof(stem),"tick-%04d-%s.ppm",tick,label);
+        const auto cleanRelative=std::filesystem::path("frames")/"clean"/stem;
+        const auto diagnosticRelative=std::filesystem::path("frames")/"diagnostic"/stem;
+        host.codec.open=false;host.codec.showColliders=false;host.codec.outputCount=0;host.codec.input.clear();
+        host.renderer.draw(renderState,&host.codec);glFinish();
+        const bool clean=captureFramebuffer(outputDirectory/cleanRelative,width,height);
+        host.codec.open=true;host.codec.showColliders=true;host.codec.input="scenario enemy-obstruction";
+        const auto diagnosticLine=[&](const char* name,float a,float b,float c){std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<name<<" "<<a<<" "<<b<<" "<<c;host.codec.write(line.str());};
+        {std::ostringstream line;line<<"TICK "<<tick<<"  SUBJECT ENEMY:0  MODE "<<evidence::behaviorMode(observation);host.codec.write(line.str());}
+        diagnosticLine("POS",observation.position.x,observation.position.y,observation.position.z);
+        diagnosticLine("VEL",observation.velocity.x,observation.velocity.y,observation.velocity.z);
+        {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"GOAL DIST "<<observation.goalDistance<<"  SPEED "<<observation.speed<<"  PROGRESS "<<observation.progress;host.codec.write(line.str());}
+        {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"CLEARANCE "<<observation.obstructionClearance<<"  DETOUR "<<observation.maximumDetour<<"  STALL "<<observation.stalledTicks;host.codec.write(line.str());}
+        host.renderer.draw(renderState,&host.codec);glFinish();
+        const bool diagnostic=captureFramebuffer(outputDirectory/diagnosticRelative,width,height);
+        glfwSwapBuffers(window);glfwPollEvents();
+        captureFailed|=!clean||!diagnostic;
+        capturedFrames.push_back(cleanRelative.generic_string());
+        capturedFrames.push_back(diagnosticRelative.generic_string());
+        events<<"{\"tick\":"<<tick<<",\"event\":\"checkpoint\",\"label\":\""<<label<<"\",\"clean\":\""<<cleanRelative.generic_string()<<"\",\"diagnostic\":\""<<diagnosticRelative.generic_string()<<"\"}\n";
+        events.flush();
+    };
+    auto writeObservation=[&](const evidence::EnemyObstructionObservation& o){
+        timeline<<std::fixed<<std::setprecision(6)
+            <<"{\"tick\":"<<o.tick<<",\"subject\":\"enemy:0\",\"mode\":\""<<evidence::behaviorMode(o)<<"\""
+            <<",\"position\":["<<o.position.x<<','<<o.position.y<<','<<o.position.z<<']'
+            <<",\"velocity\":["<<o.velocity.x<<','<<o.velocity.y<<','<<o.velocity.z<<']'
+            <<",\"goal\":["<<o.goal.x<<','<<o.goal.y<<','<<o.goal.z<<']'
+            <<",\"goal_distance\":"<<o.goalDistance<<",\"speed\":"<<o.speed<<",\"progress\":"<<o.progress
+            <<",\"support_source\":"<<o.supportSource<<",\"support_normal\":["<<o.supportNormal.x<<','<<o.supportNormal.y<<','<<o.supportNormal.z<<']'
+            <<",\"obstruction_clearance\":"<<o.obstructionClearance<<",\"maximum_detour\":"<<o.maximumDetour
+            <<",\"stalled_ticks\":"<<o.stalledTicks<<",\"collider_overlap\":"<<(o.colliderOverlap?"true":"false")
+            <<",\"attack_active\":"<<(o.attackActive?"true":"false")<<",\"attack_hit\":"<<(o.attackHit?"true":"false")
+            <<",\"finite\":"<<(o.finiteValues?"true":"false")<<"}\n";
+        timeline.flush();
+    };
+
+    auto observation=tracker.observe(host.game,0);
+    writeObservation(observation);capture(0,"start",observation);
+    bool finite=true,overlap=false,passed=false,routingCaptured=false,passedCaptured=false;
+    int maximumStall=0;
+    for(int tick=1;tick<=evidence::EnemyObstructionTicks;++tick){
+        host.game.setTouchControls(0,0,0,0,false,false,false,false,false,false);
+        host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));
+        observation=tracker.observe(host.game,tick);
+        writeObservation(observation);
+        finite&=observation.finiteValues;overlap|=observation.colliderOverlap;
+        if(observation.goalDistance>2.0f)maximumStall=std::max(maximumStall,observation.stalledTicks);
+        if(!routingCaptured&&observation.obstructionClearance<0.75f){capture(tick,"routing",observation);routingCaptured=true;}
+        if(!passedCaptured&&observation.position.x>2.0f){capture(tick,"passed",observation);passedCaptured=true;}
+        passed|=observation.position.x>2.0f;
+    }
+    capture(evidence::EnemyObstructionTicks,"final",observation);
+    const bool detoured=observation.maximumDetour>1.80f;
+    const bool progressed=observation.progress>7.0f;
+    const bool behaviorPassed=finite&&!overlap&&passed&&detoured&&progressed&&maximumStall<=90;
+    const char* classification=captureFailed?"visual_capture_failure":(behaviorPassed?"pass":"behavior_assertion_failure");
+
+    std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);
+    assertions<<"{\n  \"classification\": \""<<classification<<"\",\n  \"finite_values\": "<<(finite?"true":"false")
+        <<",\n  \"no_collider_overlap\": "<<(!overlap?"true":"false")<<",\n  \"passed_obstruction\": "<<(passed?"true":"false")
+        <<",\n  \"meaningful_detour\": "<<(detoured?"true":"false")<<",\n  \"meaningful_progress\": "<<(progressed?"true":"false")
+        <<",\n  \"bounded_pre_goal_stall\": "<<(maximumStall<=90?"true":"false")<<",\n  \"maximum_detour\": "<<observation.maximumDetour
+        <<",\n  \"progress\": "<<observation.progress<<",\n  \"maximum_pre_goal_stall_ticks\": "<<maximumStall<<"\n}\n";
+    assertions.flush();
+
+    const BuildIdentity& identity=desktopBuildIdentity();
+    std::ofstream manifest(manifestPath,std::ios::trunc);
+    manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"enemy-obstruction\",\n  \"classification\": \""<<classification
+        <<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration
+        <<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<evidence::EnemyObstructionTicks
+        <<",\n  \"subject\": \"enemy:0\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"frames\": [";
+    for(std::size_t i=0;i<capturedFrames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<capturedFrames[i]<<'"';
+    manifest<<"\n  ]\n}\n";manifest.flush();
+    std::printf("EVIDENCE_RUN=%s scenario=enemy-obstruction manifest=%s timeline=%s frames=%s\n",
+        behaviorPassed&&!captureFailed?"PASS":"FAIL",manifestPath.string().c_str(),(outputDirectory/"timeline.ndjson").string().c_str(),(outputDirectory/"frames").string().c_str());
+    return captureFailed?5:(behaviorPassed?0:10);
+}
 }
 
 int main(int argc, char** argv) {
@@ -1741,6 +1849,8 @@ int main(int argc, char** argv) {
     const bool captureDemo=captureDemoDir!=nullptr;
     const bool captureHideHud=hasArg(argc,argv,"--capture-hide-hud");
     const char* perfTracePath=argValue(argc,argv,"--perf-trace");
+    const char* evidenceScenario=argValue(argc,argv,"--evidence-scenario");
+    const char* evidenceOutput=argValue(argc,argv,"--evidence-output");
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
@@ -1805,7 +1915,7 @@ int main(int argc, char** argv) {
     // Browser reference creates WebGL with antialias:true. Four samples are a
     // modest desktop cost and remove the most visible geometry/crosshair jaggies.
     glfwWindowHint(GLFW_SAMPLES, 4);
-    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
+    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||evidenceScenario)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(
         windowWidth,
@@ -1834,9 +1944,10 @@ int main(int argc, char** argv) {
     if(automationPlaytest)host.automationCaptureDelayFrames=1;
     host.progressionPath=progressionSavePath();
     bool recoveredPersistentSave=false;
-    bool loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
+    bool loadedPersistentSave=false;
+    if(!evidenceScenario)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
 #ifdef __APPLE__
-    if(!loadedPersistentSave){
+    if(!evidenceScenario&&!loadedPersistentSave){
         const std::filesystem::path legacyPath=legacyTemporaryProgressionSavePath();
         if(legacyPath!=host.progressionPath&&loadProgression(host.game,legacyPath)){
             loadedPersistentSave=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
@@ -1844,7 +1955,8 @@ int main(int argc, char** argv) {
         }
     }
 #endif
-    std::printf("Persistent save: %s%s\n",host.progressionPath.string().c_str(),recoveredPersistentSave?" (recovered backup)":(loadedPersistentSave?" (loaded)":""));
+    if(evidenceScenario)std::printf("Persistent save: isolated for evidence run\n");
+    else std::printf("Persistent save: %s%s\n",host.progressionPath.string().c_str(),recoveredPersistentSave?" (recovered backup)":(loadedPersistentSave?" (loaded)":""));
     if(const char* service=std::getenv("DIGITAL_BREAKDOWN_MULTIPLAYER_URL"))host.multiplayerService=service;
     host.game.reset();
     if((!capturePath&&!captureDemo)||captureStart)host.game.prepareAttractScreen();
@@ -1961,6 +2073,13 @@ int main(int argc, char** argv) {
     if(combatRenderStress){const int result=runCombatRenderStress(window,host);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
     if(combatCrowdStress){const int result=runCombatCrowdStress(window,host);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
     if(soulLifecycleDirectory){const int result=runSoulLifecycleCapture(window,host,soulLifecycleDirectory,framebufferWidth,framebufferHeight);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
+    if(evidenceScenario){
+        int result=4;
+        if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
+        else if(std::strcmp(evidenceScenario,"enemy-obstruction")!=0)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
+        else result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();host.updater.disconnect();glfwTerminate();return result;
+    }
     if(!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector){
         host.multiplayer.configureImpairment(
             argInt(argc,argv,"--net-latency-ms"),
