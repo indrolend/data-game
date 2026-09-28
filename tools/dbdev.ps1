@@ -11,6 +11,7 @@ param(
         'desktop-run',
         'desktop-test',
         'desktop-smoke',
+        'evidence',
         'playtest',
         'room-smoke',
         'release-windows',
@@ -19,6 +20,9 @@ param(
     [string]$Command = 'status',
     [ValidateSet('game','rally','traversal','rooms','tv-room','tv-enter')]
     [string]$Mode = 'game',
+    [ValidateSet('enemy-obstruction')]
+    [string]$Scenario = 'enemy-obstruction',
+    [string]$Output,
     [ValidateSet('Debug','Release')]
     [string]$Configuration = 'Release',
     [switch]$Automation,
@@ -104,6 +108,7 @@ function Show-Help {
     Write-Host '  desktop-build [-Configuration Debug|Release] [-Reconfigure]'
     Write-Host '  desktop-run   [-Configuration Debug|Release] [-Reconfigure]'
     Write-Host '  desktop-test | desktop-smoke | room-smoke'
+    Write-Host '  evidence -Scenario enemy-obstruction [-Output PATH]'
     Write-Host '  playtest -Mode game|rally|traversal|rooms|tv-room|tv-enter [-Automation]'
     Write-Host '  ui | release-windows | diagnostics'
 }
@@ -187,6 +192,65 @@ switch ($Command) {
         }
         if (-not $exe) { throw 'Desktop executable was not produced.' }
         Invoke-Checked $exe @('--smoke-test')
+    }
+    'evidence' {
+        Invoke-DesktopBuild
+        $exe = Get-DesktopExe $Configuration
+        if (-not $exe) { throw 'Desktop executable was not produced.' }
+        $git = Get-GitState
+        if (-not $Output) {
+            $runId = '{0}-{1}{2}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $git.Commit, $(if ($git.Dirty) { '-dirty' } else { '' })
+            $Output = Join-Path $RepoRoot "artifacts\evidence\$Scenario\$runId"
+        } elseif (-not [System.IO.Path]::IsPathRooted($Output)) {
+            $Output = Join-Path $RepoRoot $Output
+        }
+        $outputPath = [System.IO.Path]::GetFullPath($Output)
+        if (Test-Path -LiteralPath (Join-Path $outputPath 'manifest.json')) {
+            throw "EVIDENCE_OUTPUT_EXISTS: $outputPath"
+        }
+        New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
+        $stdoutPath = Join-Path $outputPath 'stdout.log'
+        $stderrPath = Join-Path $outputPath 'stderr.log'
+        & $exe --evidence-scenario $Scenario --evidence-output $outputPath --capture-width 1280 --capture-height 720 1> $stdoutPath 2> $stderrPath
+        $nativeExit = $LASTEXITCODE
+        if (Test-Path $stdoutPath) { Get-Content $stdoutPath | Write-Host }
+        if ((Test-Path $stderrPath) -and (Get-Item $stderrPath).Length -gt 0) { Get-Content $stderrPath | Write-Warning }
+
+        $encoding = 'not_available'
+        $videoPath = Join-Path $outputPath 'evidence.mp4'
+        $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
+        if ($ffmpeg) {
+            $cleanFrames = @(Get-ChildItem (Join-Path $outputPath 'frames\clean') -Filter '*.ppm' | Sort-Object Name)
+            $allFrames = @(Get-ChildItem (Join-Path $outputPath 'frames') -Recurse -Filter '*.ppm' | Sort-Object FullName)
+            foreach ($frame in $allFrames) {
+                $png = [System.IO.Path]::ChangeExtension($frame.FullName, '.png')
+                & $ffmpeg.Source -y -loglevel error -i $frame.FullName $png
+                if ($LASTEXITCODE -ne 0) { $encoding = 'failed'; break }
+            }
+            if ($encoding -ne 'failed' -and $cleanFrames.Count -gt 0) {
+                $concatPath = Join-Path $outputPath 'video-frames.txt'
+                $concatLines = foreach ($frame in $cleanFrames) {
+                    "file '$($frame.FullName.Replace("'", "''"))'"
+                    'duration 1.0'
+                }
+                $concatLines += "file '$($cleanFrames[-1].FullName.Replace("'", "''"))'"
+                $concatLines | Set-Content -LiteralPath $concatPath -Encoding ascii
+                & $ffmpeg.Source -y -loglevel error -f concat -safe 0 -i $concatPath -vf 'format=yuv420p' -movflags '+faststart' $videoPath
+                $encoding = if ($LASTEXITCODE -eq 0) { 'pass' } else { 'failed' }
+            }
+        }
+        $manifestPath = Join-Path $outputPath 'manifest.json'
+        if (Test-Path $manifestPath) {
+            $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+            $manifest | Add-Member -NotePropertyName stdout -NotePropertyValue 'stdout.log'
+            $manifest | Add-Member -NotePropertyName stderr -NotePropertyValue 'stderr.log'
+            $manifest | Add-Member -NotePropertyName encoding -NotePropertyValue $encoding
+            if ($encoding -eq 'pass') { $manifest | Add-Member -NotePropertyName video -NotePropertyValue 'evidence.mp4' }
+            $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+        }
+        Write-Host "EVIDENCE_BUNDLE path=$outputPath manifest=$manifestPath video=$(if ($encoding -eq 'pass') { $videoPath } else { 'none' }) encoding=$encoding" -ForegroundColor Cyan
+        if ($nativeExit -ne 0) { throw "Evidence scenario exited with code $nativeExit. Evidence was preserved at $outputPath" }
+        if ($encoding -eq 'failed') { throw "Evidence encoding failed. Native evidence remains at $outputPath" }
     }
     'playtest' {
         Invoke-DesktopBuild

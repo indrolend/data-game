@@ -299,6 +299,10 @@ add_executable(RenderContractsTest "${CMAKE_CURRENT_SOURCE_DIR}/../native/tests/
 target_include_directories(RenderContractsTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RenderContractsTest PRIVATE cxx_std_17)
 
+add_executable(EnemyEvidenceScenarioTest "${CMAKE_CURRENT_SOURCE_DIR}/../native/tests/enemy_evidence_scenario_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(EnemyEvidenceScenarioTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(EnemyEvidenceScenarioTest PRIVATE cxx_std_17)
+
 add_executable(DesktopPlaytestPolicyTest "${CMAKE_CURRENT_SOURCE_DIR}/../native/tests/desktop_playtest_policy_test.cpp")
 target_include_directories(DesktopPlaytestPolicyTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_features(DesktopPlaytestPolicyTest PRIVATE cxx_std_17)
@@ -387,6 +391,7 @@ add_test(NAME MarkerPillarGeometryTest COMMAND MarkerPillarGeometryTest)
 add_test(NAME SlopeTraversalFixtureTest COMMAND SlopeTraversalFixtureTest)
 add_test(NAME SlopeTraversalCheck COMMAND SlopeTraversalFixtureTest --check)
 add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
+add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
 add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
 add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)
 add_test(NAME SoulEconomyTest COMMAND SoulEconomyTest)

@@ -46,6 +46,7 @@ run_logged build cmake --build "$BUILD_DIR" --config Release --target \
   MarkerPillarGeometryTest \
   SlopeTraversalFixtureTest \
   RenderContractsTest \
+  EnemyEvidenceScenarioTest \
   DesktopPlaytestPolicyTest \
   DeveloperCodecTest \
   SoulEconomyTest \

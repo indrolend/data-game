@@ -21,4 +21,5 @@ Thumbs.db
 logs/
 archive/
 context-pack/
+artifacts/evidence/
 backup-*/
