@@ -125,11 +125,6 @@ constexpr float HUMAN_ATTACK_DURATION = HUMAN_SWING_ATTACK_DURATION;
 constexpr float HUMAN_ATTACK_COOLDOWN = 0.62f;
 constexpr float HUMAN_ATTACK_KNOCKBACK = 4.8f;
 constexpr float HUMAN_ATTACK_BATTERY_COST = 26.0f;
-constexpr float BATTERY_IDLE_REGEN = 8.0f;
-constexpr float BATTERY_WALK_DRAIN = 0.45f;
-constexpr float BATTERY_SPRINT_DRAIN = 3.0f;
-constexpr float BATTERY_AIR_DRAIN = 0.9f;
-constexpr float BATTERY_VACUUM_DRAIN = 1.35f;
 constexpr float BATTERY_JUMP_COST = 3.0f;
 constexpr float BATTERY_DOUBLE_JUMP_COST = 6.0f;
 constexpr float BATTERY_SHOOT_COST = 7.0f;
@@ -1035,21 +1030,23 @@ void Game::updateBattery(float dt) {
     const InputState& input = state_.input;
     const float forward = (input.forward ? 1.0f : 0.0f) - (input.back ? 1.0f : 0.0f) + input.touchMoveZ;
     const float strafe = (input.right ? 1.0f : 0.0f) - (input.left ? 1.0f : 0.0f) + input.touchMoveX;
-    const bool moving = std::abs(forward) + std::abs(strafe) > 0.0f;
-    const bool running = moving && (input.sprint || input.touchSprint);
-    float drain = 0.0f;
-    bool active = false;
-    if (moving) { drain += running ? BATTERY_SPRINT_DRAIN : BATTERY_WALK_DRAIN; active = true; }
-    if (!state_.player.grounded) { drain += BATTERY_AIR_DRAIN; active = true; }
-    if (state_.vacuum.active) { drain += BATTERY_VACUUM_DRAIN * std::max(0.35f, state_.vacuum.power); active = true; }
-    if (state_.meleeVisual.visualTimer > 0.0f || energy.dischargeTimer > 0.0f) active = true;
-    if(active)state_.progression.run.batteryRegenLock=std::max(state_.progression.run.batteryRegenLock,PASSIVE_RECHARGE_DELAY);
-    if (drain > 0.0f) spendBattery(drain * dt);
+    const soul_economy::BatteryDemand demand=soul_economy::batteryDemand({
+        forward,
+        strafe,
+        state_.vacuum.power,
+        input.sprint || input.touchSprint,
+        state_.player.grounded,
+        state_.vacuum.active,
+        state_.meleeVisual.visualTimer > 0.0f,
+        energy.dischargeTimer > 0.0f
+    });
+    if(demand.active)state_.progression.run.batteryRegenLock=std::max(state_.progression.run.batteryRegenLock,PASSIVE_RECHARGE_DELAY);
+    if (demand.drainPerSecond > 0.0f) spendBattery(demand.drainPerSecond * dt);
     else if(state_.progression.run.batteryRegenLock<=0.0f) {
         const float survivalRegen=(survivalSynergyTier()>0&&state_.player.battery<24.0f)?1.0f+0.10f*survivalSynergyTier():1.0f;
         const float precisionWindow=state_.progression.run.headshotRechargeBoost>0.0f?1.35f:1.0f;
         const float tvSignal=1.0f+std::min(0.45f,0.06f*std::sqrt(static_cast<float>(std::max(0,state_.secretTv.signal))));
-        gainBattery(BATTERY_IDLE_REGEN * soul_economy::passiveRegenMultiplier(state_.player.souls) * tvSignal * precisionWindow * survivalRegen * (1.0f-state_.progression.run.headshotRegenTax) * dt);
+        gainBattery(soul_economy::BATTERY_IDLE_REGEN * soul_economy::passiveRegenMultiplier(state_.player.souls) * tvSignal * precisionWindow * survivalRegen * (1.0f-state_.progression.run.headshotRegenTax) * dt);
     }
 }
 
