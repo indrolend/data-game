@@ -4,6 +4,7 @@
 #include "gameplay/SoulMotion.hpp"
 #include "gameplay/TargetRoles.hpp"
 #include "gameplay/MeleeConfig.hpp"
+#include "gameplay/RunProgression.hpp"
 #include "gameplay/TraversalCapabilities.hpp"
 #include "gameplay/VacuumGeometry.hpp"
 #include "RoomEnvironment.hpp"
@@ -1019,7 +1020,7 @@ void Game::registerMeleeBatteryHit(int hitCount) {
 void Game::updateBattery(float dt) {
     if (!state_.player.alive) return;
     if(state_.player.downed){state_.player.bleedoutTimer=std::max(0.0f,state_.player.bleedoutTimer-dt);if(state_.player.bleedoutTimer<=0.0f){state_.player.downed=false;if(simulationPlayerId_!=0)state_.player.alive=false;else {bool teammate=false;for(const auto& peer:state_.multiplayer.peers)if(peer.active&&peer.player.alive&&!peer.player.downed){teammate=true;break;}if(teammate)state_.player.alive=false;else triggerRunDeath();}}return;}
-    if(simulationPlayerId_==0) updateRunProgressionTimers(dt);
+    if(simulationPlayerId_==0) gameplay::advanceRunProgressionTimers(state_.progression.run,dt);
     EnergyState& energy = state_.energy;
     if (energy.comboHits > 0 && state_.time - energy.lastComboHitTime > BATTERY_COMBO_TIMEOUT) {
         energy.comboHits = 0;
@@ -1048,17 +1049,6 @@ void Game::updateBattery(float dt) {
         const float tvSignal=1.0f+std::min(0.45f,0.06f*std::sqrt(static_cast<float>(std::max(0,state_.secretTv.signal))));
         gainBattery(soul_economy::BATTERY_IDLE_REGEN * soul_economy::passiveRegenMultiplier(state_.player.souls) * tvSignal * precisionWindow * survivalRegen * (1.0f-state_.progression.run.headshotRegenTax) * dt);
     }
-}
-
-void Game::updateRunProgressionTimers(float dt) {
-    state_.progression.run.batteryRegenLock = std::max(0.0f, state_.progression.run.batteryRegenLock - dt);
-    state_.progression.run.headshotRegenTax = std::max(0.0f, state_.progression.run.headshotRegenTax - dt * 0.11f);
-    state_.progression.run.relayPrimerTimer=std::max(0.0f,state_.progression.run.relayPrimerTimer-dt);
-    if(state_.progression.run.relayPrimerTimer<=0.0f)state_.progression.run.relayPrimerStacks=0;
-    state_.progression.run.impactGuardTimer=std::max(0.0f,state_.progression.run.impactGuardTimer-dt);
-    state_.progression.run.lastStandCooldown=std::max(0.0f,state_.progression.run.lastStandCooldown-dt);
-    state_.progression.run.lungeReboundTimer=std::max(0.0f,state_.progression.run.lungeReboundTimer-dt);
-    state_.progression.run.headshotRechargeBoost=std::max(0.0f,state_.progression.run.headshotRechargeBoost-dt);
 }
 
 void Game::triggerRunDeath() {
@@ -1436,11 +1426,7 @@ void Game::update(float dt) {
     state_.hud.perfectPulse=std::max(0.0f,state_.hud.perfectPulse-dt*3.8f);
     state_.hud.headshotKillCharge=std::max(0.0f,state_.hud.headshotKillCharge-dt*1.7f);
     updateBuildLabel();
-    auto& runProgression=state_.progression.run;
-    if(runProgression.accuracyStacks>0){
-        runProgression.accuracyDecayTimer=std::max(0.0f,runProgression.accuracyDecayTimer-dt);
-        if(runProgression.accuracyDecayTimer<=0.0f){runProgression.accuracyStacks=0;runProgression.accuracyMultiplier=1.0f;}
-    }
+    gameplay::advanceAccuracyDecay(state_.progression.run,dt);
     if(state_.multiplayer.enabled&&!state_.multiplayer.authoritativeHost){updateNetworkGuest(dt);return;}
     if(state_.attractMode)updateAttractInput(dt);
     updateSecretTv(dt);
