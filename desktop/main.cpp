@@ -1721,6 +1721,7 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
     std::error_code directoryError;
     std::filesystem::create_directories(outputDirectory/"frames"/"clean",directoryError);
     std::filesystem::create_directories(outputDirectory/"frames"/"diagnostic",directoryError);
+    std::filesystem::create_directories(outputDirectory/"frames"/"video",directoryError);
     if(directoryError){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=create_output path=%s\n",outputDirectory.string().c_str());return 4;}
     std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc);
     std::ofstream events(outputDirectory/"events.ndjson",std::ios::trunc);
@@ -1732,13 +1733,29 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
     tracker.reset(host.game);
     std::vector<std::string> capturedFrames;
     bool captureFailed=false;
-    auto capture=[&](int tick,const char* label,const evidence::EnemyObstructionObservation& observation){
+    constexpr int videoFrameStride=4;
+    constexpr int videoFrameRate=60/videoFrameStride;
+    auto evidenceRenderState=[&](){
         GameState renderState=host.game.state();
         renderState.camera.pos={0.0f,8.5f,12.5f};
         renderState.camera.lookTarget={0.0f,0.6f,0.0f};
         renderState.camera.forward=normalized(renderState.camera.lookTarget-renderState.camera.pos);
         renderState.camera.verticalFovDegrees=48.0f;
         renderState.camera.firstPerson=false;
+        return renderState;
+    };
+    auto captureVideoFrame=[&](int tick){
+        GameState renderState=evidenceRenderState();
+        char stem[64]{};std::snprintf(stem,sizeof(stem),"tick-%04d.ppm",tick);
+        const auto relative=std::filesystem::path("frames")/"video"/stem;
+        host.codec.open=false;host.codec.showColliders=false;host.codec.outputCount=0;host.codec.input.clear();
+        host.renderer.draw(renderState,&host.codec);glFinish();
+        const bool saved=captureFramebuffer(outputDirectory/relative,width,height);
+        glfwSwapBuffers(window);glfwPollEvents();
+        captureFailed|=!saved;
+    };
+    auto capture=[&](int tick,const char* label,const evidence::EnemyObstructionObservation& observation){
+        GameState renderState=evidenceRenderState();
         char stem[96]{};std::snprintf(stem,sizeof(stem),"tick-%04d-%s.ppm",tick,label);
         const auto cleanRelative=std::filesystem::path("frames")/"clean"/stem;
         const auto diagnosticRelative=std::filesystem::path("frames")/"diagnostic"/stem;
@@ -1777,7 +1794,7 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
     };
 
     auto observation=tracker.observe(host.game,0);
-    writeObservation(observation);capture(0,"start",observation);
+    writeObservation(observation);captureVideoFrame(0);capture(0,"start",observation);
     bool finite=true,overlap=false,passed=false,routingCaptured=false,passedCaptured=false;
     int maximumStall=0;
     for(int tick=1;tick<=evidence::EnemyObstructionTicks;++tick){
@@ -1785,6 +1802,7 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));
         observation=tracker.observe(host.game,tick);
         writeObservation(observation);
+        if(tick%videoFrameStride==0)captureVideoFrame(tick);
         finite&=observation.finiteValues;overlap|=observation.colliderOverlap;
         if(observation.goalDistance>2.0f)maximumStall=std::max(maximumStall,observation.stalledTicks);
         if(!routingCaptured&&observation.obstructionClearance<0.75f){capture(tick,"routing",observation);routingCaptured=true;}
@@ -1812,7 +1830,8 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         <<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<evidence::EnemyObstructionTicks
         <<",\n  \"subject\": \"enemy:0\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"frames\": [";
     for(std::size_t i=0;i<capturedFrames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<capturedFrames[i]<<'"';
-    manifest<<"\n  ]\n}\n";manifest.flush();
+    manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"tick-%04d.ppm\", \"frame_rate\": "
+        <<videoFrameRate<<", \"tick_stride\": "<<videoFrameStride<<"}\n}\n";manifest.flush();
     std::printf("EVIDENCE_RUN=%s scenario=enemy-obstruction manifest=%s timeline=%s frames=%s\n",
         behaviorPassed&&!captureFailed?"PASS":"FAIL",manifestPath.string().c_str(),(outputDirectory/"timeline.ndjson").string().c_str(),(outputDirectory/"frames").string().c_str());
     return captureFailed?5:(behaviorPassed?0:10);
