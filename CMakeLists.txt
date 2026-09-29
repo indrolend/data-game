@@ -205,6 +205,13 @@ target_include_directories(GameplayRoleAndSoulMotionTest PRIVATE "${DB_GAME_ROOT
 target_compile_features(GameplayRoleAndSoulMotionTest PRIVATE cxx_std_17)
 
 add_executable(
+    RunProgressionTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_progression_test.cpp"
+)
+target_include_directories(RunProgressionTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(RunProgressionTest PRIVATE cxx_std_17)
+
+add_executable(
     GameplayGeometryAndConfigTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_geometry_and_config_test.cpp"
 )
@@ -367,6 +374,7 @@ target_include_directories(SecretTvPolicyTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(SecretTvPolicyTest PRIVATE cxx_std_17)
 
 add_test(NAME GameplayRoleAndSoulMotionTest COMMAND GameplayRoleAndSoulMotionTest)
+add_test(NAME RunProgressionTest COMMAND RunProgressionTest)
 add_test(NAME MultiplayerProtocolTest COMMAND MultiplayerProtocolTest)
 add_test(NAME MultiplayerDeterminismTest COMMAND MultiplayerDeterminismTest)
 add_test(NAME HostRemotePeerSimulationIsolationTest COMMAND HostRemotePeerSimulationIsolationTest)
