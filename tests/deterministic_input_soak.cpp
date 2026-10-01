@@ -1,6 +1,7 @@
 #include "Game.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -84,6 +85,7 @@ int main() {
     int deadFrames = 0;
     int maximumSouls = 0;
     int maximumRoom = game.state().roomIndex;
+    const auto observationStart = std::chrono::steady_clock::now();
 
     for (int frame = 0; frame < kFrames; ++frame) {
         if (const char* invalid = invalidState(game.state())) {
@@ -131,6 +133,12 @@ int main() {
         maximumRoom = std::max(maximumRoom, game.state().roomIndex);
     }
 
+    const auto observationEnd = std::chrono::steady_clock::now();
+    const double elapsedMilliseconds =
+        std::chrono::duration<double, std::milli>(observationEnd - observationStart).count();
+    const double ticksPerSecond = static_cast<double>(kFrames) * 1000.0 / elapsedMilliseconds;
+    const double microsecondsPerTick = elapsedMilliseconds * 1000.0 / static_cast<double>(kFrames);
+
     std::uint64_t hash = 1469598103934665603ull;
     hash = mix(hash, static_cast<std::uint64_t>(deaths));
     hash = mix(hash, static_cast<std::uint64_t>(restarts));
@@ -142,5 +150,10 @@ int main() {
         "upgrades=%d max_souls=%d max_room=%d hash=%llu\n",
         kSeed, kFrames, deaths, restarts, firstPersonToggles, upgradeChoices,
         maximumSouls, maximumRoom, static_cast<unsigned long long>(hash));
+    std::printf(
+        "GAMEPLAY_COMPUTE_OBSERVATION frames=%d simulated_seconds=%.1f elapsed_ms=%.3f "
+        "ticks_per_second=%.1f us_per_tick=%.3f state_hash=%llu\n",
+        kFrames, kFrames * kDt, elapsedMilliseconds, ticksPerSecond,
+        microsecondsPerTick, static_cast<unsigned long long>(hash));
     return 0;
 }
