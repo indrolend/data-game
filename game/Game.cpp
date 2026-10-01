@@ -24,7 +24,7 @@ namespace {
 constexpr float ROOM_WIDTH = world::RoomWidth;
 constexpr float ROOM_DEPTH = world::RoomDepth;
 constexpr float ROOM_WALL_HEIGHT = world::RoomWallHeight;
-constexpr float GROUND_Y = 0.08f;
+constexpr float GROUND_Y = world::GroundY;
 constexpr float ROOM_EXIT_Z = -ROOM_DEPTH * 0.5f + 1.15f;
 constexpr float ROOM_START_Z = ROOM_DEPTH * 0.5f - 5.5f;
 constexpr float ROOM_GRID_Z = ROOM_EXIT_Z + 0.42f;

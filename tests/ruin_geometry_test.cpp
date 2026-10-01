@@ -1,5 +1,6 @@
 #include "Game.hpp"
 #include "gameplay/PhoneBody.hpp"
+#include "world/RoomGeometry.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -35,9 +36,9 @@ int main(){
     const float bodyOnlyX=body.center.x-body.size.x*0.40f;
     const auto bodySupport=game.debugPlayerSupportAt(bodyOnlyX,body.center.z);
     const auto remnantSupport=game.debugPlayerSupportAt(remnant.center.x,remnant.center.z);
-    assert(near(bodySupport.height,bodyTop+GROUND_Y));
-    assert(near(remnantSupport.height,remnantTop+GROUND_Y));
-    assert(bodySupport.height<prop.size.y+GROUND_Y);
+    assert(near(bodySupport.height,bodyTop+world::GroundY));
+    assert(near(remnantSupport.height,remnantTop+world::GroundY));
+    assert(bodySupport.height<prop.size.y+world::GroundY);
     assert(remnantSupport.height>bodySupport.height);
 
     int remnantCollider=-1;
