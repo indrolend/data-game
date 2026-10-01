@@ -25,6 +25,12 @@ struct HumanModelPose {
   float scale[3];
 };
 
+struct HumanModelExpressiveness {
+  float hitAmount = 0.0f;
+  float hitDirection = 0.0f;
+  float time = 0.0f;
+};
+
 struct HumanModelData {
   std::vector<HumanModelVertex> vertices;
   std::vector<HumanModelBone> bones;
@@ -100,7 +106,8 @@ struct HumanModelData {
   }
 
   void skin(float animationTime, float attackTimer, int attackVariant,
-            std::vector<float> &output) const {
+            std::vector<float> &output,
+            const HumanModelExpressiveness &expressiveness = {}) const {
     if (!valid()) {
       output.clear();
       return;
@@ -126,6 +133,7 @@ struct HumanModelData {
       slerp(a.quaternion, b.quaternion, blend, q);
       if (attackTimer > 0.0f)
         applyAttack(bones[i], attackTimer, attackVariant, q);
+      applyExpressiveness(bones[i], expressiveness, q);
       float local[16];
       compose(p, q, s, local);
       float *world = worlds.data() + i * 16u;
@@ -288,6 +296,31 @@ private:
   }
   static bool rigIsLeftArm(const HumanModelBone &bone) { return bone.flags & 4; }
   static bool rigIsRightArm(const HumanModelBone &bone) { return bone.flags & 8; }
+
+  static void applyExpressiveness(const HumanModelBone &bone,
+                                  const HumanModelExpressiveness &expression,
+                                  float *q) {
+    const bool left = rigIsLeftArm(bone), right = rigIsRightArm(bone);
+    if (!left && !right)
+      return;
+    const float hit = std::clamp(expression.hitAmount, 0.0f, 1.0f);
+    if (hit <= 0.001f)
+      return;
+    const RigRegion region = rigRegion(bone);
+    const float gain = region == RigHand ? 1.0f :
+                       region == RigForearm ? 0.76f :
+                       region == RigUpperArm ? 0.48f :
+                       region == RigShoulder ? 0.28f : 0.18f;
+    const float side = left ? -1.0f : 1.0f;
+    const float direction = std::clamp(expression.hitDirection, -1.0f, 1.0f);
+    const float rebound = std::sin(expression.time * 24.0f + side * 0.9f) * hit * gain;
+    float x, y, z;
+    quaternionToEuler(q, x, y, z);
+    x += rebound * 0.34f;
+    y += (side * 0.20f - direction * 0.24f) * rebound;
+    z += side * rebound * 0.38f;
+    eulerToQuaternion(x, y, z, q);
+  }
 
   static void applyAttack(const HumanModelBone &bone, float timer, int variant,
                           float *q) {

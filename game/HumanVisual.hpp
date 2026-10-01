@@ -76,6 +76,7 @@ struct HumanVisualPose {
     float soulMorph = 0.0f;
     float vacuumLean = 0.0f;
     float collapse = 0.0f;
+    Vec3 expressiveScale{1.0f, 1.0f, 1.0f};
 };
 
 struct HumanReactionVisual {
@@ -189,6 +190,12 @@ inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, c
     pose.leftLegSwing = stride * 0.36f * active - pose.collapse * 0.24f;
     pose.rightLegSwing = counterStride * 0.36f * active - pose.collapse * 0.24f;
     pose.hitLean = reaction.hitAmount * 0.08f;
+    const float rubberPulse = reaction.hitAmount * (0.78f + std::sin(time * 23.0f) * 0.22f);
+    pose.expressiveScale = {
+        1.0f + rubberPulse * 0.10f,
+        1.0f - rubberPulse * 0.14f,
+        1.0f + rubberPulse * 0.075f
+    };
 
     if (aliveHuman && reaction.attackTimer > 0.0f) {
         const float t = 1.0f - clampf(reaction.attackTimer / HUMAN_SWING_ATTACK_DURATION, 0.0f, 1.0f);
