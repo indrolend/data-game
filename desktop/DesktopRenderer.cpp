@@ -885,6 +885,7 @@ void DesktopRenderer::drawSlopeWedge(const SlopeSupport& slope,float zOffset,con
 
 void DesktopRenderer::drawRoomTile(const GameState& state, int tileIndex) const {
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    const auto lightRig=render_contract::roomLightRig(plan.setting,plan.form);
     const float z0 = static_cast<float>(tileIndex) * ROOM_DEPTH;
     const float doorWidth = 5.35f;
     const float doorHeight = 3.95f;
@@ -898,7 +899,12 @@ void DesktopRenderer::drawRoomTile(const GameState& state, int tileIndex) const 
     if(field&&plan.form==room_environment::RoomForm::Open)drawFieldGrass(tileIndex);
     if(plan.setting==room_environment::RoomSetting::City)drawCityGround(tileIndex);
     if(coastal)drawBox({0,0.005f,z0},{23.5f,0.01f,35.5f},0,0,0,0.64f,0.58f,0.43f);
-    if(sterile)drawBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+    if(sterile){
+        drawBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+        glDisable(GL_LIGHTING);
+        for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture)drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity,fixture.color.g*fixture.intensity,fixture.color.b*fixture.intensity);}
+        glEnable(GL_LIGHTING);
+    }
     for (float seam : {-ROOM_DEPTH*0.5f, ROOM_DEPTH*0.5f}) {
         drawBox({-sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
         drawBox({ sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
@@ -1216,9 +1222,11 @@ void DesktopRenderer::drawDoorDataMosh(const GameState& state) const {
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
+    const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    const auto lightRig=render_contract::roomLightRig(roomPlan.setting,roomPlan.form);
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
-    glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); glEnable(GL_LIGHT1); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
+    glEnable(GL_LIGHTING); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
     const auto& lighting=render_contract::DesktopSceneLighting;
     const GLfloat ambient[]={atmosphere.ambient.r,atmosphere.ambient.g,atmosphere.ambient.b,1.0f}; glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);
     const GLfloat sunDiffuse[]={atmosphere.sun.r,atmosphere.sun.g,atmosphere.sun.b,1.0f};
@@ -1228,12 +1236,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         lighting.sun.direction.z,
         0.0f
     };
-    glLightfv(GL_LIGHT0,GL_DIFFUSE,sunDiffuse); glLightfv(GL_LIGHT0,GL_POSITION,sunPos);
+    const bool localPrimary=lightRig.primarySource==render_contract::PrimaryLightSource::CeilingFixtures;
+    if(localPrimary){glDisable(GL_LIGHT0);glDisable(GL_LIGHT1);}else{glEnable(GL_LIGHT0);glEnable(GL_LIGHT1);glLightfv(GL_LIGHT0,GL_DIFFUSE,sunDiffuse);glLightfv(GL_LIGHT0,GL_POSITION,sunPos);}
     const GLfloat fillDiffuse[]={atmosphere.fill.r,atmosphere.fill.g,atmosphere.fill.b,1.0f}, fillPos[]={lighting.fill.direction.x,lighting.fill.direction.y,lighting.fill.direction.z,0.0f};
-    glLightfv(GL_LIGHT1,GL_DIFFUSE,fillDiffuse); glLightfv(GL_LIGHT1,GL_POSITION,fillPos);
+    if(!localPrimary){glLightfv(GL_LIGHT1,GL_DIFFUSE,fillDiffuse); glLightfv(GL_LIGHT1,GL_POSITION,fillPos);}
     const GLfloat phoneDiffuse[]={atmosphere.phone.r,atmosphere.phone.g,atmosphere.phone.b,1.0f};
     const GLfloat phoneLightPos[]={state.phoneTransform.screenCenter.x,state.phoneTransform.screenCenter.y,state.phoneTransform.screenCenter.z,1.0f};
     glLightfv(GL_LIGHT2,GL_DIFFUSE,phoneDiffuse);glLightfv(GL_LIGHT2,GL_POSITION,phoneLightPos);glLightf(GL_LIGHT2,GL_CONSTANT_ATTENUATION,1.0f);glLightf(GL_LIGHT2,GL_LINEAR_ATTENUATION,1.6f);
+    const float lightTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
+    for(int i=0;i<3;++i){const GLenum light=GL_LIGHT3+i;if(i>=lightRig.localLightCount){glDisable(light);continue;}const auto& local=lightRig.localLights[i];const GLfloat diffuse[]={local.color.r*local.intensity,local.color.g*local.intensity,local.color.b*local.intensity,1.0f};const GLfloat position[]={local.localPosition.x,local.localPosition.y,lightTileOrigin+local.localPosition.z,1.0f};glEnable(light);glLightfv(light,GL_DIFFUSE,diffuse);glLightfv(light,GL_POSITION,position);glLightf(light,GL_CONSTANT_ATTENUATION,0.65f);glLightf(light,GL_LINEAR_ATTENUATION,0.05f);glLightf(light,GL_QUADRATIC_ATTENUATION,4.0f/(local.radius*local.radius));}
     glEnable(GL_FOG);const GLfloat fogColor[]={atmosphere.fog.r,atmosphere.fog.g,atmosphere.fog.b,1.0f};glFogfv(GL_FOG_COLOR,fogColor);glFogi(GL_FOG_MODE,GL_EXP2);glFogf(GL_FOG_DENSITY,atmosphere.fogDensity);
     glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_LIGHTING); glEnable(GL_NORMALIZE);
     const bool cheapVisuals=state.localSettings.graphicsPreset<=0;
