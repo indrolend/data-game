@@ -2,6 +2,7 @@
 #include "HumanVisual.hpp"
 #include "BitmapFont.hpp"
 #include "RoomEnvironment.hpp"
+#include "RoomLighting.hpp"
 #include "PhoneDisplayLayout.hpp"
 #include "PhoneStencilReveal.hpp"
 #include "RenderContracts.hpp"
@@ -885,7 +886,7 @@ void DesktopRenderer::drawSlopeWedge(const SlopeSupport& slope,float zOffset,con
 
 void DesktopRenderer::drawRoomTile(const GameState& state, int tileIndex) const {
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
-    const auto lightRig=render_contract::roomLightRig(plan.setting,plan.form);
+    const auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
     const float z0 = static_cast<float>(tileIndex) * ROOM_DEPTH;
     const float doorWidth = 5.35f;
     const float doorHeight = 3.95f;
@@ -1223,7 +1224,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
     const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
-    const auto lightRig=render_contract::roomLightRig(roomPlan.setting,roomPlan.form);
+    const auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
@@ -1236,7 +1237,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         lighting.sun.direction.z,
         0.0f
     };
-    const bool localPrimary=lightRig.primarySource==render_contract::PrimaryLightSource::CeilingFixtures;
+    const bool localPrimary=lightRig.primarySource==room_lighting::PrimaryLightSource::CeilingFixtures;
     if(localPrimary){glDisable(GL_LIGHT0);glDisable(GL_LIGHT1);}else{glEnable(GL_LIGHT0);glEnable(GL_LIGHT1);glLightfv(GL_LIGHT0,GL_DIFFUSE,sunDiffuse);glLightfv(GL_LIGHT0,GL_POSITION,sunPos);}
     const GLfloat fillDiffuse[]={atmosphere.fill.r,atmosphere.fill.g,atmosphere.fill.b,1.0f}, fillPos[]={lighting.fill.direction.x,lighting.fill.direction.y,lighting.fill.direction.z,0.0f};
     if(!localPrimary){glLightfv(GL_LIGHT1,GL_DIFFUSE,fillDiffuse); glLightfv(GL_LIGHT1,GL_POSITION,fillPos);}

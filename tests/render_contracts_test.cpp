@@ -1,8 +1,10 @@
 #include "RenderContracts.hpp"
+#include "RoomLighting.hpp"
 #include <cstdio>
 
 int main(){
     using namespace render_contract;
+    using namespace room_lighting;
     if(DesktopSceneLighting.sun.direction.x!=30.0f||DesktopSceneLighting.fog.density!=0.018f){
         std::fputs("RENDER_CONTRACTS_FAIL desktop profile\n",stderr);return 1;
     }
