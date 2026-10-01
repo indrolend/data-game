@@ -300,6 +300,10 @@ add_executable(
 target_include_directories(PhoneMenuLayoutTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(PhoneMenuLayoutTest PRIVATE cxx_std_17)
 
+add_executable(PhoneStencilRevealTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_stencil_reveal_test.cpp")
+target_include_directories(PhoneStencilRevealTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(PhoneStencilRevealTest PRIVATE cxx_std_17)
+
 add_executable(
     MenuNavigationTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/menu_navigation_test.cpp"
@@ -455,6 +459,7 @@ add_test(NAME TargetLifecycleTest COMMAND TargetLifecycleTest)
 add_test(NAME StateLayoutContractsTest COMMAND StateLayoutContractsTest)
 add_test(NAME PhoneBodyContractTest COMMAND PhoneBodyContractTest)
 add_test(NAME PhoneMenuLayoutTest COMMAND PhoneMenuLayoutTest)
+add_test(NAME PhoneStencilRevealTest COMMAND PhoneStencilRevealTest)
 add_test(NAME MenuNavigationTest COMMAND MenuNavigationTest)
 add_test(NAME PhoneDisplayStateTest COMMAND PhoneDisplayStateTest)
 add_test(NAME RoomEnvironmentTest COMMAND RoomEnvironmentTest)
