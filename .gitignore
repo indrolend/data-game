@@ -1,4 +1,5 @@
 /build/
+/build-*/
 /dist/
 multiplayer-server/node_modules/
 multiplayer-server/.wrangler/
