@@ -884,7 +884,7 @@ void DesktopRenderer::drawSlopeWedge(const SlopeSupport& slope,float zOffset,con
     for(int i=0;i<mesh.vertexCount;++i){glNormal3f(mesh.normals[i*3],mesh.normals[i*3+1],mesh.normals[i*3+2]);glVertex3f(mesh.positions[i*3],mesh.positions[i*3+1],mesh.positions[i*3+2]);}glEnd();
 }
 
-void DesktopRenderer::drawRoomTile(const GameState& state, int tileIndex) const {
+void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const scene_lighting_response::Response& lightingResponse) const {
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     const auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
     const float z0 = static_cast<float>(tileIndex) * ROOM_DEPTH;
@@ -913,6 +913,10 @@ void DesktopRenderer::drawRoomTile(const GameState& state, int tileIndex) const 
     }
     drawBox({-ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
     drawBox({ ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+    if(tileIndex==state.topology.currentTileIndex&&lightingResponse.exitGlow>0.01f){
+        const VisualColor guide=sterile?VisualColor{0.62f,0.88f,0.94f}:VisualColor{0.72f,0.90f,0.82f};
+        glDisable(GL_LIGHTING);drawBox({0,doorHeight+0.12f,z0-ROOM_DEPTH*0.5f+0.27f},{doorWidth,0.12f,0.08f},0,0,0,guide.r*(0.38f+lightingResponse.exitGlow*0.62f),guide.g*(0.38f+lightingResponse.exitGlow*0.62f),guide.b*(0.38f+lightingResponse.exitGlow*0.62f));glEnable(GL_LIGHTING);
+    }
     const int authoredObstacleCount=(state.traversalLab||state.slopeLab)?state.debug.colliderCount:std::min(state.debug.colliderCount,plan.obstacleCount);
     for (int i=0;i<authoredObstacleCount;++i) {
         const RoomCollider& c=state.roomColliders[i];
@@ -1225,6 +1229,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto atmosphere=resolvedAtmosphere(state);
     const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     const auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
+    const float objectiveProgress=state.requiredSouls>0?static_cast<float>(state.depositedSouls)/static_cast<float>(state.requiredSouls):0.0f;
+    const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear});
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
@@ -1241,16 +1247,18 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(localPrimary){glDisable(GL_LIGHT0);glDisable(GL_LIGHT1);}else{glEnable(GL_LIGHT0);glEnable(GL_LIGHT1);glLightfv(GL_LIGHT0,GL_DIFFUSE,sunDiffuse);glLightfv(GL_LIGHT0,GL_POSITION,sunPos);}
     const GLfloat fillDiffuse[]={atmosphere.fill.r,atmosphere.fill.g,atmosphere.fill.b,1.0f}, fillPos[]={lighting.fill.direction.x,lighting.fill.direction.y,lighting.fill.direction.z,0.0f};
     if(!localPrimary){glLightfv(GL_LIGHT1,GL_DIFFUSE,fillDiffuse); glLightfv(GL_LIGHT1,GL_POSITION,fillPos);}
-    const GLfloat phoneDiffuse[]={atmosphere.phone.r,atmosphere.phone.g,atmosphere.phone.b,1.0f};
+    const GLfloat phoneDiffuse[]={atmosphere.phone.r*lightingResponse.phoneLightScale+lightingResponse.actionLight*0.08f+lightingResponse.criticalLight*0.28f,atmosphere.phone.g*lightingResponse.phoneLightScale+lightingResponse.actionLight*0.18f+lightingResponse.criticalLight*0.08f,atmosphere.phone.b*lightingResponse.phoneLightScale+lightingResponse.actionLight*0.24f+lightingResponse.criticalLight*0.24f,1.0f};
     const GLfloat phoneLightPos[]={state.phoneTransform.screenCenter.x,state.phoneTransform.screenCenter.y,state.phoneTransform.screenCenter.z,1.0f};
     glLightfv(GL_LIGHT2,GL_DIFFUSE,phoneDiffuse);glLightfv(GL_LIGHT2,GL_POSITION,phoneLightPos);glLightf(GL_LIGHT2,GL_CONSTANT_ATTENUATION,1.0f);glLightf(GL_LIGHT2,GL_LINEAR_ATTENUATION,1.6f);
     const float lightTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
     for(int i=0;i<3;++i){const GLenum light=GL_LIGHT3+i;if(i>=lightRig.localLightCount){glDisable(light);continue;}const auto& local=lightRig.localLights[i];const GLfloat diffuse[]={local.color.r*local.intensity,local.color.g*local.intensity,local.color.b*local.intensity,1.0f};const GLfloat position[]={local.localPosition.x,local.localPosition.y,lightTileOrigin+local.localPosition.z,1.0f};glEnable(light);glLightfv(light,GL_DIFFUSE,diffuse);glLightfv(light,GL_POSITION,position);glLightf(light,GL_CONSTANT_ATTENUATION,0.65f);glLightf(light,GL_LINEAR_ATTENUATION,0.05f);glLightf(light,GL_QUADRATIC_ATTENUATION,4.0f/(local.radius*local.radius));}
+    if(lightingResponse.shotLight>0.001f){const GLfloat shotDiffuse[]={1.15f*lightingResponse.shotLight,0.82f*lightingResponse.shotLight,0.55f*lightingResponse.shotLight,1.0f},shotPosition[]={state.environmentVisual.latestShotOrigin.x,state.environmentVisual.latestShotOrigin.y+0.2f,state.environmentVisual.latestShotOrigin.z,1.0f};glEnable(GL_LIGHT6);glLightfv(GL_LIGHT6,GL_DIFFUSE,shotDiffuse);glLightfv(GL_LIGHT6,GL_POSITION,shotPosition);glLightf(GL_LIGHT6,GL_CONSTANT_ATTENUATION,0.72f);glLightf(GL_LIGHT6,GL_LINEAR_ATTENUATION,0.22f);glLightf(GL_LIGHT6,GL_QUADRATIC_ATTENUATION,0.08f);}else glDisable(GL_LIGHT6);
+    if(lightingResponse.exitGlow>0.01f){const GLfloat exitDiffuse[]={0.34f*lightingResponse.exitGlow,0.72f*lightingResponse.exitGlow,0.68f*lightingResponse.exitGlow,1.0f},exitPosition[]={0.0f,2.2f,lightTileOrigin-ROOM_DEPTH*0.5f+0.8f,1.0f};glEnable(GL_LIGHT7);glLightfv(GL_LIGHT7,GL_DIFFUSE,exitDiffuse);glLightfv(GL_LIGHT7,GL_POSITION,exitPosition);glLightf(GL_LIGHT7,GL_CONSTANT_ATTENUATION,0.8f);glLightf(GL_LIGHT7,GL_LINEAR_ATTENUATION,0.11f);glLightf(GL_LIGHT7,GL_QUADRATIC_ATTENUATION,0.035f);}else glDisable(GL_LIGHT7);
     glEnable(GL_FOG);const GLfloat fogColor[]={atmosphere.fog.r,atmosphere.fog.g,atmosphere.fog.b,1.0f};glFogfv(GL_FOG_COLOR,fogColor);glFogi(GL_FOG_MODE,GL_EXP2);glFogf(GL_FOG_DENSITY,atmosphere.fogDensity);
     glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_LIGHTING); glEnable(GL_NORMALIZE);
     const bool cheapVisuals=state.localSettings.graphicsPreset<=0;
     const auto actorVisible=[&](const Vec3& position){const Vec3 delta=position-state.camera.pos;const float maxDist=cheapVisuals?38.0f:55.0f;return lengthSq(delta)<maxDist*maxDist&&dot3(delta,state.camera.forward)>-8.0f;};
-    for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,tile);
+    for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,tile,lightingResponse);
 
     // The secret room is deliberately disconnected from the repeating corridor:
     // a tiny, cheap collection of boxes makes it feel like found backstage space.
