@@ -1770,6 +1770,7 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"GOAL DIST "<<observation.goalDistance<<"  SPEED "<<observation.speed<<"  PROGRESS "<<observation.progress;host.codec.write(line.str());}
         {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"CLEARANCE "<<observation.obstructionClearance<<"  DETOUR "<<observation.maximumDetour<<"  STALL "<<observation.stalledTicks;host.codec.write(line.str());}
         {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"PERCEPTION CONF "<<observation.perceptionConfidence<<"  UNCERTAINTY "<<observation.perceptionUncertainty<<"  CONFIRMED "<<(observation.perceptionConfirmed?"YES":"NO");host.codec.write(line.str());}
+        {std::ostringstream line;line<<"COGNITION "<<evidence::cognitionMode(observation.cognition);host.codec.write(line.str());}
         host.renderer.draw(renderState,&host.codec);glFinish();
         const bool diagnostic=captureFramebuffer(outputDirectory/diagnosticRelative,width,height);
         glfwSwapBuffers(window);glfwPollEvents();
@@ -1790,6 +1791,7 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
             <<",\"obstruction_clearance\":"<<o.obstructionClearance<<",\"maximum_detour\":"<<o.maximumDetour
             <<",\"perception_confidence\":"<<o.perceptionConfidence<<",\"perception_uncertainty\":"<<o.perceptionUncertainty
             <<",\"perception_confirmed\":"<<(o.perceptionConfirmed?"true":"false")<<",\"spatial_belief\":"<<(o.hasSpatialBelief?"true":"false")
+            <<",\"cognition\":\""<<evidence::cognitionMode(o.cognition)<<'\"'
             <<",\"stalled_ticks\":"<<o.stalledTicks<<",\"collider_overlap\":"<<(o.colliderOverlap?"true":"false")
             <<",\"attack_active\":"<<(o.attackActive?"true":"false")<<",\"attack_hit\":"<<(o.attackHit?"true":"false")
             <<",\"finite\":"<<(o.finiteValues?"true":"false")<<"}\n";

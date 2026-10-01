@@ -51,7 +51,7 @@ int main() {
     input.uncertainty = 0.72f;
     output = advance(state, input, 30);
     assert(output.mode == EnemyBehaviorMode::Search);
-    assert(output.travelScale > 0.0f && output.travelScale < 1.0f && !output.mayAttack);
+    assert(output.travelScale == 1.0f && output.commitment < 1.0f && !output.mayAttack);
 
     input.hasSpatialBelief = false;
     input.confidence = 0.0f;

@@ -105,8 +105,8 @@ inline EnemyPerceptionOutput updateEnemyPerception(const EnemyPerceptionInput& r
         // Memory must outlive a deliberate route around one room-scale
         // obstruction. It still decays to zero, but not faster than the
         // current physical body can express the remembered intention.
-        state.confidence=std::max(0.0f,state.confidence-dt*(0.07f+state.uncertainty*0.06f));
-        state.uncertainty=std::min(1.0f,state.uncertainty+dt*0.13f);
+        state.confidence=std::max(0.0f,state.confidence-dt*(0.035f+state.uncertainty*0.03f));
+        state.uncertainty=std::min(1.0f,state.uncertainty+dt*0.065f);
         state.lastSeenVelocity=state.lastSeenVelocity*std::max(0.0f,1.0f-dt*2.5f);
         state.searchPhase=std::fmod(state.searchPhase+dt*(1.4f+state.uncertainty*2.3f),DB_PI*2.0f);
     }else{

@@ -67,7 +67,7 @@ inline EnemyBehaviorOutput updateEnemyBehavior(
         next = EnemyBehaviorMode::Engage;
     } else if (raw.confirmed) {
         next = EnemyBehaviorMode::Alert;
-    } else if (state.hasSeenThreat && raw.hasSpatialBelief && confidence >= 0.07f) {
+    } else if (state.hasSeenThreat && raw.hasSpatialBelief) {
         next = EnemyBehaviorMode::Search;
     } else if (raw.hasSpatialBelief && confidence >= 0.16f) {
         next = EnemyBehaviorMode::Investigate;
@@ -104,7 +104,10 @@ inline EnemyBehaviorOutput updateEnemyBehavior(
         case EnemyBehaviorMode::Engage:
             output.travelScale = 1.0f; output.commitment = 1.0f; output.mayAttack = true; break;
         case EnemyBehaviorMode::Search:
-            output.travelScale = 0.48f; output.commitment = 0.52f; break;
+            // Search retains locomotion authority while perception memory is
+            // finite; lower commitment and mayAttack=false distinguish it from
+            // Engage without silently weakening collision routing.
+            output.travelScale = 1.0f; output.commitment = 0.62f; break;
     }
     output.settled = state.mode == EnemyBehaviorMode::Rest || state.mode == EnemyBehaviorMode::Orient;
     return output;

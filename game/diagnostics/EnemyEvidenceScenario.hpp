@@ -95,6 +95,7 @@ struct EnemyObstructionObservation {
     float maximumDetour=0.0f;
     float perceptionConfidence=0.0f;
     float perceptionUncertainty=1.0f;
+    gameplay::EnemyBehaviorMode cognition=gameplay::EnemyBehaviorMode::Rest;
     int stalledTicks=0;
     bool colliderOverlap=false;
     bool attackActive=false;
@@ -132,6 +133,7 @@ public:
         result.attackActive=enemy.attackTimer>0.0f;
         result.attackHit=enemy.attackHit;
         const auto& perception=game.enemyPerceptions()[0];
+        result.cognition=game.enemyBehaviors()[0].mode;
         result.perceptionConfidence=perception.confidence;
         result.perceptionUncertainty=perception.uncertainty;
         result.perceptionConfirmed=perception.confirmed;
@@ -163,6 +165,18 @@ inline const char* behaviorMode(const EnemyObstructionObservation& observation) 
     if(observation.stalledTicks>=30)return "stalled";
     if(observation.obstructionClearance<0.75f)return "routing_obstruction";
     return "pursuit";
+}
+
+inline const char* cognitionMode(gameplay::EnemyBehaviorMode mode) {
+    switch(mode) {
+        case gameplay::EnemyBehaviorMode::Rest:return "rest";
+        case gameplay::EnemyBehaviorMode::Orient:return "orient";
+        case gameplay::EnemyBehaviorMode::Investigate:return "investigate";
+        case gameplay::EnemyBehaviorMode::Alert:return "alert";
+        case gameplay::EnemyBehaviorMode::Engage:return "engage";
+        case gameplay::EnemyBehaviorMode::Search:return "search";
+    }
+    return "unknown";
 }
 
 } // namespace evidence

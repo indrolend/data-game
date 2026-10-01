@@ -421,6 +421,11 @@ const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& Game::enemyPercep
     return enemyRuntime_?enemyRuntime_->perceptions:empty;
 }
 
+const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& Game::enemyBehaviors() const {
+    static const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> empty{};
+    return enemyRuntime_?enemyRuntime_->behaviors:empty;
+}
+
 void Game::restart() {
     const bool networkGuest=state_.multiplayer.enabled&&
         !state_.multiplayer.authoritativeHost;
@@ -3449,6 +3454,7 @@ void Game::updateRoomPopulation(float dt) {
 }
 void Game::respawnTarget(int index) {
     enemyRuntime().perceptions[index]={};
+    enemyRuntime().behaviors[index]={};
     TargetState& t = state_.targets[index]; t = TargetState{}; t.alive = true;
     t.brute = seededRoomValue(520 + index) < 0.18f;
     t.soul = makeSoulRecord(t.brute,state_.roomIndex);
@@ -3600,6 +3606,7 @@ void Game::updateTargets(float dt) {
             const Vec3 actualPlayerPosition=attackedPlayerPos;
             const PlayerState* attackedPlayer=attackedPlayerId==0?&state_.player:&state_.multiplayer.peers[attackedPlayerId].player;
             gameplay::EnemyPerceptionOutput perception{};
+            float vagueAwareness=0.0f;
             if(!state_.multiplayer.enabled){
                 auto& perceptionState=enemyRuntimeState.perceptions[i];
                 const bool sampled=i==enemyRuntimeState.perceptionCursor||i==(enemyRuntimeState.perceptionCursor+1)%TARGET_COUNT;
@@ -3651,7 +3658,7 @@ void Game::updateTargets(float dt) {
                     const Vec3 targetDirection=distance>0.001f?Vec3{targetDelta.x/distance,0.0f,targetDelta.z/distance}:headForward;
                     transmission=gameplay::visualAcquisitionStrength(distance,dot3(headForward,targetDirection),horizontalLength(attackedPlayer->vel),transmission);
                 }
-                float vagueAwareness=horizontalLength(actualPlayerPosition-t.pos)<2.8f?0.35f:0.0f;
+                vagueAwareness=horizontalLength(actualPlayerPosition-t.pos)<2.8f?0.35f:0.0f;
                 for(int allyIndex=0;allyIndex<TARGET_COUNT;++allyIndex){
                     if(allyIndex==i||!gameplay::isActiveHuman(state_.targets[allyIndex]))continue;
                     const Vec3 allyDelta=state_.targets[allyIndex].pos-t.pos;
@@ -3668,6 +3675,23 @@ void Game::updateTargets(float dt) {
                 perceptionInput.individuality=std::sin(static_cast<float>(i)*12.9898f);perceptionInput.dt=dt;perceptionInput.sampled=sampled;
                 perception=gameplay::updateEnemyPerception(perceptionInput,perceptionState);
                 attackedPlayerPos=perception.hasSpatialBelief?perception.believedPosition:t.pos;
+            }
+            gameplay::EnemyBehaviorOutput behavior{};
+            if(!state_.multiplayer.enabled){
+                gameplay::EnemyBehaviorInput behaviorInput{};
+                behaviorInput.confidence=perception.confidence;
+                behaviorInput.uncertainty=perception.uncertainty;
+                behaviorInput.vagueAwareness=vagueAwareness;
+                behaviorInput.confirmed=perception.confirmed;
+                behaviorInput.hasSpatialBelief=perception.hasSpatialBelief;
+                behaviorInput.dt=dt;
+                behavior=gameplay::updateEnemyBehavior(enemyRuntimeState.behaviors[i],behaviorInput);
+            }else{
+                behavior.mode=gameplay::EnemyBehaviorMode::Engage;
+                behavior.travelScale=1.0f;
+                behavior.commitment=1.0f;
+                behavior.mayAttack=true;
+                behavior.settled=false;
             }
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
             float playerDist=state_.multiplayer.enabled?horizontalLength(toPlayer):(perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f);
@@ -3748,7 +3772,7 @@ void Game::updateTargets(float dt) {
                     t.attackHit=true;
                 }
                 if(t.attackTimer<=0.0f&&state_.enemyAttackOwner==i){state_.enemyAttackOwner=-1;state_.enemyAttackCadence=attackCadence;}
-            } else if(playerDist<HUMAN_ATTACK_START_RANGE&&canReachPlayerVertically(attackedPlayerPos) && t.attackCooldown<=0.0f && state_.enemyAttackOwner<0 && state_.enemyAttackCadence<=0.0f){
+            } else if(behavior.mayAttack&&playerDist<HUMAN_ATTACK_START_RANGE&&canReachPlayerVertically(attackedPlayerPos) && t.attackCooldown<=0.0f && state_.enemyAttackOwner<0 && state_.enemyAttackCadence<=0.0f){
                 t.attackTimer=HUMAN_ATTACK_DURATION; t.attackCooldown=attackCooldown;
                 t.attackVariant=(t.attackVariant+1)%4; t.attackHit=false; t.locomotionAmount=0.0f;
                 t.attackDirection=playerDist>0.001f?toPlayer*(1.0f/playerDist):Vec3{0,0,-1};t.attackTargetPlayerId=attackedPlayerId;state_.enemyAttackOwner=i;
@@ -3759,7 +3783,7 @@ void Game::updateTargets(float dt) {
                 if(dist>0.001f){
                     Vec3 dir=delta*(1.0f/dist); const float aggro=playerDist<noticeRange?1.28f:1.0f;
                     const float variation=0.82f+0.18f*std::sin(static_cast<float>(i)*12.9898f);
-                    const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation;
+                    const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation*behavior.travelScale;
                     const bool physicalPursuit=!state_.multiplayer.enabled;
                     if(physicalPursuit){
                         const Vec3 desired=dir*speed;

@@ -18,6 +18,7 @@
 #include "TreeGeometry.hpp"
 #include "MarkerPillarGeometry.hpp"
 #include "gameplay/EnemyPerception.hpp"
+#include "gameplay/EnemyBehaviorState.hpp"
 
 constexpr int TARGET_COUNT = 32;
 constexpr int CAPTURE_COUNT = 9;
@@ -783,6 +784,7 @@ public:
     const GameState& state() const { return state_; }
     GameState& networkMutableState() { return state_; }
     const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& enemyPerceptions() const;
+    const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& enemyBehaviors() const;
 
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
@@ -792,6 +794,7 @@ private:
     int simulationPlayerId_ = 0;
     struct EnemyRuntimePool {
         std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
+        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
         int perceptionCursor = 0;
     };
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
