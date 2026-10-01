@@ -238,6 +238,15 @@ else()
     target_compile_options(EnemyBehaviorStateTest PRIVATE -UNDEBUG)
 endif()
 
+add_executable(EnemyLocomotionTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_locomotion_test.cpp")
+target_include_directories(EnemyLocomotionTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(EnemyLocomotionTest PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(EnemyLocomotionTest PRIVATE /UNDEBUG)
+else()
+    target_compile_options(EnemyLocomotionTest PRIVATE -UNDEBUG)
+endif()
+
 add_executable(
     GameplayGeometryAndConfigTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_geometry_and_config_test.cpp"
@@ -408,6 +417,7 @@ add_test(NAME RunProgressionTest COMMAND RunProgressionTest)
 add_test(NAME EnemyPerceptionTest COMMAND EnemyPerceptionTest)
 add_test(NAME PhysicalEnemyBodyTest COMMAND PhysicalEnemyBodyTest)
 add_test(NAME EnemyBehaviorStateTest COMMAND EnemyBehaviorStateTest)
+add_test(NAME EnemyLocomotionTest COMMAND EnemyLocomotionTest)
 add_test(NAME MultiplayerProtocolTest COMMAND MultiplayerProtocolTest)
 add_test(NAME MultiplayerDeterminismTest COMMAND MultiplayerDeterminismTest)
 add_test(NAME HostRemotePeerSimulationIsolationTest COMMAND HostRemotePeerSimulationIsolationTest)
