@@ -374,6 +374,10 @@ add_executable(DeveloperCodecTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_c
 target_include_directories(DeveloperCodecTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
 target_compile_features(DeveloperCodecTest PRIVATE cxx_std_17)
 
+add_executable(AgentPlaytestProtocolTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/agent_playtest_protocol_test.cpp")
+target_include_directories(AgentPlaytestProtocolTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(AgentPlaytestProtocolTest PRIVATE cxx_std_17)
+
 add_executable(
     SoulEconomyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/soul_economy_test.cpp"
@@ -466,6 +470,7 @@ add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
 add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
 add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
 add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)
+add_test(NAME AgentPlaytestProtocolTest COMMAND AgentPlaytestProtocolTest)
 add_test(NAME SoulEconomyTest COMMAND SoulEconomyTest)
 add_test(NAME SoulProjectileLifecycleTest COMMAND SoulProjectileLifecycleTest)
 add_test(NAME TraversalCalibrationTest COMMAND TraversalCalibrationTest)
