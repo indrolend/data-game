@@ -503,7 +503,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         return;
     }
 
-    const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state);
+    const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuTextWidth);
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
             float pen = layout.logicalW * 0.5f - cpuTextWidth(layout.title, layout.titlePx, true) * 0.5f;
