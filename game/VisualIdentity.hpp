@@ -113,6 +113,7 @@ struct SoulVisualState {
     float verticalOffset = 0.0f;
     float rotationY = 0.0f;
     float morphScale = 0.0f;
+    float shellOpacity = 0.68f;
     bool visible = true;
 };
 
@@ -164,6 +165,13 @@ inline SoulVisualState makeSoulVisualState(int soulState, float vacuumPull, floa
     visual.scale = {uniformScale, uniformScale, uniformScale};
     visual.deformation = {0.0f, 0.0f, 0.0f};
     visual.emission = std::max(0.0f, std::min(1.5f, 0.42f + visual.pullAmount * 0.18f + visual.latchAmount * 0.25f + visual.ingestAmount * 0.48f + visual.hitAmount * 0.38f));
+    // Extraction geometry already owns the directional deformation. Reduce
+    // shell opacity as phone control increases so that physical truth remains
+    // visible instead of being hidden by a constant translucent cube.
+    const float exposure=visualSmooth01(visual.pullAmount)*0.28f
+        +visual.latchAmount*0.38f+visualSmooth01(visual.ingestAmount)*0.35f;
+    visual.shellOpacity=std::max(0.10f,0.68f-exposure);
+    if(soulState==4)visual.shellOpacity=0.52f;
     const float flash = visual.hitAmount;
     visual.color = {
         VisualIdentity::SoulBase.r + (1.0f - VisualIdentity::SoulBase.r) * flash,
