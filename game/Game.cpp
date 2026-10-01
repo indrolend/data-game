@@ -117,6 +117,7 @@ constexpr float HUMAN_WALK_RANGE = 5.5f;
 constexpr float HUMAN_ATTACK_NOTICE_RANGE = 38.0f;
 constexpr float HUMAN_SUPPORT_RADIUS = 0.10f;
 constexpr float HUMAN_BODY_RADIUS = 0.42f;
+constexpr float HUMAN_PURSUIT_CLEARANCE_RADIUS = 0.50f;
 constexpr float HUMAN_TREE_CLIMB_SPEED = 2.8f;
 constexpr float HUMAN_TREE_GRIP_CLEARANCE = 0.02f;
 constexpr float HUMAN_ATTACK_START_RANGE = 1.55f;
@@ -394,6 +395,7 @@ void Game::reset() {
     const LocalSettingsState localSettings=state_.localSettings;
     auto freshState=std::make_unique<GameState>();
     state_ = std::move(*freshState);
+    enemyRuntime_=std::make_unique<EnemyRuntimePool>();
     state_.progression.permanent=permanent;
     state_.localSettings=localSettings;
     state_.localSettings.menuPage=LocalMenuPage::Main;
@@ -407,6 +409,16 @@ void Game::reset() {
     state_.uiPaused=false;
     emitAudio(AudioCue::VcInvitation,0.58f);
     updatePhoneDisplay(0.0f);
+}
+
+Game::EnemyRuntimePool& Game::enemyRuntime(){
+    if(!enemyRuntime_)enemyRuntime_=std::make_unique<EnemyRuntimePool>();
+    return *enemyRuntime_;
+}
+
+const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& Game::enemyPerceptions() const {
+    static const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> empty{};
+    return enemyRuntime_?enemyRuntime_->perceptions:empty;
 }
 
 void Game::restart() {
@@ -3436,6 +3448,7 @@ void Game::updateRoomPopulation(float dt) {
     }
 }
 void Game::respawnTarget(int index) {
+    enemyRuntime().perceptions[index]={};
     TargetState& t = state_.targets[index]; t = TargetState{}; t.alive = true;
     t.brute = seededRoomValue(520 + index) < 0.18f;
     t.soul = makeSoulRecord(t.brute,state_.roomIndex);
@@ -3538,6 +3551,7 @@ void Game::releaseTargetGrab(int targetIndex){if(targetIndex<0||targetIndex>=TAR
 void Game::updateTargetGrab(int targetIndex,float dt){TargetState& target=state_.targets[targetIndex];const int id=target.grabbedPlayerId;PlayerState* player=id==0?&state_.player:(id>0&&id<NETWORK_PLAYER_COUNT&&state_.multiplayer.peers[id].active?&state_.multiplayer.peers[id].player:nullptr);InputState* input=id==0?&state_.input:(id>0&&id<NETWORK_PLAYER_COUNT&&state_.multiplayer.peers[id].active?&state_.multiplayer.peers[id].input:nullptr);if(!player||!input||!player->alive||player->downed){releaseTargetGrab(targetIndex);return;}const Vec3 forward{-std::sin(target.visualYaw),0,-std::cos(target.visualYaw)};player->pos=target.pos+forward*0.46f+Vec3{0,0.78f,0};player->vel={};player->jumpVel=0;player->grounded=false;player->battery=std::max(0.0f,player->battery-6.0f*dt);const float axis=std::abs(input->wiggleAxis)>0.001f?input->wiggleAxis:((input->right?1.0f:0.0f)-(input->left?1.0f:0.0f)+input->touchMoveX);input->wiggleAxis=0.0f;const int direction=axis>0.55f?1:(axis<-0.55f?-1:0);if(direction!=0&&direction!=player->grabLastDirection){player->grabLastDirection=direction;player->grabEscape=std::min(1.0f,player->grabEscape+0.20f);}if(player->grabEscape>=1.0f){releaseTargetGrab(targetIndex);player->vel=forward*3.0f;return;}if(player->battery<=0.0f){if(state_.multiplayer.enabled){player->downed=true;player->bleedoutTimer=15.0f;player->reviveCharge=0;}else if(player->souls>0&&!player->soloSoulRebootUsed){consumeStoredSoul(*player);player->battery=15.0f;player->soloSoulRebootUsed=true;}else triggerRunDeath();releaseTargetGrab(targetIndex);}}
 
 void Game::updateTargets(float dt) {
+    auto& enemyRuntimeState=enemyRuntime();
     state_.enemyAttackCadence=std::max(0.0f,state_.enemyAttackCadence-dt);
     if(state_.enemyAttackOwner>=0){const TargetState& owner=state_.targets[state_.enemyAttackOwner];if(!owner.alive||owner.slurpable||owner.attackTimer<=0.0f)state_.enemyAttackOwner=-1;}
     // Preserve the shipped network cadence until the protocol carries the
@@ -3583,8 +3597,80 @@ void Game::updateTargets(float dt) {
             Vec3 attackedPlayerPos=state_.player.pos;
             float nearestPlayerDistance=state_.player.downed?9999.0f:horizontalLength(Vec3{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z});
             if(state_.multiplayer.authoritativeHost){for(int id=1;id<NETWORK_PLAYER_COUNT;++id){const auto& peer=state_.multiplayer.peers[id];if(!peer.active||!peer.player.alive||peer.player.downed)continue;const float distance=horizontalLength(Vec3{peer.player.pos.x-t.pos.x,0,peer.player.pos.z-t.pos.z});if(distance<nearestPlayerDistance){nearestPlayerDistance=distance;attackedPlayerId=id;attackedPlayerPos=peer.player.pos;}}}
+            const Vec3 actualPlayerPosition=attackedPlayerPos;
+            const PlayerState* attackedPlayer=attackedPlayerId==0?&state_.player:&state_.multiplayer.peers[attackedPlayerId].player;
+            gameplay::EnemyPerceptionOutput perception{};
+            if(!state_.multiplayer.enabled){
+                auto& perceptionState=enemyRuntimeState.perceptions[i];
+                const bool sampled=i==enemyRuntimeState.perceptionCursor||i==(enemyRuntimeState.perceptionCursor+1)%TARGET_COUNT;
+                const Vec3 headOrigin=t.pos+Vec3{0.0f,(HUMAN_VISUAL_SPEC.totalHeight-HUMAN_VISUAL_SPEC.headRadius)*t.scale,0.0f};
+                float transmission=1.0f;
+                if(sampled){
+                    const Vec3 targetPoint=actualPlayerPosition+Vec3{0.0f,PHONE_SOLID_HALF_Y*0.35f,0.0f};
+                    const float localHeadZ=wrapZ(headOrigin.z);
+                    float targetDeltaZ=wrapZ(targetPoint.z)-localHeadZ;
+                    if(targetDeltaZ>ROOM_DEPTH*0.5f)targetDeltaZ-=ROOM_DEPTH;
+                    if(targetDeltaZ<-ROOM_DEPTH*0.5f)targetDeltaZ+=ROOM_DEPTH;
+                    const Vec3 localHead{headOrigin.x,headOrigin.y,localHeadZ};
+                    const Vec3 localTarget{targetPoint.x,targetPoint.y,localHeadZ+targetDeltaZ};
+                    float nearestOpaque=2.0f;
+                    for(int colliderIndex=0;colliderIndex<state_.debug.colliderCount;++colliderIndex){
+                        const RoomCollider& collider=state_.roomColliders[colliderIndex];
+                        for(int tileOffset=-1;tileOffset<=1;++tileOffset){
+                            float entry=1.0f;const float zOffset=static_cast<float>(tileOffset)*ROOM_DEPTH;
+                            if(gameplay::perceptionSegmentHitsBox(localHead,localTarget,
+                                {collider.minX,collider.bottomY+GROUND_Y,collider.minZ+zOffset},
+                                {collider.maxX,collider.topY+GROUND_Y,collider.maxZ+zOffset},entry))nearestOpaque=std::min(nearestOpaque,entry);
+                        }
+                    }
+                    for(int rockIndex=0;rockIndex<state_.rockSupportCount;++rockIndex){
+                        const auto& rock=state_.rockSupports[rockIndex];
+                        const auto bounds=faceted_rock::meshBounds(faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex));
+                        for(int tileOffset=-1;tileOffset<=1;++tileOffset){
+                            float entry=1.0f;const Vec3 offset{0.0f,0.0f,static_cast<float>(tileOffset)*ROOM_DEPTH};
+                            if(gameplay::perceptionSegmentHitsBox(localHead,localTarget,bounds.minimum+offset,bounds.maximum+offset,entry))nearestOpaque=std::min(nearestOpaque,entry);
+                        }
+                    }
+                    if(nearestOpaque<=1.0f)transmission=0.0f;
+                    if(transmission>0.0f){
+                        const auto plan=room_environment::roomPlan(state_.roomSeed,state_.roomIndex);
+                        const auto geometry=room_environment::roomGeometryCapacityPlan(plan,state_.roomSeed,state_.roomIndex,ROOM_COLLIDER_COUNT);
+                        for(int propIndex=0;propIndex<std::min(room_environment::EnvironmentPropCapacity,room_environment::environmentPropCount(plan));++propIndex){
+                            const auto prop=room_environment::environmentProp(plan,state_.roomSeed,state_.roomIndex,propIndex);
+                            if(!geometry.propIncluded[propIndex]||prop.primitive!=room_environment::EnvironmentPrimitive::Tree)continue;
+                            for(const auto& crown:tree_geometry::crownParts(prop)){
+                                float entry=1.0f;const Vec3 half=crown.size*0.5f;
+                                if(gameplay::perceptionSegmentHitsBox(localHead,localTarget,crown.center-half,crown.center+half,entry)&&entry<nearestOpaque)transmission*=0.72f;
+                            }
+                        }
+                    }
+                    const Vec3 perceivedTarget{targetPoint.x,targetPoint.y,headOrigin.z+targetDeltaZ};
+                    const Vec3 targetDelta=perceivedTarget-headOrigin;const float distance=horizontalLength(targetDelta);
+                    const float worldHeadYaw=t.visualYaw+perceptionState.headYaw;
+                    const Vec3 headForward{-std::sin(worldHeadYaw),0.0f,-std::cos(worldHeadYaw)};
+                    const Vec3 targetDirection=distance>0.001f?Vec3{targetDelta.x/distance,0.0f,targetDelta.z/distance}:headForward;
+                    transmission=gameplay::visualAcquisitionStrength(distance,dot3(headForward,targetDirection),horizontalLength(attackedPlayer->vel),transmission);
+                }
+                float vagueAwareness=horizontalLength(actualPlayerPosition-t.pos)<2.8f?0.35f:0.0f;
+                for(int allyIndex=0;allyIndex<TARGET_COUNT;++allyIndex){
+                    if(allyIndex==i||!gameplay::isActiveHuman(state_.targets[allyIndex]))continue;
+                    const Vec3 allyDelta=state_.targets[allyIndex].pos-t.pos;
+                    if(horizontalLength(allyDelta)<7.0f&&(state_.targets[allyIndex].attackTimer>0.0f||horizontalLength(state_.targets[allyIndex].vel)>2.0f))vagueAwareness=std::max(vagueAwareness,0.45f);
+                }
+                Vec3 perceivedPlayerPosition=actualPlayerPosition;
+                float perceivedDeltaZ=wrapZ(actualPlayerPosition.z)-wrapZ(headOrigin.z);
+                if(perceivedDeltaZ>ROOM_DEPTH*0.5f)perceivedDeltaZ-=ROOM_DEPTH;
+                if(perceivedDeltaZ<-ROOM_DEPTH*0.5f)perceivedDeltaZ+=ROOM_DEPTH;
+                perceivedPlayerPosition.z=headOrigin.z+perceivedDeltaZ;
+                gameplay::EnemyPerceptionInput perceptionInput{};
+                perceptionInput.observerPosition=headOrigin;perceptionInput.targetPosition=perceivedPlayerPosition;perceptionInput.targetVelocity=attackedPlayer->vel;
+                perceptionInput.bodyYaw=t.visualYaw;perceptionInput.visibility=transmission;perceptionInput.vagueAwareness=vagueAwareness;
+                perceptionInput.individuality=std::sin(static_cast<float>(i)*12.9898f);perceptionInput.dt=dt;perceptionInput.sampled=sampled;
+                perception=gameplay::updateEnemyPerception(perceptionInput,perceptionState);
+                attackedPlayerPos=perception.hasSpatialBelief?perception.believedPosition:t.pos;
+            }
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
-            float playerDist=horizontalLength(toPlayer);
+            float playerDist=state_.multiplayer.enabled?horizontalLength(toPlayer):(perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f);
             const auto canReachPlayerVertically=[&](const Vec3& playerPosition){
                 const float humanBottom=t.pos.y;
                 const float humanTop=t.pos.y+HUMAN_VISUAL_SPEC.totalHeight*t.scale;
@@ -3593,10 +3679,9 @@ void Game::updateTargets(float dt) {
                 return playerBottom<=humanTop+HUMAN_ATTACK_VERTICAL_MARGIN&&
                        playerTop>=humanBottom-HUMAN_ATTACK_VERTICAL_MARGIN;
             };
-            const PlayerState* attackedPlayer=attackedPlayerId==0?&state_.player:&state_.multiplayer.peers[attackedPlayerId].player;
             const RoomCollider* pursuedTree=nullptr;
             Vec3 treeGripPoint{};
-            if(attackedPlayer->treeClimbing&&
+            if((state_.multiplayer.enabled||perception.confirmed)&&attackedPlayer->treeClimbing&&
                attackedPlayer->treeCollider>=0&&attackedPlayer->treeCollider<state_.debug.colliderCount){
                 const RoomCollider& tree=state_.roomColliders[attackedPlayer->treeCollider];
                 if(tree.kind==RoomColliderKind::TreeTrunk){
@@ -3693,7 +3778,7 @@ void Game::updateTargets(float dt) {
                         const float tileOrigin=getRoomTileOriginZ(getRoomTileIndex(t.pos.z));float nearestEntry=dist+1.0f;
                         for(int colliderIndex=0;colliderIndex<state_.debug.colliderCount;++colliderIndex){const RoomCollider& c=state_.roomColliders[colliderIndex];
                             if(t.pos.y>=c.topY+GROUND_Y-0.06f)continue;
-                            const float bounds[4]={c.minX-HUMAN_BODY_RADIUS,c.maxX+HUMAN_BODY_RADIUS,tileOrigin+c.minZ-HUMAN_BODY_RADIUS,tileOrigin+c.maxZ+HUMAN_BODY_RADIUS};float enter=0.0f,exit=dist;Vec3 entryNormal{};bool intersects=true;
+                            const float bounds[4]={c.minX-HUMAN_PURSUIT_CLEARANCE_RADIUS,c.maxX+HUMAN_PURSUIT_CLEARANCE_RADIUS,tileOrigin+c.minZ-HUMAN_PURSUIT_CLEARANCE_RADIUS,tileOrigin+c.maxZ+HUMAN_PURSUIT_CLEARANCE_RADIUS};float enter=0.0f,exit=dist;Vec3 entryNormal{};bool intersects=true;
                             const float origins[2]={t.pos.x,t.pos.z},directions[2]={dir.x,dir.z};
                             for(int axis=0;axis<2;++axis){
                                 const float minimum=bounds[axis*2],maximum=bounds[axis*2+1],origin=origins[axis],direction=directions[axis];
@@ -3710,7 +3795,7 @@ void Game::updateTargets(float dt) {
                         pursuitBlocked=obstructionCollider>=0;
                         if(!pursuitBlocked){
                             const Vec3 probe=t.pos+dir*step;
-                            pursuitBlocked=isHumanMovementBlocked(probe.x,probe.z,t.pos.y,HUMAN_BODY_RADIUS,&obstructionNormal);
+                            pursuitBlocked=isHumanMovementBlocked(probe.x,probe.z,t.pos.y,HUMAN_PURSUIT_CLEARANCE_RADIUS,&obstructionNormal);
                         }
                     }
                     if(pursuitBlocked){
@@ -3723,10 +3808,10 @@ void Game::updateTargets(float dt) {
                         bool found=false;
                         if(obstructionCollider>=0){
                             const RoomCollider& c=state_.roomColliders[obstructionCollider];const Vec3 tangent{obstructionNormal.z*preferredSide,0,-obstructionNormal.x*preferredSide};
-                            const float clearance=0.90f;const float cornerX=tangent.x>0.0f?c.maxX+clearance:(tangent.x<0.0f?c.minX-clearance:clampf(t.pos.x,c.minX-clearance,c.maxX+clearance));
+                            const float clearance=0.96f;const float cornerX=tangent.x>0.0f?c.maxX+clearance:(tangent.x<0.0f?c.minX-clearance:clampf(t.pos.x,c.minX-clearance,c.maxX+clearance));
                             const float cornerLocalZ=tangent.z>0.0f?c.maxZ+clearance:(tangent.z<0.0f?c.minZ-clearance:clampf(wrapZ(t.pos.z),c.minZ-clearance,c.maxZ+clearance));
                             Vec3 around{cornerX-t.pos.x,0,getRoomTileOriginZ(getRoomTileIndex(t.pos.z))+cornerLocalZ-t.pos.z};const float aroundLength=horizontalLength(around);
-                            if(aroundLength>0.001f){const Vec3 candidate=around*(1.0f/aroundLength);const Vec3 candidateNext=t.pos+candidate*step;if(!isHumanMovementBlocked(candidateNext.x,candidateNext.z,t.pos.y,HUMAN_BODY_RADIUS)){dir=candidate;next=candidateNext;found=true;}}
+                            if(aroundLength>0.001f){const Vec3 candidate=around*(1.0f/aroundLength);const Vec3 candidateNext=t.pos+candidate*step;if(!isHumanMovementBlocked(candidateNext.x,candidateNext.z,t.pos.y,HUMAN_PURSUIT_CLEARANCE_RADIUS)){dir=candidate;next=candidateNext;found=true;}}
                         }
                         constexpr float offsets[]={1.5707963f,1.05f,2.10f};
                         for(float offset:offsets){
@@ -3734,14 +3819,14 @@ void Game::updateTargets(float dt) {
                             for(float side:{preferredSide,-preferredSide}){
                                 const float angle=offset*side,cs=std::cos(angle),sn=std::sin(angle);const Vec3 candidate{dir.x*cs-dir.z*sn,0,dir.x*sn+dir.z*cs};
                                 const Vec3 candidateNext=t.pos+candidate*step;
-                                if(isHumanMovementBlocked(candidateNext.x,candidateNext.z,t.pos.y,HUMAN_BODY_RADIUS))continue;
+                                if(isHumanMovementBlocked(candidateNext.x,candidateNext.z,t.pos.y,HUMAN_PURSUIT_CLEARANCE_RADIUS))continue;
                                 dir=candidate;next=candidateNext;found=true;break;
                             }
                             if(found)break;
                         }
                         if(!found){next=t.pos;t.vel.x*=-0.18f;t.vel.z*=-0.18f;}
                         else if(physicalPursuit){const float redirectedSpeed=horizontalLength(t.vel);t.vel.x=dir.x*redirectedSpeed;t.vel.z=dir.z*redirectedSpeed;}
-                    }else if(isHumanMovementBlocked(next.x,next.z,t.pos.y,HUMAN_BODY_RADIUS)){chooseHumanWalkTarget(i);next=t.pos;t.vel.x*=-0.18f;t.vel.z*=-0.18f;}
+                    }else if(isHumanMovementBlocked(next.x,next.z,t.pos.y,physicalPursuit?HUMAN_PURSUIT_CLEARANCE_RADIUS:HUMAN_BODY_RADIUS)){chooseHumanWalkTarget(i);next=t.pos;t.vel.x*=-0.18f;t.vel.z*=-0.18f;}
                     const float travelled=horizontalLength(next-t.pos);if(travelled>0.00001f){t.pos=next;const Vec3 physicalDirection=normalized(Vec3{t.vel.x,0,t.vel.z});t.visualYaw=std::atan2(-physicalDirection.x,-physicalDirection.z);t.visualWalkPhase+=travelled*HUMAN_WALK_PHASE_PER_METER;}
                     t.locomotionAmount=travelled>0.00001f?1.0f:0.0f;
                 } else {t.locomotionAmount=0.0f;t.vel.x*=std::exp(-8.0f*dt);t.vel.z*=std::exp(-8.0f*dt);}
@@ -3762,6 +3847,7 @@ void Game::updateTargets(float dt) {
         }
         syncTargetReactionVisual(t);
     }
+    if(!state_.multiplayer.enabled)enemyRuntimeState.perceptionCursor=(enemyRuntimeState.perceptionCursor+2)%TARGET_COUNT;
 }
 
 void Game::updateVacuum(float dt) {

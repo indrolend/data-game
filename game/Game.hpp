@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "HumanVisual.hpp"
@@ -16,6 +17,7 @@
 #include "HouseGeometry.hpp"
 #include "TreeGeometry.hpp"
 #include "MarkerPillarGeometry.hpp"
+#include "gameplay/EnemyPerception.hpp"
 
 constexpr int TARGET_COUNT = 32;
 constexpr int CAPTURE_COUNT = 9;
@@ -780,6 +782,7 @@ public:
 
     const GameState& state() const { return state_; }
     GameState& networkMutableState() { return state_; }
+    const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& enemyPerceptions() const;
 
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
@@ -787,6 +790,12 @@ private:
     enum class BatteryReason { Continuous, Jump, DoubleJump, Melee, Shoot, Hit, Climb, Ingest, NextRoom, Combo, Chain, Headshot, Loop };
     GameState state_;
     int simulationPlayerId_ = 0;
+    struct EnemyRuntimePool {
+        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
+        int perceptionCursor = 0;
+    };
+    std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
+    EnemyRuntimePool& enemyRuntime();
 
     void resetRoom();
     void buildRoomColliders();
