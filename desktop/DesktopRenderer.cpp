@@ -3,6 +3,7 @@
 #include "BitmapFont.hpp"
 #include "RoomEnvironment.hpp"
 #include "PhoneDisplayLayout.hpp"
+#include "PhoneStencilReveal.hpp"
 #include "RenderContracts.hpp"
 #include "FieldGrassTexture.hpp"
 #include "CitySurfaceTexture.hpp"
@@ -399,6 +400,44 @@ void cpuText(CpuCanvas& canvas, const std::string& text, float x, float baseline
     }
 }
 
+float cpuStencilTextWidth(const std::string& text, float px) {
+    if (text.empty()) return 0.0f;
+    return cpuTextWidth(text, px, true) * phone_stencil::HorizontalScale +
+        static_cast<float>(text.size() - 1) * px * phone_stencil::TrackingEm;
+}
+
+void cpuStencilText(CpuCanvas& canvas,const std::string& text,float x,float baseline,float px,
+                    float r,float g,float b,float a,float age,bool centered=false) {
+    const MenuFontAtlas& font=cpuMenuFont(true);if(!font.cpuReady||text.empty())return;
+    float pen=centered?x-cpuStencilTextWidth(text,px)*0.5f:x;
+    const float scale=stbtt_ScaleForPixelHeight(&font.info,px);
+    std::uint32_t seed=phone_stencil::textSeed(text);const bool leftToRight=(seed&1u)==0u;int previous=0;
+    for(std::size_t i=0;i<text.size();++i){
+        const unsigned char c=static_cast<unsigned char>(text[i]);seed=phone_stencil::glyphSeed(seed,c,i);
+        if(previous)pen+=static_cast<float>(stbtt_GetCodepointKernAdvance(&font.info,previous,c))*scale*phone_stencil::HorizontalScale;
+        int advance=0,bearing=0;stbtt_GetCodepointHMetrics(&font.info,c,&advance,&bearing);
+        const float reveal=phone_stencil::glyphReveal(age,i,text.size(),leftToRight);
+        const float travel=(leftToRight?-1.0f:1.0f)*(1.0f-reveal)*px*0.055f;
+        const float jitterX=(static_cast<float>((seed>>4)&7u)-3.5f)*0.12f,jitterY=(static_cast<float>((seed>>9)&7u)-3.5f)*0.11f;
+        if(c!=' '){
+            int bw=0,bh=0,xoff=0,yoff=0;unsigned char* bitmap=stbtt_GetCodepointBitmap(&font.info,scale,scale,c,&bw,&bh,&xoff,&yoff);
+            const int compressedW=std::max(1,static_cast<int>(std::ceil(static_cast<float>(bw)*phone_stencil::HorizontalScale)));
+            const bool bridge=compressedW>=8&&c!='I'&&c!='i'&&c!='l'&&c!='1';const int bridgeX=static_cast<int>(std::round((0.30f+static_cast<float>((seed>>13)&3u)*0.13f)*static_cast<float>(compressedW-1)));
+            if(bitmap&&bw>0&&bh>0)for(int yy=0;yy<bh;++yy)for(int dx=0;dx<compressedW;++dx){
+                const float yn=bh>1?static_cast<float>(yy)/static_cast<float>(bh-1):0.0f;if(bridge&&reveal<0.96f&&std::abs(dx-bridgeX)<=(px>=42.0f?1:0)&&yn>0.20f&&yn<0.80f)continue;
+                const int sx=std::min(bw-1,static_cast<int>(static_cast<float>(dx)/phone_stencil::HorizontalScale));unsigned char ink=0;
+                for(int sy=std::max(0,yy-1);sy<=std::min(bh-1,yy+1);++sy)for(int nx=std::max(0,sx-1);nx<=std::min(bw-1,sx+1);++nx)ink=std::max(ink,bitmap[sy*bw+nx]);
+                const float alpha=static_cast<float>(ink)/255.0f*a*reveal;if(alpha<=0.01f)continue;
+                const int ox=static_cast<int>(std::floor(pen+static_cast<float>(xoff)*phone_stencil::HorizontalScale+static_cast<float>(dx)+jitterX+travel)),oy=static_cast<int>(std::floor(baseline+static_cast<float>(yoff+yy)+jitterY));if(ox<0||ox>=canvas.w||oy<0||oy>=canvas.h)continue;
+                const int at=(oy*canvas.w+ox)*4;canvas.pixels[at]=static_cast<unsigned char>(canvas.pixels[at]*(1-alpha)+r*255*alpha);canvas.pixels[at+1]=static_cast<unsigned char>(canvas.pixels[at+1]*(1-alpha)+g*255*alpha);canvas.pixels[at+2]=static_cast<unsigned char>(canvas.pixels[at+2]*(1-alpha)+b*255*alpha);canvas.pixels[at+3]=255;
+            }
+            stbtt_FreeBitmap(bitmap,nullptr);
+            if((seed&3u)!=0u&&reveal>0.0f&&reveal<1.0f){const float fleck=std::max(1.0f,px*0.025f);cpuRect(canvas,pen+jitterX+travel*1.7f,baseline-px*0.45f,fleck,fleck,r,g,b,a*0.28f);}
+        }
+        pen+=static_cast<float>(advance)*scale*phone_stencil::HorizontalScale+px*phone_stencil::TrackingEm;previous=c;
+    }
+}
+
 void drawPaletteMenuTitle(const std::string& text, float centerX, float centerY, float px, float time, float opacity = 1.0f) {
     const MenuFontAtlas& font = cpuMenuFont(true);
     if (!font.cpuReady || text.empty()) return;
@@ -510,6 +549,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     }
 
     const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuTextWidth);
+    const float stencilAge=phone_stencil::appearanceAge(display.transitionProgress);
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
             float pen = layout.logicalW * 0.5f - cpuTextWidth(layout.title, layout.titlePx, true) * 0.5f;
@@ -529,14 +569,14 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
                 pen += cpuTextWidth(letter, layout.titlePx, true) + 2.0f;
             }
         } else {
-            cpuText(canvas, layout.title, layout.logicalW * 0.5f, layout.titleCenterY + layout.titlePx * 0.34f, layout.titlePx, 0.90f, 0.97f, 1.0f, 0.96f, true, true);
+            cpuStencilText(canvas,layout.title,layout.logicalW*0.5f,layout.titleCenterY+layout.titlePx*0.34f,layout.titlePx,0.90f,0.97f,1.0f,0.96f,stencilAge,true);
         }
     }
     if (layout.joinCode) {
         const std::string room = state.multiplayer.roomCode.data();
         std::string typed;
         for (int i = 0; i < 6; ++i) { typed += i < static_cast<int>(room.size()) ? room[i] : '_'; if (i < 5) typed += ' '; }
-        cpuText(canvas, typed, layout.logicalW * 0.5f, layout.content.y + layout.content.h * 0.50f, 46.0f, 0.88f, 1.0f, 1.0f, 0.94f, true, true);
+        cpuStencilText(canvas,typed,layout.logicalW*0.5f,layout.content.y+layout.content.h*0.50f,46.0f,0.88f,1.0f,1.0f,0.94f,stencilAge,true);
     }
     for (int i = 0; i < layout.rowCount; ++i) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
@@ -552,7 +592,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             continue;
         }
         if (row.kind == PhoneMenuRowKind::Section) {
-            cpuText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, VisualIdentity::MetallicTeal.r, VisualIdentity::MetallicTeal.g, VisualIdentity::MetallicTeal.b, 0.62f, true);
+            cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,VisualIdentity::MetallicTeal.b,0.62f,stencilAge);
             continue;
         }
         if (selected) {
@@ -561,10 +601,10 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         }
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
-            cpuText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f, alpha, selected);
-            const float valueWidth=cpuTextWidth(row.value,row.fontPx,selected);
+            cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge);
+            const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
-            cpuText(canvas, row.value, valueLeft, row.baselineY, row.fontPx, selected ? VisualIdentity::AcidChartreuse.r : VisualIdentity::MetallicTeal.r, selected ? VisualIdentity::AcidChartreuse.g : VisualIdentity::MetallicTeal.g, selected ? VisualIdentity::AcidChartreuse.b : VisualIdentity::MetallicTeal.b, selected ? 0.98f : 0.78f, selected);
+            cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?VisualIdentity::AcidChartreuse.r:VisualIdentity::MetallicTeal.r,selected?VisualIdentity::AcidChartreuse.g:VisualIdentity::MetallicTeal.g,selected?VisualIdentity::AcidChartreuse.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
             if(selected&&row.horizontal==PhoneMenuHorizontal::Adjust){
                 const int palettePhase=static_cast<int>(std::floor(state.time*8.0f));
                 const VisualColor leftColor=VisualIdentity::DataMosaicPalette[palettePhase%25];
@@ -574,7 +614,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
                 cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,rightColor.r,rightColor.g,rightColor.b,0.92f);
             }
         } else {
-            cpuText(canvas, row.label, row.labelX, row.baselineY, row.fontPx, selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f, alpha, selected, state.dead && row.action == PhoneMenuAction::Restart);
+            const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge,centered);
         }
     }
 }
@@ -587,6 +627,7 @@ std::uint64_t phoneDisplayRenderKey(const GameState& state) {
     hashPhoneDisplayValue(hash, display.interactive ? 1u : 0u);
     hashPhoneDisplayFloat(hash, display.brightness, 255.0f);
     hashPhoneDisplayFloat(hash, display.contentOpacity, 255.0f);
+    hashPhoneDisplayFloat(hash, display.transitionProgress, 240.0f);
     hashPhoneDisplayFloat(hash, display.screenTint.x, 255.0f);
     hashPhoneDisplayFloat(hash, display.screenTint.y, 255.0f);
     hashPhoneDisplayFloat(hash, display.screenTint.z, 255.0f);
