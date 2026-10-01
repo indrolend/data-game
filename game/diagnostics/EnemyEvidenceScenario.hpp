@@ -102,6 +102,10 @@ struct EnemyObstructionObservation {
     float bodyPitch=0.0f;
     float bodyRoll=0.0f;
     float physicalDisruption=0.0f;
+    float motorArousal=0.0f;
+    float motorCaution=0.0f;
+    float motorFixation=0.0f;
+    float motorPaceExpression=1.0f;
     int footPlantChanges=0;
     int stalledTicks=0;
     bool colliderOverlap=false;
@@ -144,6 +148,8 @@ public:
         const auto& locomotion=game.enemyLocomotions()[0];
         const auto feet=gameplay::enemyLocomotionOutput(locomotion);
         const auto& body=game.enemyBodies()[0];
+        const auto& motor=game.enemyMotors()[0];
+        const auto& motorOutput=game.enemyMotorOutputs()[0];
         if(horizontalLength(locomotion.left.plantPosition-previousLeftFoot_)>0.0001f
             ||horizontalLength(locomotion.right.plantPosition-previousRightFoot_)>0.0001f)
             ++footPlantChanges_;
@@ -155,6 +161,10 @@ public:
         result.bodyPitch=body.bodyPitch;
         result.bodyRoll=body.bodyRoll;
         result.physicalDisruption=body.disruption;
+        result.motorArousal=motor.arousal;
+        result.motorCaution=motor.caution;
+        result.motorFixation=motor.fixation;
+        result.motorPaceExpression=motorOutput.paceExpression;
         result.footPlantChanges=footPlantChanges_;
         result.perceptionConfidence=perception.confidence;
         result.perceptionUncertainty=perception.uncertainty;
@@ -166,6 +176,9 @@ public:
             std::isfinite(result.leftFootContact)&&std::isfinite(result.rightFootContact)&&
             std::isfinite(result.recoveryUrgency)&&std::isfinite(result.bodyPitch)&&
             std::isfinite(result.bodyRoll)&&std::isfinite(result.physicalDisruption);
+        result.finiteValues=result.finiteValues&&std::isfinite(result.motorArousal)&&
+            std::isfinite(result.motorCaution)&&std::isfinite(result.motorFixation)&&
+            std::isfinite(result.motorPaceExpression);
         previousPosition_=enemy.pos;
         return result;
     }

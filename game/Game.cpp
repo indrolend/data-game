@@ -436,6 +436,16 @@ const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT>& Game::enemyBodi
     return enemyRuntime_?enemyRuntime_->bodies:empty;
 }
 
+const std::array<gameplay::EnemyMotorMemory,TARGET_COUNT>& Game::enemyMotors() const {
+    static const std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> empty{};
+    return enemyRuntime_?enemyRuntime_->motors:empty;
+}
+
+const std::array<gameplay::EnemyMotorOutput,TARGET_COUNT>& Game::enemyMotorOutputs() const {
+    static const std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> empty{};
+    return enemyRuntime_?enemyRuntime_->motorOutputs:empty;
+}
+
 void Game::restart() {
     const bool networkGuest=state_.multiplayer.enabled&&
         !state_.multiplayer.authoritativeHost;
@@ -3761,6 +3771,33 @@ void Game::updateTargets(float dt) {
             }
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
             float playerDist=state_.multiplayer.enabled?horizontalLength(toPlayer):(perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f);
+            float motorPaceExpression=1.0f;
+            if(!state_.multiplayer.enabled){
+                const float toPlayerLength=horizontalLength(toPlayer);
+                const Vec3 toPlayerDirection=toPlayerLength>0.001f?toPlayer*(1.0f/toPlayerLength):Vec3{};
+                Vec3 toNearestAlly{};float nearestAllyDistance=10.0f;
+                for(int allyIndex=0;allyIndex<TARGET_COUNT;++allyIndex){
+                    if(allyIndex==i||!gameplay::isActiveHuman(state_.targets[allyIndex]))continue;
+                    const Vec3 allyDelta=state_.targets[allyIndex].pos-t.pos;const float allyDistance=horizontalLength(allyDelta);
+                    if(allyDistance<nearestAllyDistance){nearestAllyDistance=allyDistance;toNearestAlly=allyDistance>0.001f?allyDelta*(1.0f/allyDistance):Vec3{};}
+                }
+                const auto feet=gameplay::enemyLocomotionOutput(enemyRuntimeState.locomotions[i]);
+                const auto& body=enemyRuntimeState.bodies[i];
+                gameplay::EnemyMotorInput motorInput{};
+                motorInput.toPlayer=toPlayerDirection;motorInput.playerDistance=toPlayerLength;
+                motorInput.playerVelocity=attackedPlayer->vel*(1.0f/8.0f);
+                motorInput.toNearestAlly=toNearestAlly;motorInput.nearestAllyDistance=nearestAllyDistance;
+                motorInput.vacuumPressure=state_.vacuum.active?state_.vacuum.power:0.0f;
+                motorInput.roomPressure=state_.progression.run.roomHeat;
+                motorInput.bodySpeed=horizontalLength(t.vel);
+                motorInput.pursuitProgress=dot3(t.vel,toPlayerDirection)/6.0f;
+                motorInput.traction=(feet.leftContact+feet.rightContact)*0.5f;
+                motorInput.physicalDisruption=body.disruption;
+                motorInput.pursuitCertainty=perception.confidence;
+                auto& motorOutput=enemyRuntimeState.motorOutputs[i];
+                motorOutput=gameplay::updateEnemyMotor(motorInput,enemyRuntimeState.motors[i],dt,std::sin(static_cast<float>(i)*12.9898f));
+                if(enemyMotorExpressionEnabled_)motorPaceExpression=motorOutput.paceExpression;
+            }
             const auto canReachPlayerVertically=[&](const Vec3& playerPosition){
                 const float humanBottom=t.pos.y;
                 const float humanTop=t.pos.y+HUMAN_VISUAL_SPEC.totalHeight*t.scale;
@@ -3855,7 +3892,7 @@ void Game::updateTargets(float dt) {
                     auto& routeLocomotion=enemyRuntimeState.locomotions[i];
                     const float aggro=playerDist<noticeRange?1.28f:1.0f;
                     const float variation=0.82f+0.18f*std::sin(static_cast<float>(i)*12.9898f);
-                    const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation*behavior.travelScale;
+                    const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation*behavior.travelScale*motorPaceExpression;
                     if(physicalPursuit){
                         // Plan a reachable arrival velocity instead of asking the
                         // physical body to carry full pursuit speed through its goal.
