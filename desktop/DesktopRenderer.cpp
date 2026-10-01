@@ -272,6 +272,12 @@ void DesktopRenderer::setHudVisible(bool visible) {
     hudVisible_ = visible;
 }
 
+void DesktopRenderer::setAtmosphereProfile(render_contract::AtmosphereProfile profile){lightingControl_.reference=profile;}
+void DesktopRenderer::setLightingControl(const render_contract::RuntimeLightingControl& control){lightingControl_=control;}
+render_contract::RuntimeLightingControl& DesktopRenderer::lightingControl(){return lightingControl_;}
+const render_contract::RuntimeLightingControl& DesktopRenderer::lightingControl() const{return lightingControl_;}
+render_contract::SceneAtmosphere DesktopRenderer::resolvedAtmosphere(const GameState& state) const{return render_contract::resolveSceneAtmosphere(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount});}
+
 void DesktopRenderer::drawBox(const Vec3& p, const Vec3& s, float pitch, float yaw, float roll, float r, float g, float b, float a) {
     glPushMatrix();
     glTranslatef(p.x, p.y, p.z);
@@ -1168,7 +1174,7 @@ void DesktopRenderer::drawDoorDataMosh(const GameState& state) const {
 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
-    const auto atmosphere=render_contract::sceneAtmosphere(state.vacuum.power*0.62f+state.energy.dischargePositionAmount);
+    const auto atmosphere=resolvedAtmosphere(state);
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); glEnable(GL_LIGHT1); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
