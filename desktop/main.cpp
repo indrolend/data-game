@@ -1934,6 +1934,7 @@ int main(int argc, char** argv) {
     const bool combatCrowdStress=hasArg(argc,argv,"--combat-crowd-stress");
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
     const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame")))))))));
+    const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory;
     const int windowWidth=std::max(320,std::min(7680,argInt(argc,argv,"--capture-width",1280)));
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
     if (hasArg(argc, argv, "--smoke-test")) {
@@ -2001,9 +2002,9 @@ int main(int argc, char** argv) {
     host.progressionPath=progressionSavePath();
     bool recoveredPersistentSave=false;
     bool loadedPersistentSave=false;
-    if(!evidenceScenario&&!agentPlaytest)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
+    if(!isolatedPersistence)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
 #ifdef __APPLE__
-    if(!evidenceScenario&&!loadedPersistentSave){
+    if(!isolatedPersistence&&!loadedPersistentSave){
         const std::filesystem::path legacyPath=legacyTemporaryProgressionSavePath();
         if(legacyPath!=host.progressionPath&&loadProgression(host.game,legacyPath)){
             loadedPersistentSave=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
@@ -2011,8 +2012,7 @@ int main(int argc, char** argv) {
         }
     }
 #endif
-    if(agentPlaytest)std::printf("Persistent save: isolated for agent playtest\n");
-    else if(evidenceScenario)std::printf("Persistent save: isolated for evidence run\n");
+    if(isolatedPersistence)std::printf("Persistent save: isolated for deterministic run\n");
     else std::printf("Persistent save: %s%s\n",host.progressionPath.string().c_str(),recoveredPersistentSave?" (recovered backup)":(loadedPersistentSave?" (loaded)":""));
     if(const char* service=std::getenv("DIGITAL_BREAKDOWN_MULTIPLAYER_URL"))host.multiplayerService=service;
     host.game.reset();
@@ -2584,8 +2584,10 @@ int main(int argc, char** argv) {
         perfTrace.sample(host.game.state(),std::chrono::duration<double,std::milli>(frameEnd-frameBegin).count(),std::chrono::duration<double,std::milli>(updateEnd-updateBegin).count(),std::chrono::duration<double,std::milli>(audioEnd-audioBegin).count(),std::chrono::duration<double,std::milli>(renderEnd-renderBegin).count(),std::chrono::duration<double,std::milli>(frameEnd-swapBegin).count(),simulationSteps,droppedAccumulator);
     }
 
-    const bool finalSaveOk=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
-    std::printf("Persistent save %s: %s\n",finalSaveOk?"written":"FAILED",host.progressionPath.string().c_str());
+    if(!isolatedPersistence){
+        const bool finalSaveOk=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
+        std::printf("Persistent save %s: %s\n",finalSaveOk?"written":"FAILED",host.progressionPath.string().c_str());
+    }
     glfwDestroyWindow(window);
     host.audio.stopAll();
     host.multiplayer.disconnect();
