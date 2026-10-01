@@ -1471,6 +1471,7 @@ void Game::update(float dt) {
     updatePlayer(dt);
     updateNetworkPeers(dt);
     updateTeamRevival(dt);
+    const PhoneVisualState previousPhoneVisual=state_.phoneVisual;
     state_.phoneVisual = makePhoneVisualState(state_.vacuum.pose, state_.vacuum.power, 0.0f, state_.time, state_.camera.firstPerson);
     const float phoneActionAmount=std::max(state_.vacuum.pose,state_.energy.dischargePositionAmount);
     state_.phoneVisual.actionLift=phoneActionAmount*0.65f;
@@ -1495,6 +1496,7 @@ void Game::update(float dt) {
         }
     }
     state_.phoneVisual = makePhoneVisualState(state_.vacuum.pose, state_.vacuum.power, contact, state_.time, state_.camera.firstPerson);
+    advancePhoneIngestBulge(state_.phoneVisual,previousPhoneVisual,dt);
     state_.phoneVisual.actionLift=phoneActionAmount*0.65f;
     state_.phoneVisual.actionForward=phoneActionAmount*0.25f;
     processQueuedSoulCaptures();

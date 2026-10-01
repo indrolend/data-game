@@ -362,6 +362,10 @@ add_executable(RenderContractsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/render_con
 target_include_directories(RenderContractsTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RenderContractsTest PRIVATE cxx_std_17)
 
+add_executable(ExpressiveVisualTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/expressive_visual_test.cpp")
+target_include_directories(ExpressiveVisualTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(ExpressiveVisualTest PRIVATE cxx_std_17)
+
 add_executable(EnemyEvidenceScenarioTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_evidence_scenario_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
 target_include_directories(EnemyEvidenceScenarioTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(EnemyEvidenceScenarioTest PRIVATE cxx_std_17)
@@ -467,6 +471,7 @@ add_test(NAME SlopeTraversalCheck COMMAND SlopeTraversalFixtureTest --check)
 set_tests_properties(SlopeTraversalFixtureTest SlopeTraversalCheck PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:SlopeTraversalFixtureTest>")
 add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
+add_test(NAME ExpressiveVisualTest COMMAND ExpressiveVisualTest)
 add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
 add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
 add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)
