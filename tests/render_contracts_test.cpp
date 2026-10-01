@@ -1,8 +1,10 @@
 #include "RenderContracts.hpp"
+#include "RoomLighting.hpp"
 #include <cstdio>
 
 int main(){
     using namespace render_contract;
+    using namespace room_lighting;
     if(DesktopSceneLighting.sun.direction.x!=30.0f||DesktopSceneLighting.fog.density!=0.018f){
         std::fputs("RENDER_CONTRACTS_FAIL desktop profile\n",stderr);return 1;
     }
@@ -14,6 +16,17 @@ int main(){
     static_assert(shadowQualityFor(1,true,true)==ShadowQuality::Cheap);
     static_assert(shadowQualityFor(2,true,true)==ShadowQuality::Directional);
     static_assert(shadowQualityFor(2,true,false)==ShadowQuality::Cheap);
+    const auto fieldRig=roomLightRig(room_environment::RoomSetting::Field,room_environment::RoomForm::Open);
+    const auto cityRig=roomLightRig(room_environment::RoomSetting::City,room_environment::RoomForm::Corridor);
+    const auto sterileCorridorRig=roomLightRig(room_environment::RoomSetting::Sterile,room_environment::RoomForm::Corridor);
+    const auto sterileChamberRig=roomLightRig(room_environment::RoomSetting::Sterile,room_environment::RoomForm::Chamber);
+    if(fieldRig.primarySource!=PrimaryLightSource::OutdoorSun||fieldRig.localLightCount!=0||
+        cityRig.primarySource!=PrimaryLightSource::UrbanSky||cityRig.localLightCount!=0||
+        sterileCorridorRig.primarySource!=PrimaryLightSource::CeilingFixtures||sterileCorridorRig.localLightCount!=2||
+        sterileChamberRig.localLightCount!=3||sterileChamberRig.localLights[1].localPosition.z!=0.0f||
+        !sterileCorridorRig.localLights[0].visibleFixture||sterileCorridorRig.localLights[0].radius<=0.0f||sterileCorridorRig.localLights[0].fixtureSize.x<=0.0f){
+        std::fputs("RENDER_CONTRACTS_FAIL room light source rig\n",stderr);return 1;
+    }
     static_assert(FieldOpenGround.texture==TextureId::FieldGrass&&FieldOpenGround.textureWorldScale==2.4f);
     static_assert(CityGround.texture==TextureId::CityAsphalt&&CityGround.textureWorldScale==3.2f);
     const auto unpowered=sceneAtmosphere(0.0f);
@@ -39,6 +52,6 @@ int main(){
     if(manipulated.fill.g!=0.36f||manipulated.fogDensity!=0.0125f||fixed.time!=7.25f||fixed.roomIndex!=6||fixed.phonePower!=0.45f){
         std::fputs("RENDER_CONTRACTS_FAIL runtime lighting control\n",stderr);return 1;
     }
-    std::puts("RENDER_CONTRACTS_OK profiles=2 shading_models=3 shadow_qualities=3 atmosphere=ACCEPTED_STATIC field_grass=TEXTURED city_ground=TEXTURED");
+    std::puts("RENDER_CONTRACTS_OK profiles=2 light_sources=3 sterile_fixture_rigs=2 shading_models=3 shadow_qualities=3 atmosphere=ACCEPTED_STATIC field_grass=TEXTURED city_ground=TEXTURED");
     return 0;
 }
