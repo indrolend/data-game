@@ -5,6 +5,7 @@
 #include "HumanModelData.hpp"
 #include "DeveloperCodec.hpp"
 #include "RenderContracts.hpp"
+#include "SceneLightingResponse.hpp"
 
 #include <filesystem>
 #include <vector>
@@ -49,7 +50,7 @@ private:
     bool hudVisible_ = true;
     render_contract::RuntimeLightingControl lightingControl_{};
 
-    void drawRoomTile(const GameState& state, int tileIndex) const;
+    void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
     void drawFieldGrass(int tileIndex) const;
     void drawCityGround(int tileIndex) const;
     static void applyCamera(const GameState& state, float aspect);
