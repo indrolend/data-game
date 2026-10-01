@@ -3,6 +3,7 @@
 #include "DesktopMultiplayer.hpp"
 #include "DesktopPlaytestPolicy.hpp"
 #include "DeveloperCodec.hpp"
+#include "AgentPlaytestProtocol.hpp"
 #include "BuildIdentity.hpp"
 #include "MenuNavigation.hpp"
 #include "ControllerRumble.hpp"
@@ -36,6 +37,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <memory>
 #include <numeric>
@@ -1578,6 +1580,39 @@ const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u),static_cast<std::streamsize>(width*3));return static_cast<bool>(out);}
 
+int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::path& framePath,int width,int height){
+    std::uint64_t tick=0;
+    const auto observe=[&](){
+        host.renderer.draw(host.game.state());glFinish();
+        const bool captured=captureFramebuffer(framePath,width,height);
+        glfwSwapBuffers(window);glfwPollEvents();
+        const auto& state=host.game.state();
+        std::printf("AGENT_STATE schema=%d tick=%llu frame=%d room=%d pos=%.6f,%.6f,%.6f velocity=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d clear=%d dead=%d frame_capture=%d\n",
+            agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),state.frame,state.roomIndex,
+            state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.vel.x,state.player.vel.y,state.player.vel.z,
+            state.camera.yaw,state.camera.pitch,state.player.battery,state.player.souls,state.roomClear?1:0,state.dead?1:0,captured?1:0);
+        std::fflush(stdout);return captured;
+    };
+    std::printf("AGENT_PLAYTEST_READY schema=%d fixed_dt=%.9f max_step_frames=%d persistent_save=DISABLED\n",
+        agent_playtest::SchemaVersion,SIMULATION_STEP_SECONDS,agent_playtest::MaximumStepFrames);
+    observe();
+    std::string line;
+    while(std::getline(std::cin,line)){
+        const auto command=agent_playtest::parseCommand(line);
+        if(command.kind==agent_playtest::CommandKind::Invalid){std::printf("AGENT_PLAYTEST_ERROR reason=%s\n",command.error.c_str());std::fflush(stdout);continue;}
+        if(command.kind==agent_playtest::CommandKind::Quit){std::printf("AGENT_PLAYTEST_QUIT tick=%llu\n",static_cast<unsigned long long>(tick));std::fflush(stdout);return 0;}
+        if(command.kind==agent_playtest::CommandKind::Observe){observe();continue;}
+        if(command.kind==agent_playtest::CommandKind::Reset){host.game.reset();tick=0;observe();continue;}
+        for(int frame=0;frame<command.step.frames;++frame){
+            host.game.setTouchControls(command.step.moveX,command.step.moveZ,frame==0?command.step.lookX:0.0f,frame==0?command.step.lookY:0.0f,
+                command.step.vacuum,command.step.sprint,frame==0&&command.step.jump,frame==0&&command.step.melee,frame==0&&command.step.shoot,frame==0&&command.step.camera);
+            host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));++tick;
+        }
+        observe();
+    }
+    std::printf("AGENT_PLAYTEST_EOF tick=%llu\n",static_cast<unsigned long long>(tick));std::fflush(stdout);return 0;
+}
+
 int runSoulLifecycleCapture(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
     std::error_code error;std::filesystem::create_directories(outputDirectory,error);
     if(error){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL create_directory=%s\n",error.message().c_str());return 1;}
@@ -1876,6 +1911,9 @@ int main(int argc, char** argv) {
     const char* perfTracePath=argValue(argc,argv,"--perf-trace");
     const char* evidenceScenario=argValue(argc,argv,"--evidence-scenario");
     const char* evidenceOutput=argValue(argc,argv,"--evidence-output");
+    const bool agentPlaytest=hasArg(argc,argv,"--agent-playtest");
+    const char* agentFrame=argValue(argc,argv,"--agent-frame");
+    if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
@@ -1933,7 +1971,7 @@ int main(int argc, char** argv) {
     // Four samples are a modest desktop cost and remove the most visible
     // geometry and crosshair jaggies.
     glfwWindowHint(GLFW_SAMPLES, 4);
-    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||evidenceScenario)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
+    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||evidenceScenario||agentPlaytest)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(
         windowWidth,
@@ -1963,7 +2001,7 @@ int main(int argc, char** argv) {
     host.progressionPath=progressionSavePath();
     bool recoveredPersistentSave=false;
     bool loadedPersistentSave=false;
-    if(!evidenceScenario)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
+    if(!evidenceScenario&&!agentPlaytest)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
 #ifdef __APPLE__
     if(!evidenceScenario&&!loadedPersistentSave){
         const std::filesystem::path legacyPath=legacyTemporaryProgressionSavePath();
@@ -1973,11 +2011,12 @@ int main(int argc, char** argv) {
         }
     }
 #endif
-    if(evidenceScenario)std::printf("Persistent save: isolated for evidence run\n");
+    if(agentPlaytest)std::printf("Persistent save: isolated for agent playtest\n");
+    else if(evidenceScenario)std::printf("Persistent save: isolated for evidence run\n");
     else std::printf("Persistent save: %s%s\n",host.progressionPath.string().c_str(),recoveredPersistentSave?" (recovered backup)":(loadedPersistentSave?" (loaded)":""));
     if(const char* service=std::getenv("DIGITAL_BREAKDOWN_MULTIPLAYER_URL"))host.multiplayerService=service;
     host.game.reset();
-    if((!capturePath&&!captureDemo)||captureStart)host.game.prepareAttractScreen();
+    if((!capturePath&&!captureDemo&&!agentPlaytest)||captureStart)host.game.prepareAttractScreen();
     if(captureMenu){
         const char* page=captureMenuPage;
         GameState& fixture=host.game.networkMutableState();
@@ -2078,7 +2117,7 @@ int main(int argc, char** argv) {
     glfwSetWindowTitle(window,"Data");
     // Let the platform compositor pace presentation while gameplay remains fixed
     // at 60 Hz. The renderer interpolates camera state between simulation ticks.
-    glfwSwapInterval((multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory)?0:1);
+    glfwSwapInterval((multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||agentPlaytest)?0:1);
     setMouseCaptured(window, host, host.game.state().started&&!host.game.state().attractMode);
     if(capturePaused||captureMenuPause)host.game.setUiPaused(true);
 
@@ -2096,6 +2135,10 @@ int main(int argc, char** argv) {
         if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
         else if(std::strcmp(evidenceScenario,"enemy-obstruction")!=0)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
         else result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
+    }
+    if(agentPlaytest){
+        const int result=runAgentPlaytest(window,host,agentFrame,framebufferWidth,framebufferHeight);
         glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
     }
     if(!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector){
