@@ -19,6 +19,8 @@
 #include "MarkerPillarGeometry.hpp"
 #include "gameplay/EnemyPerception.hpp"
 #include "gameplay/EnemyBehaviorState.hpp"
+#include "gameplay/EnemyLocomotion.hpp"
+#include "gameplay/PhysicalEnemyBody.hpp"
 
 constexpr int TARGET_COUNT = 32;
 constexpr int CAPTURE_COUNT = 9;
@@ -785,6 +787,8 @@ public:
     GameState& networkMutableState() { return state_; }
     const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& enemyPerceptions() const;
     const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& enemyBehaviors() const;
+    const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT>& enemyLocomotions() const;
+    const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT>& enemyBodies() const;
 
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
@@ -795,6 +799,8 @@ private:
     struct EnemyRuntimePool {
         std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
         std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
+        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
+        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
         int perceptionCursor = 0;
     };
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;

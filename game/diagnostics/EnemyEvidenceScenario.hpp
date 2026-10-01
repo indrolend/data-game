@@ -96,6 +96,13 @@ struct EnemyObstructionObservation {
     float perceptionConfidence=0.0f;
     float perceptionUncertainty=1.0f;
     gameplay::EnemyBehaviorMode cognition=gameplay::EnemyBehaviorMode::Rest;
+    float leftFootContact=0.0f;
+    float rightFootContact=0.0f;
+    float recoveryUrgency=0.0f;
+    float bodyPitch=0.0f;
+    float bodyRoll=0.0f;
+    float physicalDisruption=0.0f;
+    int footPlantChanges=0;
     int stalledTicks=0;
     bool colliderOverlap=false;
     bool attackActive=false;
@@ -134,13 +141,31 @@ public:
         result.attackHit=enemy.attackHit;
         const auto& perception=game.enemyPerceptions()[0];
         result.cognition=game.enemyBehaviors()[0].mode;
+        const auto& locomotion=game.enemyLocomotions()[0];
+        const auto feet=gameplay::enemyLocomotionOutput(locomotion);
+        const auto& body=game.enemyBodies()[0];
+        if(horizontalLength(locomotion.left.plantPosition-previousLeftFoot_)>0.0001f
+            ||horizontalLength(locomotion.right.plantPosition-previousRightFoot_)>0.0001f)
+            ++footPlantChanges_;
+        previousLeftFoot_=locomotion.left.plantPosition;
+        previousRightFoot_=locomotion.right.plantPosition;
+        result.leftFootContact=feet.leftContact;
+        result.rightFootContact=feet.rightContact;
+        result.recoveryUrgency=feet.recoveryUrgency;
+        result.bodyPitch=body.bodyPitch;
+        result.bodyRoll=body.bodyRoll;
+        result.physicalDisruption=body.disruption;
+        result.footPlantChanges=footPlantChanges_;
         result.perceptionConfidence=perception.confidence;
         result.perceptionUncertainty=perception.uncertainty;
         result.perceptionConfirmed=perception.confirmed;
         result.hasSpatialBelief=perception.confidence>0.035f;
         result.finiteValues=finite(enemy.pos)&&finite(enemy.vel)&&finite(support.normal)&&
             std::isfinite(result.goalDistance)&&std::isfinite(result.obstructionClearance)&&
-            std::isfinite(result.perceptionConfidence)&&std::isfinite(result.perceptionUncertainty);
+            std::isfinite(result.perceptionConfidence)&&std::isfinite(result.perceptionUncertainty)&&
+            std::isfinite(result.leftFootContact)&&std::isfinite(result.rightFootContact)&&
+            std::isfinite(result.recoveryUrgency)&&std::isfinite(result.bodyPitch)&&
+            std::isfinite(result.bodyRoll)&&std::isfinite(result.physicalDisruption);
         previousPosition_=enemy.pos;
         return result;
     }
@@ -149,6 +174,10 @@ public:
         initialPosition_=previousPosition_=game.state().targets[0].pos;
         maximumDetour_=0.0f;
         stalledTicks_=0;
+        const auto& locomotion=game.enemyLocomotions()[0];
+        previousLeftFoot_=locomotion.left.plantPosition;
+        previousRightFoot_=locomotion.right.plantPosition;
+        footPlantChanges_=0;
     }
 
 private:
@@ -156,6 +185,9 @@ private:
     Vec3 previousPosition_{};
     float maximumDetour_=0.0f;
     int stalledTicks_=0;
+    Vec3 previousLeftFoot_{};
+    Vec3 previousRightFoot_{};
+    int footPlantChanges_=0;
 };
 
 inline const char* behaviorMode(const EnemyObstructionObservation& observation) {

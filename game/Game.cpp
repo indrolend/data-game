@@ -426,6 +426,16 @@ const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& Game::enemyBehavior
     return enemyRuntime_?enemyRuntime_->behaviors:empty;
 }
 
+const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT>& Game::enemyLocomotions() const {
+    static const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> empty{};
+    return enemyRuntime_?enemyRuntime_->locomotions:empty;
+}
+
+const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT>& Game::enemyBodies() const {
+    static const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> empty{};
+    return enemyRuntime_?enemyRuntime_->bodies:empty;
+}
+
 void Game::restart() {
     const bool networkGuest=state_.multiplayer.enabled&&
         !state_.multiplayer.authoritativeHost;
@@ -3455,6 +3465,8 @@ void Game::updateRoomPopulation(float dt) {
 void Game::respawnTarget(int index) {
     enemyRuntime().perceptions[index]={};
     enemyRuntime().behaviors[index]={};
+    enemyRuntime().locomotions[index]={};
+    enemyRuntime().bodies[index]={};
     TargetState& t = state_.targets[index]; t = TargetState{}; t.alive = true;
     t.brute = seededRoomValue(520 + index) < 0.18f;
     t.soul = makeSoulRecord(t.brute,state_.roomIndex);
@@ -3586,6 +3598,60 @@ void Game::updateTargets(float dt) {
             const WorldSupportSample supportBefore=getWorldSupport(t.pos.x,t.pos.z,HUMAN_SUPPORT_RADIUS);
             const bool supportedBefore=std::abs(t.pos.y-supportBefore.height)<=0.06f&&t.vel.y<=0.0f;
             if(supportedBefore){t.pos.y=supportBefore.height;t.vel.y=0.0f;}
+            const auto advanceEmbodiedMovement=[&](const Vec3& desiredVelocity,float desiredYaw,float brace){
+                auto& locomotion=enemyRuntimeState.locomotions[i];
+                auto& bodyState=enemyRuntimeState.bodies[i];
+                const auto queryFootSupport=[&](const Vec3& candidate){
+                    const auto support=getWorldSupport(candidate.x,candidate.z,0.035f);
+                    const bool reachableHeight=std::abs(support.height-t.pos.y)<=0.40f;
+                    const bool terrainSurface=support.identity.source==SupportSource::Slope
+                        ||support.identity.source==SupportSource::Generated;
+                    const bool clear=terrainSurface||!isHumanMovementBlocked(
+                        candidate.x,candidate.z,support.height,HUMAN_BODY_RADIUS*0.52f);
+                    return gameplay::EnemyFootSupport{
+                        {candidate.x,support.height,candidate.z},support.normal,
+                        reachableHeight&&clear};
+                };
+                gameplay::EnemyLocomotionInput locomotionInput{};
+                locomotionInput.bodyPosition=t.pos;
+                locomotionInput.bodyVelocity=t.vel;
+                locomotionInput.bodyYaw=t.visualYaw;
+                locomotionInput.bodyPitch=bodyState.bodyPitch;
+                locomotionInput.bodyRoll=bodyState.bodyRoll;
+                locomotionInput.desiredTravelDirection=horizontalLength(desiredVelocity)>0.001f
+                    ? desiredVelocity*(1.0f/horizontalLength(desiredVelocity)):Vec3{};
+                locomotionInput.desiredSpeed=horizontalLength(desiredVelocity);
+                locomotionInput.desiredYaw=desiredYaw;
+                locomotionInput.brace=brace;
+                locomotionInput.traction=1.0f;
+                locomotionInput.individuality=std::sin(static_cast<float>(i)*12.9898f);
+                locomotionInput.centerOfMassHeight=HUMAN_VISUAL_SPEC.totalHeight*t.scale*0.52f;
+                locomotionInput.dt=dt;
+                locomotionInput.grounded=supportedBefore;
+                locomotionInput.fallen=bodyState.fallen;
+                locomotionInput.constrainTrajectory=true;
+                const auto feet=gameplay::updateEnemyLocomotion(
+                    locomotion,locomotionInput,queryFootSupport);
+                gameplay::PhysicalEnemyBodyInput bodyInput{};
+                bodyInput.desiredVelocity=feet.supportedDesiredVelocity;
+                bodyInput.actualVelocity=t.vel;
+                bodyInput.desiredYaw=feet.desiredYaw;
+                bodyInput.individuality=locomotionInput.individuality;
+                bodyInput.brace=brace;
+                bodyInput.dt=dt;
+                bodyInput.grounded=supportedBefore;
+                bodyInput.leftFootContact=feet.leftContact;
+                bodyInput.rightFootContact=feet.rightContact;
+                bodyInput.supportNormal=feet.supportNormal;
+                bodyState.gaitPhase=feet.gaitPhase;
+                const auto body=gameplay::updatePhysicalEnemyBody(bodyState,bodyInput,t.visualYaw);
+                bodyState.gaitPhase=feet.gaitPhase;
+                t.vel.x=body.velocity.x;
+                t.vel.z=body.velocity.z;
+                t.visualYaw=body.yaw;
+                t.locomotionAmount=body.locomotion;
+                t.visualWalkPhase=feet.gaitPhase;
+            };
             t.armorRegenDelay=std::max(0.0f,t.armorRegenDelay-dt);
             if(t.armorRegenDelay<=0.0f){
                 const float fullArmor=t.brute?SOUL_ARMOR_BRUTE:SOUL_ARMOR_NORMAL;
@@ -3739,7 +3805,7 @@ void Game::updateTargets(float dt) {
                     if(towardLength>0.001f)t.visualYaw=std::atan2(-towardTree.x/towardLength,-towardTree.z/towardLength);
                 }
             }
-            if(!climbedTreeThisFrame&&playerDist>0.001f&&playerDist<noticeRange)t.visualYaw=std::atan2(-toPlayer.x/playerDist,-toPlayer.z/playerDist);
+            if(!climbedTreeThisFrame&&playerDist>0.001f&&playerDist<noticeRange&&state_.multiplayer.enabled)t.visualYaw=std::atan2(-toPlayer.x/playerDist,-toPlayer.z/playerDist);
             if(climbedTreeThisFrame){
                 // Tree climbing is physical pursuit, not an attack shortcut.
                 // The existing vertical-overlap contract decides when combat
@@ -3754,6 +3820,10 @@ void Game::updateTargets(float dt) {
                     attackedPlayerPos=state_.player.pos;
                     if(attackedPlayerId>0&&attackedPlayerId<NETWORK_PLAYER_COUNT&&state_.multiplayer.peers[attackedPlayerId].active)attackedPlayerPos=state_.multiplayer.peers[attackedPlayerId].player.pos;
                     else attackedPlayerId=0;
+                }
+                if(!state_.multiplayer.enabled){
+                    const float attackYaw=std::atan2(-t.attackDirection.x,-t.attackDirection.z);
+                    advanceEmbodiedMovement({},attackYaw,0.88f);
                 }
                 const float sweepT=clampf((progress-HUMAN_SWING_COMMIT_PHASE)/(HUMAN_SWING_END_PHASE-HUMAN_SWING_COMMIT_PHASE),0.0f,1.0f);
                 const float side=t.attackVariant%2==0?1.0f:-1.0f;
@@ -3781,29 +3851,29 @@ void Game::updateTargets(float dt) {
                 Vec3 delta{destination.x-t.pos.x,0,destination.z-t.pos.z}; float dist=horizontalLength(delta);
                 if(dist<HUMAN_WALK_TARGET_RADIUS && playerDist>=noticeRange){chooseHumanWalkTarget(i); delta=t.walkTarget-t.pos; delta.y=0; dist=horizontalLength(delta);}
                 if(dist>0.001f){
-                    Vec3 dir=delta*(1.0f/dist); const float aggro=playerDist<noticeRange?1.28f:1.0f;
+                    Vec3 dir=delta*(1.0f/dist); const bool physicalPursuit=!state_.multiplayer.enabled;
+                    auto& routeLocomotion=enemyRuntimeState.locomotions[i];
+                    const float aggro=playerDist<noticeRange?1.28f:1.0f;
                     const float variation=0.82f+0.18f*std::sin(static_cast<float>(i)*12.9898f);
                     const float speed=pursuitSpeed*aggro*(t.brute?0.56f:1.0f)*variation*behavior.travelScale;
-                    const bool physicalPursuit=!state_.multiplayer.enabled;
                     if(physicalPursuit){
-                        const Vec3 desired=dir*speed;
-                        const float response=1.0f-std::exp(-(t.brute?5.5f:8.0f)*dt);
-                        t.vel.x+=(desired.x-t.vel.x)*response;
-                        t.vel.z+=(desired.z-t.vel.z)*response;
-                        const float horizontalSpeed=horizontalLength(t.vel);
-                        const float maximum=speed*(t.brute?1.30f:1.45f);
-                        if(horizontalSpeed>maximum){const float scale=maximum/horizontalSpeed;t.vel.x*=scale;t.vel.z*=scale;}
+                        // Plan a reachable arrival velocity instead of asking the
+                        // physical body to carry full pursuit speed through its goal.
+                        // Contacts and body integration still own achieved motion.
+                        const float arrivalSpeed=std::min(speed,dist*2.0f);
+                        advanceEmbodiedMovement(dir*arrivalSpeed,std::atan2(-dir.x,-dir.z),0.55f);
                     }else{t.vel.x=dir.x*speed;t.vel.z=dir.z*speed;}
                     float step=std::min(dist,physicalPursuit?horizontalLength(t.vel)*dt:speed*dt);
                     Vec3 motionDir=physicalPursuit&&horizontalLength(t.vel)>0.001f?Vec3{t.vel.x/horizontalLength(t.vel),0,t.vel.z/horizontalLength(t.vel)}:dir;
                     Vec3 next=t.pos+motionDir*step;
                     bool pursuitBlocked=false;Vec3 obstructionNormal{};int obstructionCollider=-1;
                     if(playerDist<noticeRange){
+                        const Vec3 collisionDirection=physicalPursuit?motionDir:dir;
                         const float tileOrigin=getRoomTileOriginZ(getRoomTileIndex(t.pos.z));float nearestEntry=dist+1.0f;
                         for(int colliderIndex=0;colliderIndex<state_.debug.colliderCount;++colliderIndex){const RoomCollider& c=state_.roomColliders[colliderIndex];
                             if(t.pos.y>=c.topY+GROUND_Y-0.06f)continue;
                             const float bounds[4]={c.minX-HUMAN_PURSUIT_CLEARANCE_RADIUS,c.maxX+HUMAN_PURSUIT_CLEARANCE_RADIUS,tileOrigin+c.minZ-HUMAN_PURSUIT_CLEARANCE_RADIUS,tileOrigin+c.maxZ+HUMAN_PURSUIT_CLEARANCE_RADIUS};float enter=0.0f,exit=dist;Vec3 entryNormal{};bool intersects=true;
-                            const float origins[2]={t.pos.x,t.pos.z},directions[2]={dir.x,dir.z};
+                            const float origins[2]={t.pos.x,t.pos.z},directions[2]={collisionDirection.x,collisionDirection.z};
                             for(int axis=0;axis<2;++axis){
                                 const float minimum=bounds[axis*2],maximum=bounds[axis*2+1],origin=origins[axis],direction=directions[axis];
                                 if(std::abs(direction)<0.00001f){if(origin<=minimum||origin>=maximum){intersects=false;break;}continue;}
@@ -3818,7 +3888,7 @@ void Game::updateTargets(float dt) {
                         }
                         pursuitBlocked=obstructionCollider>=0;
                         if(!pursuitBlocked){
-                            const Vec3 probe=t.pos+dir*step;
+                            const Vec3 probe=t.pos+collisionDirection*step;
                             pursuitBlocked=isHumanMovementBlocked(probe.x,probe.z,t.pos.y,HUMAN_PURSUIT_CLEARANCE_RADIUS,&obstructionNormal);
                         }
                     }
@@ -3848,12 +3918,31 @@ void Game::updateTargets(float dt) {
                             }
                             if(found)break;
                         }
-                        if(!found){next=t.pos;t.vel.x*=-0.18f;t.vel.z*=-0.18f;}
-                        else if(physicalPursuit){const float redirectedSpeed=horizontalLength(t.vel);t.vel.x=dir.x*redirectedSpeed;t.vel.z=dir.z*redirectedSpeed;}
-                    }else if(isHumanMovementBlocked(next.x,next.z,t.pos.y,physicalPursuit?HUMAN_PURSUIT_CLEARANCE_RADIUS:HUMAN_BODY_RADIUS)){chooseHumanWalkTarget(i);next=t.pos;t.vel.x*=-0.18f;t.vel.z*=-0.18f;}
-                    const float travelled=horizontalLength(next-t.pos);if(travelled>0.00001f){t.pos=next;const Vec3 physicalDirection=normalized(Vec3{t.vel.x,0,t.vel.z});t.visualYaw=std::atan2(-physicalDirection.x,-physicalDirection.z);t.visualWalkPhase+=travelled*HUMAN_WALK_PHASE_PER_METER;}
-                    t.locomotionAmount=travelled>0.00001f?1.0f:0.0f;
-                } else {t.locomotionAmount=0.0f;t.vel.x*=std::exp(-8.0f*dt);t.vel.z*=std::exp(-8.0f*dt);}
+                        if(!found){
+                            next=t.pos;
+                            const float intoObstacle=dot3(t.vel,obstructionNormal);
+                            if(intoObstacle<0.0f)t.vel-=obstructionNormal*intoObstacle;
+                        }
+                        else if(physicalPursuit){
+                            routeLocomotion.committedTravelDirection=dir;
+                            // Retain the selected tangent long enough for a
+                            // supported walking body to clear this collider.
+                            // Locomotion owns expiry; Game only authors a new
+                            // route when direct pursuit is actually obstructed.
+                            routeLocomotion.directionalCommitmentTimer=2.2f;
+                            const float intoObstacle=dot3(t.vel,obstructionNormal);
+                            if(intoObstacle<0.0f)t.vel-=obstructionNormal*intoObstacle;
+                            next=t.pos;
+                        }
+                    }else if(isHumanMovementBlocked(next.x,next.z,t.pos.y,physicalPursuit?HUMAN_PURSUIT_CLEARANCE_RADIUS:HUMAN_BODY_RADIUS,&obstructionNormal)){
+                        chooseHumanWalkTarget(i);next=t.pos;
+                        const float intoObstacle=dot3(t.vel,obstructionNormal);
+                        if(intoObstacle<0.0f)t.vel-=obstructionNormal*intoObstacle;
+                    }
+                    const float travelled=horizontalLength(next-t.pos);if(travelled>0.00001f){t.pos=next;if(!physicalPursuit){const Vec3 physicalDirection=normalized(Vec3{t.vel.x,0,t.vel.z});t.visualYaw=std::atan2(-physicalDirection.x,-physicalDirection.z);t.visualWalkPhase+=travelled*HUMAN_WALK_PHASE_PER_METER;}}
+                    if(!physicalPursuit)t.locomotionAmount=travelled>0.00001f?1.0f:0.0f;
+                } else if(!state_.multiplayer.enabled){advanceEmbodiedMovement({},t.visualYaw,0.55f);}
+                else {t.locomotionAmount=0.0f;t.vel.x*=std::exp(-8.0f*dt);t.vel.z*=std::exp(-8.0f*dt);}
             }
             if(!attachedToTreeThisFrame){
                 const WorldSupportSample supportAfter=getWorldSupport(t.pos.x,t.pos.z,HUMAN_SUPPORT_RADIUS);
