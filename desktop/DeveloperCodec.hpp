@@ -10,7 +10,7 @@ enum class DeveloperCodecCommand : unsigned char {
     EnemiesOn, EnemiesOff, EnemiesToggle,
     RoomNext, RoomReroll,
     CollidersShow, CollidersHide, CollidersToggle,
-    PlaytestRally, PlaytestTraversal, PlaytestRooms
+    PlaytestRally, PlaytestTraversal, PlaytestRooms, Lighting
 };
 
 struct DeveloperCodecParseResult {
@@ -38,6 +38,7 @@ inline DeveloperCodecParseResult parseDeveloperCodecCommand(const std::string& i
     if(exact("playtest","rally"))return {DeveloperCodecCommand::PlaytestRally,true};
     if(exact("playtest","traversal"))return {DeveloperCodecCommand::PlaytestTraversal,true};
     if(exact("playtest","rooms"))return {DeveloperCodecCommand::PlaytestRooms,true};
+    if(words[0]=="lighting")return {DeveloperCodecCommand::Lighting,true};
     const bool known=words[0]=="help"||words[0]=="state"||words[0]=="soul"||words[0]=="battery"||words[0]=="enemies"||words[0]=="room"||words[0]=="colliders"||words[0]=="playtest";
     return {DeveloperCodecCommand::Invalid,known};
 }
