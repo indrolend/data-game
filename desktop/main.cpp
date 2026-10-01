@@ -3,6 +3,8 @@
 #include "DesktopMultiplayer.hpp"
 #include "DesktopPlaytestPolicy.hpp"
 #include "DeveloperCodec.hpp"
+#include "AgentPlaytestProtocol.hpp"
+#include "LightingControlCommand.hpp"
 #include "BuildIdentity.hpp"
 #include "MenuNavigation.hpp"
 #include "ControllerRumble.hpp"
@@ -36,6 +38,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <memory>
 #include <numeric>
@@ -1575,15 +1578,49 @@ int runSmokeTest() {
     return 0;
 }
 const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)return argv[i+1];return nullptr;}
+std::vector<std::string> argValues(int argc,char** argv,const char* expected){std::vector<std::string> values;for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)values.emplace_back(argv[i+1]);return values;}
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u),static_cast<std::streamsize>(width*3));return static_cast<bool>(out);}
+
+int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::path& framePath,int width,int height){
+    std::uint64_t tick=0;
+    const auto observe=[&](){
+        host.renderer.draw(host.game.state());glFinish();
+        const bool captured=captureFramebuffer(framePath,width,height);
+        glfwSwapBuffers(window);glfwPollEvents();
+        const auto& state=host.game.state();
+        std::printf("AGENT_STATE schema=%d tick=%llu frame=%d room=%d pos=%.6f,%.6f,%.6f velocity=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d clear=%d dead=%d frame_capture=%d\n",
+            agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),state.frame,state.roomIndex,
+            state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.vel.x,state.player.vel.y,state.player.vel.z,
+            state.camera.yaw,state.camera.pitch,state.player.battery,state.player.souls,state.roomClear?1:0,state.dead?1:0,captured?1:0);
+        std::fflush(stdout);return captured;
+    };
+    std::printf("AGENT_PLAYTEST_READY schema=%d fixed_dt=%.9f max_step_frames=%d persistent_save=DISABLED\n",
+        agent_playtest::SchemaVersion,SIMULATION_STEP_SECONDS,agent_playtest::MaximumStepFrames);
+    observe();
+    std::string line;
+    while(std::getline(std::cin,line)){
+        const auto command=agent_playtest::parseCommand(line);
+        if(command.kind==agent_playtest::CommandKind::Invalid){std::printf("AGENT_PLAYTEST_ERROR reason=%s\n",command.error.c_str());std::fflush(stdout);continue;}
+        if(command.kind==agent_playtest::CommandKind::Quit){std::printf("AGENT_PLAYTEST_QUIT tick=%llu\n",static_cast<unsigned long long>(tick));std::fflush(stdout);return 0;}
+        if(command.kind==agent_playtest::CommandKind::Observe){observe();continue;}
+        if(command.kind==agent_playtest::CommandKind::Reset){host.game.reset();tick=0;observe();continue;}
+        for(int frame=0;frame<command.step.frames;++frame){
+            host.game.setTouchControls(command.step.moveX,command.step.moveZ,frame==0?command.step.lookX:0.0f,frame==0?command.step.lookY:0.0f,
+                command.step.vacuum,command.step.sprint,frame==0&&command.step.jump,frame==0&&command.step.melee,frame==0&&command.step.shoot,frame==0&&command.step.camera);
+            host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));++tick;
+        }
+        observe();
+    }
+    std::printf("AGENT_PLAYTEST_EOF tick=%llu\n",static_cast<unsigned long long>(tick));std::fflush(stdout);return 0;
+}
 
 int runSoulLifecycleCapture(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
     std::error_code error;std::filesystem::create_directories(outputDirectory,error);
     if(error){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL create_directory=%s\n",error.message().c_str());return 1;}
     std::ofstream manifest(outputDirectory/"manifest.csv",std::ios::trunc);
     if(!manifest){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL manifest\n");return 1;}
-    manifest<<"cycle,label,game_frame,souls,target_alive,soul_state,ingest,morph,cube,visibility,target_scale,visual_x,visual_y,visual_z,rotation_y,target_x,target_y,target_z,camera_x,camera_y,camera_z,particles,file\n";
+    manifest<<"cycle,label,game_frame,souls,target_alive,soul_state,ingest,morph,cube,shell_opacity,visibility,target_scale,visual_x,visual_y,visual_z,rotation_y,target_x,target_y,target_z,camera_x,camera_y,camera_z,particles,file\n";
     host.game.reset();GameState& initial=host.game.networkMutableState();
     for(auto& target:initial.targets)target=TargetState{};
     for(auto& request:initial.respawnQueue)request=HumanRespawnRequest{};
@@ -1591,7 +1628,7 @@ int runSoulLifecycleCapture(GLFWwindow* window,HostState& host,const std::filesy
     const auto prepare=[&](int targetIndex){GameState& state=host.game.networkMutableState();state.player.pos={0,0.08f,0};state.player.battery=100;state.player.vel={};state.player.jumpVel=0;state.player.grounded=true;state.camera.yaw=0;state.camera.pitch=0;state.camera.forward={0,0,-1};TargetState& target=state.targets[targetIndex];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1;target.attackCooldown=999;target.pos=state.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;};
     prepare(0);
     const auto step=[&](bool vacuum,bool melee){host.game.setTouchControls(0,0,0,0,vacuum,false,false,melee,false,false);host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));};
-    const auto capture=[&](int cycle,const char* label,int targetIndex){const GameState& state=host.game.state();const TargetState& target=state.targets[targetIndex];const Vec3 visualScale=target.soulVisual.scale;const bool visualFinite=std::isfinite(visualScale.x)&&std::isfinite(visualScale.y)&&std::isfinite(visualScale.z)&&std::isfinite(target.soulVisual.rotationY);const bool visualUniform=std::abs(visualScale.x-visualScale.y)<0.0001f&&std::abs(visualScale.x-visualScale.z)<0.0001f;if(!visualFinite||!visualUniform){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=%s visual=(%.6f,%.6f,%.6f) rotation=%.6f\n",cycle,label,visualScale.x,visualScale.y,visualScale.z,target.soulVisual.rotationY);return false;}int particles=0;for(const auto& particle:state.particles)if(particle.life>0)++particles;char filename[96]{};std::snprintf(filename,sizeof(filename),"cycle%d_%s.ppm",cycle,label);host.renderer.draw(state);glFinish();const bool saved=captureFramebuffer(outputDirectory/filename,width,height);glfwSwapBuffers(window);glfwPollEvents();manifest<<cycle<<','<<label<<','<<state.frame<<','<<state.player.souls<<','<<(target.alive?1:0)<<','<<static_cast<int>(target.soulState)<<','<<target.ingestProgress<<','<<target.soulMorph<<','<<target.soulCubeAmount<<','<<target.visibility<<','<<target.scale<<','<<visualScale.x<<','<<visualScale.y<<','<<visualScale.z<<','<<target.soulVisual.rotationY<<','<<target.pos.x<<','<<target.pos.y<<','<<target.pos.z<<','<<state.camera.pos.x<<','<<state.camera.pos.y<<','<<state.camera.pos.z<<','<<particles<<','<<filename<<'\n';manifest.flush();std::printf("SOUL_LIFECYCLE_FRAME cycle=%d label=%s frame=%d alive=%d state=%d ingest=%.3f morph=%.3f cube=%.3f rotation=%.3f file=%s\n",cycle,label,state.frame,target.alive?1:0,static_cast<int>(target.soulState),target.ingestProgress,target.soulMorph,target.soulCubeAmount,target.soulVisual.rotationY,filename);return saved;};
+    const auto capture=[&](int cycle,const char* label,int targetIndex){const GameState& state=host.game.state();const TargetState& target=state.targets[targetIndex];const Vec3 visualScale=target.soulVisual.scale;const bool visualFinite=std::isfinite(visualScale.x)&&std::isfinite(visualScale.y)&&std::isfinite(visualScale.z)&&std::isfinite(target.soulVisual.rotationY)&&std::isfinite(target.soulVisual.shellOpacity);const bool visualUniform=std::abs(visualScale.x-visualScale.y)<0.0001f&&std::abs(visualScale.x-visualScale.z)<0.0001f;if(!visualFinite||!visualUniform){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=%s visual=(%.6f,%.6f,%.6f) rotation=%.6f opacity=%.6f\n",cycle,label,visualScale.x,visualScale.y,visualScale.z,target.soulVisual.rotationY,target.soulVisual.shellOpacity);return false;}int particles=0;for(const auto& particle:state.particles)if(particle.life>0)++particles;char filename[96]{};std::snprintf(filename,sizeof(filename),"cycle%d_%s.ppm",cycle,label);host.renderer.draw(state);glFinish();const bool saved=captureFramebuffer(outputDirectory/filename,width,height);glfwSwapBuffers(window);glfwPollEvents();manifest<<cycle<<','<<label<<','<<state.frame<<','<<state.player.souls<<','<<(target.alive?1:0)<<','<<static_cast<int>(target.soulState)<<','<<target.ingestProgress<<','<<target.soulMorph<<','<<target.soulCubeAmount<<','<<target.soulVisual.shellOpacity<<','<<target.visibility<<','<<target.scale<<','<<visualScale.x<<','<<visualScale.y<<','<<visualScale.z<<','<<target.soulVisual.rotationY<<','<<target.pos.x<<','<<target.pos.y<<','<<target.pos.z<<','<<state.camera.pos.x<<','<<state.camera.pos.y<<','<<state.camera.pos.z<<','<<particles<<','<<filename<<'\n';manifest.flush();std::printf("SOUL_LIFECYCLE_FRAME cycle=%d label=%s frame=%d alive=%d state=%d ingest=%.3f morph=%.3f cube=%.3f opacity=%.3f rotation=%.3f file=%s\n",cycle,label,state.frame,target.alive?1:0,static_cast<int>(target.soulState),target.ingestProgress,target.soulMorph,target.soulCubeAmount,target.soulVisual.shellOpacity,target.soulVisual.rotationY,filename);return saved;};
     for(int cycle=1;cycle<=2;++cycle){
         int targetIndex=-1;for(int i=0;i<TARGET_COUNT;++i)if(gameplay::isActiveHuman(host.game.state().targets[i])){targetIndex=i;break;}
         if(targetIndex<0){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=population\n",cycle);return 1;}
@@ -1608,6 +1645,31 @@ int runSoulLifecycleCapture(GLFWwindow* window,HostState& host,const std::filesy
         step(false,false);frames=0;while(activeHumanCount(host.game.state())==0&&frames++<300)step(false,false);int respawned=-1;for(int i=0;i<TARGET_COUNT;++i)if(gameplay::isActiveHuman(host.game.state().targets[i])){respawned=i;break;}if(respawned<0){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=respawn\n",cycle);return 1;}if(!capture(cycle,"09_respawned",respawned))return 1;
     }
     std::printf("SOUL_LIFECYCLE_CAPTURE_OK directory=%s\n",outputDirectory.string().c_str());return 0;
+}
+
+int runSoulLifecycleEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    const auto videoDirectory=outputDirectory/"frames"/"video";
+    const int captureResult=runSoulLifecycleCapture(window,host,videoDirectory,width,height);
+    if(captureResult!=0)return captureResult;
+    std::ifstream source(videoDirectory/"manifest.csv");
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),events(outputDirectory/"events.ndjson",std::ios::trunc);
+    if(!source||!timeline||!events){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=open_soul_evidence_files\n");return 4;}
+    std::string line;std::getline(source,line);std::vector<std::string> frames;int samples=0;bool opacityOrder=true;std::array<float,2> attracted{{-1,-1}},latched{{-1,-1}},ingest25{{-1,-1}},ingest75{{-1,-1}};
+    while(std::getline(source,line)){
+        std::vector<std::string> fields;std::size_t begin=0;for(;;){const auto comma=line.find(',',begin);fields.push_back(line.substr(begin,comma==std::string::npos?comma:comma-begin));if(comma==std::string::npos)break;begin=comma+1;}
+        if(fields.size()!=24){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=soul_timeline_columns count=%zu\n",fields.size());return 4;}
+        const int cycle=std::stoi(fields[0]),frame=std::stoi(fields[2]);const std::string& label=fields[1];const float opacity=std::stof(fields[9]);const std::string relative=(std::filesystem::path("frames")/"video"/fields[23]).generic_string();frames.push_back(relative);
+        timeline<<"{\"sample\":"<<samples++<<",\"cycle\":"<<cycle<<",\"label\":\""<<label<<"\",\"tick\":"<<frame<<",\"stored_souls\":"<<fields[3]<<",\"target_alive\":"<<fields[4]<<",\"soul_state\":"<<fields[5]<<",\"ingest\":"<<fields[6]<<",\"morph\":"<<fields[7]<<",\"cube\":"<<fields[8]<<",\"shell_opacity\":"<<fields[9]<<",\"visibility\":"<<fields[10]<<",\"target_scale\":"<<fields[11]<<",\"particles\":"<<fields[22]<<",\"frame\":\""<<relative<<"\"}\n";
+        events<<"{\"tick\":"<<frame<<",\"event\":\"soul_lifecycle_checkpoint\",\"cycle\":"<<cycle<<",\"label\":\""<<label<<"\",\"frame\":\""<<relative<<"\"}\n";
+        const int index=cycle-1;if(label=="04_attracted")attracted[index]=opacity;else if(label=="05_latched")latched[index]=opacity;else if(label=="06_ingest_25")ingest25[index]=opacity;else if(label=="07_ingest_75")ingest75[index]=opacity;
+    }
+    for(int cycle=0;cycle<2;++cycle)opacityOrder&=attracted[cycle]>=0&&latched[cycle]<=attracted[cycle]&&ingest25[cycle]<=latched[cycle]&&ingest75[cycle]<=ingest25[cycle];
+    const bool passed=samples==20&&opacityOrder;
+    std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"two_complete_cycles\": "<<(samples==20?"true":"false")<<",\n  \"shell_opacity_monotonic\": "<<(opacityOrder?"true":"false")<<"\n}\n";
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"soul-lifecycle\",\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<host.game.state().frame<<",\n  \"subject\": \"soul-extraction\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"frames\": [";for(std::size_t i=0;i<frames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<frames[i]<<'"';manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"cycle*.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=soul-lifecycle manifest=%s samples=%d opacity_order=%s\n",passed?"PASS":"FAIL",manifestPath.string().c_str(),samples,opacityOrder?"PASS":"FAIL");return passed?0:5;
 }
 
 int runModelTest(const std::filesystem::path& root) {
@@ -1769,6 +1831,10 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         diagnosticLine("VEL",observation.velocity.x,observation.velocity.y,observation.velocity.z);
         {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"GOAL DIST "<<observation.goalDistance<<"  SPEED "<<observation.speed<<"  PROGRESS "<<observation.progress;host.codec.write(line.str());}
         {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"CLEARANCE "<<observation.obstructionClearance<<"  DETOUR "<<observation.maximumDetour<<"  STALL "<<observation.stalledTicks;host.codec.write(line.str());}
+        {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"PERCEPTION CONF "<<observation.perceptionConfidence<<"  UNCERTAINTY "<<observation.perceptionUncertainty<<"  CONFIRMED "<<(observation.perceptionConfirmed?"YES":"NO");host.codec.write(line.str());}
+        {std::ostringstream line;line<<"COGNITION "<<evidence::cognitionMode(observation.cognition);host.codec.write(line.str());}
+        {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"SUPPORT L "<<observation.leftFootContact<<"  R "<<observation.rightFootContact<<"  RECOVERY "<<observation.recoveryUrgency;host.codec.write(line.str());}
+        {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"BODY PITCH "<<observation.bodyPitch<<"  ROLL "<<observation.bodyRoll<<"  DISRUPTION "<<observation.physicalDisruption;host.codec.write(line.str());}
         host.renderer.draw(renderState,&host.codec);glFinish();
         const bool diagnostic=captureFramebuffer(outputDirectory/diagnosticRelative,width,height);
         glfwSwapBuffers(window);glfwPollEvents();
@@ -1787,6 +1853,13 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
             <<",\"goal_distance\":"<<o.goalDistance<<",\"speed\":"<<o.speed<<",\"progress\":"<<o.progress
             <<",\"support_source\":"<<o.supportSource<<",\"support_normal\":["<<o.supportNormal.x<<','<<o.supportNormal.y<<','<<o.supportNormal.z<<']'
             <<",\"obstruction_clearance\":"<<o.obstructionClearance<<",\"maximum_detour\":"<<o.maximumDetour
+            <<",\"perception_confidence\":"<<o.perceptionConfidence<<",\"perception_uncertainty\":"<<o.perceptionUncertainty
+            <<",\"perception_confirmed\":"<<(o.perceptionConfirmed?"true":"false")<<",\"spatial_belief\":"<<(o.hasSpatialBelief?"true":"false")
+            <<",\"cognition\":\""<<evidence::cognitionMode(o.cognition)<<'\"'
+            <<",\"left_foot_contact\":"<<o.leftFootContact<<",\"right_foot_contact\":"<<o.rightFootContact
+            <<",\"foot_plant_changes\":"<<o.footPlantChanges<<",\"recovery_urgency\":"<<o.recoveryUrgency
+            <<",\"body_pitch\":"<<o.bodyPitch<<",\"body_roll\":"<<o.bodyRoll
+            <<",\"physical_disruption\":"<<o.physicalDisruption
             <<",\"stalled_ticks\":"<<o.stalledTicks<<",\"collider_overlap\":"<<(o.colliderOverlap?"true":"false")
             <<",\"attack_active\":"<<(o.attackActive?"true":"false")<<",\"attack_hit\":"<<(o.attackHit?"true":"false")
             <<",\"finite\":"<<(o.finiteValues?"true":"false")<<"}\n";
@@ -1836,6 +1909,30 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         behaviorPassed&&!captureFailed?"PASS":"FAIL",manifestPath.string().c_str(),(outputDirectory/"timeline.ndjson").string().c_str(),(outputDirectory/"frames").string().c_str());
     return captureFailed?5:(behaviorPassed?0:10);
 }
+
+int runLightingComparisonEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height,bool machineControlProvided){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"clean",error);std::filesystem::create_directories(outputDirectory/"frames"/"video",error);
+    if(error)return 4;
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),events(outputDirectory/"events.ndjson",std::ios::trunc);
+    constexpr std::array<int,3> sampleTicks{{0,300,600}};constexpr std::array<float,3> phonePowers{{0.0f,0.5f,1.0f}};
+    host.game.debugStartGeneratedRoomFixture(424242,12);GameState base=host.game.state();base.started=true;base.uiPaused=false;base.attractMode=false;base.cinematic.introActive=false;base.upgradeMenu.active=false;base.localSettings.graphicsPreset=1;base.localSettings.shadows=true;base.localSettings.portalWindow=false;base.localSettings.particles=false;base.localSettings.fpsCounter=false;base.localSettings.mobileFraming=false;
+    for(auto& target:base.targets)target=TargetState{};base.player.pos={0,0.08f,8};base.player.vel={};base.player.grounded=true;base.player.battery=100;base.camera.pos={0,5.8f,14};base.camera.lookTarget={0,1.2f,-2};base.camera.forward=normalized(base.camera.lookTarget-base.camera.pos);base.camera.verticalFovDegrees=52;base.camera.firstPerson=false;host.renderer.setHudVisible(false);
+    auto experiment=host.renderer.lightingControl();
+    if(!machineControlProvided){experiment.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;render_contract::setAtmosphereColorOverride(experiment,render_contract::AtmosphereChannel::Ambient,{0.105f,0.090f,0.125f});render_contract::setAtmosphereColorOverride(experiment,render_contract::AtmosphereChannel::Fill,{0.160f,0.360f,0.520f});render_contract::setAtmosphereFogDensityOverride(experiment,0.0125f);experiment.timeFixed=experiment.roomFixed=experiment.phoneFixed=true;experiment.fixedInputs={7.25f,6,0.45f};}
+    {std::ofstream state(outputDirectory/"lighting-control.txt",std::ios::trunc);state<<serializeLightingControl(experiment)<<'\n';}
+    bool failed=false;int frameIndex=0;std::vector<std::string> frames;
+    const auto writeColor=[](std::ostream& out,const VisualColor& c){out<<'['<<c.r<<','<<c.g<<','<<c.b<<']';};
+    for(std::size_t sample=0;sample<sampleTicks.size();++sample){GameState renderState=base;renderState.time=static_cast<float>(sampleTicks[sample])/60.0f;renderState.vacuum.power=phonePowers[sample];
+        render_contract::RuntimeLightingControl readable,progressive;progressive.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;
+        const std::array<render_contract::RuntimeLightingControl,3> controls{{readable,progressive,experiment}};const std::array<const char*,3> names{{"readable-static","progressive-candidate","runtime-experiment"}};
+        for(std::size_t variant=0;variant<controls.size();++variant){host.renderer.setLightingControl(controls[variant]);const auto atmosphere=host.renderer.resolvedAtmosphere(renderState);const auto effective=render_contract::effectiveAtmosphereInputs(controls[variant],{renderState.time,renderState.roomIndex,renderState.vacuum.power*0.62f});char cleanName[128]{},videoName[64]{};std::snprintf(cleanName,sizeof(cleanName),"sample-%zu-tick-%04d-%s.ppm",sample,sampleTicks[sample],names[variant]);std::snprintf(videoName,sizeof(videoName),"frame-%04d.ppm",frameIndex++);const auto clean=std::filesystem::path("frames")/"clean"/cleanName,video=std::filesystem::path("frames")/"video"/videoName;host.renderer.draw(renderState,&host.codec);glFinish();failed|=!captureFramebuffer(outputDirectory/clean,width,height)||!captureFramebuffer(outputDirectory/video,width,height);glfwSwapBuffers(window);glfwPollEvents();frames.push_back(clean.generic_string());timeline<<std::fixed<<std::setprecision(6)<<"{\"sample\":"<<sample<<",\"profile\":\""<<names[variant]<<"\",\"tick\":"<<sampleTicks[sample]<<",\"time\":"<<renderState.time<<",\"room_seed\":"<<renderState.roomSeed<<",\"room_index\":"<<renderState.roomIndex<<",\"phone_power\":"<<renderState.vacuum.power<<",\"lighting_reference\":\""<<(controls[variant].reference==render_contract::AtmosphereProfile::ReadableStatic?"a":"b")<<"\",\"override_mask\":"<<controls[variant].overrideMask<<",\"effective_time\":"<<effective.time<<",\"effective_room\":"<<effective.roomIndex<<",\"effective_phone\":"<<effective.phonePower<<",\"background\":";writeColor(timeline,atmosphere.background);timeline<<",\"ambient\":";writeColor(timeline,atmosphere.ambient);timeline<<",\"sun\":";writeColor(timeline,atmosphere.sun);timeline<<",\"fill\":";writeColor(timeline,atmosphere.fill);timeline<<",\"phone\":";writeColor(timeline,atmosphere.phone);timeline<<",\"fog\":";writeColor(timeline,atmosphere.fog);timeline<<",\"fog_density\":"<<atmosphere.fogDensity<<"}\n";events<<"{\"tick\":"<<sampleTicks[sample]<<",\"event\":\"lighting_capture\",\"profile\":\""<<names[variant]<<"\",\"frame\":\""<<clean.generic_string()<<"\"}\n";}
+    }
+    const char* classification=failed?"visual_capture_failure":"pass";{std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<classification<<"\",\n  \"reference_conditions_identical\": true,\n  \"sample_count\": 3,\n  \"frame_count\": 9\n}\n";}
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"lighting-comparison\",\n  \"classification\": \""<<classification<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": 600,\n  \"subject\": \"scene-lighting\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"lighting_control\": \"lighting-control.txt\",\n  \"frames\": [";for(std::size_t i=0;i<frames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<frames[i]<<'"';manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"frame-%04d.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=lighting-comparison manifest=%s\n",failed?"FAIL":"PASS",manifestPath.string().c_str());return failed?5:0;
+}
 }
 
 int main(int argc, char** argv) {
@@ -1865,6 +1962,16 @@ int main(int argc, char** argv) {
     const char* perfTracePath=argValue(argc,argv,"--perf-trace");
     const char* evidenceScenario=argValue(argc,argv,"--evidence-scenario");
     const char* evidenceOutput=argValue(argc,argv,"--evidence-output");
+    const char* lightingControlState=argValue(argc,argv,"--lighting-control-state");
+    if(!lightingControlState)lightingControlState=argValue(argc,argv,"--lighting-replay-state");
+    const auto lightingCommands=argValues(argc,argv,"--lighting-command");
+    render_contract::RuntimeLightingControl machineLightingControl;
+    const bool machineLightingProvided=lightingControlState||!lightingCommands.empty();
+    if(lightingControlState){std::ifstream input(lightingControlState);std::ostringstream encoded;encoded<<input.rdbuf();if(!input||!deserializeLightingControl(encoded.str(),machineLightingControl)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_state path=%s\n",lightingControlState);return 4;}}
+    for(const auto& text:lightingCommands){const auto command=parseLightingCommand(text);if(!applyLightingCommand(machineLightingControl,command)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
+    const bool agentPlaytest=hasArg(argc,argv,"--agent-playtest");
+    const char* agentFrame=argValue(argc,argv,"--agent-frame");
+    if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
@@ -1885,6 +1992,7 @@ int main(int argc, char** argv) {
     const bool combatCrowdStress=hasArg(argc,argv,"--combat-crowd-stress");
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
     const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame")))))))));
+    const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory;
     const int windowWidth=std::max(320,std::min(7680,argInt(argc,argv,"--capture-width",1280)));
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
     if (hasArg(argc, argv, "--smoke-test")) {
@@ -1922,7 +2030,7 @@ int main(int argc, char** argv) {
     // Four samples are a modest desktop cost and remove the most visible
     // geometry and crosshair jaggies.
     glfwWindowHint(GLFW_SAMPLES, 4);
-    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||evidenceScenario)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
+    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||evidenceScenario||agentPlaytest)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(
         windowWidth,
@@ -1947,14 +2055,15 @@ int main(int argc, char** argv) {
 #endif
 
     HostState host;
+    if(machineLightingProvided){host.renderer.setLightingControl(machineLightingControl);std::printf("LIGHTING_CONTROL=APPLIED %s\n",serializeLightingControl(machineLightingControl).c_str());}
     host.playtestPolicy=playtestPolicy;
     if(automationPlaytest)host.automationCaptureDelayFrames=1;
     host.progressionPath=progressionSavePath();
     bool recoveredPersistentSave=false;
     bool loadedPersistentSave=false;
-    if(!evidenceScenario)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
+    if(!isolatedPersistence)loadedPersistentSave=loadProgressionWithBackup(host.game,host.progressionPath,&recoveredPersistentSave);
 #ifdef __APPLE__
-    if(!evidenceScenario&&!loadedPersistentSave){
+    if(!isolatedPersistence&&!loadedPersistentSave){
         const std::filesystem::path legacyPath=legacyTemporaryProgressionSavePath();
         if(legacyPath!=host.progressionPath&&loadProgression(host.game,legacyPath)){
             loadedPersistentSave=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
@@ -1962,11 +2071,11 @@ int main(int argc, char** argv) {
         }
     }
 #endif
-    if(evidenceScenario)std::printf("Persistent save: isolated for evidence run\n");
+    if(isolatedPersistence)std::printf("Persistent save: isolated for deterministic run\n");
     else std::printf("Persistent save: %s%s\n",host.progressionPath.string().c_str(),recoveredPersistentSave?" (recovered backup)":(loadedPersistentSave?" (loaded)":""));
     if(const char* service=std::getenv("DIGITAL_BREAKDOWN_MULTIPLAYER_URL"))host.multiplayerService=service;
     host.game.reset();
-    if((!capturePath&&!captureDemo)||captureStart)host.game.prepareAttractScreen();
+    if((!capturePath&&!captureDemo&&!agentPlaytest)||captureStart)host.game.prepareAttractScreen();
     if(captureMenu){
         const char* page=captureMenuPage;
         GameState& fixture=host.game.networkMutableState();
@@ -2067,7 +2176,7 @@ int main(int argc, char** argv) {
     glfwSetWindowTitle(window,"Data");
     // Let the platform compositor pace presentation while gameplay remains fixed
     // at 60 Hz. The renderer interpolates camera state between simulation ticks.
-    glfwSwapInterval((multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory)?0:1);
+    glfwSwapInterval((multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||agentPlaytest)?0:1);
     setMouseCaptured(window, host, host.game.state().started&&!host.game.state().attractMode);
     if(capturePaused||captureMenuPause)host.game.setUiPaused(true);
 
@@ -2083,8 +2192,14 @@ int main(int argc, char** argv) {
     if(evidenceScenario){
         int result=4;
         if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
-        else if(std::strcmp(evidenceScenario,"enemy-obstruction")!=0)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
-        else result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"enemy-obstruction")==0)result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
+        else if(std::strcmp(evidenceScenario,"soul-lifecycle")==0)result=runSoulLifecycleEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
+        glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
+    }
+    if(agentPlaytest){
+        const int result=runAgentPlaytest(window,host,agentFrame,framebufferWidth,framebufferHeight);
         glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
     }
     if(!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector){
@@ -2530,8 +2645,10 @@ int main(int argc, char** argv) {
         perfTrace.sample(host.game.state(),std::chrono::duration<double,std::milli>(frameEnd-frameBegin).count(),std::chrono::duration<double,std::milli>(updateEnd-updateBegin).count(),std::chrono::duration<double,std::milli>(audioEnd-audioBegin).count(),std::chrono::duration<double,std::milli>(renderEnd-renderBegin).count(),std::chrono::duration<double,std::milli>(frameEnd-swapBegin).count(),simulationSteps,droppedAccumulator);
     }
 
-    const bool finalSaveOk=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
-    std::printf("Persistent save %s: %s\n",finalSaveOk?"written":"FAILED",host.progressionPath.string().c_str());
+    if(!isolatedPersistence){
+        const bool finalSaveOk=saveProgression(host.game.state().progression.permanent,host.game.state().localSettings,host.progressionPath);
+        std::printf("Persistent save %s: %s\n",finalSaveOk?"written":"FAILED",host.progressionPath.string().c_str());
+    }
     glfwDestroyWindow(window);
     host.audio.stopAll();
     host.multiplayer.disconnect();

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "HumanVisual.hpp"
@@ -16,6 +17,10 @@
 #include "HouseGeometry.hpp"
 #include "TreeGeometry.hpp"
 #include "MarkerPillarGeometry.hpp"
+#include "gameplay/EnemyPerception.hpp"
+#include "gameplay/EnemyBehaviorState.hpp"
+#include "gameplay/EnemyLocomotion.hpp"
+#include "gameplay/PhysicalEnemyBody.hpp"
 
 constexpr int TARGET_COUNT = 32;
 constexpr int CAPTURE_COUNT = 9;
@@ -780,6 +785,10 @@ public:
 
     const GameState& state() const { return state_; }
     GameState& networkMutableState() { return state_; }
+    const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& enemyPerceptions() const;
+    const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& enemyBehaviors() const;
+    const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT>& enemyLocomotions() const;
+    const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT>& enemyBodies() const;
 
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
@@ -787,6 +796,15 @@ private:
     enum class BatteryReason { Continuous, Jump, DoubleJump, Melee, Shoot, Hit, Climb, Ingest, NextRoom, Combo, Chain, Headshot, Loop };
     GameState state_;
     int simulationPlayerId_ = 0;
+    struct EnemyRuntimePool {
+        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
+        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
+        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
+        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
+        int perceptionCursor = 0;
+    };
+    std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
+    EnemyRuntimePool& enemyRuntime();
 
     void resetRoom();
     void buildRoomColliders();
@@ -865,7 +883,6 @@ private:
     void spawnFlowerPowerup(float x, float y, float z);
     void registerMeleeBatteryHit(int hitCount);
     void updateBattery(float dt);
-    void updateRunProgressionTimers(float dt);
     void triggerRunDeath();
     void clearPlayerLifecycleActions();
     void emitAudio(AudioCue cue, float volume);

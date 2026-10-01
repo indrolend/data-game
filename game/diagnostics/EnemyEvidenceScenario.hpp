@@ -36,7 +36,7 @@ inline void configureEnemyObstruction(Game& game) {
     obstruction.bottomY=0.0f;obstruction.topY=2.2f;
     obstruction.width=3.0f;obstruction.depth=3.0f;obstruction.height=2.2f;
     obstruction.center={0.0f,1.1f,0.0f};
-    state.debug.colliderCount=1;
+    state.debug.colliderCount=0;
 
     state.player.pos={5.0f,0.08f,0.0f};
     state.player.vel={};
@@ -52,7 +52,17 @@ inline void configureEnemyObstruction(Game& game) {
     enemy.health=1.0f;
     enemy.attackCooldown=999.0f;
     enemy.visibility=1.0f;
+    enemy.visualYaw=-DB_PI*0.5f;
     state.camera.firstPerson=false;
+
+    // Establish a confirmed view before introducing the obstruction. The
+    // scenario then proves locomotion around a blocker using remembered
+    // evidence rather than granting sight through it.
+    for(int frame=0;frame<120;++frame){
+        game.update(1.0f/60.0f);
+        enemy.pos={-5.0f,0.08f,0.0f};enemy.vel={};enemy.walkTarget=state.player.pos;
+    }
+    state.debug.colliderCount=1;
 }
 
 inline bool finite(const Vec3& value) {
@@ -83,10 +93,22 @@ struct EnemyObstructionObservation {
     float progress=0.0f;
     float obstructionClearance=0.0f;
     float maximumDetour=0.0f;
+    float perceptionConfidence=0.0f;
+    float perceptionUncertainty=1.0f;
+    gameplay::EnemyBehaviorMode cognition=gameplay::EnemyBehaviorMode::Rest;
+    float leftFootContact=0.0f;
+    float rightFootContact=0.0f;
+    float recoveryUrgency=0.0f;
+    float bodyPitch=0.0f;
+    float bodyRoll=0.0f;
+    float physicalDisruption=0.0f;
+    int footPlantChanges=0;
     int stalledTicks=0;
     bool colliderOverlap=false;
     bool attackActive=false;
     bool attackHit=false;
+    bool perceptionConfirmed=false;
+    bool hasSpatialBelief=false;
     bool finiteValues=true;
 };
 
@@ -117,8 +139,33 @@ public:
         result.colliderOverlap=overlapsObstruction(enemy,collider);
         result.attackActive=enemy.attackTimer>0.0f;
         result.attackHit=enemy.attackHit;
+        const auto& perception=game.enemyPerceptions()[0];
+        result.cognition=game.enemyBehaviors()[0].mode;
+        const auto& locomotion=game.enemyLocomotions()[0];
+        const auto feet=gameplay::enemyLocomotionOutput(locomotion);
+        const auto& body=game.enemyBodies()[0];
+        if(horizontalLength(locomotion.left.plantPosition-previousLeftFoot_)>0.0001f
+            ||horizontalLength(locomotion.right.plantPosition-previousRightFoot_)>0.0001f)
+            ++footPlantChanges_;
+        previousLeftFoot_=locomotion.left.plantPosition;
+        previousRightFoot_=locomotion.right.plantPosition;
+        result.leftFootContact=feet.leftContact;
+        result.rightFootContact=feet.rightContact;
+        result.recoveryUrgency=feet.recoveryUrgency;
+        result.bodyPitch=body.bodyPitch;
+        result.bodyRoll=body.bodyRoll;
+        result.physicalDisruption=body.disruption;
+        result.footPlantChanges=footPlantChanges_;
+        result.perceptionConfidence=perception.confidence;
+        result.perceptionUncertainty=perception.uncertainty;
+        result.perceptionConfirmed=perception.confirmed;
+        result.hasSpatialBelief=perception.confidence>0.035f;
         result.finiteValues=finite(enemy.pos)&&finite(enemy.vel)&&finite(support.normal)&&
-            std::isfinite(result.goalDistance)&&std::isfinite(result.obstructionClearance);
+            std::isfinite(result.goalDistance)&&std::isfinite(result.obstructionClearance)&&
+            std::isfinite(result.perceptionConfidence)&&std::isfinite(result.perceptionUncertainty)&&
+            std::isfinite(result.leftFootContact)&&std::isfinite(result.rightFootContact)&&
+            std::isfinite(result.recoveryUrgency)&&std::isfinite(result.bodyPitch)&&
+            std::isfinite(result.bodyRoll)&&std::isfinite(result.physicalDisruption);
         previousPosition_=enemy.pos;
         return result;
     }
@@ -127,6 +174,10 @@ public:
         initialPosition_=previousPosition_=game.state().targets[0].pos;
         maximumDetour_=0.0f;
         stalledTicks_=0;
+        const auto& locomotion=game.enemyLocomotions()[0];
+        previousLeftFoot_=locomotion.left.plantPosition;
+        previousRightFoot_=locomotion.right.plantPosition;
+        footPlantChanges_=0;
     }
 
 private:
@@ -134,6 +185,9 @@ private:
     Vec3 previousPosition_{};
     float maximumDetour_=0.0f;
     int stalledTicks_=0;
+    Vec3 previousLeftFoot_{};
+    Vec3 previousRightFoot_{};
+    int footPlantChanges_=0;
 };
 
 inline const char* behaviorMode(const EnemyObstructionObservation& observation) {
@@ -143,6 +197,18 @@ inline const char* behaviorMode(const EnemyObstructionObservation& observation) 
     if(observation.stalledTicks>=30)return "stalled";
     if(observation.obstructionClearance<0.75f)return "routing_obstruction";
     return "pursuit";
+}
+
+inline const char* cognitionMode(gameplay::EnemyBehaviorMode mode) {
+    switch(mode) {
+        case gameplay::EnemyBehaviorMode::Rest:return "rest";
+        case gameplay::EnemyBehaviorMode::Orient:return "orient";
+        case gameplay::EnemyBehaviorMode::Investigate:return "investigate";
+        case gameplay::EnemyBehaviorMode::Alert:return "alert";
+        case gameplay::EnemyBehaviorMode::Engage:return "engage";
+        case gameplay::EnemyBehaviorMode::Search:return "search";
+    }
+    return "unknown";
 }
 
 } // namespace evidence

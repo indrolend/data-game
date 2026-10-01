@@ -21,9 +21,17 @@ void expectVisibleRowsInsideSafe(const PhoneDisplayMenuLayout& layout) {
     assert(layout.safe.y > 0.0f);
     assert(layout.safe.x + layout.safe.w < static_cast<float>(layout.logicalW));
     assert(layout.safe.y + layout.safe.h < static_cast<float>(layout.logicalH));
+    assert(estimatePhoneDisplayTextWidth(layout.title,layout.titlePx,true)<=layout.titleMaxWidth+0.001f);
     for (int i = 0; i < layout.rowCount; ++i) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
         assert(std::isfinite(row.baselineY));
+        assert(estimatePhoneDisplayTextWidth(row.label,row.fontPx,row.selectable)<=row.labelMaxWidth+0.001f);
+        if(row.kind==PhoneMenuRowKind::TwoColumn){
+            const float labelRight=row.labelX+estimatePhoneDisplayTextWidth(row.label,row.fontPx,row.selectable);
+            const float valueLeft=row.valueRightX-estimatePhoneDisplayTextWidth(row.value,row.fontPx,row.selectable);
+            assert(estimatePhoneDisplayTextWidth(row.value,row.fontPx,row.selectable)<=row.valueMaxWidth+0.001f);
+            assert(labelRight+row.minimumTextGap<=valueLeft+0.001f);
+        }
         if (row.kind == PhoneMenuRowKind::Section) {
             assert(!row.selectable);
             assert(row.selectableIndex < 0);

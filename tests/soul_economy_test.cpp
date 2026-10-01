@@ -31,6 +31,22 @@ void prepare(Game& game, int souls, float battery) {
 
 int main() {
     bool ok = true;
+    const auto idleDemand=soul_economy::batteryDemand({});
+    soul_economy::BatteryDemandInput combinedInput;
+    combinedInput.forward=1.0f;
+    combinedInput.sprint=true;
+    combinedInput.grounded=false;
+    combinedInput.vacuumActive=true;
+    combinedInput.vacuumPower=0.20f;
+    const auto combinedDemand=soul_economy::batteryDemand(combinedInput);
+    soul_economy::BatteryDemandInput presentationOnlyInput;
+    presentationOnlyInput.meleeActive=true;
+    const auto presentationOnlyDemand=soul_economy::batteryDemand(presentationOnlyInput);
+    ok &= !idleDemand.active && near(idleDemand.drainPerSecond,0.0f);
+    ok &= combinedDemand.active && near(combinedDemand.drainPerSecond,
+        soul_economy::BATTERY_SPRINT_DRAIN+soul_economy::BATTERY_AIR_DRAIN+
+        soul_economy::BATTERY_VACUUM_DRAIN*0.35f);
+    ok &= presentationOnlyDemand.active && near(presentationOnlyDemand.drainPerSecond,0.0f);
     const float empty = soul_economy::passiveRegenMultiplier(0);
     const float moderate = soul_economy::passiveRegenMultiplier(PHONE_CAPACITY / 2);
     const float full = soul_economy::passiveRegenMultiplier(PHONE_CAPACITY);
