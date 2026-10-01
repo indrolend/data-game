@@ -18,6 +18,7 @@
 #include "TreeGeometry.hpp"
 #include "MarkerPillarGeometry.hpp"
 #include "gameplay/EnemyPerception.hpp"
+#include "gameplay/EnemyMotor.hpp"
 #include "gameplay/EnemyBehaviorState.hpp"
 #include "gameplay/EnemyLocomotion.hpp"
 #include "gameplay/PhysicalEnemyBody.hpp"
@@ -789,6 +790,9 @@ public:
     const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& enemyBehaviors() const;
     const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT>& enemyLocomotions() const;
     const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT>& enemyBodies() const;
+    const std::array<gameplay::EnemyMotorMemory,TARGET_COUNT>& enemyMotors() const;
+    const std::array<gameplay::EnemyMotorOutput,TARGET_COUNT>& enemyMotorOutputs() const;
+    void setEnemyMotorExpressionEnabled(bool enabled) { enemyMotorExpressionEnabled_=enabled; }
 
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
@@ -801,9 +805,12 @@ private:
         std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
         std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
         std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
+        std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> motors{};
+        std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> motorOutputs{};
         int perceptionCursor = 0;
     };
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
+    bool enemyMotorExpressionEnabled_ = true;
     EnemyRuntimePool& enemyRuntime();
 
     void resetRoom();

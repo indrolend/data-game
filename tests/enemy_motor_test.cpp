@@ -34,6 +34,7 @@ int main() {
     assert(std::abs(horizontalLength(first.steering) - 1.0f) < 0.0001f);
     assert(first.speedScale >= 0.36f && first.speedScale <= 1.16f);
     assert(first.brace >= 0.0f && first.brace <= 1.0f);
+    assert(first.paceExpression >= 0.90f && first.paceExpression <= 1.10f);
     assert(std::abs(first.steering.x) > 0.02f);
 
     EnemyMotorInput certain = representativeInput();
@@ -63,6 +64,7 @@ int main() {
     const auto recovery = updateEnemyMotor(disrupted, disruptedMemory, Dt, 0.21f);
     assert(recovery.speedScale < calm.speedScale);
     assert(recovery.brace > calm.brace);
+    assert(recovery.paceExpression < calm.paceExpression);
 
     EnemyMotorMemory poisoned{};
     poisoned.hidden.fill(NAN);
@@ -73,6 +75,7 @@ int main() {
     const auto finite = updateEnemyMotor(input, poisoned, INFINITY, NAN);
     assert(std::isfinite(finite.steering.x) && std::isfinite(finite.steering.z));
     assert(std::isfinite(finite.speedScale) && std::isfinite(finite.brace));
+    assert(std::isfinite(finite.paceExpression));
 
     std::puts("ENEMY_MOTOR_TEST_OK deterministic=YES bounded=YES cognition_authority=NONE adaptation=CONTINUOUS");
 }

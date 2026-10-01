@@ -44,6 +44,10 @@ struct EnemyMotorOutput {
     Vec3 steering{};
     float speedScale = 1.0f;
     float brace = 0.0f;
+    // The runtime-consumable contribution: a deliberately narrow expression
+    // of continuous internal condition. Cognition still owns whether to
+    // travel, locomotion owns feasible travel, and the body owns response.
+    float paceExpression = 1.0f;
 };
 
 inline float motorClamp(float value) {
@@ -210,6 +214,11 @@ inline EnemyMotorOutput updateEnemyMotor(
     output.brace = std::max(0.0f, std::min(1.0f,
         0.5f + memory.hidden[3] * 0.39f + vacuum * 0.28f - memory.hidden[5] * 0.12f
         + memory.tendency[2] * 0.32f + disruption * 0.46f + (1.0f-certainty) * 0.10f));
+    output.paceExpression = std::max(0.90f, std::min(1.10f,
+        1.0f + (memory.arousal - 0.5f) * 0.10f
+        + (memory.fixation - 0.5f) * 0.08f
+        - memory.caution * 0.08f
+        + rawPersonality * 0.025f));
     return output;
 }
 
