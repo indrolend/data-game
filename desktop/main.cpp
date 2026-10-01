@@ -4,6 +4,7 @@
 #include "DesktopPlaytestPolicy.hpp"
 #include "DeveloperCodec.hpp"
 #include "AgentPlaytestProtocol.hpp"
+#include "LightingControlCommand.hpp"
 #include "BuildIdentity.hpp"
 #include "MenuNavigation.hpp"
 #include "ControllerRumble.hpp"
@@ -1577,6 +1578,7 @@ int runSmokeTest() {
     return 0;
 }
 const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)return argv[i+1];return nullptr;}
+std::vector<std::string> argValues(int argc,char** argv,const char* expected){std::vector<std::string> values;for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)values.emplace_back(argv[i+1]);return values;}
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u),static_cast<std::streamsize>(width*3));return static_cast<bool>(out);}
 
@@ -1882,6 +1884,30 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         behaviorPassed&&!captureFailed?"PASS":"FAIL",manifestPath.string().c_str(),(outputDirectory/"timeline.ndjson").string().c_str(),(outputDirectory/"frames").string().c_str());
     return captureFailed?5:(behaviorPassed?0:10);
 }
+
+int runLightingComparisonEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height,bool machineControlProvided){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"clean",error);std::filesystem::create_directories(outputDirectory/"frames"/"video",error);
+    if(error)return 4;
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),events(outputDirectory/"events.ndjson",std::ios::trunc);
+    constexpr std::array<int,3> sampleTicks{{0,300,600}};constexpr std::array<float,3> phonePowers{{0.0f,0.5f,1.0f}};
+    host.game.debugStartGeneratedRoomFixture(424242,12);GameState base=host.game.state();base.started=true;base.uiPaused=false;base.attractMode=false;base.cinematic.introActive=false;base.upgradeMenu.active=false;base.localSettings.graphicsPreset=1;base.localSettings.shadows=true;base.localSettings.portalWindow=false;base.localSettings.particles=false;base.localSettings.fpsCounter=false;base.localSettings.mobileFraming=false;
+    for(auto& target:base.targets)target=TargetState{};base.player.pos={0,0.08f,8};base.player.vel={};base.player.grounded=true;base.player.battery=100;base.camera.pos={0,5.8f,14};base.camera.lookTarget={0,1.2f,-2};base.camera.forward=normalized(base.camera.lookTarget-base.camera.pos);base.camera.verticalFovDegrees=52;base.camera.firstPerson=false;host.renderer.setHudVisible(false);
+    auto experiment=host.renderer.lightingControl();
+    if(!machineControlProvided){experiment.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;render_contract::setAtmosphereColorOverride(experiment,render_contract::AtmosphereChannel::Ambient,{0.105f,0.090f,0.125f});render_contract::setAtmosphereColorOverride(experiment,render_contract::AtmosphereChannel::Fill,{0.160f,0.360f,0.520f});render_contract::setAtmosphereFogDensityOverride(experiment,0.0125f);experiment.timeFixed=experiment.roomFixed=experiment.phoneFixed=true;experiment.fixedInputs={7.25f,6,0.45f};}
+    {std::ofstream state(outputDirectory/"lighting-control.txt",std::ios::trunc);state<<serializeLightingControl(experiment)<<'\n';}
+    bool failed=false;int frameIndex=0;std::vector<std::string> frames;
+    const auto writeColor=[](std::ostream& out,const VisualColor& c){out<<'['<<c.r<<','<<c.g<<','<<c.b<<']';};
+    for(std::size_t sample=0;sample<sampleTicks.size();++sample){GameState renderState=base;renderState.time=static_cast<float>(sampleTicks[sample])/60.0f;renderState.vacuum.power=phonePowers[sample];
+        render_contract::RuntimeLightingControl readable,progressive;progressive.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;
+        const std::array<render_contract::RuntimeLightingControl,3> controls{{readable,progressive,experiment}};const std::array<const char*,3> names{{"readable-static","progressive-candidate","runtime-experiment"}};
+        for(std::size_t variant=0;variant<controls.size();++variant){host.renderer.setLightingControl(controls[variant]);const auto atmosphere=host.renderer.resolvedAtmosphere(renderState);const auto effective=render_contract::effectiveAtmosphereInputs(controls[variant],{renderState.time,renderState.roomIndex,renderState.vacuum.power*0.62f});char cleanName[128]{},videoName[64]{};std::snprintf(cleanName,sizeof(cleanName),"sample-%zu-tick-%04d-%s.ppm",sample,sampleTicks[sample],names[variant]);std::snprintf(videoName,sizeof(videoName),"frame-%04d.ppm",frameIndex++);const auto clean=std::filesystem::path("frames")/"clean"/cleanName,video=std::filesystem::path("frames")/"video"/videoName;host.renderer.draw(renderState,&host.codec);glFinish();failed|=!captureFramebuffer(outputDirectory/clean,width,height)||!captureFramebuffer(outputDirectory/video,width,height);glfwSwapBuffers(window);glfwPollEvents();frames.push_back(clean.generic_string());timeline<<std::fixed<<std::setprecision(6)<<"{\"sample\":"<<sample<<",\"profile\":\""<<names[variant]<<"\",\"tick\":"<<sampleTicks[sample]<<",\"time\":"<<renderState.time<<",\"room_seed\":"<<renderState.roomSeed<<",\"room_index\":"<<renderState.roomIndex<<",\"phone_power\":"<<renderState.vacuum.power<<",\"lighting_reference\":\""<<(controls[variant].reference==render_contract::AtmosphereProfile::ReadableStatic?"a":"b")<<"\",\"override_mask\":"<<controls[variant].overrideMask<<",\"effective_time\":"<<effective.time<<",\"effective_room\":"<<effective.roomIndex<<",\"effective_phone\":"<<effective.phonePower<<",\"background\":";writeColor(timeline,atmosphere.background);timeline<<",\"ambient\":";writeColor(timeline,atmosphere.ambient);timeline<<",\"sun\":";writeColor(timeline,atmosphere.sun);timeline<<",\"fill\":";writeColor(timeline,atmosphere.fill);timeline<<",\"phone\":";writeColor(timeline,atmosphere.phone);timeline<<",\"fog\":";writeColor(timeline,atmosphere.fog);timeline<<",\"fog_density\":"<<atmosphere.fogDensity<<"}\n";events<<"{\"tick\":"<<sampleTicks[sample]<<",\"event\":\"lighting_capture\",\"profile\":\""<<names[variant]<<"\",\"frame\":\""<<clean.generic_string()<<"\"}\n";}
+    }
+    const char* classification=failed?"visual_capture_failure":"pass";{std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<classification<<"\",\n  \"reference_conditions_identical\": true,\n  \"sample_count\": 3,\n  \"frame_count\": 9\n}\n";}
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"lighting-comparison\",\n  \"classification\": \""<<classification<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": 600,\n  \"subject\": \"scene-lighting\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"lighting_control\": \"lighting-control.txt\",\n  \"frames\": [";for(std::size_t i=0;i<frames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<frames[i]<<'"';manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"frame-%04d.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=lighting-comparison manifest=%s\n",failed?"FAIL":"PASS",manifestPath.string().c_str());return failed?5:0;
+}
 }
 
 int main(int argc, char** argv) {
@@ -1911,6 +1937,13 @@ int main(int argc, char** argv) {
     const char* perfTracePath=argValue(argc,argv,"--perf-trace");
     const char* evidenceScenario=argValue(argc,argv,"--evidence-scenario");
     const char* evidenceOutput=argValue(argc,argv,"--evidence-output");
+    const char* lightingControlState=argValue(argc,argv,"--lighting-control-state");
+    if(!lightingControlState)lightingControlState=argValue(argc,argv,"--lighting-replay-state");
+    const auto lightingCommands=argValues(argc,argv,"--lighting-command");
+    render_contract::RuntimeLightingControl machineLightingControl;
+    const bool machineLightingProvided=lightingControlState||!lightingCommands.empty();
+    if(lightingControlState){std::ifstream input(lightingControlState);std::ostringstream encoded;encoded<<input.rdbuf();if(!input||!deserializeLightingControl(encoded.str(),machineLightingControl)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_state path=%s\n",lightingControlState);return 4;}}
+    for(const auto& text:lightingCommands){const auto command=parseLightingCommand(text);if(!applyLightingCommand(machineLightingControl,command)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
     const bool agentPlaytest=hasArg(argc,argv,"--agent-playtest");
     const char* agentFrame=argValue(argc,argv,"--agent-frame");
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
@@ -1997,6 +2030,7 @@ int main(int argc, char** argv) {
 #endif
 
     HostState host;
+    if(machineLightingProvided){host.renderer.setLightingControl(machineLightingControl);std::printf("LIGHTING_CONTROL=APPLIED %s\n",serializeLightingControl(machineLightingControl).c_str());}
     host.playtestPolicy=playtestPolicy;
     if(automationPlaytest)host.automationCaptureDelayFrames=1;
     host.progressionPath=progressionSavePath();
@@ -2133,8 +2167,9 @@ int main(int argc, char** argv) {
     if(evidenceScenario){
         int result=4;
         if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
-        else if(std::strcmp(evidenceScenario,"enemy-obstruction")!=0)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
-        else result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"enemy-obstruction")==0)result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
+        else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
         glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
     }
     if(agentPlaytest){
