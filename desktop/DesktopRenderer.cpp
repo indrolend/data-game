@@ -551,6 +551,12 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
 
     const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuTextWidth);
     const float stencilAge=phone_stencil::appearanceAge(display.transitionProgress);
+    if (!layout.breadcrumb.empty()) {
+        const float breadcrumbPx=fitPhoneDisplayTextPx(layout.breadcrumb,32.0f,layout.header.w,false,cpuTextWidth);
+        cpuStencilText(canvas,layout.breadcrumb,layout.safe.x,layout.header.y+breadcrumbPx,
+            breadcrumbPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,
+            VisualIdentity::MetallicTeal.b,0.72f,stencilAge);
+    }
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
             float pen = layout.logicalW * 0.5f - cpuTextWidth(layout.title, layout.titlePx, true) * 0.5f;
@@ -598,6 +604,10 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         }
         if (selected) {
             const float markerX = (state.dead && row.action == PhoneMenuAction::Restart) ? layout.logicalW * 0.5f - cpuTextWidth(row.label, row.fontPx, true) * 0.5f - 34.0f : row.labelX - 34.0f;
+            const float railTop=layout.header.y+layout.header.h-8.0f;
+            const float railBottom=row.baselineY-row.fontPx*0.20f;
+            if(railBottom>railTop)cpuRect(canvas,markerX+3.0f,railTop,2.0f,railBottom-railTop,
+                VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.24f);
             cpuRect(canvas, markerX, row.baselineY - row.fontPx * 0.36f, 8.0f, 8.0f, VisualIdentity::ElectricCyan.r, VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, 0.94f);
         }
         const float alpha = selected ? 1.0f : 0.72f;
@@ -617,6 +627,12 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         } else {
             const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge,centered);
         }
+    }
+    if (!layout.navigationHint.empty()) {
+        const float hintPx=fitPhoneDisplayTextPx(layout.navigationHint,26.0f,layout.safe.w,false,cpuTextWidth);
+        cpuStencilText(canvas,layout.navigationHint,layout.logicalW*0.5f,layout.logicalH-66.0f,
+            hintPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,
+            VisualIdentity::MetallicTeal.b,0.68f,stencilAge,true);
     }
 }
 

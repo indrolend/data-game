@@ -615,9 +615,8 @@ void setMenuSelection(HostState& host,int selection) {
     // The two-choice death menu must not wrap. A tiny repeated stick,
     // key, or mouse movement should stop at Again?/Quit rather than
     // cycling through both choices.
-    const int next=state.dead
-        ? std::max(0,std::min(count-1,selection))
-        : (selection%count+count)%count;
+    const bool boundedList=state.dead||(!state.upgradeMenu.active&&makePhoneMenuPageModel(state).tablePage);
+    const int next=dbmenu::linearSelection(selection,count,!boundedList);
 
     // Ignore repeated hover and held-input reports for the same row.
     if(state.hud.menuSelection==next){
@@ -895,7 +894,7 @@ DesktopGamepadInput pollGamepad(GLFWwindow* window,HostState& host){
             const int direction=menuRight?1:-1;
             if(host.game.state().upgradeMenu.active)
                 setMenuSelection(host,dbmenu::moveUpgradeGridSelection(host.game.state().hud.menuSelection,direction,0));
-            else if(!adjustMenuSetting(host,direction)&&menuRight)
+            else if(!adjustMenuSetting(host,direction))
                 toggleMenuSetting(host);
             rumblePulse(host.game.state().localSettings,0.05f,0.20f,22);
         }
@@ -1055,7 +1054,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             return;
         }
         if(action!=GLFW_PRESS)return;
-        if((left||right)){if(!adjustMenuSetting(*host,right?1:-1)&&right)toggleMenuSetting(*host);return;}
+        if((left||right)){if(!adjustMenuSetting(*host,right?1:-1))toggleMenuSetting(*host);return;}
         if(key==GLFW_KEY_ENTER||key==GLFW_KEY_SPACE||key==GLFW_KEY_F){activateMenuSelection(window,*host);return;}
         if(host->game.state().upgradeMenu.active&&key>=GLFW_KEY_1&&key<=GLFW_KEY_6){setMenuSelection(*host,key-GLFW_KEY_1);activateMenuSelection(window,*host);}
         return;

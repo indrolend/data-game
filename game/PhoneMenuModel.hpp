@@ -66,6 +66,8 @@ struct PhoneMenuElement {
 struct PhoneMenuPageViewModel {
     static constexpr int MaxElements = 24;
     std::string title;
+    std::string breadcrumb;
+    std::string navigationHint;
     std::array<PhoneMenuElement, MaxElements> elements{};
     int elementCount = 0;
     int selectableCount = 0;
@@ -162,6 +164,19 @@ inline bool phoneMenuPausedSolo(const GameState& state) {
     return state.started && state.uiPaused && !state.multiplayer.enabled && !state.upgradeMenu.active;
 }
 
+inline const char* phoneMenuPathName(LocalMenuPage page) {
+    switch (page) {
+        case LocalMenuPage::Main: return "HOME";
+        case LocalMenuPage::Online: return "ONLINE";
+        case LocalMenuPage::JoinCode: return "JOIN";
+        case LocalMenuPage::Settings: return "SETTINGS";
+        case LocalMenuPage::Controls: return "CONTROLS";
+        case LocalMenuPage::Audio: return "AUDIO";
+        case LocalMenuPage::Graphics: return "GRAPHICS";
+    }
+    return "HOME";
+}
+
 inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     PhoneMenuPageViewModel page;
     const bool pausedSolo = phoneMenuPausedSolo(state);
@@ -249,6 +264,29 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuToggle(page, "Particles", state.localSettings.particles, PhoneMenuAction::ToggleParticles);
         addPhoneMenuToggle(page, "Frame Rate", state.localSettings.fpsCounter, PhoneMenuAction::ToggleFps);
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
+    }
+    if (!state.dead) {
+        const bool root = state.localSettings.menuPage == LocalMenuPage::Main;
+        page.breadcrumb = pausedSolo
+            ? (root ? "DATA / PAUSED" : "DATA / PAUSED / " + std::string(phoneMenuPathName(state.localSettings.menuPage)))
+            : ("DATA / " + std::string(phoneMenuPathName(state.localSettings.menuPage)));
+        const PhoneMenuElement* selected = nullptr;
+        int selectableIndex = 0;
+        for (int i = 0; i < page.elementCount; ++i) {
+            if (!page.elements[i].selectable) continue;
+            if (selectableIndex++ == state.hud.menuSelection) { selected = &page.elements[i]; break; }
+        }
+        if (state.localSettings.rebindingAction >= 0) {
+            page.navigationHint = "PRESS A KEY   ESC / B  CANCEL";
+        } else if (selected && selected->horizontal != PhoneMenuHorizontal::None) {
+            page.navigationHint = selected->horizontal == PhoneMenuHorizontal::Adjust
+                ? "ADJUST LEFT / RIGHT   BACK ESC / B"
+                : "CHANGE LEFT / RIGHT   TOGGLE ENTER / A";
+        } else {
+            page.navigationHint = pausedSolo && root
+                ? "MOVE UP / DOWN   SELECT ENTER / A   RESUME ESC / B"
+                : "MOVE UP / DOWN   SELECT ENTER / A   BACK ESC / B";
+        }
     }
     return page;
 }
