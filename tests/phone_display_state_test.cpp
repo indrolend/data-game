@@ -123,7 +123,6 @@ int main() {
     PhoneDisplayMenuLayout mainLayout = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(mainLayout);
     assert(mainLayout.title.empty());
-    assert(mainLayout.breadcrumb == "DATA");
     assert(mainLayout.navigationHint.find("SELECT") != std::string::npos);
     assert(mainLayout.selectableCount == 4);
     expectSelectableHit(mainLayout, 0);
@@ -133,7 +132,6 @@ int main() {
     PhoneDisplayMenuLayout controls = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(controls);
     assert(controls.title == "Controls");
-    assert(controls.breadcrumb == "DATA / SETTINGS");
     assert(controls.selectableCount == 14);
     assert(controls.rowCount == 17);
     assert(controls.rows[0].kind == PhoneMenuRowKind::Section);

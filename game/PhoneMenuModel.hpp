@@ -67,7 +67,6 @@ struct PhoneMenuElement {
 struct PhoneMenuPageViewModel {
     static constexpr int MaxElements = 24;
     std::string title;
-    std::string breadcrumb;
     std::string navigationHint;
     std::array<PhoneMenuElement, MaxElements> elements{};
     int elementCount = 0;
@@ -206,19 +205,6 @@ inline bool phoneMenuPausedSolo(const GameState& state) {
     return state.started && state.uiPaused && !state.multiplayer.enabled && !state.upgradeMenu.active;
 }
 
-inline const char* phoneMenuPathName(LocalMenuPage page) {
-    switch (page) {
-        case LocalMenuPage::Main: return "HOME";
-        case LocalMenuPage::Online: return "ONLINE";
-        case LocalMenuPage::JoinCode: return "JOIN";
-        case LocalMenuPage::Settings: return "SETTINGS";
-        case LocalMenuPage::Controls: return "CONTROLS";
-        case LocalMenuPage::Audio: return "AUDIO";
-        case LocalMenuPage::Graphics: return "GRAPHICS";
-    }
-    return "HOME";
-}
-
 inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     PhoneMenuPageViewModel page;
     const bool pausedSolo = phoneMenuPausedSolo(state);
@@ -309,17 +295,6 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     }
     if (!state.dead) {
         const bool root = state.localSettings.menuPage == LocalMenuPage::Main;
-        if (root) {
-            page.breadcrumb = "DATA";
-        } else if (pausedSolo) {
-            page.breadcrumb = "DATA / PAUSED";
-        } else if (state.localSettings.menuPage == LocalMenuPage::Controls ||
-                   state.localSettings.menuPage == LocalMenuPage::Audio ||
-                   state.localSettings.menuPage == LocalMenuPage::Graphics) {
-            page.breadcrumb = "DATA / SETTINGS";
-        } else {
-            page.breadcrumb = "DATA";
-        }
         const PhoneMenuElement* selected = nullptr;
         int selectableIndex = 0;
         for (int i = 0; i < page.elementCount; ++i) {

@@ -202,7 +202,7 @@ Preserve the existing use of authoritative state to populate:
 7. **Different controls look different.** Continuous, binary, navigational, destructive, and irreversible operations require distinct representations.
 8. **Exact values appear only when useful.** A value, label, and meter shall not all repeat the same fact without purpose.
 9. **Instructions are contextual.** Help appears at the moment of likely need and recedes after comprehension.
-10. **Navigation depth determines orientation.** Shallow pages need less breadcrumb information than nested or ambiguous states.
+10. **Orientation must be earned.** Ordinary menus show no game branding or breadcrumbs. Add location context only after observed ambiguity cannot be solved through page structure or consistent back behavior.
 11. **Back is consistent and quiet.** It remains predictable without competing with the page's purpose.
 12. **Phone and screen form one object.** Display activity should affect the phone's material, light, motion, sound, or haptics when appropriate.
 13. **Readability wins at decision time.** Expressive behavior must settle enough for reliable input.
@@ -220,7 +220,7 @@ These decisions establish a coherent default and may be revised through playtest
 
 - Baseline personality: a calm alien instrument that becomes corrupted or unstable under pressure.
 - Selection: a restrained acquisition field plus typographic emphasis; no permanent selection rail by default.
-- Page identity: one primary title; additional location context only for genuinely nested or ambiguous states.
+- Page identity: ordinary menus contain no game branding or breadcrumbs and at most one primary title.
 - Color: semantic and state-based, not category-based.
 - Density: minimal by default, with detail disclosed contextually.
 - Help: contextual and temporary.
@@ -316,7 +316,7 @@ fatal event
 ### 12.2 Physical phone and menus
 
 - Preserve the phone as the strongest diegetic interface surface.
-- Remove duplicate page identity such as simultaneous breadcrumb and title when depth does not require both.
+- Do not show persistent game branding or breadcrumbs in ordinary menus; each page has at most one title.
 - Use one dominant focus treatment.
 - Represent continuous values as continuous controls and binary values as discrete states.
 - Avoid repeating a value through text, percentage, meter, and decoration simultaneously.

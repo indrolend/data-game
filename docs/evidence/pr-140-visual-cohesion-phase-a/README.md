@@ -10,7 +10,7 @@ The previous composition repeats page identity, uses a category-specific magenta
 
 ## Audio after
 
-The revised composition retains one page title, uses only parent context in the breadcrumb, gives focus to one acquisition field plus typography, keeps a track only for the continuous volume value, and presents binary choices discretely.
+The revised composition uses one page title with no persistent game branding or breadcrumb, gives focus to one acquisition field plus typography, keeps a track only for the continuous volume value, and presents binary choices discretely.
 
 ![Audio after](audio-after.png)
 

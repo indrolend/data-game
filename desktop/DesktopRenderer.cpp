@@ -553,11 +553,6 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     const float stencilAge=phone_stencil::appearanceAge(display.transitionProgress);
     const Vec3 resolvedAccent=phoneDisplayResolvedAccent(display);
     const VisualColor channelAccent{resolvedAccent.x,resolvedAccent.y,resolvedAccent.z};
-    if (!layout.breadcrumb.empty()) {
-        const float breadcrumbPx=fitPhoneDisplayTextPx(layout.breadcrumb,32.0f,layout.header.w,false,cpuTextWidth);
-        cpuStencilText(canvas,layout.breadcrumb,layout.safe.x,layout.header.y+breadcrumbPx,
-            breadcrumbPx,channelAccent.r,channelAccent.g,channelAccent.b,0.76f,stencilAge);
-    }
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
             float pen = layout.logicalW * 0.5f - cpuTextWidth(layout.title, layout.titlePx, true) * 0.5f;
