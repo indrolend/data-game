@@ -69,16 +69,13 @@ struct PhoneDisplayState {
     PhoneDisplayLightingState lighting;
 };
 
-// One signal family, with stable channels for the phone's actual functions.
-// The accent is presentation state: it follows the same mode transition that
-// drives content, emission, glass and the phone's local light.
+// One signal family with color reserved for semantic state, rather than menu
+// category. The accent follows the same mode transition that drives content,
+// emission, glass and the phone's local light.
 inline Vec3 phoneDisplayModeAccent(PhoneDisplayMode mode) {
     switch (mode) {
-        case PhoneDisplayMode::Audio: return {0x98/255.0f,0x1e/255.0f,0x97/255.0f};
-        case PhoneDisplayMode::Graphics: return {0xe1/255.0f,0xb8/255.0f,0x7f/255.0f};
         case PhoneDisplayMode::Online:
         case PhoneDisplayMode::JoinCode: return {0x4d/255.0f,0xe8/255.0f,0x8e/255.0f};
-        case PhoneDisplayMode::Settings: return {0x7f/255.0f,0xa9/255.0f,0xae/255.0f};
         case PhoneDisplayMode::Pause: return {0x4f/255.0f,0x4c/255.0f,0xb1/255.0f};
         case PhoneDisplayMode::Upgrade: return {0xd4/255.0f,0xec/255.0f,0x8e/255.0f};
         case PhoneDisplayMode::Warning: return {0xaa/255.0f,0x80/255.0f,0x66/255.0f};

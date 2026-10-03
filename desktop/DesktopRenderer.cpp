@@ -605,18 +605,11 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         }
         const PhoneMenuEmphasis emphasis=phoneMenuEmphasis(row.action);
         if (selected) {
-            const float markerX = (state.dead && row.action == PhoneMenuAction::Restart) ? layout.logicalW * 0.5f - cpuTextWidth(row.label, row.fontPx, true) * 0.5f - 34.0f : row.labelX - 34.0f;
-            const float railTop=layout.header.y+layout.header.h-8.0f;
-            const float railBottom=row.baselineY-row.fontPx*0.20f;
             const float response=clampf(state.cinematic.textInteraction,0.0f,1.0f);
             const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
                 (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:channelAccent);
             cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
-                focusColor.r,focusColor.g,focusColor.b,0.055f+response*0.045f);
-            if(railBottom>railTop)cpuRect(canvas,markerX+3.0f,railTop,2.0f,railBottom-railTop,
-                focusColor.r,focusColor.g,focusColor.b,0.24f);
-            cpuRect(canvas, markerX, row.baselineY - row.fontPx * 0.36f, 8.0f+response*3.0f, 8.0f,
-                focusColor.r,focusColor.g,focusColor.b,0.94f);
+                focusColor.r,focusColor.g,focusColor.b,0.075f+response*0.055f);
         }
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
@@ -624,21 +617,16 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,labelColor.r,labelColor.g,labelColor.b,alpha,stencilAge);
             const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
-            cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?VisualIdentity::AcidChartreuse.r:VisualIdentity::MetallicTeal.r,selected?VisualIdentity::AcidChartreuse.g:VisualIdentity::MetallicTeal.g,selected?VisualIdentity::AcidChartreuse.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
+            cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?channelAccent.r:VisualIdentity::MetallicTeal.r,selected?channelAccent.g:VisualIdentity::MetallicTeal.g,selected?channelAccent.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
             const float amount=phoneMenuVisualAmount(row.action,state.localSettings);
-            if(amount>=0.0f){
-                const float trackW=150.0f,trackH=row.horizontal==PhoneMenuHorizontal::Toggle?8.0f:5.0f;
+            if(amount>=0.0f&&row.horizontal==PhoneMenuHorizontal::Adjust){
+                const float trackW=150.0f,trackH=5.0f;
                 const float trackX=row.valueRightX-trackW,trackY=row.baselineY+13.0f;
                 cpuRect(canvas,trackX,trackY,trackW,trackH,VisualIdentity::DeepPlum.r,VisualIdentity::DeepPlum.g,VisualIdentity::DeepPlum.b,0.58f);
                 const VisualColor fill=selected?channelAccent:VisualIdentity::MetallicTeal;
                 cpuRect(canvas,trackX,trackY,std::max(trackH,trackW*amount),trackH,fill.r,fill.g,fill.b,selected?0.94f:0.62f);
                 const float thumbX=trackX+clampf(amount,0.0f,1.0f)*(trackW-trackH);
                 cpuRect(canvas,thumbX,trackY-2.0f,trackH,trackH+4.0f,fill.r,fill.g,fill.b,selected?1.0f:0.76f);
-            }
-            if(selected&&row.horizontal==PhoneMenuHorizontal::Adjust){
-                constexpr float size=7.0f;
-                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,channelAccent.r,channelAccent.g,channelAccent.b,0.92f);
-                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,channelAccent.r,channelAccent.g,channelAccent.b,0.92f);
             }
         } else {
             const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;

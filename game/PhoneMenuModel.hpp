@@ -40,7 +40,7 @@ enum class PhoneMenuAction : unsigned char {
     Restart
 };
 
-enum class PhoneMenuHorizontal : unsigned char { None, Adjust, Toggle };
+enum class PhoneMenuHorizontal : unsigned char { None, Adjust, Cycle, Toggle };
 enum class PhoneMenuEmphasis : unsigned char { Normal, Primary, Destructive, Navigation };
 
 // Multiplayer remains compiled and continuously tested, but is intentionally
@@ -179,9 +179,15 @@ inline void addPhoneMenuValue(PhoneMenuPageViewModel& page, const std::string& l
     element.label = label;
     element.value = value;
     element.selectable = true;
-    element.horizontal = action == PhoneMenuAction::Rebind
-        ? PhoneMenuHorizontal::None
-        : PhoneMenuHorizontal::Adjust;
+    if (action == PhoneMenuAction::Rebind) {
+        element.horizontal = PhoneMenuHorizontal::None;
+    } else if (action == PhoneMenuAction::AdjustTriggers ||
+               action == PhoneMenuAction::AdjustVibration ||
+               action == PhoneMenuAction::GraphicsPreset) {
+        element.horizontal = PhoneMenuHorizontal::Cycle;
+    } else {
+        element.horizontal = PhoneMenuHorizontal::Adjust;
+    }
     addPhoneMenuElement(page, element);
 }
 
@@ -288,8 +294,8 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         page.tablePage = true;
         addPhoneMenuValue(page, "Music Level", std::to_string(phoneMenuPercent(state.localSettings.musicVolume)) + "%", PhoneMenuAction::MusicVolume);
         addPhoneMenuValue(page, "Effects Level", std::to_string(phoneMenuPercent(state.localSettings.sfxVolume)) + "%", PhoneMenuAction::SfxVolume);
-        addPhoneMenuToggle(page, "Music Enabled", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
-        addPhoneMenuToggle(page, "Effects Enabled", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
+        addPhoneMenuToggle(page, "Music", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
+        addPhoneMenuToggle(page, "Effects", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else {
         const char* presets[] = {"Low", "Normal", "Pretty"};
@@ -303,9 +309,17 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     }
     if (!state.dead) {
         const bool root = state.localSettings.menuPage == LocalMenuPage::Main;
-        page.breadcrumb = pausedSolo
-            ? (root ? "DATA / PAUSED" : "DATA / PAUSED / " + std::string(phoneMenuPathName(state.localSettings.menuPage)))
-            : ("DATA / " + std::string(phoneMenuPathName(state.localSettings.menuPage)));
+        if (root) {
+            page.breadcrumb = "DATA";
+        } else if (pausedSolo) {
+            page.breadcrumb = "DATA / PAUSED";
+        } else if (state.localSettings.menuPage == LocalMenuPage::Controls ||
+                   state.localSettings.menuPage == LocalMenuPage::Audio ||
+                   state.localSettings.menuPage == LocalMenuPage::Graphics) {
+            page.breadcrumb = "DATA / SETTINGS";
+        } else {
+            page.breadcrumb = "DATA";
+        }
         const PhoneMenuElement* selected = nullptr;
         int selectableIndex = 0;
         for (int i = 0; i < page.elementCount; ++i) {
@@ -315,13 +329,17 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         if (state.localSettings.rebindingAction >= 0) {
             page.navigationHint = "PRESS A KEY   ESC / B  CANCEL";
         } else if (selected && selected->horizontal != PhoneMenuHorizontal::None) {
-            page.navigationHint = selected->horizontal == PhoneMenuHorizontal::Adjust
-                ? "ADJUST LEFT / RIGHT   BACK ESC / B"
-                : "CHANGE LEFT / RIGHT   TOGGLE ENTER / A";
+            if (selected->horizontal == PhoneMenuHorizontal::Adjust) {
+                page.navigationHint = "LEFT / RIGHT  ADJUST";
+            } else if (selected->horizontal == PhoneMenuHorizontal::Cycle) {
+                page.navigationHint = "LEFT / RIGHT  CHANGE";
+            } else {
+                page.navigationHint = "ENTER / A  TOGGLE";
+            }
         } else {
             page.navigationHint = pausedSolo && root
-                ? "MOVE UP / DOWN   SELECT ENTER / A   RESUME ESC / B"
-                : "MOVE UP / DOWN   SELECT ENTER / A   BACK ESC / B";
+                ? "UP / DOWN  MOVE   ENTER / A  SELECT   ESC / B  RESUME"
+                : "UP / DOWN  MOVE   ENTER / A  SELECT";
         }
     }
     return page;
