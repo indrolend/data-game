@@ -706,6 +706,7 @@ bool Game::chooseTemporaryUpgrade(int track){
     state_.cinematic.textInteraction=1.0f;
     level=std::min(12,level+1);
     state_.upgradeMenu.active=false;
+    state_.upgradeMenu.presentationTime=0.0f;
     state_.uiPaused=false;
     clearInputState();
     return true;
@@ -1392,6 +1393,11 @@ void Game::update(float dt) {
     state_.cinematic.textInteraction*=std::exp(-7.0f*dt);
     state_.cinematic.overlayFade += ((state_.dead ? 1.0f : 0.0f) - state_.cinematic.overlayFade) * std::min(1.0f, dt * 4.0f);
     state_.cinematic.restartAwaken = std::max(0.0f, state_.cinematic.restartAwaken - dt * 1.8f);
+    if(state_.upgradeMenu.active){
+        state_.upgradeMenu.presentationTime=std::min(30.0f,state_.upgradeMenu.presentationTime+dt);
+    }else{
+        state_.upgradeMenu.presentationTime=0.0f;
+    }
     if(state_.cinematic.menuEnterActive){
         state_.cinematic.menuEnterElapsed=std::min(MENU_ENTER_FADE_DURATION,state_.cinematic.menuEnterElapsed+dt);
         if(state_.cinematic.menuEnterElapsed>=MENU_ENTER_FADE_DURATION)state_.cinematic.menuEnterActive=false;
@@ -2062,6 +2068,7 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
         for(auto& request:state_.respawnQueue) request=HumanRespawnRequest{};
         for(int i=0;i<TARGET_COUNT;++i){if(i<activeHumanTarget()) respawnTarget(i); else state_.targets[i]=TargetState{};}
         state_.upgradeMenu.active=true;
+        state_.upgradeMenu.presentationTime=0.0f;
         state_.uiPaused=true;
         clearInputState();
     } else if(!state_.roomClear) {

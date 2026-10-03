@@ -1186,13 +1186,41 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     center=rotateCenter(spread,0); rotatedQuad(center.x,center.y,arm,thick,angle,rr,rg,rb,reticleAlpha);
 
     if(state.upgradeMenu.active){
+        quad(0,0,static_cast<float>(width_),static_cast<float>(height_),0.0f,0.012f,0.018f,0.54f);
         glPushMatrix();glScalef(menuUiScale,menuUiScale,1.0f);
         const float pw=std::min(680.0f,menuCanvasW-24.0f),ph=300.0f,px=(menuCanvasW-pw)*0.5f,py=(menuCanvasH-ph)*0.5f;
-        quad(px,py,pw,ph,0.01f,0.03f,0.04f,0.16f);quad(px,py,pw,1,0.62f,0.96f,1,0.62f);quad(px,py+ph-1,pw,1,0.62f,0.96f,1,0.42f);text("ROUND "+std::to_string(state.roomIndex),px+18,py+16,2.0f);text(state.multiplayer.enabled&&!state.multiplayer.authoritativeHost?"HOST IS CHOOSING":"CHOOSE ONE RUN UPGRADE",px+18,py+42,1.25f,0.72f,1.0f,0.86f);
-        const float cellW=(pw-24.0f)/3.0f;const std::string labels[3]={"SHOT","LUNGE","ATTACK"};const auto choice=[&](int item,float top,float height){const bool selected=state.hud.menuSelection==item;const float pulse=selected?clampf(state.cinematic.textInteraction,0,1):0,cx=px+12+(item%3)*cellW+(cellW-4)*0.5f,cy=py+top+height*0.5f-pulse*1.5f,tilt=selected?std::sin(state.time*2.5f+item*1.7f)*0.025f:0,scale=2.15f+pulse*0.08f;rotatedQuad(cx,cy,cellW-6,height,tilt,selected?0.16f:0.02f,selected?0.86f:0.08f,selected?1.0f:0.11f,selected?0.20f:0.09f);rotatedQuad(cx,cy+height*0.5f-1,cellW-20,1,tilt,0.66f,0.97f,1.0f,selected?0.76f:0.26f);const std::string& label=labels[item%3];text(label,cx-label.size()*6*scale*0.5f,cy-3.5f*scale,scale,selected?1.0f:0.82f,selected?1.0f:0.94f,1.0f);};
-        for(int i=0;i<3;++i)choice(i,66,76);text("PERMANENT  TOKENS "+std::to_string(state.progression.permanent.tokens),px+18,py+158,1.2f,0.82f,1.0f,0.91f);for(int i=3;i<6;++i)choice(i,184,66);
-        for(int i=0;i<3;++i){const std::string level=std::to_string(state.progression.permanent.levels[i])+"/5";text(level,px+12+i*cellW+cellW-level.size()*6*0.9f-12,py+256,0.9f,0.66f,0.90f,1.0f);}
-        text("COST 1 TOKEN",px+18,py+278,1.05f,0.72f,0.90f,1.0f);
+        const float arrival=clampf(state.upgradeMenu.presentationTime/0.42f,0.0f,1.0f);
+        const float reveal=arrival*arrival*(3.0f-2.0f*arrival);
+        quad(px,py,pw,ph,0.008f,0.022f,0.030f,0.70f*reveal);
+        const float mosaicGap=2.0f,progressionCellW=(pw-36.0f-mosaicGap*24.0f)/25.0f;
+        const int revealedCells=static_cast<int>(std::ceil(reveal*25.0f));
+        for(int i=0;i<revealedCells;++i){const VisualColor c=VisualIdentity::DataMosaicPalette[i];quad(px+18.0f+i*(progressionCellW+mosaicGap),py+7.0f,progressionCellW,5.0f,c.r,c.g,c.b,0.36f+0.42f*reveal);}
+        text("ROOM "+std::to_string(state.roomIndex)+" / RECOMPILE",px+18,py+20,1.55f,0.82f,0.97f,1.0f,0.96f*reveal);
+        const bool remoteChoice=state.multiplayer.enabled&&!state.multiplayer.authoritativeHost;
+        text(remoteChoice?"HOST HOLDS RULE AUTHORITY":"RUN MUTATION / SELECT ONE",px+18,py+46,1.08f,0.62f,0.88f,0.94f,0.88f*reveal);
+        const float cellW=(pw-24.0f)/3.0f;const std::string labels[3]={"SHOT","LUNGE","ATTACK"};
+        const auto choice=[&](int item,float top,float height){
+            const int track=item%3;const bool permanent=item>=3,selected=state.hud.menuSelection==item;
+            const int level=permanent?state.progression.permanent.levels[track]:state.progression.run.temporaryLevels[track];
+            const bool available=!permanent||(state.progression.permanent.tokens>0&&level<5);
+            const float response=selected?clampf(state.cinematic.textInteraction,0,1):0.0f;
+            const float cx=px+12+track*cellW+(cellW-4)*0.5f,cy=py+top+height*0.5f;
+            const float tilt=selected&&!permanent?std::sin(state.upgradeMenu.presentationTime*2.5f+item*1.7f)*0.018f:0.0f;
+            const VisualColor focus=permanent?VisualIdentity::AcidChartreuse:VisualIdentity::ElectricCyan;
+            const VisualColor dim=VisualIdentity::MetallicTeal;
+            const VisualColor color=available?focus:dim;
+            rotatedQuad(cx,cy,cellW-6,height,tilt,color.r,color.g,color.b,(selected?0.15f+response*0.05f:0.035f)*reveal);
+            rotatedQuad(cx,cy+height*0.5f-1,cellW-22,2,tilt,color.r,color.g,color.b,(selected?0.82f:0.24f)*reveal);
+            const std::string& label=labels[track];const float labelScale=1.75f+response*0.06f;
+            text(label,cx-label.size()*6*labelScale*0.5f,cy-18.0f,labelScale,selected?0.94f:0.72f,selected?1.0f:0.88f,1.0f,(selected?0.98f:0.72f)*reveal);
+            const std::string detail=permanent?("PERM "+std::to_string(level)+"/5"):("RUN "+std::to_string(level)+" / NEXT "+std::to_string(std::min(12,level+1)));
+            const float detailScale=0.92f;
+            text(detail,cx-detail.size()*6*detailScale*0.5f,cy+12.0f,detailScale,color.r,color.g,color.b,(available?0.88f:0.48f)*reveal);
+        };
+        for(int i=0;i<3;++i)choice(i,66,76);
+        text("PERMANENT MEMORY / TOKENS "+std::to_string(state.progression.permanent.tokens),px+18,py+158,1.08f,VisualIdentity::AcidChartreuse.r,VisualIdentity::AcidChartreuse.g,VisualIdentity::AcidChartreuse.b,0.86f*reveal);
+        for(int i=3;i<6;++i)choice(i,184,66);
+        text(remoteChoice?"WAITING FOR HOST":"ARROWS TUNE   ENTER / A LOCK",px+18,py+276,0.94f,0.58f,0.82f,0.88f,0.72f*reveal);
     } else if(state.uiPaused&&state.multiplayer.enabled){
         glPushMatrix();glScalef(menuUiScale,menuUiScale,1.0f);
         const float pw=360.0f,ph=116.0f,px=menuCanvasW-pw-12.0f,py=48.0f;

@@ -1453,7 +1453,7 @@ void printUsage() {
     std::printf("  --build-identity-json    Print machine-readable build identity and exit.\n");
     std::printf("  --capture-frame PATH Capture a hidden frame and exit.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
-    std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu page and exit.\n");
+    std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
     std::printf("  --capture-cpu-demo DIR  Record a HUD-free deterministic gameplay vignette as PPM frames.\n");
     std::printf("  --capture-cinematic-demo DIR  Record the real lunge/capture sequence from a cinematic spectator camera.\n");
     std::printf("  --capture-width N --capture-height N  Set capture framebuffer dimensions.\n");
@@ -1983,6 +1983,7 @@ int main(int argc, char** argv) {
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
+    const bool captureMenuUpgrade=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"upgrade")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
     const bool tvRoomEnter=hasArg(argc,argv,"--tv-room-enter");
     const bool traversalLab=hasArg(argc,argv,"--traversal-lab");
@@ -2092,6 +2093,7 @@ int main(int argc, char** argv) {
         fixture.localSettings.menuPage=LocalMenuPage::Main;
         fixture.localSettings.menuScroll=0.0f;
         if(page&&std::strcmp(page,"pause")==0){host.game.restart();fixture.cinematic.introActive=false;host.game.setUiPaused(true);}
+        else if(page&&std::strcmp(page,"upgrade")==0){host.game.restart();fixture.cinematic.introActive=false;fixture.upgradeMenu.active=true;fixture.upgradeMenu.presentationTime=0.72f;fixture.uiPaused=true;fixture.doorTransition.active=false;fixture.doorTransition.progress=0.62f;fixture.progression.permanent.tokens=3;fixture.progression.permanent.levels={1,2,0};fixture.progression.run.temporaryLevels={2,1,3};fixture.roomIndex=4;fixture.hud.menuSelection=0;}
         else if(page&&std::strcmp(page,"online")==0)fixture.localSettings.menuPage=LocalMenuPage::Online;
         else if(page&&std::strcmp(page,"settings")==0)fixture.localSettings.menuPage=LocalMenuPage::Settings;
         else if(page&&std::strcmp(page,"controls-bottom")==0){fixture.localSettings.menuPage=LocalMenuPage::Controls;fixture.hud.menuSelection=15;fixture.localSettings.menuScroll=999.0f;}
@@ -2520,6 +2522,7 @@ int main(int argc, char** argv) {
         }
         const auto updateEnd=std::chrono::steady_clock::now();
         if(captureMosh&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.55f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
+        if(captureMenuUpgrade&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.62f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
         if(capturePhone){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.camera.pos=fixture.phoneTransform.position+Vec3{0,0.035f,0.38f};fixture.camera.lookTarget=fixture.phoneTransform.position;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
         updateOutcomeRumble(host);
         const auto audioBegin=std::chrono::steady_clock::now();
