@@ -273,7 +273,8 @@ float smooth01(float t) {
     t = clampf(t, 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
 }
-void syncTargetReactionVisual(TargetState& target) {
+void syncTargetReactionVisual(TargetState& target,float awareness=0.0f,float uncertainty=1.0f,
+    float commitment=0.0f,float disruption=0.0f,float searchAmount=0.0f,float individuality=0.0f) {
     target.visualReaction = makeHumanReactionVisual(
         target.visualWalkPhase,
         target.locomotionAmount,
@@ -284,7 +285,8 @@ void syncTargetReactionVisual(TargetState& target) {
         target.soulMorph,
         target.visibility > 0.5f,
         target.attackTimer,
-        target.attackVariant
+        target.attackVariant,
+        awareness,uncertainty,commitment,disruption,searchAmount,individuality
     );
 }
 float smoothRange(float value,float edge0,float edge1){return smooth01((value-edge0)/std::max(0.0001f,edge1-edge0));}
@@ -3595,6 +3597,9 @@ void Game::updateTargets(float dt) {
         TargetState& t = state_.targets[i];
         if (!t.alive) continue;
         const Vec3 physicalFrameStart=t.pos;
+        float presentationAwareness=0.0f,presentationUncertainty=1.0f;
+        float presentationCommitment=0.0f,presentationDisruption=0.0f,presentationSearch=0.0f;
+        const float presentationIndividuality=std::sin(static_cast<float>(i)*12.9898f);
         gameplay::updateLooseSoulMotion(t, dt);
         t.hitFlash = std::max(0.0f, t.hitFlash - TARGET_HITFLASH_DECAY_PER_FRAME);
         t.visibility = 1.0f;
@@ -3771,6 +3776,13 @@ void Game::updateTargets(float dt) {
                 behavior.mayAttack=true;
                 behavior.settled=false;
             }
+            presentationAwareness=state_.multiplayer.enabled?1.0f:std::max(perception.confidence,vagueAwareness);
+            presentationUncertainty=state_.multiplayer.enabled?0.0f:perception.uncertainty;
+            presentationCommitment=behavior.commitment;
+            presentationDisruption=enemyRuntimeState.bodies[i].disruption;
+            presentationSearch=behavior.mode==gameplay::EnemyBehaviorMode::Search?1.0f:
+                behavior.mode==gameplay::EnemyBehaviorMode::Investigate?0.62f:
+                behavior.mode==gameplay::EnemyBehaviorMode::Orient?0.34f:0.0f;
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
             float playerDist=state_.multiplayer.enabled?horizontalLength(toPlayer):(perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f);
             float motorPaceExpression=1.0f;
@@ -3997,7 +4009,8 @@ void Game::updateTargets(float dt) {
             // faster or slower than the root that owns contact.
             t.humanAnimationTime += distance*0.68f;
         }
-        syncTargetReactionVisual(t);
+        syncTargetReactionVisual(t,presentationAwareness,presentationUncertainty,
+            presentationCommitment,presentationDisruption,presentationSearch,presentationIndividuality);
     }
     if(!state_.multiplayer.enabled)enemyRuntimeState.perceptionCursor=(enemyRuntimeState.perceptionCursor+2)%TARGET_COUNT;
 }
