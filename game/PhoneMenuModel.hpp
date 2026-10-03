@@ -41,6 +41,7 @@ enum class PhoneMenuAction : unsigned char {
 };
 
 enum class PhoneMenuHorizontal : unsigned char { None, Adjust, Toggle };
+enum class PhoneMenuEmphasis : unsigned char { Normal, Primary, Destructive, Navigation };
 
 // Multiplayer remains compiled and continuously tested, but is intentionally
 // absent from the public release surface until its player-facing contract is ready.
@@ -110,6 +111,41 @@ inline const char* phoneMenuTriggerSensitivityName(int value) {
 inline const char* phoneMenuVibrationName(int value) {
     static constexpr const char* Names[] = {"Off", "Standard", "Strong"};
     return Names[std::max(0, std::min(2, value))];
+}
+
+inline PhoneMenuEmphasis phoneMenuEmphasis(PhoneMenuAction action) {
+    switch (action) {
+        case PhoneMenuAction::Start:
+        case PhoneMenuAction::Solo:
+        case PhoneMenuAction::Resume:
+        case PhoneMenuAction::Host:
+            return PhoneMenuEmphasis::Primary;
+        case PhoneMenuAction::Exit:
+        case PhoneMenuAction::ExitRun:
+            return PhoneMenuEmphasis::Destructive;
+        case PhoneMenuAction::Back:
+            return PhoneMenuEmphasis::Navigation;
+        default:
+            return PhoneMenuEmphasis::Normal;
+    }
+}
+
+inline float phoneMenuVisualAmount(PhoneMenuAction action, const LocalSettingsState& settings) {
+    switch (action) {
+        case PhoneMenuAction::AdjustMouse: return clampf((settings.mouseLookSensitivity-0.5f)/1.25f,0.0f,1.0f);
+        case PhoneMenuAction::AdjustController: return clampf((settings.controllerLookSensitivity-0.5f)/1.25f,0.0f,1.0f);
+        case PhoneMenuAction::AdjustTriggers: return clampf(settings.controllerTriggerSensitivity/2.0f,0.0f,1.0f);
+        case PhoneMenuAction::AdjustVibration: return clampf(settings.controllerVibration/2.0f,0.0f,1.0f);
+        case PhoneMenuAction::MusicVolume: return clampf(settings.musicVolume,0.0f,1.0f);
+        case PhoneMenuAction::SfxVolume: return clampf(settings.sfxVolume,0.0f,1.0f);
+        case PhoneMenuAction::GraphicsPreset: return clampf(settings.graphicsPreset/2.0f,0.0f,1.0f);
+        case PhoneMenuAction::MusicMute: return settings.musicMuted?0.0f:1.0f;
+        case PhoneMenuAction::SfxMute: return settings.sfxMuted?0.0f:1.0f;
+        case PhoneMenuAction::ToggleShadows: return settings.shadows?1.0f:0.0f;
+        case PhoneMenuAction::ToggleParticles: return settings.particles?1.0f:0.0f;
+        case PhoneMenuAction::ToggleFps: return settings.fpsCounter?1.0f:0.0f;
+        default: return -1.0f;
+    }
 }
 
 inline void addPhoneMenuElement(PhoneMenuPageViewModel& page, PhoneMenuElement element) {
@@ -250,10 +286,10 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     } else if (state.localSettings.menuPage == LocalMenuPage::Audio) {
         page.title = "Audio";
         page.tablePage = true;
-        addPhoneMenuValue(page, "Music", std::to_string(phoneMenuPercent(state.localSettings.musicVolume)) + "%", PhoneMenuAction::MusicVolume);
-        addPhoneMenuValue(page, "Sound Effects", std::to_string(phoneMenuPercent(state.localSettings.sfxVolume)) + "%", PhoneMenuAction::SfxVolume);
-        addPhoneMenuToggle(page, "Music", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
-        addPhoneMenuToggle(page, "Sound Effects", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
+        addPhoneMenuValue(page, "Music Level", std::to_string(phoneMenuPercent(state.localSettings.musicVolume)) + "%", PhoneMenuAction::MusicVolume);
+        addPhoneMenuValue(page, "Effects Level", std::to_string(phoneMenuPercent(state.localSettings.sfxVolume)) + "%", PhoneMenuAction::SfxVolume);
+        addPhoneMenuToggle(page, "Music Enabled", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
+        addPhoneMenuToggle(page, "Effects Enabled", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else {
         const char* presets[] = {"Low", "Normal", "Pretty"};

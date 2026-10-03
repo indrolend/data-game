@@ -602,30 +602,48 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,VisualIdentity::MetallicTeal.b,0.62f,stencilAge);
             continue;
         }
+        const PhoneMenuEmphasis emphasis=phoneMenuEmphasis(row.action);
         if (selected) {
             const float markerX = (state.dead && row.action == PhoneMenuAction::Restart) ? layout.logicalW * 0.5f - cpuTextWidth(row.label, row.fontPx, true) * 0.5f - 34.0f : row.labelX - 34.0f;
             const float railTop=layout.header.y+layout.header.h-8.0f;
             const float railBottom=row.baselineY-row.fontPx*0.20f;
+            const float response=clampf(state.cinematic.textInteraction,0.0f,1.0f);
+            const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
+                (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:VisualIdentity::ElectricCyan);
+            cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
+                focusColor.r,focusColor.g,focusColor.b,0.055f+response*0.045f);
             if(railBottom>railTop)cpuRect(canvas,markerX+3.0f,railTop,2.0f,railBottom-railTop,
-                VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.24f);
-            cpuRect(canvas, markerX, row.baselineY - row.fontPx * 0.36f, 8.0f, 8.0f, VisualIdentity::ElectricCyan.r, VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, 0.94f);
+                focusColor.r,focusColor.g,focusColor.b,0.24f);
+            cpuRect(canvas, markerX, row.baselineY - row.fontPx * 0.36f, 8.0f+response*3.0f, 8.0f,
+                focusColor.r,focusColor.g,focusColor.b,0.94f);
         }
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
-            cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge);
+            const VisualColor labelColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f};
+            cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,labelColor.r,labelColor.g,labelColor.b,alpha,stencilAge);
             const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
             cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?VisualIdentity::AcidChartreuse.r:VisualIdentity::MetallicTeal.r,selected?VisualIdentity::AcidChartreuse.g:VisualIdentity::MetallicTeal.g,selected?VisualIdentity::AcidChartreuse.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
+            const float amount=phoneMenuVisualAmount(row.action,state.localSettings);
+            if(amount>=0.0f){
+                const float trackW=150.0f,trackH=row.horizontal==PhoneMenuHorizontal::Toggle?8.0f:5.0f;
+                const float trackX=row.valueRightX-trackW,trackY=row.baselineY+13.0f;
+                cpuRect(canvas,trackX,trackY,trackW,trackH,VisualIdentity::DeepPlum.r,VisualIdentity::DeepPlum.g,VisualIdentity::DeepPlum.b,0.58f);
+                const VisualColor fill=selected?VisualIdentity::AcidChartreuse:VisualIdentity::MetallicTeal;
+                cpuRect(canvas,trackX,trackY,std::max(trackH,trackW*amount),trackH,fill.r,fill.g,fill.b,selected?0.94f:0.62f);
+                const float thumbX=trackX+clampf(amount,0.0f,1.0f)*(trackW-trackH);
+                cpuRect(canvas,thumbX,trackY-2.0f,trackH,trackH+4.0f,fill.r,fill.g,fill.b,selected?1.0f:0.76f);
+            }
             if(selected&&row.horizontal==PhoneMenuHorizontal::Adjust){
-                const int palettePhase=static_cast<int>(std::floor(state.time*8.0f));
-                const VisualColor leftColor=VisualIdentity::DataMosaicPalette[palettePhase%25];
-                const VisualColor rightColor=VisualIdentity::DataMosaicPalette[(palettePhase+5)%25];
                 constexpr float size=7.0f;
-                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,leftColor.r,leftColor.g,leftColor.b,0.92f);
-                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,rightColor.r,rightColor.g,rightColor.b,0.92f);
+                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.92f);
+                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.92f);
             }
         } else {
-            const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge,centered);
+            const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;
+            const VisualColor actionColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
+                (selected&&emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f});
+            cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,actionColor.r,actionColor.g,actionColor.b,alpha,stencilAge,centered);
         }
     }
     if (!layout.navigationHint.empty()) {

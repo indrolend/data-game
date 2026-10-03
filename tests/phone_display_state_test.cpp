@@ -129,6 +129,14 @@ int main() {
     menu.hud.menuSelection = 9;
     controls = makePhoneDisplayMenuLayout(menu);
     assert(controls.navigationHint.find("ADJUST") != std::string::npos);
+    assert(phoneMenuEmphasis(PhoneMenuAction::Solo) == PhoneMenuEmphasis::Primary);
+    assert(phoneMenuEmphasis(PhoneMenuAction::ExitRun) == PhoneMenuEmphasis::Destructive);
+    menu.localSettings.controllerLookSensitivity = 1.125f;
+    assert(std::abs(phoneMenuVisualAmount(PhoneMenuAction::AdjustController,menu.localSettings)-0.5f)<0.001f);
+    menu.localSettings.shadows = false;
+    assert(phoneMenuVisualAmount(PhoneMenuAction::ToggleShadows,menu.localSettings)==0.0f);
+    menu.localSettings.shadows = true;
+    assert(phoneMenuVisualAmount(PhoneMenuAction::ToggleShadows,menu.localSettings)==1.0f);
     menu.localSettings.menuScroll = phoneDisplayScrollForSelection(controls, controls.selectableCount - 1);
     PhoneDisplayMenuLayout controlsScrolled = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(controlsScrolled);
