@@ -436,6 +436,14 @@ This slice should reuse objective lighting, datamosh, data mosaic, stencil acqui
 3. Connect HUD appearance and disappearance to phone/world behavior.
 4. Reconcile solo and multiplayer pause composition without changing multiplayer authority.
 
+Implemented first slice:
+
+- Project persistent solo-play telemetry from authoritative `GameState` into a query-time phone display model.
+- Render objective progress, charge, captured souls, tokens, and supplemental power on the physical phone during play.
+- Remove their detached HUD duplicates while retaining reflex-critical reticle, threat, interaction, multiplayer, and spectator cues.
+- Suppress generic menu navigation instructions; retain only contextual instructions for adjustment, rebinding, cycling, and toggling.
+- Hold any phone-inspection gesture or readability enlargement until actual-scale playtesting demonstrates that it is needed.
+
 ### Phase D: Enemy and combat convergence
 
 1. Validate cognition cues under real play conditions.

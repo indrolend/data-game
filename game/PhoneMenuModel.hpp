@@ -294,7 +294,6 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     }
     if (!state.dead) {
-        const bool root = state.localSettings.menuPage == LocalMenuPage::Main;
         const PhoneMenuElement* selected = nullptr;
         int selectableIndex = 0;
         for (int i = 0; i < page.elementCount; ++i) {
@@ -312,9 +311,7 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
                 page.navigationHint = "ENTER / A  TOGGLE";
             }
         } else {
-            page.navigationHint = pausedSolo && root
-                ? "UP / DOWN  MOVE   ENTER / A  SELECT   ESC / B  RESUME"
-                : "UP / DOWN  MOVE   ENTER / A  SELECT";
+            page.navigationHint.clear();
         }
     }
     return page;

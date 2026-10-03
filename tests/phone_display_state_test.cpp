@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "Game.hpp"
+#include "GameplayPhoneModel.hpp"
 #include "PhoneDisplayLayout.hpp"
 
 namespace {
@@ -123,7 +124,7 @@ int main() {
     PhoneDisplayMenuLayout mainLayout = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(mainLayout);
     assert(mainLayout.title.empty());
-    assert(mainLayout.navigationHint.find("SELECT") != std::string::npos);
+    assert(mainLayout.navigationHint.empty());
     assert(mainLayout.selectableCount == 4);
     expectSelectableHit(mainLayout, 0);
 
@@ -167,6 +168,24 @@ int main() {
     expectFiniteAndBounded(game.state().phoneDisplay);
 
     GameState& gameplay = const_cast<GameState&>(game.state());
+    gameplay.player.battery = 67.0f;
+    gameplay.player.souls = 4;
+    gameplay.requiredSouls = 7;
+    gameplay.depositedSouls = 3;
+    gameplay.roomIndex = 6;
+    gameplay.progression.permanent.tokens = 11;
+    gameplay.energy.supplementalActive = true;
+    gameplay.energy.supplementalValue = 20.0f;
+    gameplay.energy.supplementalMax = 80.0f;
+    gameplay.energy.flowerStacks = 2;
+    const GameplayPhoneModel instrument = makeGameplayPhoneModel(gameplay);
+    assert(instrument.batteryPercent == 67);
+    assert(!instrument.lowBattery);
+    assert(instrument.storedSouls == 4 && instrument.soulCapacity == PHONE_CAPACITY);
+    assert(instrument.filledGoals == 3 && instrument.requiredGoals == 7);
+    assert(instrument.roomIndex == 6 && instrument.tokens == 11);
+    assert(instrument.supplementalActive && std::abs(instrument.supplementalFill - 0.25f) < 0.001f);
+    assert(instrument.flowerStacks == 2);
     gameplay.hud.lowBattery = true;
     gameplay.player.battery = 8.0f;
     step(game, 6);

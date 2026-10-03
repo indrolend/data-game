@@ -2135,7 +2135,21 @@ int main(int argc, char** argv) {
         fixture.camera.yaw=0;fixture.camera.pitch=0;
     }
     if(capturePaused)host.game.setUiPaused(true);
-    if(capturePhone){GameState& fixture=const_cast<GameState&>(host.game.state());for(auto& target:fixture.targets)target.alive=false;}
+    if(capturePhone){
+        GameState& fixture=const_cast<GameState&>(host.game.state());
+        for(auto& target:fixture.targets)target.alive=false;
+        fixture.cinematic.introActive=false;
+        fixture.player.battery=67.0f;
+        fixture.player.souls=7;
+        fixture.requiredSouls=7;
+        fixture.depositedSouls=3;
+        fixture.roomIndex=6;
+        fixture.progression.permanent.tokens=11;
+        fixture.energy.supplementalActive=true;
+        fixture.energy.supplementalValue=20.0f;
+        fixture.energy.supplementalMax=80.0f;
+        fixture.energy.flowerStacks=2;
+    }
     if(captureSpectator){
         host.game.configureNetworkHost();
         host.game.setNetworkPeerActive(1,true);

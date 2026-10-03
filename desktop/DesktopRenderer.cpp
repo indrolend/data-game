@@ -5,6 +5,7 @@
 #include "RoomLighting.hpp"
 #include "PhoneDisplayLayout.hpp"
 #include "PhoneStencilReveal.hpp"
+#include "GameplayPhoneModel.hpp"
 #include "RenderContracts.hpp"
 #include "FieldGrassTexture.hpp"
 #include "CitySurfaceTexture.hpp"
@@ -519,32 +520,71 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     const bool menuVisible = state.cinematic.introActive || !state.started ||
         (state.started && state.uiPaused && !state.multiplayer.enabled && !state.upgradeMenu.active);
     if (!menuVisible) {
+        const GameplayPhoneModel phone = makeGameplayPhoneModel(state);
         const float vacuum = clampf(state.vacuum.power, 0.0f, 1.0f);
         const float activity = clampf(vacuum * 0.70f + display.powerPulse * 0.20f + display.capturePulse * 0.20f, 0.0f, 1.0f);
-        const float cell = 46.0f;
-        const float gap = 10.0f;
-        const float gridW = 5.0f * cell + 4.0f * gap;
-        const float gridX = 360.0f - gridW * 0.5f;
-        const float gridY = 420.0f;
-        for (int i = 0; i < 25; ++i) {
-            const int col = i % 5;
-            const int row = i / 5;
-            const VisualColor c = VisualIdentity::DataMosaicPalette[i % 25];
-            const float wave = 0.5f + 0.5f * std::sin(state.time * 0.9f + static_cast<float>(i) * 0.37f + display.screenNoisePhase * 8.0f);
-            const float alpha = 0.18f + activity * 0.26f + wave * 0.08f;
-            cpuRect(canvas, gridX + static_cast<float>(col) * (cell + gap), gridY + static_cast<float>(row) * (cell + gap), cell, cell,
-                c.r,
-                c.g,
-                c.b,
-                alpha);
+        const VisualColor stable = VisualIdentity::ElectricCyan;
+        const VisualColor stored = VisualIdentity::AcidChartreuse;
+        const VisualColor warning = VisualIdentity::Copper;
+        const VisualColor batteryColor = phone.lowBattery ? warning : stable;
+        const float reveal = phone_stencil::appearanceAge(display.transitionProgress);
+
+        cpuStencilText(canvas,"ROOM "+std::to_string(phone.roomIndex),84.0f,112.0f,30.0f,
+            stable.r,stable.g,stable.b,0.62f,reveal);
+        const std::string tokenText="TOKEN "+std::to_string(phone.tokens);
+        const float tokenPx=30.0f;
+        cpuStencilText(canvas,tokenText,636.0f-cpuTextWidth(tokenText,tokenPx,false),112.0f,tokenPx,
+            stored.r,stored.g,stored.b,0.62f,reveal);
+
+        const int objectiveCount=std::max(1,phone.requiredGoals);
+        const float objectiveGap=12.0f;
+        const float objectiveCell=std::min(46.0f,(552.0f-objectiveGap*static_cast<float>(objectiveCount-1))/static_cast<float>(objectiveCount));
+        const float objectiveW=objectiveCell*objectiveCount+objectiveGap*(objectiveCount-1);
+        const float objectiveX=(720.0f-objectiveW)*0.5f;
+        for(int i=0;i<objectiveCount;++i){
+            const bool filled=i<phone.filledGoals;
+            const VisualColor color=filled?stored:stable;
+            const float x=objectiveX+i*(objectiveCell+objectiveGap);
+            cpuRect(canvas,x,164.0f,objectiveCell,objectiveCell,color.r,color.g,color.b,filled?0.92f:0.38f);
+            cpuRect(canvas,x+4.0f,168.0f,objectiveCell-8.0f,objectiveCell-8.0f,0.008f,0.020f,0.026f,filled?0.18f:0.86f);
         }
-        const float lineAlpha = 0.16f + activity * 0.34f;
-        cpuRect(canvas, 122.0f, 980.0f, 476.0f * std::max(0.08f, vacuum), 8.0f, VisualIdentity::ElectricCyan.r, VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, lineAlpha);
-        cpuRect(canvas, 122.0f, 1020.0f, 476.0f * (0.24f + 0.32f * display.brightness), 4.0f, VisualIdentity::MetallicTeal.r, VisualIdentity::MetallicTeal.g, VisualIdentity::MetallicTeal.b, 0.28f);
-        if (state.hud.lowBattery) {
+
+        cpuStencilText(canvas,"CHARGE",84.0f,300.0f,34.0f,
+            batteryColor.r,batteryColor.g,batteryColor.b,0.78f,reveal);
+        const std::string batteryValue=std::to_string(phone.batteryPercent);
+        cpuStencilText(canvas,batteryValue,636.0f-cpuTextWidth(batteryValue,54.0f,true),310.0f,54.0f,
+            batteryColor.r,batteryColor.g,batteryColor.b,0.94f,reveal);
+        cpuRect(canvas,84.0f,338.0f,552.0f,18.0f,0.008f,0.020f,0.026f,0.92f);
+        cpuRect(canvas,84.0f,338.0f,552.0f*phone.batteryFill,18.0f,
+            batteryColor.r,batteryColor.g,batteryColor.b,0.90f);
+
+        constexpr int columns=5,rows=6,cells=columns*rows;
+        const float cell=54.0f,gap=12.0f,gridW=columns*cell+(columns-1)*gap;
+        const float gridX=(720.0f-gridW)*0.5f,gridY=470.0f;
+        for(int i=0;i<cells;++i){
+            const int col=i%columns,row=i/columns;
+            const VisualColor c=VisualIdentity::DataMosaicPalette[i%25];
+            const bool filled=i<phone.storedSouls;
+            const float wave=0.5f+0.5f*std::sin(state.time*0.9f+i*0.37f+display.screenNoisePhase*8.0f);
+            const float alpha=filled?(0.76f+activity*0.16f+wave*0.08f):0.10f;
+            const float shade=filled?1.0f:0.24f;
+            cpuRect(canvas,gridX+col*(cell+gap),gridY+row*(cell+gap),cell,cell,
+                c.r*shade,c.g*shade,c.b*shade,alpha);
+        }
+        const std::string soulValue=std::to_string(phone.storedSouls)+" / "+std::to_string(phone.soulCapacity);
+        cpuStencilText(canvas,soulValue,360.0f-cpuTextWidth(soulValue,42.0f,true)*0.5f,930.0f,42.0f,
+            stored.r,stored.g,stored.b,0.88f,reveal);
+
+        if(phone.supplementalActive){
+            const std::string power="POWER "+std::to_string(phone.flowerStacks);
+            cpuStencilText(canvas,power,84.0f,1030.0f,30.0f,stored.r,stored.g,stored.b,0.74f,reveal);
+            cpuRect(canvas,84.0f,1052.0f,552.0f,10.0f,0.008f,0.020f,0.026f,0.90f);
+            cpuRect(canvas,84.0f,1052.0f,552.0f*phone.supplementalFill,10.0f,stored.r,stored.g,stored.b,0.82f);
+        }
+        if (phone.lowBattery) {
             const float pulse = 0.35f + 0.25f * std::sin(state.time * 4.1f);
-            cpuRect(canvas, 0, 0, static_cast<float>(canvas.w), 18.0f, VisualIdentity::Copper.r, VisualIdentity::Copper.g, VisualIdentity::Copper.b, pulse);
-            cpuRect(canvas, 0, static_cast<float>(canvas.h) - 18.0f, static_cast<float>(canvas.w), 18.0f, VisualIdentity::Copper.r, VisualIdentity::Copper.g, VisualIdentity::Copper.b, pulse);
+            cpuRect(canvas,0,0,static_cast<float>(canvas.w),18.0f,warning.r,warning.g,warning.b,pulse);
+            cpuRect(canvas,0,static_cast<float>(canvas.h)-18.0f,static_cast<float>(canvas.w),18.0f,warning.r,warning.g,warning.b,pulse);
         }
         return;
     }
@@ -673,6 +713,17 @@ std::uint64_t phoneDisplayRenderKey(const GameState& state) {
     hashPhoneDisplayFloat(hash, state.vacuum.power, 240.0f);
     hashPhoneDisplayFloat(hash, state.hud.criticalHitPulse, 120.0f);
     hashPhoneDisplayValue(hash, state.hud.lowBattery ? 1u : 0u);
+    const GameplayPhoneModel phone=makeGameplayPhoneModel(state);
+    hashPhoneDisplayFloat(hash,phone.batteryFill,100.0f);
+    hashPhoneDisplayValue(hash,static_cast<std::uint64_t>(phone.storedSouls));
+    hashPhoneDisplayValue(hash,static_cast<std::uint64_t>(phone.filledGoals));
+    hashPhoneDisplayValue(hash,static_cast<std::uint64_t>(phone.requiredGoals));
+    hashPhoneDisplayValue(hash,phone.roomClear?1u:0u);
+    hashPhoneDisplayValue(hash,static_cast<std::uint64_t>(phone.roomIndex));
+    hashPhoneDisplayValue(hash,static_cast<std::uint64_t>(phone.tokens));
+    hashPhoneDisplayValue(hash,phone.supplementalActive?1u:0u);
+    hashPhoneDisplayFloat(hash,phone.supplementalFill,100.0f);
+    hashPhoneDisplayValue(hash,static_cast<std::uint64_t>(phone.flowerStacks));
     for (int key : state.localSettings.keyboardBindings) {
         hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(0, key)));
     }
@@ -1089,34 +1140,6 @@ void DesktopRenderer::drawHud(const GameState& state) const {
         glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_BLEND);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);return;
     }
 
-    // Five compact top-center goal receptacles.
-    const int goalCount=std::max(1,state.hud.requiredGoals);
-    const float goalSize=22.0f, goalGap=8.0f;
-    const float goalsWidth=goalCount*goalSize+(goalCount-1)*goalGap;
-    const float goalsX=(static_cast<float>(width_)-goalsWidth)*0.5f;
-    for(int i=0;i<goalCount;++i) {
-        const float x=goalsX+i*(goalSize+goalGap);
-        quad(x,18,goalSize,goalSize,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.92f);
-        const bool filled=i<state.hud.filledGoals;
-        quad(x+2,20,goalSize-4,goalSize-4,filled?VisualIdentity::AcidChartreuse.r:0.01f,filled?VisualIdentity::AcidChartreuse.g:0.02f,filled?VisualIdentity::AcidChartreuse.b:0.025f,filled?0.95f:0.88f);
-    }
-
-    // Stored-soul mosaic. A quiet fixed square reads as a painted data tile
-    // instead of a moving pickup cluster.
-    quad(12,74,120,82,0.005f,0.012f,0.016f,0.72f);
-    quad(12,74,120,1,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.72f); quad(12,155,120,1,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.72f);
-    quad(12,74,1,82,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.72f); quad(131,74,1,82,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.72f);
-    constexpr int mosaicColumns=5,mosaicRows=5,mosaicCells=mosaicColumns*mosaicRows;
-    const int filledSoulPixels=state.hud.storedSouls<=0?0:std::max(1,static_cast<int>(std::ceil(state.hud.storedSouls/static_cast<float>(PHONE_CAPACITY)*mosaicCells)));
-    const bool tvPreview=state.roomIndex==10&&tvGifWall_.available();
-    const float tile=9.0f,gap=2.0f,mosaicW=mosaicColumns*tile+(mosaicColumns-1)*gap,mosaicX=12.0f+(120.0f-mosaicW)*0.5f,mosaicY=96.0f;
-    for(int i=0;i<mosaicCells;++i){const int col=i%mosaicColumns,row=i/mosaicColumns;VisualColor color=VisualIdentity::DataMosaicPalette[i];if(tvPreview){const auto tv=tvGifWall_.sample(col*(TvGifWall::Columns-1)/(mosaicColumns-1),row*(TvGifWall::Rows-1)/(mosaicRows-1),0.0f,state.secretTv.signal);color={tv.r,tv.g,tv.b};}const bool filled=i<filledSoulPixels;const float x=mosaicX+col*(tile+gap),y=mosaicY+row*(tile+gap),alpha=filled?0.92f:0.20f,shade=filled?1.0f:0.22f;quad(x,y,tile,tile,color.r*shade,color.g*shade,color.b*shade,alpha);if(filled&&i==filledSoulPixels-1){const float pulse=0.5f+0.5f*std::sin(state.time*8.0f);quad(x-1,y-1,tile+2,1,color.r,color.g,color.b,0.28f+0.18f*pulse);quad(x-1,y+tile,tile+2,1,color.r,color.g,color.b,0.18f+0.12f*pulse);}}
-    text("SOULS "+std::to_string(state.hud.storedSouls),20,80,1.2f,0.78f,0.94f,1.0f,0.82f);
-
-    text("ROOM: "+std::to_string(state.roomIndex),12,170,1.5f);
-    text("GOALS: "+std::to_string(state.hud.filledGoals)+"/"+std::to_string(state.hud.requiredGoals),12,187,1.5f);
-    text(state.roomClear?"DOOR: OPEN":"DOOR: LOOP",12,204,1.5f,state.roomClear?0.72f:1.0f,1.0f,state.roomClear?0.74f:1.0f);
-    text("TOKENS: "+std::to_string(state.progression.permanent.tokens),12,221,1.25f,0.82f,1.0f,0.91f);
     if(state.traversalLab){
         const float panelW=520.0f,panelX=(width_-panelW)*0.5f;
         quad(panelX,12,panelW,74,0.005f,0.012f,0.016f,0.72f);
@@ -1137,9 +1160,8 @@ void DesktopRenderer::drawHud(const GameState& state) const {
         text(std::string("[ ] PREMISE  R SEED  E ENEMIES ")+(state.roomInspectorEnemies?"ON":"OFF"),panelX+12,106,1.0f,1.0f,1.0f,1.0f);
         text("5 KEEP  6 TUNE  7 REDESIGN  8 REMOVE",panelX+12,118,1.0f,0.72f,1.0f,0.74f);
     }
-    if(state.progression.run.accuracyStacks>0){char accuracy[32]{};std::snprintf(accuracy,sizeof(accuracy),"ACCURACY X%.2F",state.progression.run.accuracyMultiplier);text(accuracy,12,304,1.15f,VisualIdentity::SignalGreen.r,VisualIdentity::SignalGreen.g,VisualIdentity::SignalGreen.b);}
-    if(state.progression.run.headshotRegenTax>0.01f){char tax[32]{};std::snprintf(tax,sizeof(tax),"REGEN -%d%%",static_cast<int>(std::round(state.progression.run.headshotRegenTax*100.0f)));text(tax,12,320,1.05f,1.0f,0.72f,0.62f);}
-    if(state.hud.buildLabel[0])text(state.hud.buildLabel.data(),12,336,1.0f,0.58f,0.92f,1.0f,0.82f);
+    if((state.traversalLab||state.slopeLab||state.rallyLab||state.roomInspector)&&state.hud.buildLabel[0])
+        text(state.hud.buildLabel.data(),12,336,1.0f,0.58f,0.92f,1.0f,0.82f);
     // The collision-authoritative head center owns a cycling data glyph, so
     // the aim cue cannot drift away from the actual critical volume.
     overlayAlpha=state.hud.critMarkerOpacity;
@@ -1148,20 +1170,6 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     {const auto labelFor=[](int signal)->const char*{switch(signal){case 1:return "HELP";case 2:return "PING";case 3:return "GROUP";case 4:return "OK";default:return "";}};const auto colorFor=[](int signal)->VisualColor{switch(signal){case 1:return VisualIdentity::ElectricMagenta;case 2:return VisualIdentity::ElectricCyan;case 3:return VisualIdentity::AcidChartreuse;case 4:return VisualIdentity::WarmGold;default:return VisualIdentity::ElectricCyan;}};const Vec3 viewForward=normalized(state.camera.lookTarget-state.camera.pos),viewRight=normalized(cross3(viewForward,{0,1,0})),viewUp=cross3(viewRight,viewForward);const float tanHalf=std::tan(state.camera.verticalFovDegrees*PI/360.0f),aspect=static_cast<float>(width_)/std::max(1,height_);const auto drawSignal=[&](const PlayerState& player){if(player.commSignal<1||player.commSignal>4||player.commSignalTimer<=0.0f)return;const Vec3 world=player.pos+Vec3{0,1.05f,0},delta=world-state.camera.pos;const float depth=dot3(delta,viewForward);if(depth<=0.18f||depth>24.0f)return;const float nx=dot3(delta,viewRight)/(depth*tanHalf*aspect),ny=dot3(delta,viewUp)/(depth*tanHalf);if(std::abs(nx)>1.08f||std::abs(ny)>1.08f)return;const char* label=labelFor(player.commSignal);const VisualColor c=colorFor(player.commSignal);const float sx=(nx*0.5f+0.5f)*width_,sy=(0.5f-ny*0.5f)*height_,fade=clampf(player.commSignalTimer/0.35f,0.0f,1.0f),scale=clampf(9.0f/depth,1.15f,2.15f),tw=std::strlen(label)*6.0f*scale,pw=tw+18.0f*scale,ph=13.0f*scale,pulse=0.5f+0.5f*std::sin(state.time*8.0f);quad(sx-pw*0.5f,sy-ph*0.5f,pw,ph,VisualIdentity::DeepPlum.r*0.12f,VisualIdentity::DeepPlum.g*0.12f,VisualIdentity::DeepPlum.b*0.12f,0.52f*fade);quad(sx-pw*0.5f,sy-ph*0.5f,pw,1.4f*scale,c.r,c.g,c.b,(0.58f+0.18f*pulse)*fade);text(label,sx-tw*0.5f,sy-3.5f*scale,scale,c.r,c.g,c.b,0.96f*fade);};drawSignal(state.player);for(const auto& peer:state.multiplayer.peers)if(peer.active)drawSignal(peer.player);}
     if(std::max(state.hud.headshotPulse,state.hud.criticalHitPulse)>0.001f){const float charge=clampf(state.hud.headshotKillCharge,0,1),pulse=std::max(state.hud.headshotPulse,state.hud.criticalHitPulse),eased=pulse*pulse,w=static_cast<float>(width_),h=static_cast<float>(height_),breath=0.5f+0.5f*std::sin(state.time*2.4f),mist=12.0f+charge*9.0f+state.hud.perfectPulse*4.0f;const Vec3 magenta{VisualIdentity::ElectricMagenta.r,VisualIdentity::ElectricMagenta.g,VisualIdentity::ElectricMagenta.b};const Vec3 violet{0.58f,0.34f,0.92f};const Vec3 cyan{VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b};const Vec3 core=mix3(violet,magenta,0.72f),accent=mix3(cyan,magenta,0.46f);const float veil=eased*(0.035f+charge*0.070f),wisp=pulse*(0.075f+charge*0.105f),spark=pulse*(0.10f+charge*0.14f);quad(0,0,w,mist,core.x,core.y,core.z,veil);quad(0,h-mist,w,mist,accent.x,accent.y,accent.z,veil);quad(0,0,mist,h,accent.x,accent.y,accent.z,veil*0.90f);quad(w-mist,0,mist,h,core.x,core.y,core.z,veil*0.90f);for(int i=0;i<3;++i){const float phase=state.time*(0.55f+i*0.17f)+i*2.1f,drift=0.5f+0.5f*std::sin(phase),len=w*(0.22f+0.10f*i+0.08f*breath),thick=1.2f+i*1.1f+charge*1.4f,alpha=wisp*(0.72f-0.14f*i),x=clampf(drift*(w+len)-len,0.0f,w-len);const Vec3 c=i==1?accent:core;quad(x,2.0f+i*4.0f,len,thick,c.x,c.y,c.z,alpha);quad(w-x-len,h-3.0f-i*4.4f,len,thick,c.x,c.y,c.z,alpha*0.82f);const float y=clampf((0.5f+0.5f*std::sin(phase*0.81f+1.7f))*(h+len)-len,0.0f,h-len);quad(2.0f+i*4.0f,y,thick,len,c.x,c.y,c.z,alpha*0.70f);quad(w-3.0f-i*4.4f,h-y-len,thick,len,c.x,c.y,c.z,alpha*0.64f);}const float corner=clampf(std::min(w,h)*0.10f,34.0f,84.0f);quad(0,0,corner,2.0f,core.x,core.y,core.z,spark);quad(0,0,2.0f,corner,accent.x,accent.y,accent.z,spark*0.85f);quad(w-corner,h-2.0f,corner,2.0f,accent.x,accent.y,accent.z,spark*0.75f);quad(w-2.0f,h-corner,2.0f,corner,core.x,core.y,core.z,spark*0.65f);}
 
-    // Battery display remains visible while vacuuming without a target; target lock is separate.
-    quad(12,236,148,30,0.005f,0.012f,0.016f,0.68f);
-    quad(20,249,134,8,0.52f,0.67f,0.72f,0.72f);
-    quad(21,250,132,6,0.025f,0.035f,0.04f,0.95f);
-    const float battery=clampf(state.hud.batteryFill,0.0f,1.0f);
-    quad(21,250,132*battery,6,state.hud.lowBattery?1.0f:0.92f,state.hud.lowBattery?0.18f:0.97f,state.hud.lowBattery?0.12f:1.0f,0.98f);
-    text("BATTERY",20,240,1.1f,state.hud.lowBattery?1.0f:1.0f,state.hud.lowBattery?0.34f:1.0f,state.hud.lowBattery?0.34f:1.0f);
-    if(state.energy.comboHits>0&&state.time-state.energy.lastComboHitTime<=1.8f){char multiplier[16]{};std::snprintf(multiplier,sizeof(multiplier),"X%.2F",state.energy.comboMultiplier);text(multiplier,112,240,1.0f,0.45f,1.0f,0.78f);}
-    if(state.hud.flowerStacks>0 || state.hud.supplementalFill>0.001f){
-        quad(12,274,148,24,0.005f,0.012f,0.016f,0.68f);
-        quad(21,283,132,6,0.025f,0.035f,0.04f,0.95f);
-        quad(21,283,132*clampf(state.hud.supplementalFill,0.0f,1.0f),6,0.35f,1.0f,0.68f,0.98f);
-        text("POWER X"+std::to_string(state.hud.flowerStacks),20,276,1.0f,0.65f,1.0f,0.78f);
-    }
     if(state.hud.energyTicker[0]&&state.time<state.hud.energyTickerUntil){const std::string ticker=state.hud.energyTicker.data();const float scale=1.35f,tw=ticker.size()*6*scale,pw=std::max(118.0f,tw+16.0f),px=(width_-pw)*0.5f;const int type=state.hud.energyTickerType;const VisualColor tickerColor=type==1?VisualIdentity::Copper:(type==0?VisualIdentity::SignalGreen:VisualIdentity::ElectricCyan);quad(px,72,pw,18,0,0,0,0.54f);quad(px,72,pw,1,tickerColor.r,tickerColor.g,tickerColor.b,0.72f);text(ticker,(width_-tw)*0.5f,77,scale,tickerColor.r,tickerColor.g,tickerColor.b);}
     if(state.player.grabbedByTarget>=0){const std::string hint="WIGGLE  A  D";const float s=1.7f;text(hint,(width_-hint.size()*6*s)*0.5f,height_*0.69f,s,1.0f,0.82f,0.68f,0.94f);}
     if(state.player.downed){const std::string hint="SIGNAL DOWN  "+std::to_string(static_cast<int>(std::ceil(state.player.bleedoutTimer)));const float s=1.8f;text(hint,(width_-hint.size()*6*s)*0.5f,height_*0.55f,s,1.0f,0.48f,0.42f,0.96f);}
@@ -1386,7 +1394,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         else drawBox(phonePos,{PHONE_BODY_WIDTH*pv.bodyScale.x,PHONE_BODY_HEIGHT*pv.bodyScale.y,PHONE_BODY_DEPTH},phoneOrientation,VisualIdentity::PhoneBody.r,VisualIdentity::PhoneBody.g,VisualIdentity::PhoneBody.b);
         const float glow=std::min(1.0f,0.45f+pv.screenGlow*0.36f);
         drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*pv.screenScale.x,PHONE_SCREEN_HEIGHT*pv.screenScale.y,PHONE_SCREEN_DEPTH},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);
-        if(state.phoneDisplay.interactive||state.cinematic.introActive) drawPhoneDisplayTexture(state);
+        if(state.phoneDisplay.mode!=PhoneDisplayMode::Off&&state.phoneDisplay.mode!=PhoneDisplayMode::Death)
+            drawPhoneDisplayTexture(state);
     }
     if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){const auto& pv=peer.phoneVisual;if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,pv.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0.32f,0.86f,1.0f);drawBox(peer.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH,PHONE_SCREEN_HEIGHT,PHONE_SCREEN_DEPTH},peer.phoneTransform.orientation,0.05f,0.55f,0.78f);}
 
