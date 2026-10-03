@@ -279,6 +279,17 @@ int main(){
     }
     Game normal;normal.reset();
     if(normal.state().roomInspector||normal.state().traversalLab||normal.state().roomIndex!=1||normal.state().roomSeed!=12345){std::fprintf(stderr,"TRAVERSAL_CALIBRATION_FAIL normal solo startup inherited developer state\n");return 1;}
+    int standardInitialRooms=0;
+    for(int sample=0;sample<64;++sample){
+        const auto normalPlan=room_environment::roomPlan(normal.state().roomSeed,normal.state().roomIndex);
+        if(normalPlan.scale==room_environment::RoomScale::Standard){
+            ++standardInitialRooms;
+            if(activeEnemyIntersectsCollider(normal.state())){std::fprintf(stderr,"TRAVERSAL_CALIBRATION_FAIL standard room seed=%d index=%d placed an initial enemy inside production geometry\n",normal.state().roomSeed,normal.state().roomIndex);return 1;}
+        }
+        if(sample%4==3)normal.debugNextRoom();else normal.debugRerollRoom();
+    }
+    if(standardInitialRooms<8){std::fprintf(stderr,"TRAVERSAL_CALIBRATION_FAIL standard initial-room collision corpus too small count=%d\n",standardInitialRooms);return 1;}
+    std::printf("STANDARD_INITIAL_ENEMY_PLACEMENT_OK rooms=%d samples=64\n",standardInitialRooms);
     Game inspector;inspector.debugStartRoomInspector();bool sawPhysicalPlayground=false,sawPhysicalFunnel=false;int physicalPlaygroundSeed=0,physicalFunnelSeed=0;
     for(int premiseIndex=0;premiseIndex<static_cast<int>(room_environment::RoomPremise::Count);++premiseIndex){
         const GameState& state=inspector.state();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
