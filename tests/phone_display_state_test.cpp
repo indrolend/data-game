@@ -68,6 +68,19 @@ void expectSelectableHit(const PhoneDisplayMenuLayout& layout, int selection) {
 } // namespace
 
 int main() {
+    const Vec3 controlsAccent=phoneDisplayModeAccent(PhoneDisplayMode::Controls);
+    const Vec3 audioAccent=phoneDisplayModeAccent(PhoneDisplayMode::Audio);
+    const Vec3 graphicsAccent=phoneDisplayModeAccent(PhoneDisplayMode::Graphics);
+    assert(controlsAccent.y>controlsAccent.x&&controlsAccent.z>controlsAccent.x);
+    assert(audioAccent.x>audioAccent.y&&audioAccent.z>audioAccent.y);
+    assert(graphicsAccent.x>graphicsAccent.z&&graphicsAccent.y>graphicsAccent.z);
+    PhoneDisplayState transitioning{};
+    transitioning.previousMode=PhoneDisplayMode::Controls;
+    transitioning.mode=PhoneDisplayMode::Audio;
+    transitioning.transitionProgress=0.0f;
+    assert(length(phoneDisplayResolvedAccent(transitioning)-controlsAccent)<0.001f);
+    transitioning.transitionProgress=1.0f;
+    assert(length(phoneDisplayResolvedAccent(transitioning)-audioAccent)<0.001f);
     Game game;
     game.prepareAttractScreen();
     assert(game.state().attractMode);

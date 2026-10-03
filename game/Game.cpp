@@ -2452,6 +2452,8 @@ void Game::updatePhoneDisplay(float dt) {
     const Vec3 copper{0.70f, 0.34f, 0.18f};
     const Vec3 white{0.90f, 0.98f, 1.0f};
     Vec3 color = mix3(baseCyan, activeCyan, display.brightness);
+    const Vec3 channelAccent=phoneDisplayResolvedAccent(display);
+    color=mix3(color,channelAccent,menuMode?0.30f:0.08f);
     color = mix3(color, copper, finiteClamped(display.lowBatteryPulse, 0.0f, 1.0f) * 0.42f);
     color = mix3(color, white, finiteClamped(discharge + display.capturePulse, 0.0f, 1.0f) * 0.22f);
     const Vec3 magenta{VisualIdentity::ElectricMagenta.r, VisualIdentity::ElectricMagenta.g, VisualIdentity::ElectricMagenta.b};

@@ -551,11 +551,12 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
 
     const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuTextWidth);
     const float stencilAge=phone_stencil::appearanceAge(display.transitionProgress);
+    const Vec3 resolvedAccent=phoneDisplayResolvedAccent(display);
+    const VisualColor channelAccent{resolvedAccent.x,resolvedAccent.y,resolvedAccent.z};
     if (!layout.breadcrumb.empty()) {
         const float breadcrumbPx=fitPhoneDisplayTextPx(layout.breadcrumb,32.0f,layout.header.w,false,cpuTextWidth);
         cpuStencilText(canvas,layout.breadcrumb,layout.safe.x,layout.header.y+breadcrumbPx,
-            breadcrumbPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,
-            VisualIdentity::MetallicTeal.b,0.72f,stencilAge);
+            breadcrumbPx,channelAccent.r,channelAccent.g,channelAccent.b,0.76f,stencilAge);
     }
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
@@ -609,7 +610,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             const float railBottom=row.baselineY-row.fontPx*0.20f;
             const float response=clampf(state.cinematic.textInteraction,0.0f,1.0f);
             const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
-                (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:VisualIdentity::ElectricCyan);
+                (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:channelAccent);
             cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
                 focusColor.r,focusColor.g,focusColor.b,0.055f+response*0.045f);
             if(railBottom>railTop)cpuRect(canvas,markerX+3.0f,railTop,2.0f,railBottom-railTop,
@@ -629,15 +630,15 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
                 const float trackW=150.0f,trackH=row.horizontal==PhoneMenuHorizontal::Toggle?8.0f:5.0f;
                 const float trackX=row.valueRightX-trackW,trackY=row.baselineY+13.0f;
                 cpuRect(canvas,trackX,trackY,trackW,trackH,VisualIdentity::DeepPlum.r,VisualIdentity::DeepPlum.g,VisualIdentity::DeepPlum.b,0.58f);
-                const VisualColor fill=selected?VisualIdentity::AcidChartreuse:VisualIdentity::MetallicTeal;
+                const VisualColor fill=selected?channelAccent:VisualIdentity::MetallicTeal;
                 cpuRect(canvas,trackX,trackY,std::max(trackH,trackW*amount),trackH,fill.r,fill.g,fill.b,selected?0.94f:0.62f);
                 const float thumbX=trackX+clampf(amount,0.0f,1.0f)*(trackW-trackH);
                 cpuRect(canvas,thumbX,trackY-2.0f,trackH,trackH+4.0f,fill.r,fill.g,fill.b,selected?1.0f:0.76f);
             }
             if(selected&&row.horizontal==PhoneMenuHorizontal::Adjust){
                 constexpr float size=7.0f;
-                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.92f);
-                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.92f);
+                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,channelAccent.r,channelAccent.g,channelAccent.b,0.92f);
+                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,channelAccent.r,channelAccent.g,channelAccent.b,0.92f);
             }
         } else {
             const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;
@@ -649,8 +650,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     if (!layout.navigationHint.empty()) {
         const float hintPx=fitPhoneDisplayTextPx(layout.navigationHint,26.0f,layout.safe.w,false,cpuTextWidth);
         cpuStencilText(canvas,layout.navigationHint,layout.logicalW*0.5f,layout.logicalH-66.0f,
-            hintPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,
-            VisualIdentity::MetallicTeal.b,0.68f,stencilAge,true);
+            hintPx,channelAccent.r,channelAccent.g,channelAccent.b,0.62f,stencilAge,true);
     }
 }
 
