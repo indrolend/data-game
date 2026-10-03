@@ -551,6 +551,13 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
 
     const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuTextWidth);
     const float stencilAge=phone_stencil::appearanceAge(display.transitionProgress);
+    const Vec3 resolvedAccent=phoneDisplayResolvedAccent(display);
+    const VisualColor channelAccent{resolvedAccent.x,resolvedAccent.y,resolvedAccent.z};
+    if (!layout.breadcrumb.empty()) {
+        const float breadcrumbPx=fitPhoneDisplayTextPx(layout.breadcrumb,32.0f,layout.header.w,false,cpuTextWidth);
+        cpuStencilText(canvas,layout.breadcrumb,layout.safe.x,layout.header.y+breadcrumbPx,
+            breadcrumbPx,channelAccent.r,channelAccent.g,channelAccent.b,0.76f,stencilAge);
+    }
     if (!layout.title.empty()) {
         if (layout.paletteTitle) {
             float pen = layout.logicalW * 0.5f - cpuTextWidth(layout.title, layout.titlePx, true) * 0.5f;
@@ -596,27 +603,54 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,VisualIdentity::MetallicTeal.r,VisualIdentity::MetallicTeal.g,VisualIdentity::MetallicTeal.b,0.62f,stencilAge);
             continue;
         }
+        const PhoneMenuEmphasis emphasis=phoneMenuEmphasis(row.action);
         if (selected) {
             const float markerX = (state.dead && row.action == PhoneMenuAction::Restart) ? layout.logicalW * 0.5f - cpuTextWidth(row.label, row.fontPx, true) * 0.5f - 34.0f : row.labelX - 34.0f;
-            cpuRect(canvas, markerX, row.baselineY - row.fontPx * 0.36f, 8.0f, 8.0f, VisualIdentity::ElectricCyan.r, VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, 0.94f);
+            const float railTop=layout.header.y+layout.header.h-8.0f;
+            const float railBottom=row.baselineY-row.fontPx*0.20f;
+            const float response=clampf(state.cinematic.textInteraction,0.0f,1.0f);
+            const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
+                (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:channelAccent);
+            cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
+                focusColor.r,focusColor.g,focusColor.b,0.055f+response*0.045f);
+            if(railBottom>railTop)cpuRect(canvas,markerX+3.0f,railTop,2.0f,railBottom-railTop,
+                focusColor.r,focusColor.g,focusColor.b,0.24f);
+            cpuRect(canvas, markerX, row.baselineY - row.fontPx * 0.36f, 8.0f+response*3.0f, 8.0f,
+                focusColor.r,focusColor.g,focusColor.b,0.94f);
         }
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
-            cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge);
+            const VisualColor labelColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f};
+            cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,labelColor.r,labelColor.g,labelColor.b,alpha,stencilAge);
             const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
             cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?VisualIdentity::AcidChartreuse.r:VisualIdentity::MetallicTeal.r,selected?VisualIdentity::AcidChartreuse.g:VisualIdentity::MetallicTeal.g,selected?VisualIdentity::AcidChartreuse.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
+            const float amount=phoneMenuVisualAmount(row.action,state.localSettings);
+            if(amount>=0.0f){
+                const float trackW=150.0f,trackH=row.horizontal==PhoneMenuHorizontal::Toggle?8.0f:5.0f;
+                const float trackX=row.valueRightX-trackW,trackY=row.baselineY+13.0f;
+                cpuRect(canvas,trackX,trackY,trackW,trackH,VisualIdentity::DeepPlum.r,VisualIdentity::DeepPlum.g,VisualIdentity::DeepPlum.b,0.58f);
+                const VisualColor fill=selected?channelAccent:VisualIdentity::MetallicTeal;
+                cpuRect(canvas,trackX,trackY,std::max(trackH,trackW*amount),trackH,fill.r,fill.g,fill.b,selected?0.94f:0.62f);
+                const float thumbX=trackX+clampf(amount,0.0f,1.0f)*(trackW-trackH);
+                cpuRect(canvas,thumbX,trackY-2.0f,trackH,trackH+4.0f,fill.r,fill.g,fill.b,selected?1.0f:0.76f);
+            }
             if(selected&&row.horizontal==PhoneMenuHorizontal::Adjust){
-                const int palettePhase=static_cast<int>(std::floor(state.time*8.0f));
-                const VisualColor leftColor=VisualIdentity::DataMosaicPalette[palettePhase%25];
-                const VisualColor rightColor=VisualIdentity::DataMosaicPalette[(palettePhase+5)%25];
                 constexpr float size=7.0f;
-                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,leftColor.r,leftColor.g,leftColor.b,0.92f);
-                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,rightColor.r,rightColor.g,rightColor.b,0.92f);
+                cpuRect(canvas,valueLeft-17.0f,row.baselineY-size*0.78f,size,size,channelAccent.r,channelAccent.g,channelAccent.b,0.92f);
+                cpuRect(canvas,row.valueRightX+10.0f,row.baselineY-size*0.78f,size,size,channelAccent.r,channelAccent.g,channelAccent.b,0.92f);
             }
         } else {
-            const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f,alpha,stencilAge,centered);
+            const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;
+            const VisualColor actionColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
+                (selected&&emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f});
+            cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,actionColor.r,actionColor.g,actionColor.b,alpha,stencilAge,centered);
         }
+    }
+    if (!layout.navigationHint.empty()) {
+        const float hintPx=fitPhoneDisplayTextPx(layout.navigationHint,26.0f,layout.safe.w,false,cpuTextWidth);
+        cpuStencilText(canvas,layout.navigationHint,layout.logicalW*0.5f,layout.logicalH-66.0f,
+            hintPx,channelAccent.r,channelAccent.g,channelAccent.b,0.62f,stencilAge,true);
     }
 }
 
@@ -840,8 +874,19 @@ void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_e
     const Vec3 attackLunge=attackForward*(target.attackTimer>0?reach*0.075f*target.scale:0.0f);
     const Vec3 root{target.pos.x+attackLunge.x,target.pos.y+(target.attackTimer>0?std::sin(attackT*PI)*0.024f*low:0),target.pos.z+attackLunge.z};
     const float matrix[16]={1-2*(rootQ.y*rootQ.y+rootQ.z*rootQ.z),2*(rootQ.x*rootQ.y+rootQ.z*rootQ.w),2*(rootQ.x*rootQ.z-rootQ.y*rootQ.w),0,2*(rootQ.x*rootQ.y-rootQ.z*rootQ.w),1-2*(rootQ.x*rootQ.x+rootQ.z*rootQ.z),2*(rootQ.y*rootQ.z+rootQ.x*rootQ.w),0,2*(rootQ.x*rootQ.z+rootQ.y*rootQ.w),2*(rootQ.y*rootQ.z-rootQ.x*rootQ.w),1-2*(rootQ.x*rootQ.x+rootQ.y*rootQ.y),0,0,0,0,1};
-    const VisualColor base{humanModel_.color[0],humanModel_.color[1],humanModel_.color[2]};const VisualColor damageColor=humanDamageSurfaceColor(base,setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
-    const bool parryCue=target.attackTimer>0&&attackT>=0.22f&&attackT<=0.46f;const float cue=parryCue?(0.10f+0.05f*std::sin(time*28.0f)):0.0f;const float cueColor[4]={damageColor.r+(0.55f-damageColor.r)*cue,damageColor.g+(0.96f-damageColor.g)*cue,damageColor.b+(1.0f-damageColor.b)*cue,humanModel_.color[3]};
+    // Model-file materials are deliberately not authoritative here: the source
+    // asset is pale and made enemies read as unstyled mannequins. Gameplay
+    // actors belong to Data's dark shell / bright signal value hierarchy.
+    const VisualColor base=target.brute?VisualIdentity::BruteEnemy:VisualIdentity::NormalEnemy;const VisualColor damageColor=humanDamageSurfaceColor(base,setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
+    const auto& reaction=target.visualReaction;
+    const float searchSignal=reaction.searchAmount*reaction.awareness*(0.12f+reaction.uncertainty*0.10f);
+    const float threatSignal=reaction.commitment*reaction.awareness*0.22f;
+    const float fractureSignal=reaction.disruption*0.16f;
+    const VisualColor signalColor{
+        damageColor.r+(VisualIdentity::ElectricCyan.r-damageColor.r)*searchSignal+(VisualIdentity::ElectricMagenta.r-damageColor.r)*threatSignal+(VisualIdentity::WarmGold.r-damageColor.r)*fractureSignal,
+        damageColor.g+(VisualIdentity::ElectricCyan.g-damageColor.g)*searchSignal+(VisualIdentity::ElectricMagenta.g-damageColor.g)*threatSignal+(VisualIdentity::WarmGold.g-damageColor.g)*fractureSignal,
+        damageColor.b+(VisualIdentity::ElectricCyan.b-damageColor.b)*searchSignal+(VisualIdentity::ElectricMagenta.b-damageColor.b)*threatSignal+(VisualIdentity::WarmGold.b-damageColor.b)*fractureSignal};
+    const bool parryCue=target.attackTimer>0&&attackT>=0.22f&&attackT<=0.46f;const float cue=parryCue?(0.10f+0.05f*std::sin(time*28.0f)):0.0f;const float cueColor[4]={signalColor.r+(0.55f-signalColor.r)*cue,signalColor.g+(0.96f-signalColor.g)*cue,signalColor.b+(1.0f-signalColor.b)*cue,humanModel_.color[3]};
     glPushMatrix();glTranslatef(root.x,root.y,root.z);glMultMatrixf(matrix);glScalef(pose.scale*pose.expressiveScale.x,pose.scale*pose.expressiveScale.y,pose.scale*pose.expressiveScale.z);if(shadow)glColor4f(0.012f,0.018f,0.022f,0.28f);else gradedColor(cueColor[0],cueColor[1],cueColor[2],cueColor[3]);glBegin(GL_TRIANGLES);
     const float thinning=humanShellThinningAmount(target.armor,target.brute?4.0f:2.0f,target.slurpable);
     for(std::size_t i=0;i+8<humanVertices_.size();i+=9){const std::size_t triangle=i/9;const Vec3 rawA{humanVertices_[i],humanVertices_[i+1],humanVertices_[i+2]},rawB{humanVertices_[i+3],humanVertices_[i+4],humanVertices_[i+5]},rawC{humanVertices_[i+6],humanVertices_[i+7],humanVertices_[i+8]},center=(rawA+rawB+rawC)*(1.0f/3.0f);if(humanShellTriangleMissingTowardCrit(triangle,thinning,center))continue;const Vec3 a=humanShellAbsorbTowardCrit(rawA,triangle,thinning),b=humanShellAbsorbTowardCrit(rawB,triangle,thinning),c=humanShellAbsorbTowardCrit(rawC,triangle,thinning),n=normalized(cross3(b-a,c-a));glNormal3f(n.x,n.y,n.z);glVertex3f(a.x,a.y,a.z);glVertex3f(b.x,b.y,b.z);glVertex3f(c.x,c.y,c.z);}glEnd();glPopMatrix();
@@ -1298,7 +1343,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f);
     if(!menuPresentation){
     const float shadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;if(!target.slurpable)drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.18f);else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f);}
+    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f);}
     for(const auto& flower:state.flowers)if(flower.active)drawGroundShadow({flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin},0.27f,0.27f,0.72f,0.16f);
     for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f);}
     // Static room geometry already provides the receiving floor and its own
