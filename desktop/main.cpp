@@ -613,10 +613,9 @@ void setMenuSelection(HostState& host,int selection) {
 
     GameState& state=host.game.networkMutableState();
 
-    // The two-choice death menu must not wrap. A tiny repeated stick,
-    // key, or mouse movement should stop at Again?/Quit rather than
-    // cycling through both choices.
-    const bool boundedList=state.dead||(!state.upgradeMenu.active&&makePhoneMenuPageModel(state).tablePage);
+    // Death remains deliberately bounded. Ordinary phone lists wrap so the
+    // physical device never develops a dead navigation edge.
+    const bool boundedList=state.dead;
     const int next=dbmenu::linearSelection(selection,count,!boundedList);
 
     // Ignore repeated hover and held-input reports for the same row.

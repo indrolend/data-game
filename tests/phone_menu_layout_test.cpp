@@ -100,8 +100,8 @@ int main() {
     state.localSettings.menuScroll = 0.0f;
     PhoneMenuPageViewModel controlsModel = makePhoneMenuPageModel(state);
     assert(controlsModel.tablePage);
-    assert(controlsModel.selectableCount == 15);
-    assert(controlsModel.elementCount == 18);
+    assert(controlsModel.selectableCount == 14);
+    assert(controlsModel.elementCount == 17);
     assert(controlsModel.elements[0].kind == PhoneMenuRowKind::Section);
     assert(!controlsModel.elements[0].selectable);
     assert(selectionElement(controlsModel, 0).bindingAction == 0);
@@ -118,12 +118,11 @@ int main() {
     assert(selectionElement(controlsModel, 11).horizontal == PhoneMenuHorizontal::Cycle);
     assert(selectionElement(controlsModel, 12).horizontal == PhoneMenuHorizontal::Cycle);
     assert(selectionElement(controlsModel, 13).action == PhoneMenuAction::Defaults);
-    assert(selectionElement(controlsModel, 14).action == PhoneMenuAction::Back);
 
     PhoneDisplayMenuLayout controlsTop = makePhoneDisplayMenuLayout(state);
-    assert(controlsTop.title == "Controls");
-    assert(controlsTop.selectableCount == 15);
-    assert(controlsTop.rowCount == 18);
+    assert(controlsTop.title.empty());
+    assert(controlsTop.selectableCount == 14);
+    assert(controlsTop.rowCount == 17);
     assert(controlsTop.maxScroll > 0.0f);
     assert(!phoneDisplayHasMoreAbove(controlsTop));
     assert(phoneDisplayHasMoreBelow(controlsTop));
@@ -132,7 +131,6 @@ int main() {
     assert(controlsTop.rows[11].kind == PhoneMenuRowKind::Section);
     assert(selectionRow(controlsTop, 0).action == PhoneMenuAction::Rebind);
     assert(selectionRow(controlsTop, 0).horizontal == PhoneMenuHorizontal::None);
-    assert(phoneDisplayRowForSelection(controlsTop, 14)->fixedFooter);
     bool hasBottomPeek = false;
     for (int i = 0; i < controlsTop.rowCount; ++i) {
         const PhoneDisplayMenuRow& row = controlsTop.rows[i];
@@ -148,8 +146,6 @@ int main() {
     assert(phoneDisplayHasMoreAbove(controlsBottom));
     assert(!phoneDisplayHasMoreBelow(controlsBottom));
     assert(selectionRow(controlsBottom, 13).action == PhoneMenuAction::Defaults);
-    assert(selectionRow(controlsBottom, 14).action == PhoneMenuAction::Back);
-    assert(phoneDisplayScrollForSelection(controlsBottom, 14) == controlsBottom.scrollOffset);
     expectVisibleRowsInsideSafe(controlsBottom);
 
     state.localSettings.menuPage = LocalMenuPage::Audio;
@@ -160,7 +156,9 @@ int main() {
     assert(selectionElement(audioModel, 0).horizontal == PhoneMenuHorizontal::Adjust);
     assert(selectionElement(audioModel, 2).horizontal == PhoneMenuHorizontal::Toggle);
     PhoneDisplayMenuLayout audio = makePhoneDisplayMenuLayout(state);
-    assert(audio.selectableCount == 5);
+    assert(audio.title.empty());
+    assert(audio.navigationHint.empty());
+    assert(audio.selectableCount == 4);
     assert(selectionRow(audio, 2).label == "Music");
     assert(selectionRow(audio, 2).value == "On");
     assert(selectionRow(audio, 3).label == "Effects");
@@ -182,7 +180,9 @@ int main() {
     applyPhoneGraphicsPreset(state.localSettings, 2);
     assert(state.localSettings.graphicsPreset == 2 && state.localSettings.shadows && state.localSettings.portalWindow && state.localSettings.particles);
     PhoneDisplayMenuLayout graphics = makePhoneDisplayMenuLayout(state);
-        assert(graphics.selectableCount == 5);
+    assert(graphics.title.empty());
+    assert(graphics.navigationHint.empty());
+    assert(graphics.selectableCount == 4);
     assert(selectionRow(graphics, 1).label == "Shadows");
     assert(selectionRow(graphics, 1).value == "On");
     assert(selectionRow(graphics, 3).label == "Frame Rate");
@@ -196,12 +196,11 @@ int main() {
 
     state.localSettings.menuPage = LocalMenuPage::JoinCode;
     PhoneMenuPageViewModel joinModel = makePhoneMenuPageModel(state);
-    assert(joinModel.selectableCount == 1);
+    assert(joinModel.selectableCount == 0);
     assert(joinModel.joinCode);
     PhoneDisplayMenuLayout join = makePhoneDisplayMenuLayout(state);
-    assert(join.selectableCount == 1);
+    assert(join.selectableCount == 0);
     assert(join.joinCode);
-    assert(selectionRow(join, 0).fixedFooter);
 
     state.dead = true;
     state.started = false;

@@ -213,7 +213,7 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     } else if (state.dead) {
         page.title = "";
     } else if (pausedSolo && state.localSettings.menuPage == LocalMenuPage::Main) {
-        page.title = "PAUSED";
+        page.title = "";
         addPhoneMenuItem(page, "Resume", PhoneMenuAction::Resume);
         addPhoneMenuItem(page, "Controls", PhoneMenuAction::Controls);
         addPhoneMenuItem(page, "Audio", PhoneMenuAction::Audio);
@@ -243,19 +243,16 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
             addPhoneMenuItem(page, "Host Game", PhoneMenuAction::Host);
             addPhoneMenuItem(page, "Join Game", PhoneMenuAction::Join);
         }
-        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else if (state.localSettings.menuPage == LocalMenuPage::JoinCode) {
         page.title = "Enter Code";
         page.joinCode = true;
-        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else if (state.localSettings.menuPage == LocalMenuPage::Settings) {
-        page.title = "Settings";
+        page.title = "";
         addPhoneMenuItem(page, "Controls", PhoneMenuAction::Controls);
         addPhoneMenuItem(page, "Audio", PhoneMenuAction::Audio);
         addPhoneMenuItem(page, "Graphics", PhoneMenuAction::Graphics);
-        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else if (state.localSettings.menuPage == LocalMenuPage::Controls) {
-        page.title = "Controls";
+        page.title = "";
         page.tablePage = true;
         addPhoneMenuSection(page, "Movement");
         addPhoneMenuValue(page, "Forward", phoneMenuKeyName(state.localSettings.keyboardBindings[0]), PhoneMenuAction::Rebind, 0);
@@ -274,46 +271,26 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         addPhoneMenuValue(page, "Triggers", phoneMenuTriggerSensitivityName(state.localSettings.controllerTriggerSensitivity), PhoneMenuAction::AdjustTriggers);
         addPhoneMenuValue(page, "Vibration", phoneMenuVibrationName(state.localSettings.controllerVibration), PhoneMenuAction::AdjustVibration);
         addPhoneMenuItem(page, "Reset Controls", PhoneMenuAction::Defaults);
-        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else if (state.localSettings.menuPage == LocalMenuPage::Audio) {
-        page.title = "Audio";
+        page.title = "";
         page.tablePage = true;
         addPhoneMenuValue(page, "Music Level", std::to_string(phoneMenuPercent(state.localSettings.musicVolume)) + "%", PhoneMenuAction::MusicVolume);
         addPhoneMenuValue(page, "Effects Level", std::to_string(phoneMenuPercent(state.localSettings.sfxVolume)) + "%", PhoneMenuAction::SfxVolume);
         addPhoneMenuToggle(page, "Music", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
         addPhoneMenuToggle(page, "Effects", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
-        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     } else {
         const char* presets[] = {"Low", "Normal", "Pretty"};
-        page.title = "Graphics";
+        page.title = "";
         page.tablePage = true;
         addPhoneMenuValue(page, "Preset", presets[std::max(0, std::min(2, state.localSettings.graphicsPreset))], PhoneMenuAction::GraphicsPreset);
         addPhoneMenuToggle(page, "Shadows", state.localSettings.shadows, PhoneMenuAction::ToggleShadows);
         addPhoneMenuToggle(page, "Particles", state.localSettings.particles, PhoneMenuAction::ToggleParticles);
         addPhoneMenuToggle(page, "Frame Rate", state.localSettings.fpsCounter, PhoneMenuAction::ToggleFps);
-        addPhoneMenuItem(page, "Back", PhoneMenuAction::Back);
     }
-    if (!state.dead) {
-        const PhoneMenuElement* selected = nullptr;
-        int selectableIndex = 0;
-        for (int i = 0; i < page.elementCount; ++i) {
-            if (!page.elements[i].selectable) continue;
-            if (selectableIndex++ == state.hud.menuSelection) { selected = &page.elements[i]; break; }
-        }
-        if (state.localSettings.rebindingAction >= 0) {
-            page.navigationHint = "PRESS A KEY   ESC / B  CANCEL";
-        } else if (selected && selected->horizontal != PhoneMenuHorizontal::None) {
-            if (selected->horizontal == PhoneMenuHorizontal::Adjust) {
-                page.navigationHint = "LEFT / RIGHT  ADJUST";
-            } else if (selected->horizontal == PhoneMenuHorizontal::Cycle) {
-                page.navigationHint = "LEFT / RIGHT  CHANGE";
-            } else {
-                page.navigationHint = "ENTER / A  TOGGLE";
-            }
-        } else {
-            page.navigationHint.clear();
-        }
-    }
+    // Ordinary phone pages communicate through layout and direct response.
+    // Only the exceptional key-capture state needs explicit instruction.
+    if (!state.dead && state.localSettings.rebindingAction >= 0)
+        page.navigationHint = "PRESS A KEY";
     return page;
 }
 

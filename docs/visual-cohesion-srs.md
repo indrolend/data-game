@@ -227,6 +227,30 @@ These decisions establish a coherent default and may be revised through playtest
 - Controls: conventional and dependable.
 - Feedback: distinctive, physical, and behaviorally expressive.
 
+### 8.1 Ratified player direction — October 3, 2026
+
+The governing art-direction shorthand is **maximal world, minimal interface,
+disciplined attention**.
+
+- Richness belongs in world composition, material response, light, physical
+  behavior, sound, and transitions rather than redundant interface copy.
+- Only the currently meaningful system may escalate into a dominant cue.
+- Ordinary menus contain no redundant page title, persistent help copy, or
+  selectable Back row. Their content, response, and platform-standard edge-back
+  action must be sufficient.
+- Reflex-critical battery state remains glanceable in a minimal HUD. Detailed
+  state remains on the deliberately inspectable physical phone.
+- Enemy behavior leads communication. Glyphs reinforce actionable timing or
+  impact and remain absent from idle enemies.
+- Quiet spaces retain authored color, composition, materials, and subtle life;
+  they remove decorative motion and particles rather than becoming visually
+  unfinished.
+- Signature spectacle is tiered. Exceptional execution or context may elevate
+  an ordinary capture, while repetition must not flatten every event into the
+  same maximum treatment.
+- Lower graphics presets reduce count and precision before discarding the
+  characteristic material, lighting, timing, and particle identity of Data.
+
 ## 9. Semantic visual roles
 
 Exact values may evolve, but the meanings shall remain stable:

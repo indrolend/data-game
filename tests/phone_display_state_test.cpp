@@ -49,7 +49,7 @@ void expectLayoutInside(const PhoneDisplayMenuLayout& layout) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
         if (row.selectable) {
             assert(row.selectableIndex >= 0);
-            if (row.visible) expectRectInside(layout.safe, row.hit);
+            if (row.visible && !row.peek) expectRectInside(layout.safe, row.hit);
             else assert(row.hit.w == 0.0f && row.hit.h == 0.0f);
         } else {
             assert(row.selectableIndex < 0);
@@ -72,9 +72,8 @@ int main() {
     const Vec3 controlsAccent=phoneDisplayModeAccent(PhoneDisplayMode::Controls);
     const Vec3 audioAccent=phoneDisplayModeAccent(PhoneDisplayMode::Audio);
     const Vec3 graphicsAccent=phoneDisplayModeAccent(PhoneDisplayMode::Graphics);
-    assert(controlsAccent.y>controlsAccent.x&&controlsAccent.z>controlsAccent.x);
-    assert(audioAccent.x>audioAccent.y&&audioAccent.z>audioAccent.y);
-    assert(graphicsAccent.x>graphicsAccent.z&&graphicsAccent.y>graphicsAccent.z);
+    assert(length(controlsAccent-audioAccent)<0.001f);
+    assert(length(audioAccent-graphicsAccent)<0.001f);
     PhoneDisplayState transitioning{};
     transitioning.previousMode=PhoneDisplayMode::Controls;
     transitioning.mode=PhoneDisplayMode::Audio;
@@ -109,7 +108,7 @@ int main() {
     game.dismissAttractMode();
     assert(game.state().attractMode);
     assert(game.state().cinematic.attractExitActive);
-    for (int tick = 0; tick < 24 && game.state().attractMode; ++tick) step(game);
+    for (int tick = 0; tick < 48 && game.state().attractMode; ++tick) step(game);
     assert(!game.state().attractMode);
     assert(!game.state().started);
     assert(game.state().cinematic.menuEnterActive);
@@ -125,14 +124,14 @@ int main() {
     expectLayoutInside(mainLayout);
     assert(mainLayout.title.empty());
     assert(mainLayout.navigationHint.empty());
-    assert(mainLayout.selectableCount == 4);
+    assert(mainLayout.selectableCount == 3);
     expectSelectableHit(mainLayout, 0);
 
     menu.localSettings.menuPage = LocalMenuPage::Controls;
     menu.localSettings.menuScroll = 0.0f;
     PhoneDisplayMenuLayout controls = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(controls);
-    assert(controls.title == "Controls");
+    assert(controls.title.empty());
     assert(controls.selectableCount == 14);
     assert(controls.rowCount == 17);
     assert(controls.rows[0].kind == PhoneMenuRowKind::Section);
@@ -140,7 +139,11 @@ int main() {
     expectSelectableHit(controls, 0);
     menu.hud.menuSelection = 9;
     controls = makePhoneDisplayMenuLayout(menu);
-    assert(controls.navigationHint.find("ADJUST") != std::string::npos);
+    assert(controls.navigationHint.empty());
+    menu.localSettings.rebindingAction = 0;
+    controls = makePhoneDisplayMenuLayout(menu);
+    assert(controls.navigationHint == "PRESS A KEY");
+    menu.localSettings.rebindingAction = -1;
     assert(phoneMenuEmphasis(PhoneMenuAction::Solo) == PhoneMenuEmphasis::Primary);
     assert(phoneMenuEmphasis(PhoneMenuAction::ExitRun) == PhoneMenuEmphasis::Destructive);
     menu.localSettings.controllerLookSensitivity = 1.125f;

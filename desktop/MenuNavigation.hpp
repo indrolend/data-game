@@ -32,8 +32,9 @@ inline bool menuRepeatMove(
         state.lastMoveAt = now;
         return true;
     }
-    if (now - state.startedAt < initialDelay ||
-        now - state.lastMoveAt < repeatInterval) return false;
+    constexpr double thresholdEpsilon = 1e-9;
+    if (now - state.startedAt + thresholdEpsilon < initialDelay ||
+        now - state.lastMoveAt + thresholdEpsilon < repeatInterval) return false;
     state.lastMoveAt = now;
     return true;
 }
