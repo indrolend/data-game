@@ -323,6 +323,10 @@ add_executable(RoomEnvironmentTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_envir
 target_include_directories(RoomEnvironmentTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RoomEnvironmentTest PRIVATE cxx_std_17)
 
+add_executable(ComputedSceneObjectsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/computed_scene_objects_test.cpp")
+target_include_directories(ComputedSceneObjectsTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(ComputedSceneObjectsTest PRIVATE cxx_std_17)
+
 add_executable(MaterialResponseTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/material_response_test.cpp")
 target_include_directories(MaterialResponseTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(MaterialResponseTest PRIVATE cxx_std_17)
@@ -475,6 +479,7 @@ add_test(NAME PhoneStencilRevealTest COMMAND PhoneStencilRevealTest)
 add_test(NAME MenuNavigationTest COMMAND MenuNavigationTest)
 add_test(NAME PhoneDisplayStateTest COMMAND PhoneDisplayStateTest)
 add_test(NAME RoomEnvironmentTest COMMAND RoomEnvironmentTest)
+add_test(NAME ComputedSceneObjectsTest COMMAND ComputedSceneObjectsTest)
 add_test(NAME MaterialResponseTest COMMAND MaterialResponseTest)
 add_test(NAME FacetedRockTest COMMAND FacetedRockTest)
 add_test(NAME SlopeSupportTest COMMAND SlopeSupportTest)
