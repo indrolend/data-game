@@ -10,6 +10,7 @@
 #include "ControllerRumble.hpp"
 #include "ControllerInput.hpp"
 #include "Game.hpp"
+#include "SignalResidue.hpp"
 #include "gameplay/TargetRoles.hpp"
 #include "diagnostics/EnemyEvidenceScenario.hpp"
 #include "PhoneDisplayLayout.hpp"
@@ -1960,6 +1961,7 @@ int main(int argc, char** argv) {
     const bool capturePaused=argValue(argc,argv,"--capture-paused-frame")!=nullptr;
     const bool captureMosh=argValue(argc,argv,"--capture-mosh-frame")!=nullptr;
     const bool capturePhone=argValue(argc,argv,"--capture-phone-frame")!=nullptr;
+    const bool captureResidue=argValue(argc,argv,"--capture-residue-frame")!=nullptr;
     const bool captureMenu=argValue(argc,argv,"--capture-menu-frame")!=nullptr;
     const bool captureSpectator=argValue(argc,argv,"--capture-spectator-frame")!=nullptr;
     const char* captureDemoDir=argValue(argc,argv,"--capture-cpu-demo");
@@ -2001,7 +2003,7 @@ int main(int argc, char** argv) {
     const bool combatRenderStress=hasArg(argc,argv,"--combat-render-stress");
     const bool combatCrowdStress=hasArg(argc,argv,"--combat-crowd-stress");
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
-    const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame")))))))));
+    const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame"))))))))));
     const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory;
     const int windowWidth=std::max(320,std::min(7680,argInt(argc,argv,"--capture-width",1280)));
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
@@ -2149,6 +2151,24 @@ int main(int argc, char** argv) {
         fixture.energy.supplementalValue=20.0f;
         fixture.energy.supplementalMax=80.0f;
         fixture.energy.flowerStacks=2;
+    }
+    if(captureResidue){
+        GameState& fixture=host.game.networkMutableState();
+        for(auto& target:fixture.targets)target.alive=false;
+        fixture.cinematic.introActive=false;
+        fixture.localSettings.particles=true;
+        for(auto& particle:fixture.particles)particle=ParticleState{};
+        constexpr float residueOffsets[signal_residue::FragmentCount][2]={
+            {-0.92f,-1.52f},{-0.36f,-1.17f},{0.28f,-1.44f},{0.86f,-1.02f},
+            {-0.70f,-0.62f},{-0.08f,-0.78f},{0.52f,-0.48f},{1.04f,-0.72f}};
+        for(int i=0;i<signal_residue::FragmentCount;++i){
+            ParticleState& particle=fixture.particles[i];
+            particle.material=ParticleMaterial::SignalResidue;
+            particle.pos=fixture.player.pos+Vec3{residueOffsets[i][0],-fixture.player.pos.y+0.025f,residueOffsets[i][1]};
+            particle.life=7.5f+0.18f*static_cast<float>(i);
+            particle.maxLife=signal_residue::LifetimeSeconds;
+            particle.size=0.13f+0.015f*static_cast<float>(i%4);
+        }
     }
     if(captureSpectator){
         host.game.configureNetworkHost();
@@ -2538,6 +2558,7 @@ int main(int argc, char** argv) {
         if(captureMosh&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.55f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
         if(captureMenuUpgrade&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.62f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
         if(capturePhone){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.camera.pos=fixture.phoneTransform.position+Vec3{0,0.035f,0.38f};fixture.camera.lookTarget=fixture.phoneTransform.position;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
+        if(captureResidue){GameState& fixture=const_cast<GameState&>(host.game.state());const Vec3 focus=fixture.player.pos+Vec3{0,-fixture.player.pos.y+0.05f,-1.35f};fixture.camera.pos=focus+Vec3{0,3.4f,4.8f};fixture.camera.lookTarget=focus;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
         updateOutcomeRumble(host);
         const auto audioBegin=std::chrono::steady_clock::now();
         host.audio.update(host.game.state());

@@ -449,6 +449,13 @@ Implemented first slice:
 1. Validate cognition cues under real play conditions.
 2. Reduce markers where body language is sufficient.
 3. Align reticle, critical opportunity, hit response, lighting, audio, and haptics.
+
+Implemented first material/gameplay slice:
+
+- Convert the established 14-point ingestion reward into 10 immediate charge plus 4 recoverable charge without inflating the economy.
+- Express the recoverable portion as short-lived signal residue that splashes, settles into irregular floor stains, and returns to the phone only under deliberate vacuum input.
+- Keep the raw particle state authoritative for both rendering and recovery so the visual material cannot drift away from its gameplay meaning.
+- Reject bright, identical pickup emblems in favor of dark liquid lobes with restrained embedded signal fragments.
 4. Preserve deterministic combat behavior.
 
 ### Phase E: Death and ending

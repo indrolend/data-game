@@ -1475,7 +1475,39 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         const float t=particle.maxLife>0.0f?clampf(particle.life/particle.maxLife,0.0f,1.0f):0.0f;
         const float size=particle.size*t;
         const VisualColor color=particleMaterialColor(particle.material,room_environment::roomPlan(state.roomSeed,state.roomIndex).setting,t);
-        drawBox(particle.pos,{size,size,size},particle.life*8.0f,particle.life*4.0f,particle.life*6.0f,color.r,color.g,color.b,(particle.material==ParticleMaterial::Environment?0.82f*t:0.9f));
+        if(particle.material==ParticleMaterial::SignalResidue&&particle.pos.y<=0.03f){
+            const float spread=std::max(0.035f,size);
+            const unsigned int seed=(static_cast<unsigned int>(std::fabs(particle.pos.x)*7919.0f)^
+                static_cast<unsigned int>(std::fabs(particle.pos.z)*4733.0f)^
+                static_cast<unsigned int>(std::fabs(particle.pos.y)*104729.0f))*2654435761u;
+            auto hashf=[seed](unsigned int salt){
+                unsigned int h=(seed^(salt*2246822519u))*3266489917u;h^=h>>15;h*=2654435761u;h^=h>>13;
+                return static_cast<float>(h&0xFFFFu)/65535.0f;
+            };
+            const float baseRotation=hashf(1u)*PI*2.0f;
+            const float dr=color.r*0.30f,dg=color.g*0.22f,db=color.b*0.34f;
+            // irregular dark fluid stain: several overlapping, unevenly sized lobes
+            const int lobeCount=4;
+            for(int lobe=0;lobe<lobeCount;++lobe){
+                const float lobeAngle=baseRotation+static_cast<float>(lobe)*(PI*0.5f)+(hashf(10u+static_cast<unsigned int>(lobe))-0.5f)*1.1f;
+                const float lobeRadius=spread*(0.30f+0.55f*hashf(20u+static_cast<unsigned int>(lobe)));
+                const Vec3 lobeOffset{std::cos(lobeAngle)*lobeRadius,0.0f,std::sin(lobeAngle)*lobeRadius};
+                const float lobeW=spread*(0.95f+0.65f*hashf(30u+static_cast<unsigned int>(lobe)));
+                const float lobeD=spread*(0.75f+0.60f*hashf(40u+static_cast<unsigned int>(lobe)));
+                drawBox(particle.pos+lobeOffset,{lobeW,0.010f,lobeD},0,lobeAngle,0,dr,dg,db,0.70f*t);
+            }
+            // restrained embedded signal fragments: small, dim glints, not a bright emblem
+            const int glintCount=3;
+            for(int g=0;g<glintCount;++g){
+                const float glintAngle=baseRotation*1.7f+hashf(50u+static_cast<unsigned int>(g))*PI*2.0f;
+                const float glintRadius=spread*0.4f*hashf(60u+static_cast<unsigned int>(g));
+                const Vec3 glintOffset{std::cos(glintAngle)*glintRadius,0.006f,std::sin(glintAngle)*glintRadius};
+                const float glintSize=spread*(0.12f+0.10f*hashf(70u+static_cast<unsigned int>(g)));
+                drawBox(particle.pos+glintOffset,{glintSize,0.006f,glintSize},0,glintAngle,0,color.r,color.g,color.b,0.38f*t);
+            }
+        } else {
+            drawBox(particle.pos,{size,size,size},particle.life*8.0f,particle.life*4.0f,particle.life*6.0f,color.r,color.g,color.b,(particle.material==ParticleMaterial::Environment?0.82f*t:0.9f));
+        }
     }
     if(state.localSettings.particles||state.localSettings.portalWindow)drawDoorDataMosh(state);
     if(codec&&codec->showColliders){

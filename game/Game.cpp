@@ -1,5 +1,6 @@
 #include "Game.hpp"
 #include "SoulEconomy.hpp"
+#include "SignalResidue.hpp"
 #include "gameplay/PhoneBody.hpp"
 #include "gameplay/SoulMotion.hpp"
 #include "gameplay/TargetRoles.hpp"
@@ -130,7 +131,6 @@ constexpr float HUMAN_ATTACK_BATTERY_COST = 26.0f;
 constexpr float BATTERY_JUMP_COST = 3.0f;
 constexpr float BATTERY_DOUBLE_JUMP_COST = 6.0f;
 constexpr float BATTERY_SHOOT_COST = 7.0f;
-constexpr float BATTERY_CAPTURE_GAIN = 14.0f;
 constexpr float BATTERY_MELEE_HIT_GAIN = 3.5f;
 constexpr float BATTERY_COMBO_GROWTH = 1.22f;
 constexpr float BATTERY_COMBO_TIMEOUT = 1.8f;
@@ -903,6 +903,22 @@ void Game::spawnParticleBurst(const Vec3& position,ParticleMaterial material) {
     }
 }
 
+void Game::spawnSignalResidue(const Vec3& position) {
+    for(int n=0;n<signal_residue::FragmentCount;++n) {
+        ParticleState& particle=state_.particles[state_.nextParticle];
+        state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+        const float angle=nextFlowerRandom()*DB_PI*2.0f;
+        const float radial=0.65f+nextFlowerRandom()*1.75f;
+        particle=ParticleState{};
+        particle.material=ParticleMaterial::SignalResidue;
+        particle.pos=position;
+        particle.vel={std::cos(angle)*radial,1.1f+nextFlowerRandom()*2.8f,std::sin(angle)*radial};
+        particle.life=signal_residue::LifetimeSeconds;
+        particle.maxLife=signal_residue::LifetimeSeconds;
+        particle.size=0.09f+nextFlowerRandom()*0.10f;
+    }
+}
+
 void Game::spawnFlameBurst(const Vec3& position,float strength) {
     const int count=static_cast<int>(36.0f*clampf(strength,0.7f,2.2f));
     for(int n=0;n<count;++n) {
@@ -938,12 +954,25 @@ void Game::updateParticles(float dt) {
     for(auto& particle:state_.particles) {
         if(particle.life<=0.0f) continue;
         const bool reclaimed=particle.material==ParticleMaterial::Environment;
+        const bool residue=particle.material==ParticleMaterial::SignalResidue;
         particle.vel.y-=(reclaimed?10.5f:8.0f)*dt;
         particle.pos+=particle.vel*dt;
-        if(reclaimed&&particle.pos.y<=0.025f){
+        if((reclaimed||residue)&&particle.pos.y<=0.025f){
             particle.pos.y=0.025f;particle.vel.y=0.0f;
             const float settle=std::exp(-16.0f*dt);particle.vel.x*=settle;particle.vel.z*=settle;
-            particle.life=std::max(0.0f,particle.life-dt*1.25f);
+            if(reclaimed)particle.life=std::max(0.0f,particle.life-dt*1.25f);
+            if(residue&&state_.vacuum.active&&state_.player.battery<99.95f){
+                const Vec3 delta=state_.phoneTransform.vacuumPullPoint-particle.pos;
+                const float distance=length(delta);
+                if(distance<=signal_residue::AttractionRadius){
+                    if(distance<=signal_residue::CaptureRadius){
+                        gainBattery(signal_residue::ChargePerFragment);
+                        particle.life=0.0f;
+                        continue;
+                    }
+                    particle.vel=normalized(delta)*signal_residue::PullSpeed;
+                }
+            }
         }
         particle.life=std::max(0.0f,particle.life-dt);
     }
@@ -3445,12 +3474,13 @@ void Game::captureSoul(int index) {
     storeSoul(state_.player,t.soul);
     ++state_.progression.run.roomCaptures;
     state_.progression.run.roomHeat=clampf(state_.progression.run.roomHeat+0.045f,0.0f,1.0f);
-    gainBattery(BATTERY_CAPTURE_GAIN,BatteryReason::Ingest);
+    gainBattery(signal_residue::ImmediateCaptureCharge,BatteryReason::Ingest);
     feedSupplementalBattery(FLOWER_SLURP_FEED);
     emitAudio(AudioCue::ReceivedMessage,0.58f);
     emitAudio(AudioCue::RewardNice,0.30f);
     t.captureQueued=false; t.captureCommitted=false; t.soulState=SoulState::Free; t.networkOwnerPlayerId=-1;
     spawnParticleBurst(capturedAt,ParticleMaterial::Data);
+    spawnSignalResidue(capturedAt);
     queueHumanRespawn(capturedAt);
 }
 

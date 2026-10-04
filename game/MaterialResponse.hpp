@@ -3,7 +3,7 @@
 #include "RoomEnvironment.hpp"
 #include "VisualIdentity.hpp"
 
-enum class ParticleMaterial : unsigned char { Impact, Flesh, Environment, Soul, Data };
+enum class ParticleMaterial : unsigned char { Impact, Flesh, Environment, Soul, Data, SignalResidue };
 
 inline constexpr VisualColor roomSubstrateColor(room_environment::RoomSetting setting) {
     using room_environment::RoomSetting;
@@ -43,6 +43,9 @@ inline VisualColor particleMaterialColor(ParticleMaterial material,
             return mixVisualColor(VisualIdentity::SoulFlesh,substrate,1.0f-clampf(remainingLife,0.0f,1.0f));
         case ParticleMaterial::Soul: return VisualIdentity::SoulBase;
         case ParticleMaterial::Data: return VisualIdentity::ElectricCyan;
+        case ParticleMaterial::SignalResidue:
+            return mixVisualColor(VisualIdentity::ElectricMagenta,VisualIdentity::ElectricCyan,
+                0.20f+0.42f*(1.0f-clampf(remainingLife,0.0f,1.0f)));
         case ParticleMaterial::Impact: return {1.0f,0.267f,0.267f};
     }
     return VisualIdentity::HitFlash;
