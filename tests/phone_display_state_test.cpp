@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "Game.hpp"
+#include "GameplayPhoneModel.hpp"
 #include "PhoneDisplayLayout.hpp"
 
 namespace {
@@ -48,7 +49,7 @@ void expectLayoutInside(const PhoneDisplayMenuLayout& layout) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
         if (row.selectable) {
             assert(row.selectableIndex >= 0);
-            if (row.visible) expectRectInside(layout.safe, row.hit);
+            if (row.visible && !row.peek) expectRectInside(layout.safe, row.hit);
             else assert(row.hit.w == 0.0f && row.hit.h == 0.0f);
         } else {
             assert(row.selectableIndex < 0);
@@ -68,6 +69,18 @@ void expectSelectableHit(const PhoneDisplayMenuLayout& layout, int selection) {
 } // namespace
 
 int main() {
+    const Vec3 controlsAccent=phoneDisplayModeAccent(PhoneDisplayMode::Controls);
+    const Vec3 audioAccent=phoneDisplayModeAccent(PhoneDisplayMode::Audio);
+    const Vec3 graphicsAccent=phoneDisplayModeAccent(PhoneDisplayMode::Graphics);
+    assert(length(controlsAccent-audioAccent)<0.001f);
+    assert(length(audioAccent-graphicsAccent)<0.001f);
+    PhoneDisplayState transitioning{};
+    transitioning.previousMode=PhoneDisplayMode::Controls;
+    transitioning.mode=PhoneDisplayMode::Audio;
+    transitioning.transitionProgress=0.0f;
+    assert(length(phoneDisplayResolvedAccent(transitioning)-controlsAccent)<0.001f);
+    transitioning.transitionProgress=1.0f;
+    assert(length(phoneDisplayResolvedAccent(transitioning)-audioAccent)<0.001f);
     Game game;
     game.prepareAttractScreen();
     assert(game.state().attractMode);
@@ -95,7 +108,7 @@ int main() {
     game.dismissAttractMode();
     assert(game.state().attractMode);
     assert(game.state().cinematic.attractExitActive);
-    for (int tick = 0; tick < 24 && game.state().attractMode; ++tick) step(game);
+    for (int tick = 0; tick < 48 && game.state().attractMode; ++tick) step(game);
     assert(!game.state().attractMode);
     assert(!game.state().started);
     assert(game.state().cinematic.menuEnterActive);
@@ -110,19 +123,35 @@ int main() {
     PhoneDisplayMenuLayout mainLayout = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(mainLayout);
     assert(mainLayout.title.empty());
-    assert(mainLayout.selectableCount == 4);
+    assert(mainLayout.navigationHint.empty());
+    assert(mainLayout.selectableCount == 3);
     expectSelectableHit(mainLayout, 0);
 
     menu.localSettings.menuPage = LocalMenuPage::Controls;
     menu.localSettings.menuScroll = 0.0f;
     PhoneDisplayMenuLayout controls = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(controls);
-    assert(controls.title == "Controls");
+    assert(controls.title.empty());
     assert(controls.selectableCount == 14);
     assert(controls.rowCount == 17);
     assert(controls.rows[0].kind == PhoneMenuRowKind::Section);
     assert(!controls.rows[0].selectable);
     expectSelectableHit(controls, 0);
+    menu.hud.menuSelection = 9;
+    controls = makePhoneDisplayMenuLayout(menu);
+    assert(controls.navigationHint.empty());
+    menu.localSettings.rebindingAction = 0;
+    controls = makePhoneDisplayMenuLayout(menu);
+    assert(controls.navigationHint == "PRESS A KEY");
+    menu.localSettings.rebindingAction = -1;
+    assert(phoneMenuEmphasis(PhoneMenuAction::Solo) == PhoneMenuEmphasis::Primary);
+    assert(phoneMenuEmphasis(PhoneMenuAction::ExitRun) == PhoneMenuEmphasis::Destructive);
+    menu.localSettings.controllerLookSensitivity = 1.125f;
+    assert(std::abs(phoneMenuVisualAmount(PhoneMenuAction::AdjustController,menu.localSettings)-0.5f)<0.001f);
+    menu.localSettings.shadows = false;
+    assert(phoneMenuVisualAmount(PhoneMenuAction::ToggleShadows,menu.localSettings)==0.0f);
+    menu.localSettings.shadows = true;
+    assert(phoneMenuVisualAmount(PhoneMenuAction::ToggleShadows,menu.localSettings)==1.0f);
     menu.localSettings.menuScroll = phoneDisplayScrollForSelection(controls, controls.selectableCount - 1);
     PhoneDisplayMenuLayout controlsScrolled = makePhoneDisplayMenuLayout(menu);
     expectLayoutInside(controlsScrolled);
@@ -142,6 +171,24 @@ int main() {
     expectFiniteAndBounded(game.state().phoneDisplay);
 
     GameState& gameplay = const_cast<GameState&>(game.state());
+    gameplay.player.battery = 67.0f;
+    gameplay.player.souls = 4;
+    gameplay.requiredSouls = 7;
+    gameplay.depositedSouls = 3;
+    gameplay.roomIndex = 6;
+    gameplay.progression.permanent.tokens = 11;
+    gameplay.energy.supplementalActive = true;
+    gameplay.energy.supplementalValue = 20.0f;
+    gameplay.energy.supplementalMax = 80.0f;
+    gameplay.energy.flowerStacks = 2;
+    const GameplayPhoneModel instrument = makeGameplayPhoneModel(gameplay);
+    assert(instrument.batteryPercent == 67);
+    assert(!instrument.lowBattery);
+    assert(instrument.storedSouls == 4 && instrument.soulCapacity == PHONE_CAPACITY);
+    assert(instrument.filledGoals == 3 && instrument.requiredGoals == 7);
+    assert(instrument.roomIndex == 6 && instrument.tokens == 11);
+    assert(instrument.supplementalActive && std::abs(instrument.supplementalFill - 0.25f) < 0.001f);
+    assert(instrument.flowerStacks == 2);
     gameplay.hud.lowBattery = true;
     gameplay.player.battery = 8.0f;
     step(game, 6);

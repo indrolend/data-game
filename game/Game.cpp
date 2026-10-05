@@ -1,5 +1,6 @@
 #include "Game.hpp"
 #include "SoulEconomy.hpp"
+#include "SignalResidue.hpp"
 #include "gameplay/PhoneBody.hpp"
 #include "gameplay/SoulMotion.hpp"
 #include "gameplay/TargetRoles.hpp"
@@ -130,7 +131,6 @@ constexpr float HUMAN_ATTACK_BATTERY_COST = 26.0f;
 constexpr float BATTERY_JUMP_COST = 3.0f;
 constexpr float BATTERY_DOUBLE_JUMP_COST = 6.0f;
 constexpr float BATTERY_SHOOT_COST = 7.0f;
-constexpr float BATTERY_CAPTURE_GAIN = 14.0f;
 constexpr float BATTERY_MELEE_HIT_GAIN = 3.5f;
 constexpr float BATTERY_COMBO_GROWTH = 1.22f;
 constexpr float BATTERY_COMBO_TIMEOUT = 1.8f;
@@ -273,7 +273,8 @@ float smooth01(float t) {
     t = clampf(t, 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
 }
-void syncTargetReactionVisual(TargetState& target) {
+void syncTargetReactionVisual(TargetState& target,float awareness=0.0f,float uncertainty=1.0f,
+    float commitment=0.0f,float disruption=0.0f,float searchAmount=0.0f,float individuality=0.0f) {
     target.visualReaction = makeHumanReactionVisual(
         target.visualWalkPhase,
         target.locomotionAmount,
@@ -284,7 +285,8 @@ void syncTargetReactionVisual(TargetState& target) {
         target.soulMorph,
         target.visibility > 0.5f,
         target.attackTimer,
-        target.attackVariant
+        target.attackVariant,
+        awareness,uncertainty,commitment,disruption,searchAmount,individuality
     );
 }
 float smoothRange(float value,float edge0,float edge1){return smooth01((value-edge0)/std::max(0.0001f,edge1-edge0));}
@@ -704,6 +706,7 @@ bool Game::chooseTemporaryUpgrade(int track){
     state_.cinematic.textInteraction=1.0f;
     level=std::min(12,level+1);
     state_.upgradeMenu.active=false;
+    state_.upgradeMenu.presentationTime=0.0f;
     state_.uiPaused=false;
     clearInputState();
     return true;
@@ -900,6 +903,22 @@ void Game::spawnParticleBurst(const Vec3& position,ParticleMaterial material) {
     }
 }
 
+void Game::spawnSignalResidue(const Vec3& position) {
+    for(int n=0;n<signal_residue::FragmentCount;++n) {
+        ParticleState& particle=state_.particles[state_.nextParticle];
+        state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+        const float angle=nextFlowerRandom()*DB_PI*2.0f;
+        const float radial=0.65f+nextFlowerRandom()*1.75f;
+        particle=ParticleState{};
+        particle.material=ParticleMaterial::SignalResidue;
+        particle.pos=position;
+        particle.vel={std::cos(angle)*radial,1.1f+nextFlowerRandom()*2.8f,std::sin(angle)*radial};
+        particle.life=signal_residue::LifetimeSeconds;
+        particle.maxLife=signal_residue::LifetimeSeconds;
+        particle.size=0.09f+nextFlowerRandom()*0.10f;
+    }
+}
+
 void Game::spawnFlameBurst(const Vec3& position,float strength) {
     const int count=static_cast<int>(36.0f*clampf(strength,0.7f,2.2f));
     for(int n=0;n<count;++n) {
@@ -935,12 +954,25 @@ void Game::updateParticles(float dt) {
     for(auto& particle:state_.particles) {
         if(particle.life<=0.0f) continue;
         const bool reclaimed=particle.material==ParticleMaterial::Environment;
+        const bool residue=particle.material==ParticleMaterial::SignalResidue;
         particle.vel.y-=(reclaimed?10.5f:8.0f)*dt;
         particle.pos+=particle.vel*dt;
-        if(reclaimed&&particle.pos.y<=0.025f){
+        if((reclaimed||residue)&&particle.pos.y<=0.025f){
             particle.pos.y=0.025f;particle.vel.y=0.0f;
             const float settle=std::exp(-16.0f*dt);particle.vel.x*=settle;particle.vel.z*=settle;
-            particle.life=std::max(0.0f,particle.life-dt*1.25f);
+            if(reclaimed)particle.life=std::max(0.0f,particle.life-dt*1.25f);
+            if(residue&&state_.vacuum.active&&state_.player.battery<99.95f){
+                const Vec3 delta=state_.phoneTransform.vacuumPullPoint-particle.pos;
+                const float distance=length(delta);
+                if(distance<=signal_residue::AttractionRadius){
+                    if(distance<=signal_residue::CaptureRadius){
+                        gainBattery(signal_residue::ChargePerFragment);
+                        particle.life=0.0f;
+                        continue;
+                    }
+                    particle.vel=normalized(delta)*signal_residue::PullSpeed;
+                }
+            }
         }
         particle.life=std::max(0.0f,particle.life-dt);
     }
@@ -1390,6 +1422,11 @@ void Game::update(float dt) {
     state_.cinematic.textInteraction*=std::exp(-7.0f*dt);
     state_.cinematic.overlayFade += ((state_.dead ? 1.0f : 0.0f) - state_.cinematic.overlayFade) * std::min(1.0f, dt * 4.0f);
     state_.cinematic.restartAwaken = std::max(0.0f, state_.cinematic.restartAwaken - dt * 1.8f);
+    if(state_.upgradeMenu.active){
+        state_.upgradeMenu.presentationTime=std::min(30.0f,state_.upgradeMenu.presentationTime+dt);
+    }else{
+        state_.upgradeMenu.presentationTime=0.0f;
+    }
     if(state_.cinematic.menuEnterActive){
         state_.cinematic.menuEnterElapsed=std::min(MENU_ENTER_FADE_DURATION,state_.cinematic.menuEnterElapsed+dt);
         if(state_.cinematic.menuEnterElapsed>=MENU_ENTER_FADE_DURATION)state_.cinematic.menuEnterActive=false;
@@ -2060,6 +2097,7 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
         for(auto& request:state_.respawnQueue) request=HumanRespawnRequest{};
         for(int i=0;i<TARGET_COUNT;++i){if(i<activeHumanTarget()) respawnTarget(i); else state_.targets[i]=TargetState{};}
         state_.upgradeMenu.active=true;
+        state_.upgradeMenu.presentationTime=0.0f;
         state_.uiPaused=true;
         clearInputState();
     } else if(!state_.roomClear) {
@@ -2450,6 +2488,8 @@ void Game::updatePhoneDisplay(float dt) {
     const Vec3 copper{0.70f, 0.34f, 0.18f};
     const Vec3 white{0.90f, 0.98f, 1.0f};
     Vec3 color = mix3(baseCyan, activeCyan, display.brightness);
+    const Vec3 channelAccent=phoneDisplayResolvedAccent(display);
+    color=mix3(color,channelAccent,menuMode?0.30f:0.08f);
     color = mix3(color, copper, finiteClamped(display.lowBatteryPulse, 0.0f, 1.0f) * 0.42f);
     color = mix3(color, white, finiteClamped(discharge + display.capturePulse, 0.0f, 1.0f) * 0.22f);
     const Vec3 magenta{VisualIdentity::ElectricMagenta.r, VisualIdentity::ElectricMagenta.g, VisualIdentity::ElectricMagenta.b};
@@ -3434,12 +3474,13 @@ void Game::captureSoul(int index) {
     storeSoul(state_.player,t.soul);
     ++state_.progression.run.roomCaptures;
     state_.progression.run.roomHeat=clampf(state_.progression.run.roomHeat+0.045f,0.0f,1.0f);
-    gainBattery(BATTERY_CAPTURE_GAIN,BatteryReason::Ingest);
+    gainBattery(signal_residue::ImmediateCaptureCharge,BatteryReason::Ingest);
     feedSupplementalBattery(FLOWER_SLURP_FEED);
     emitAudio(AudioCue::ReceivedMessage,0.58f);
     emitAudio(AudioCue::RewardNice,0.30f);
     t.captureQueued=false; t.captureCommitted=false; t.soulState=SoulState::Free; t.networkOwnerPlayerId=-1;
     spawnParticleBurst(capturedAt,ParticleMaterial::Data);
+    spawnSignalResidue(capturedAt);
     queueHumanRespawn(capturedAt);
 }
 
@@ -3595,6 +3636,9 @@ void Game::updateTargets(float dt) {
         TargetState& t = state_.targets[i];
         if (!t.alive) continue;
         const Vec3 physicalFrameStart=t.pos;
+        float presentationAwareness=0.0f,presentationUncertainty=1.0f;
+        float presentationCommitment=0.0f,presentationDisruption=0.0f,presentationSearch=0.0f;
+        const float presentationIndividuality=std::sin(static_cast<float>(i)*12.9898f);
         gameplay::updateLooseSoulMotion(t, dt);
         t.hitFlash = std::max(0.0f, t.hitFlash - TARGET_HITFLASH_DECAY_PER_FRAME);
         t.visibility = 1.0f;
@@ -3771,6 +3815,13 @@ void Game::updateTargets(float dt) {
                 behavior.mayAttack=true;
                 behavior.settled=false;
             }
+            presentationAwareness=state_.multiplayer.enabled?1.0f:std::max(perception.confidence,vagueAwareness);
+            presentationUncertainty=state_.multiplayer.enabled?0.0f:perception.uncertainty;
+            presentationCommitment=behavior.commitment;
+            presentationDisruption=enemyRuntimeState.bodies[i].disruption;
+            presentationSearch=behavior.mode==gameplay::EnemyBehaviorMode::Search?1.0f:
+                behavior.mode==gameplay::EnemyBehaviorMode::Investigate?0.62f:
+                behavior.mode==gameplay::EnemyBehaviorMode::Orient?0.34f:0.0f;
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
             float playerDist=state_.multiplayer.enabled?horizontalLength(toPlayer):(perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f);
             float motorPaceExpression=1.0f;
@@ -3997,7 +4048,8 @@ void Game::updateTargets(float dt) {
             // faster or slower than the root that owns contact.
             t.humanAnimationTime += distance*0.68f;
         }
-        syncTargetReactionVisual(t);
+        syncTargetReactionVisual(t,presentationAwareness,presentationUncertainty,
+            presentationCommitment,presentationDisruption,presentationSearch,presentationIndividuality);
     }
     if(!state_.multiplayer.enabled)enemyRuntimeState.perceptionCursor=(enemyRuntimeState.perceptionCursor+2)%TARGET_COUNT;
 }

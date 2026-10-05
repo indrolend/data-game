@@ -32,8 +32,9 @@ inline bool menuRepeatMove(
         state.lastMoveAt = now;
         return true;
     }
-    if (now - state.startedAt < initialDelay ||
-        now - state.lastMoveAt < repeatInterval) return false;
+    constexpr double thresholdEpsilon = 1e-9;
+    if (now - state.startedAt + thresholdEpsilon < initialDelay ||
+        now - state.lastMoveAt + thresholdEpsilon < repeatInterval) return false;
     state.lastMoveAt = now;
     return true;
 }
@@ -53,6 +54,12 @@ inline PointerAction pointerAction(int button, int primaryButton, int secondaryB
 inline int wheelSelection(int current, int count, int direction) {
     if (count <= 0 || direction == 0) return current;
     return std::max(0, std::min(count - 1, current + (direction > 0 ? 1 : -1)));
+}
+
+inline int linearSelection(int requested, int count, bool wrap) {
+    if (count <= 0) return 0;
+    if (!wrap) return std::max(0, std::min(count - 1, requested));
+    return (requested % count + count) % count;
 }
 
 struct TriggerThresholds {

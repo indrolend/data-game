@@ -323,6 +323,10 @@ add_executable(RoomEnvironmentTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_envir
 target_include_directories(RoomEnvironmentTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RoomEnvironmentTest PRIVATE cxx_std_17)
 
+add_executable(ComputedSceneObjectsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/computed_scene_objects_test.cpp")
+target_include_directories(ComputedSceneObjectsTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(ComputedSceneObjectsTest PRIVATE cxx_std_17)
+
 add_executable(MaterialResponseTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/material_response_test.cpp")
 target_include_directories(MaterialResponseTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(MaterialResponseTest PRIVATE cxx_std_17)
@@ -446,6 +450,14 @@ add_executable(
 target_include_directories(SecretTvPolicyTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(SecretTvPolicyTest PRIVATE cxx_std_17)
 
+add_executable(
+    SignalResidueLifecycleTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/signal_residue_lifecycle_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(SignalResidueLifecycleTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(SignalResidueLifecycleTest PRIVATE cxx_std_17)
+
 add_test(NAME GameplayRoleAndSoulMotionTest COMMAND GameplayRoleAndSoulMotionTest)
 add_test(NAME RunProgressionTest COMMAND RunProgressionTest)
 add_test(NAME EnemyPerceptionTest COMMAND EnemyPerceptionTest)
@@ -467,6 +479,7 @@ add_test(NAME PhoneStencilRevealTest COMMAND PhoneStencilRevealTest)
 add_test(NAME MenuNavigationTest COMMAND MenuNavigationTest)
 add_test(NAME PhoneDisplayStateTest COMMAND PhoneDisplayStateTest)
 add_test(NAME RoomEnvironmentTest COMMAND RoomEnvironmentTest)
+add_test(NAME ComputedSceneObjectsTest COMMAND ComputedSceneObjectsTest)
 add_test(NAME MaterialResponseTest COMMAND MaterialResponseTest)
 add_test(NAME FacetedRockTest COMMAND FacetedRockTest)
 add_test(NAME SlopeSupportTest COMMAND SlopeSupportTest)
@@ -494,6 +507,7 @@ add_test(NAME GameplayFlowProbe COMMAND GameplayFlowProbe)
 add_test(NAME RoomProgressionProbe COMMAND RoomProgressionProbe)
 add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
 add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
+add_test(NAME SignalResidueLifecycleTest COMMAND SignalResidueLifecycleTest)
 
 if(WIN32)
     target_link_libraries(DigitalBreakdown PRIVATE winmm winhttp)

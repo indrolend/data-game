@@ -497,6 +497,9 @@ struct LocalSettingsState {
 
 struct UpgradeMenuState {
     bool active = false;
+    // Presentation-only age of the current rule-editing surface. Progression,
+    // input and multiplayer authority remain in their existing state paths.
+    float presentationTime = 0.0f;
 };
 
 struct DoorTransitionState {
@@ -797,6 +800,7 @@ public:
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
     friend struct SoulProjectileLifecycleAccess;
+    friend struct SignalResidueLifecycleAccess;
     enum class BatteryReason { Continuous, Jump, DoubleJump, Melee, Shoot, Hit, Climb, Ingest, NextRoom, Combo, Chain, Headshot, Loop };
     GameState state_;
     int simulationPlayerId_ = 0;
@@ -866,6 +870,7 @@ private:
     void refreshRoomInspectorReport(bool seedSelectionValid=true);
     void updateParticles(float dt);
     void spawnParticleBurst(const Vec3& position, ParticleMaterial material);
+    void spawnSignalResidue(const Vec3& position);
     void spawnFlameBurst(const Vec3& position, float strength);
     void spawnShellShatter(const TargetState& target);
 

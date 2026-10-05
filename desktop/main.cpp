@@ -10,6 +10,7 @@
 #include "ControllerRumble.hpp"
 #include "ControllerInput.hpp"
 #include "Game.hpp"
+#include "SignalResidue.hpp"
 #include "gameplay/TargetRoles.hpp"
 #include "diagnostics/EnemyEvidenceScenario.hpp"
 #include "PhoneDisplayLayout.hpp"
@@ -612,12 +613,10 @@ void setMenuSelection(HostState& host,int selection) {
 
     GameState& state=host.game.networkMutableState();
 
-    // The two-choice death menu must not wrap. A tiny repeated stick,
-    // key, or mouse movement should stop at Again?/Quit rather than
-    // cycling through both choices.
-    const int next=state.dead
-        ? std::max(0,std::min(count-1,selection))
-        : (selection%count+count)%count;
+    // Death remains deliberately bounded. Ordinary phone lists wrap so the
+    // physical device never develops a dead navigation edge.
+    const bool boundedList=state.dead;
+    const int next=dbmenu::linearSelection(selection,count,!boundedList);
 
     // Ignore repeated hover and held-input reports for the same row.
     if(state.hud.menuSelection==next){
@@ -895,7 +894,7 @@ DesktopGamepadInput pollGamepad(GLFWwindow* window,HostState& host){
             const int direction=menuRight?1:-1;
             if(host.game.state().upgradeMenu.active)
                 setMenuSelection(host,dbmenu::moveUpgradeGridSelection(host.game.state().hud.menuSelection,direction,0));
-            else if(!adjustMenuSetting(host,direction)&&menuRight)
+            else if(!adjustMenuSetting(host,direction))
                 toggleMenuSetting(host);
             rumblePulse(host.game.state().localSettings,0.05f,0.20f,22);
         }
@@ -1055,7 +1054,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             return;
         }
         if(action!=GLFW_PRESS)return;
-        if((left||right)){if(!adjustMenuSetting(*host,right?1:-1)&&right)toggleMenuSetting(*host);return;}
+        if((left||right)){if(!adjustMenuSetting(*host,right?1:-1))toggleMenuSetting(*host);return;}
         if(key==GLFW_KEY_ENTER||key==GLFW_KEY_SPACE||key==GLFW_KEY_F){activateMenuSelection(window,*host);return;}
         if(host->game.state().upgradeMenu.active&&key>=GLFW_KEY_1&&key<=GLFW_KEY_6){setMenuSelection(*host,key-GLFW_KEY_1);activateMenuSelection(window,*host);}
         return;
@@ -1454,7 +1453,7 @@ void printUsage() {
     std::printf("  --build-identity-json    Print machine-readable build identity and exit.\n");
     std::printf("  --capture-frame PATH Capture a hidden frame and exit.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
-    std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu page and exit.\n");
+    std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
     std::printf("  --capture-cpu-demo DIR  Record a HUD-free deterministic gameplay vignette as PPM frames.\n");
     std::printf("  --capture-cinematic-demo DIR  Record the real lunge/capture sequence from a cinematic spectator camera.\n");
     std::printf("  --capture-width N --capture-height N  Set capture framebuffer dimensions.\n");
@@ -1961,6 +1960,7 @@ int main(int argc, char** argv) {
     const bool capturePaused=argValue(argc,argv,"--capture-paused-frame")!=nullptr;
     const bool captureMosh=argValue(argc,argv,"--capture-mosh-frame")!=nullptr;
     const bool capturePhone=argValue(argc,argv,"--capture-phone-frame")!=nullptr;
+    const bool captureResidue=argValue(argc,argv,"--capture-residue-frame")!=nullptr;
     const bool captureMenu=argValue(argc,argv,"--capture-menu-frame")!=nullptr;
     const bool captureSpectator=argValue(argc,argv,"--capture-spectator-frame")!=nullptr;
     const char* captureDemoDir=argValue(argc,argv,"--capture-cpu-demo");
@@ -1984,6 +1984,7 @@ int main(int argc, char** argv) {
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
+    const bool captureMenuUpgrade=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"upgrade")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
     const bool tvRoomEnter=hasArg(argc,argv,"--tv-room-enter");
     const bool traversalLab=hasArg(argc,argv,"--traversal-lab");
@@ -2001,7 +2002,7 @@ int main(int argc, char** argv) {
     const bool combatRenderStress=hasArg(argc,argv,"--combat-render-stress");
     const bool combatCrowdStress=hasArg(argc,argv,"--combat-crowd-stress");
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
-    const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame")))))))));
+    const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame"))))))))));
     const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory;
     const int windowWidth=std::max(320,std::min(7680,argInt(argc,argv,"--capture-width",1280)));
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
@@ -2093,6 +2094,7 @@ int main(int argc, char** argv) {
         fixture.localSettings.menuPage=LocalMenuPage::Main;
         fixture.localSettings.menuScroll=0.0f;
         if(page&&std::strcmp(page,"pause")==0){host.game.restart();fixture.cinematic.introActive=false;host.game.setUiPaused(true);}
+        else if(page&&std::strcmp(page,"upgrade")==0){host.game.restart();fixture.cinematic.introActive=false;fixture.upgradeMenu.active=true;fixture.upgradeMenu.presentationTime=0.72f;fixture.uiPaused=true;fixture.doorTransition.active=false;fixture.doorTransition.progress=0.62f;fixture.progression.permanent.tokens=3;fixture.progression.permanent.levels={1,2,0};fixture.progression.run.temporaryLevels={2,1,3};fixture.roomIndex=4;fixture.hud.menuSelection=0;}
         else if(page&&std::strcmp(page,"online")==0)fixture.localSettings.menuPage=LocalMenuPage::Online;
         else if(page&&std::strcmp(page,"settings")==0)fixture.localSettings.menuPage=LocalMenuPage::Settings;
         else if(page&&std::strcmp(page,"controls-bottom")==0){fixture.localSettings.menuPage=LocalMenuPage::Controls;fixture.hud.menuSelection=15;fixture.localSettings.menuScroll=999.0f;}
@@ -2134,7 +2136,39 @@ int main(int argc, char** argv) {
         fixture.camera.yaw=0;fixture.camera.pitch=0;
     }
     if(capturePaused)host.game.setUiPaused(true);
-    if(capturePhone){GameState& fixture=const_cast<GameState&>(host.game.state());for(auto& target:fixture.targets)target.alive=false;}
+    if(capturePhone){
+        GameState& fixture=const_cast<GameState&>(host.game.state());
+        for(auto& target:fixture.targets)target.alive=false;
+        fixture.cinematic.introActive=false;
+        fixture.player.battery=67.0f;
+        fixture.player.souls=7;
+        fixture.requiredSouls=7;
+        fixture.depositedSouls=3;
+        fixture.roomIndex=6;
+        fixture.progression.permanent.tokens=11;
+        fixture.energy.supplementalActive=true;
+        fixture.energy.supplementalValue=20.0f;
+        fixture.energy.supplementalMax=80.0f;
+        fixture.energy.flowerStacks=2;
+    }
+    if(captureResidue){
+        GameState& fixture=host.game.networkMutableState();
+        for(auto& target:fixture.targets)target.alive=false;
+        fixture.cinematic.introActive=false;
+        fixture.localSettings.particles=true;
+        for(auto& particle:fixture.particles)particle=ParticleState{};
+        constexpr float residueOffsets[signal_residue::FragmentCount][2]={
+            {-0.92f,-1.52f},{-0.36f,-1.17f},{0.28f,-1.44f},{0.86f,-1.02f},
+            {-0.70f,-0.62f},{-0.08f,-0.78f},{0.52f,-0.48f},{1.04f,-0.72f}};
+        for(int i=0;i<signal_residue::FragmentCount;++i){
+            ParticleState& particle=fixture.particles[i];
+            particle.material=ParticleMaterial::SignalResidue;
+            particle.pos=fixture.player.pos+Vec3{residueOffsets[i][0],-fixture.player.pos.y+0.025f,residueOffsets[i][1]};
+            particle.life=7.5f+0.18f*static_cast<float>(i);
+            particle.maxLife=signal_residue::LifetimeSeconds;
+            particle.size=0.13f+0.015f*static_cast<float>(i%4);
+        }
+    }
     if(captureSpectator){
         host.game.configureNetworkHost();
         host.game.setNetworkPeerActive(1,true);
@@ -2521,7 +2555,9 @@ int main(int argc, char** argv) {
         }
         const auto updateEnd=std::chrono::steady_clock::now();
         if(captureMosh&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.55f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
+        if(captureMenuUpgrade&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.62f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
         if(capturePhone){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.camera.pos=fixture.phoneTransform.position+Vec3{0,0.035f,0.38f};fixture.camera.lookTarget=fixture.phoneTransform.position;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
+        if(captureResidue){GameState& fixture=const_cast<GameState&>(host.game.state());const Vec3 focus=fixture.player.pos+Vec3{0,-fixture.player.pos.y+0.05f,-1.35f};fixture.camera.pos=focus+Vec3{0,3.4f,4.8f};fixture.camera.lookTarget=focus;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
         updateOutcomeRumble(host);
         const auto audioBegin=std::chrono::steady_clock::now();
         host.audio.update(host.game.state());
