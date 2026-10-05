@@ -4,6 +4,7 @@
 #include "ModelData.hpp"
 #include "HumanModelData.hpp"
 #include "DeveloperCodec.hpp"
+#include "RenderContracts.hpp"
 
 #include <filesystem>
 #include <vector>
@@ -16,6 +17,11 @@ public:
     void setAssetRoot(const std::filesystem::path& root);
     void resize(int width, int height);
     void setHudVisible(bool visible);
+    void setAtmosphereProfile(render_contract::AtmosphereProfile profile);
+    void setLightingControl(const render_contract::RuntimeLightingControl& control);
+    render_contract::RuntimeLightingControl& lightingControl();
+    const render_contract::RuntimeLightingControl& lightingControl() const;
+    render_contract::SceneAtmosphere resolvedAtmosphere(const GameState& state) const;
     void draw(const GameState& state, const DeveloperCodecState* codec=nullptr) const;
 
 private:
@@ -41,6 +47,7 @@ private:
     mutable int datamoshWidth_ = 0;
     mutable int datamoshHeight_ = 0;
     bool hudVisible_ = true;
+    render_contract::RuntimeLightingControl lightingControl_{};
 
     void drawRoomTile(const GameState& state, int tileIndex) const;
     void drawFieldGrass(int tileIndex) const;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+#include <cstdint>
 #include "Math.hpp"
 #include "VisualIdentity.hpp"
 
@@ -51,6 +53,24 @@ struct SceneAtmosphere {
     float fogDensity=0.0f;
 };
 
+enum class AtmosphereProfile : unsigned char { ReadableStatic, ProgressiveCandidate };
+
+enum class AtmosphereChannel : std::uint32_t {
+    Background=1u<<0,Ambient=1u<<1,Sun=1u<<2,Fill=1u<<3,Phone=1u<<4,Fog=1u<<5,FogDensity=1u<<6
+};
+
+struct AtmosphereInputs { float time=0.0f;int roomIndex=1;float phonePower=0.0f; };
+
+struct RuntimeLightingControl {
+    AtmosphereProfile reference=AtmosphereProfile::ReadableStatic;
+    std::uint32_t overrideMask=0;
+    SceneAtmosphere overrides{};
+    bool timeFixed=false;
+    bool roomFixed=false;
+    bool phoneFixed=false;
+    AtmosphereInputs fixedInputs{};
+};
+
 inline SceneAtmosphere sceneAtmosphere(float phonePower){
     const float phonePulse=clampf(phonePower,0.0f,1.0f);
     return {
@@ -66,6 +86,64 @@ inline SceneAtmosphere sceneAtmosphere(float phonePower){
         DesktopSceneLighting.fog.color,
         DesktopSceneLighting.fog.density
     };
+}
+
+inline SceneAtmosphere progressiveSceneAtmosphere(float time,int roomIndex,float phonePower){
+    const float omenPulse=0.5f+0.5f*std::sin(time*0.73f+static_cast<float>(roomIndex)*0.41f);
+    const float roomThreat=clampf((static_cast<float>(roomIndex)-1.0f)/18.0f,0.0f,1.0f);
+    const float phonePulse=clampf(phonePower,0.0f,1.0f);
+    return {
+        {0.003f+omenPulse*0.004f,0.002f,0.009f+roomThreat*0.008f},
+        {0.018f+omenPulse*0.012f,0.014f,0.030f+roomThreat*0.018f},
+        {0.48f+roomThreat*0.12f,0.055f+omenPulse*0.035f,0.13f+roomThreat*0.16f},
+        {0.04f,0.30f+omenPulse*0.10f,0.52f+roomThreat*0.18f},
+        {0.18f*phonePulse,1.05f*phonePulse,1.32f*phonePulse},
+        {0.010f+roomThreat*0.018f,0.002f,0.024f+omenPulse*0.012f},
+        0.020f+roomThreat*0.010f+omenPulse*0.003f
+    };
+}
+
+inline SceneAtmosphere sceneAtmosphere(AtmosphereProfile profile,float time,int roomIndex,float phonePower){
+    return profile==AtmosphereProfile::ProgressiveCandidate
+        ? progressiveSceneAtmosphere(time,roomIndex,phonePower)
+        : sceneAtmosphere(phonePower);
+}
+
+constexpr std::uint32_t atmosphereChannelBit(AtmosphereChannel channel){return static_cast<std::uint32_t>(channel);}
+constexpr bool atmosphereChannelOverridden(const RuntimeLightingControl& control,AtmosphereChannel channel){return (control.overrideMask&atmosphereChannelBit(channel))!=0;}
+
+inline AtmosphereInputs effectiveAtmosphereInputs(const RuntimeLightingControl& control,const AtmosphereInputs& live){
+    return {control.timeFixed?control.fixedInputs.time:live.time,control.roomFixed?control.fixedInputs.roomIndex:live.roomIndex,control.phoneFixed?control.fixedInputs.phonePower:live.phonePower};
+}
+
+inline SceneAtmosphere resolveSceneAtmosphere(const RuntimeLightingControl& control,const AtmosphereInputs& live){
+    const auto input=effectiveAtmosphereInputs(control,live);
+    SceneAtmosphere result=sceneAtmosphere(control.reference,input.time,input.roomIndex,input.phonePower);
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::Background))result.background=control.overrides.background;
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::Ambient))result.ambient=control.overrides.ambient;
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::Sun))result.sun=control.overrides.sun;
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::Fill))result.fill=control.overrides.fill;
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::Phone))result.phone=control.overrides.phone;
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::Fog))result.fog=control.overrides.fog;
+    if(atmosphereChannelOverridden(control,AtmosphereChannel::FogDensity))result.fogDensity=control.overrides.fogDensity;
+    return result;
+}
+
+inline void setAtmosphereColorOverride(RuntimeLightingControl& control,AtmosphereChannel channel,VisualColor value){
+    control.overrideMask|=atmosphereChannelBit(channel);
+    switch(channel){
+        case AtmosphereChannel::Background:control.overrides.background=value;break;
+        case AtmosphereChannel::Ambient:control.overrides.ambient=value;break;
+        case AtmosphereChannel::Sun:control.overrides.sun=value;break;
+        case AtmosphereChannel::Fill:control.overrides.fill=value;break;
+        case AtmosphereChannel::Phone:control.overrides.phone=value;break;
+        case AtmosphereChannel::Fog:control.overrides.fog=value;break;
+        case AtmosphereChannel::FogDensity:break;
+    }
+}
+
+inline void setAtmosphereFogDensityOverride(RuntimeLightingControl& control,float value){
+    control.overrideMask|=atmosphereChannelBit(AtmosphereChannel::FogDensity);control.overrides.fogDensity=clampf(value,0.0f,1.0f);
 }
 
 } // namespace render_contract

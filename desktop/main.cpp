@@ -3,6 +3,7 @@
 #include "DesktopMultiplayer.hpp"
 #include "DesktopPlaytestPolicy.hpp"
 #include "DeveloperCodec.hpp"
+#include "LightingControlCommand.hpp"
 #include "BuildIdentity.hpp"
 #include "MenuNavigation.hpp"
 #include "ControllerRumble.hpp"
@@ -975,7 +976,7 @@ void executeDeveloperCodec(HostState& host){
     const auto parsed=parseDeveloperCodecCommand(input);
     const auto invalid=[&](){host.codec.write(parsed.recognizedVerb?"INVALID ARGUMENTS":"UNKNOWN COMMAND");host.codec.write("type: help");};
     switch(parsed.command){
-        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");break;
+        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");host.codec.write("lighting show/reset/reference/set/clear/input");break;
         case DeveloperCodecCommand::State:{
             const auto& state=host.game.state();const auto& build=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
             host.codec.write("build "+build.commitShort+"  version "+build.humanVersion);
@@ -996,6 +997,28 @@ void executeDeveloperCodec(HostState& host){
         case DeveloperCodecCommand::PlaytestRally:host.game.debugStartRallyLab();host.codec.write("PLAYTEST RALLY");break;
         case DeveloperCodecCommand::PlaytestTraversal:host.game.debugStartTraversalLab();host.codec.write("PLAYTEST TRAVERSAL");break;
         case DeveloperCodecCommand::PlaytestRooms:host.game.debugStartRoomInspector();host.codec.write("PLAYTEST ROOMS");break;
+        case DeveloperCodecCommand::Lighting:{
+            const auto command=parseLightingCommand(input);auto& control=host.renderer.lightingControl();
+            const auto show=[&](){
+                const auto& state=host.game.state();const float livePhone=state.vacuum.power*0.62f+state.energy.dischargePositionAmount;const auto effective=render_contract::effectiveAtmosphereInputs(control,{state.time,state.roomIndex,livePhone});const auto lighting=host.renderer.resolvedAtmosphere(state);
+                host.codec.write(std::string("LIGHTING REF ")+(control.reference==render_contract::AtmosphereProfile::ReadableStatic?"A":"B")+" MASK "+std::to_string(control.overrideMask));
+                {std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<"INPUT t="<<effective.time<<" room="<<effective.roomIndex<<" phone="<<effective.phonePower;host.codec.write(line.str());}
+                const auto colorLine=[&](const char* name,const VisualColor& value){std::ostringstream line;line<<std::fixed<<std::setprecision(3)<<name<<' '<<value.r<<' '<<value.g<<' '<<value.b;host.codec.write(line.str());};
+                colorLine("BG",lighting.background);colorLine("AMBIENT",lighting.ambient);colorLine("SUN",lighting.sun);colorLine("FILL",lighting.fill);colorLine("PHONE",lighting.phone);colorLine("FOG",lighting.fog);
+                {std::ostringstream line;line<<std::fixed<<std::setprecision(4)<<"FOG DENSITY "<<lighting.fogDensity;host.codec.write(line.str());}
+            };
+            switch(command.kind){
+                case LightingCommandKind::Show:show();break;
+                case LightingCommandKind::Export:{const std::string encoded=serializeLightingControl(control);std::printf("LIGHTING_CONTROL_V1 %s\n",encoded.c_str());std::fflush(stdout);host.codec.write("LIGHTING CONTROL EMITTED TO STDOUT");break;}
+                case LightingCommandKind::Reset:applyLightingCommand(control,command);host.codec.write("LIGHTING RESET TO REFERENCE A");show();break;
+                case LightingCommandKind::Reference:applyLightingCommand(control,command);host.codec.write(command.reference==render_contract::AtmosphereProfile::ReadableStatic?"LIGHTING REFERENCE A":"LIGHTING REFERENCE B");show();break;
+                case LightingCommandKind::SetColor:applyLightingCommand(control,command);host.codec.write("LIGHTING COLOR SET");show();break;
+                case LightingCommandKind::SetFogDensity:applyLightingCommand(control,command);host.codec.write("LIGHTING FOG DENSITY SET");show();break;
+                case LightingCommandKind::ClearChannel:applyLightingCommand(control,command);host.codec.write("LIGHTING CHANNEL LIVE");show();break;
+                case LightingCommandKind::SetInput:applyLightingCommand(control,command);host.codec.write(command.live?"LIGHTING INPUT LIVE":"LIGHTING INPUT FIXED");show();break;
+                default:host.codec.write("INVALID LIGHTING COMMAND");host.codec.write("lighting show/export | reference a/b | reset");host.codec.write("lighting set ambient 0.2 0.3 0.4 | set fog-density 0.02");host.codec.write("lighting clear ambient | input time/room/phone live|VALUE");break;
+            }
+            break;}
         default:invalid();break;
     }
     host.codec.input.clear();
@@ -1575,6 +1598,7 @@ int runSmokeTest() {
     return 0;
 }
 const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)return argv[i+1];return nullptr;}
+std::vector<std::string> argValues(int argc,char** argv,const char* expected){std::vector<std::string> values;for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)values.emplace_back(argv[i+1]);return values;}
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u),static_cast<std::streamsize>(width*3));return static_cast<bool>(out);}
 
@@ -1836,6 +1860,82 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
         behaviorPassed&&!captureFailed?"PASS":"FAIL",manifestPath.string().c_str(),(outputDirectory/"timeline.ndjson").string().c_str(),(outputDirectory/"frames").string().c_str());
     return captureFailed?5:(behaviorPassed?0:10);
 }
+
+int runLightingComparisonEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height,bool machineControlProvided){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code directoryError;
+    std::filesystem::create_directories(outputDirectory/"frames"/"clean",directoryError);
+    std::filesystem::create_directories(outputDirectory/"frames"/"video",directoryError);
+    if(directoryError){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=create_output path=%s\n",outputDirectory.string().c_str());return 4;}
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc);
+    std::ofstream events(outputDirectory/"events.ndjson",std::ios::trunc);
+    if(!timeline||!events){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=open_evidence_files\n");return 4;}
+
+    constexpr int roomSeed=424242,roomIndex=12,ticks=600;
+    constexpr std::array<int,3> sampleTicks{{0,300,600}};
+    constexpr std::array<float,3> phonePowers{{0.0f,0.5f,1.0f}};
+    host.game.debugStartGeneratedRoomFixture(roomSeed,roomIndex);
+    GameState base=host.game.state();
+    base.started=true;base.uiPaused=false;base.attractMode=false;base.cinematic.introActive=false;base.upgradeMenu.active=false;
+    base.localSettings.graphicsPreset=1;base.localSettings.shadows=true;base.localSettings.portalWindow=false;base.localSettings.particles=false;base.localSettings.fpsCounter=false;base.localSettings.mobileFraming=false;
+    for(auto& target:base.targets)target=TargetState{};
+    base.player.pos={0.0f,0.08f,8.0f};base.player.vel={};base.player.grounded=true;base.player.battery=100.0f;
+    base.camera.pos={0.0f,5.8f,14.0f};base.camera.lookTarget={0.0f,1.2f,-2.0f};base.camera.forward=normalized(base.camera.lookTarget-base.camera.pos);base.camera.verticalFovDegrees=52.0f;base.camera.firstPerson=false;
+    host.renderer.setHudVisible(false);
+
+    render_contract::RuntimeLightingControl experiment=host.renderer.lightingControl();
+    if(!machineControlProvided){experiment.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;render_contract::setAtmosphereColorOverride(experiment,render_contract::AtmosphereChannel::Ambient,{0.105f,0.090f,0.125f});render_contract::setAtmosphereColorOverride(experiment,render_contract::AtmosphereChannel::Fill,{0.160f,0.360f,0.520f});render_contract::setAtmosphereFogDensityOverride(experiment,0.0125f);experiment.timeFixed=true;experiment.roomFixed=true;experiment.phoneFixed=true;experiment.fixedInputs={7.25f,6,0.45f};}
+    std::ofstream replayState(outputDirectory/"lighting-control.txt",std::ios::trunc);
+    replayState<<serializeLightingControl(experiment)<<'\n';replayState.flush();
+
+    bool captureFailed=false;
+    std::vector<std::string> capturedFrames;
+    const auto writeColor=[&](std::ostream& stream,const VisualColor& c){stream<<'['<<c.r<<','<<c.g<<','<<c.b<<']';};
+    int videoIndex=0;
+    for(std::size_t sample=0;sample<sampleTicks.size();++sample){
+        GameState renderState=base;
+        renderState.time=static_cast<float>(sampleTicks[sample])/60.0f;
+        renderState.vacuum.power=phonePowers[sample];
+        renderState.energy.dischargePositionAmount=0.0f;
+        const float rendererPhonePower=renderState.vacuum.power*0.62f;
+        render_contract::RuntimeLightingControl readable,progressive;progressive.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;
+        const std::array<render_contract::RuntimeLightingControl,3> controls{{readable,progressive,experiment}};
+        const std::array<const char*,3> names{{"readable-static","progressive-candidate","runtime-experiment"}};
+        for(std::size_t variant=0;variant<controls.size();++variant){
+            host.renderer.setLightingControl(controls[variant]);
+            const auto atmosphere=host.renderer.resolvedAtmosphere(renderState);
+            const auto effectiveInputs=render_contract::effectiveAtmosphereInputs(controls[variant],{renderState.time,renderState.roomIndex,rendererPhonePower});
+            char cleanStem[128]{},videoStem[64]{};
+            std::snprintf(cleanStem,sizeof(cleanStem),"sample-%zu-tick-%04d-%s.ppm",sample,sampleTicks[sample],names[variant]);
+            std::snprintf(videoStem,sizeof(videoStem),"frame-%04d.ppm",videoIndex++);
+            const auto cleanRelative=std::filesystem::path("frames")/"clean"/cleanStem;
+            const auto videoRelative=std::filesystem::path("frames")/"video"/videoStem;
+            host.codec.open=false;host.codec.showColliders=false;host.codec.outputCount=0;host.codec.input.clear();
+            host.renderer.draw(renderState,&host.codec);glFinish();
+            const bool clean=captureFramebuffer(outputDirectory/cleanRelative,width,height);
+            const bool video=captureFramebuffer(outputDirectory/videoRelative,width,height);
+            glfwSwapBuffers(window);glfwPollEvents();captureFailed|=!clean||!video;capturedFrames.push_back(cleanRelative.generic_string());
+            timeline<<std::fixed<<std::setprecision(6)<<"{\"sample\":"<<sample<<",\"profile\":\""<<names[variant]<<"\",\"tick\":"<<sampleTicks[sample]<<",\"time\":"<<renderState.time
+                <<",\"room_seed\":"<<renderState.roomSeed<<",\"room_index\":"<<renderState.roomIndex<<",\"phone_power\":"<<renderState.vacuum.power<<",\"renderer_phone_power\":"<<rendererPhonePower
+                <<",\"lighting_reference\":\""<<(controls[variant].reference==render_contract::AtmosphereProfile::ReadableStatic?"a":"b")<<"\",\"override_mask\":"<<controls[variant].overrideMask
+                <<",\"modulation\":{\"time\":{\"mode\":\""<<(controls[variant].timeFixed?"fixed":"live")<<"\",\"value\":"<<effectiveInputs.time<<"},\"room\":{\"mode\":\""<<(controls[variant].roomFixed?"fixed":"live")<<"\",\"value\":"<<effectiveInputs.roomIndex<<"},\"phone\":{\"mode\":\""<<(controls[variant].phoneFixed?"fixed":"live")<<"\",\"value\":"<<effectiveInputs.phonePower<<"}}"
+                <<",\"graphics_preset\":"<<renderState.localSettings.graphicsPreset<<",\"shadows\":true,\"capture_size\":["<<width<<','<<height<<"],\"camera_pos\":["<<renderState.camera.pos.x<<','<<renderState.camera.pos.y<<','<<renderState.camera.pos.z<<"],\"camera_target\":["<<renderState.camera.lookTarget.x<<','<<renderState.camera.lookTarget.y<<','<<renderState.camera.lookTarget.z<<"],\"vertical_fov_degrees\":"<<renderState.camera.verticalFovDegrees<<",\"background\":";writeColor(timeline,atmosphere.background);timeline<<",\"ambient\":";writeColor(timeline,atmosphere.ambient);timeline<<",\"sun\":";writeColor(timeline,atmosphere.sun);timeline<<",\"fill\":";writeColor(timeline,atmosphere.fill);timeline<<",\"phone\":";writeColor(timeline,atmosphere.phone);timeline<<",\"fog\":";writeColor(timeline,atmosphere.fog);timeline<<",\"fog_density\":"<<atmosphere.fogDensity<<"}\n";
+            events<<"{\"tick\":"<<sampleTicks[sample]<<",\"event\":\"lighting_capture\",\"sample\":"<<sample<<",\"profile\":\""<<names[variant]<<"\",\"frame\":\""<<cleanRelative.generic_string()<<"\"}\n";
+        }
+    }
+    timeline.flush();events.flush();host.renderer.setLightingControl({});
+    const char* classification=captureFailed?"visual_capture_failure":"pass";
+    std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);
+    assertions<<"{\n  \"classification\": \""<<classification<<"\",\n  \"reference_conditions_identical\": true,\n  \"profile_order\": [\"readable-static\", \"progressive-candidate\", \"runtime-experiment\"],\n  \"runtime_experiment_machine_supplied\": "<<(machineControlProvided?"true":"false")<<",\n  \"sample_count\": 3,\n  \"frame_count\": 9\n}\n";assertions.flush();
+    const BuildIdentity& identity=desktopBuildIdentity();
+    std::ofstream manifest(manifestPath,std::ios::trunc);
+    manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"lighting-comparison\",\n  \"classification\": \""<<classification<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<ticks<<",\n  \"subject\": \"scene-lighting\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"lighting_control\": \"lighting-control.txt\",\n  \"frames\": [";
+    for(std::size_t i=0;i<capturedFrames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<capturedFrames[i]<<'"';
+    manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"frame-%04d.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";manifest.flush();
+    std::printf("EVIDENCE_RUN=%s scenario=lighting-comparison manifest=%s timeline=%s frames=%s\n",captureFailed?"FAIL":"PASS",manifestPath.string().c_str(),(outputDirectory/"timeline.ndjson").string().c_str(),(outputDirectory/"frames").string().c_str());
+    return captureFailed?5:0;
+}
 }
 
 int main(int argc, char** argv) {
@@ -1865,6 +1965,13 @@ int main(int argc, char** argv) {
     const char* perfTracePath=argValue(argc,argv,"--perf-trace");
     const char* evidenceScenario=argValue(argc,argv,"--evidence-scenario");
     const char* evidenceOutput=argValue(argc,argv,"--evidence-output");
+    const char* lightingControlState=argValue(argc,argv,"--lighting-control-state");
+    if(!lightingControlState)lightingControlState=argValue(argc,argv,"--lighting-replay-state");
+    const auto lightingCommands=argValues(argc,argv,"--lighting-command");
+    render_contract::RuntimeLightingControl machineLightingControl;
+    bool machineLightingProvided=lightingControlState||!lightingCommands.empty();
+    if(lightingControlState){std::ifstream input(lightingControlState);std::ostringstream encoded;encoded<<input.rdbuf();if(!input||!deserializeLightingControl(encoded.str(),machineLightingControl)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_state path=%s\n",lightingControlState);return 4;}}
+    for(const auto& text:lightingCommands){const auto command=parseLightingCommand(text);if(!applyLightingCommand(machineLightingControl,command)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
@@ -1947,6 +2054,7 @@ int main(int argc, char** argv) {
 #endif
 
     HostState host;
+    if(machineLightingProvided){host.renderer.setLightingControl(machineLightingControl);std::printf("LIGHTING_CONTROL=APPLIED %s\n",serializeLightingControl(machineLightingControl).c_str());}
     host.playtestPolicy=playtestPolicy;
     if(automationPlaytest)host.automationCaptureDelayFrames=1;
     host.progressionPath=progressionSavePath();
@@ -2083,8 +2191,9 @@ int main(int argc, char** argv) {
     if(evidenceScenario){
         int result=4;
         if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
-        else if(std::strcmp(evidenceScenario,"enemy-obstruction")!=0)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
-        else result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"enemy-obstruction")==0)result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
+        else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
         glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
     }
     if(!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector){

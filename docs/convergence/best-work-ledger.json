@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-09-29",
+  "product": {
+    "repository": "indrolend/data-game",
+    "authority": "main",
+    "revision": "f5468af9aa7b2346138066f009fa79a4ccfb1787",
+    "checkout_branch": "restore/progressive-atmosphere",
+    "checkout_dirty": true
+  },
+  "tools": {
+    "repository": "indrolend/data-game-tools",
+    "authority": "main",
+    "revision": "1fdb95cc02515701d25d05bcba984204fdd5c2e7",
+    "checkout_dirty": false
+  },
+  "inventory": {
+    "reachable_commits": 1001,
+    "main_commits": 620,
+    "commits_outside_main": 381,
+    "merge_commits": 54,
+    "local_branches": 36,
+    "remote_refs": 92,
+    "tags": 3
+  },
+  "validation": {
+    "ctest_total": 35,
+    "ctest_passed": 35,
+    "build_revision_key": "f5468af9aa7b-Release"
+  },
+  "capabilities": [
+    {"capability":"core gameplay lifecycle and room flow","category":"gameplay","status":"PRESENT","commits":["0162eda","c558088","3bf72eb"],"current_evidence":["game/Game.cpp","tests/gameplay_flow_probe.cpp","tests/room_progression_probe.cpp"],"disposition":"retain"},
+    {"capability":"original DATA device body","category":"player/assets","status":"SUPERSEDED","commits":["a7d61da","9454fa2","b272962"],"current_evidence":["models/phone.dbmesh","game/gameplay/PhoneBody.hpp","tests/phone_body_contract_test.cpp"],"disposition":"retain current refined asset and document lineage"},
+    {"capability":"phone display and menus","category":"phone UI/HUD","status":"PRESENT","commits":["8059515","2080861","2d5c61d"],"current_evidence":["game/PhoneDisplay.hpp","game/PhoneDisplayLayout.hpp","game/PhoneMenuModel.hpp"],"disposition":"retain; add rendered capture matrix"},
+    {"capability":"spray text reveal and typography hardening","category":"phone UI","status":"STRANDED","commits":["eb83790","8059515","2080861"],"branches":["codex/phone-text-effects","codex/phone-ui-hardening"],"disposition":"render comparison before isolated port"},
+    {"capability":"melee vacuum and target lifecycle","category":"combat","status":"PRESENT","current_evidence":["game/gameplay/MeleeConfig.hpp","game/gameplay/VacuumGeometry.hpp","game/gameplay/TargetLifecycle.hpp"],"disposition":"retain"},
+    {"capability":"soul motion storage economy and projectile identity","category":"souls","status":"PRESENT","current_evidence":["game/gameplay/SoulMotion.hpp","game/SoulEconomy.hpp","tests/soul_economy_test.cpp","tests/soul_projectile_lifecycle_test.cpp"],"disposition":"retain"},
+    {"capability":"soul deformation during extraction","category":"souls/VFX","status":"PARTIAL","commits":["e5d78a6"],"current_evidence":["desktop/DesktopRenderer.cpp","game/VisualIdentity.hpp"],"disposition":"add lifecycle render evidence and compare"},
+    {"capability":"flower theme and capture polish","category":"capture/audio/VFX","status":"PARTIAL","commits":["bd37f70"],"current_evidence":["desktop/DesktopRenderer.cpp","desktop/DesktopAudio.cpp","desktop/audio/flowertheme.wav"],"disposition":"same-scene visual and cue comparison"},
+    {"capability":"wall-mounted capture goals","category":"capture","status":"SUPERSEDED","commits":["6daef95","1a2e94e","203fe29"],"current_evidence":["desktop/DesktopRenderer.cpp","game/Game.cpp","tests/room_progression_probe.cpp"],"disposition":"retain current implementation and document lineage"},
+    {"capability":"deterministic procedural room inspector and review records","category":"rooms/diagnostics","status":"PRESENT","commits":["5807fcf","b781bdb7"],"current_evidence":["game/RoomEnvironment.hpp","game/Game.cpp","tests/traversal_calibration_test.cpp"],"disposition":"retain"},
+    {"capability":"traversal graph and generated surface physics","category":"traversal/physics","status":"PRESENT","commits":["f50fc010","c84b81c"],"current_evidence":["game/gameplay/TraversalGraph.hpp","tests/slope_traversal_fixture_test.cpp","tests/traversal_calibration_test.cpp"],"disposition":"retain"},
+    {"capability":"Playground rendered traversal evidence","category":"traversal/diagnostics","status":"PARTIAL","commits":["f50fc010"],"current_evidence":["tests/traversal_calibration_test.cpp","tests/soul_projectile_lifecycle_test.cpp"],"disposition":"add existing-harness scenario"},
+    {"capability":"secure automation playtest policy","category":"automation/input","status":"PRESENT","commits":["e445f6e1","0d9773a8"],"current_evidence":["desktop/DesktopPlaytestPolicy.hpp","tests/desktop_playtest_policy_test.cpp"],"disposition":"retain"},
+    {"capability":"deterministic input soak","category":"determinism/soak","status":"PRESENT","current_evidence":["tests/deterministic_input_soak.cpp"],"disposition":"retain"},
+    {"capability":"gameplay compute timing in soak","category":"performance","status":"STRANDED","commits":["9382508","9aabfda"],"current_evidence":["tests/deterministic_input_soak.cpp"],"disposition":"restore informational metrics without threshold"},
+    {"capability":"static readable lighting authority","category":"rendering/lighting","status":"PRESENT","commits":["2106ef1"],"current_evidence":["game/RenderContracts.hpp","tests/render_contracts_test.cpp","desktop/main.cpp"],"disposition":"preserve as reproducible runtime reference A"},
+    {"capability":"progressive scene atmosphere","category":"atmosphere/lighting","status":"CONFLICTING","commits":["3e5c9c6","8f0bb87","3791e28","d567a7c","50bf6fe","64febd7","2106ef1"],"branches":["cleanup/native-verification-authority-v2","restore/progressive-atmosphere"],"current_evidence":["game/RenderContracts.hpp","tests/render_contracts_test.cpp","desktop/main.cpp"],"disposition":"preserve as reproducible runtime reference B and controllable modulation region; do not force convergence"},
+    {"capability":"room-setting source occlusion and response lighting","category":"lighting","status":"PARTIAL","commits":["3e5c9c6","8f0bb87","3791e28","d567a7c","50bf6fe"],"disposition":"compare components independently"},
+    {"capability":"Hypercore atmospheric lighting","category":"lighting/atmosphere","status":"UNKNOWN","commits":["82150c6","fad1c78"],"branches":["codex/hypercore-visual-audio-convergence"],"disposition":"runtime A/B"},
+    {"capability":"semantic material response","category":"materials","status":"PRESENT","commits":["f1c8109","ce64e81"],"current_evidence":["game/MaterialResponse.hpp","tests/material_response_test.cpp"],"disposition":"retain"},
+    {"capability":"blob and soul-lattice impact visual","category":"VFX","status":"UNKNOWN","commits":["76f103a"],"disposition":"locate payload source and render A/B; do not run restoration script blindly"},
+    {"capability":"elastic combat and soul ingestion expression","category":"enemy presentation/combat VFX","status":"PARTIAL","commits":["e387c14"],"current_evidence":["desktop/DesktopRenderer.cpp","game/HumanVisual.hpp"],"disposition":"add focused render evidence"},
+    {"capability":"current enemy obstruction and contact behavior","category":"enemy behavior/physics","status":"PRESENT","commits":["bde8a44","3fbf6ca","f5468af"],"current_evidence":["game/diagnostics/EnemyEvidenceScenario.hpp","tests/enemy_evidence_scenario_test.cpp","desktop/main.cpp"],"disposition":"retain as baseline"},
+    {"capability":"recurrent enemy motor","category":"enemy behavior","status":"STRANDED","commits":["403bcfc","9038165","b58b338","1de1184"],"current_evidence":[],"disposition":"compare behind current evidence boundary before port"},
+    {"capability":"persistent physical enemy foot plants and gait","category":"enemy locomotion/physics","status":"STRANDED","commits":["af92829","e46e083","b40b0bd","902f496","d78ae27","54a5149","32a84d5"],"branches":["codex/physical-enemy-locomotion-convergence","prototype/physical-enemies"],"disposition":"recover selectively after common A/B scenario"},
+    {"capability":"physical recurrent and relentless enemy alternatives","category":"enemy behavior/developer labs","status":"CONFLICTING","commits":["5e63c1f","f4eb6bc","3a6f6f3","2997f12","ff8317d","5b27ad1"],"branches":["integration/mature-enemy-motor","convergence/zombie-v1","codex/extreme-enemy-lab"],"disposition":"rank using one product-owned evidence protocol"},
+    {"capability":"compact enemy motor telemetry","category":"telemetry","status":"PARTIAL","commits":["e60c158"],"current_evidence":["game/diagnostics/EnemyEvidenceScenario.hpp"],"disposition":"restore selected fields only with selected motor"},
+    {"capability":"live enemy physics tuning lab","category":"developer labs","status":"PARTIAL","commits":["7b3c74f","0838672"],"current_evidence":["desktop/DeveloperCodec.hpp","desktop/main.cpp"],"disposition":"recover only comparison-critical controls"},
+    {"capability":"general frame-stepped agent playtest bridge","category":"agent playtesting","status":"STRANDED","commits":["abd97e1"],"current_evidence":[],"disposition":"re-expose narrow product boundary; orchestration in Data Tools"},
+    {"capability":"agent demonstration recording","category":"recording","status":"PARTIAL","commits":["ab299df"],"current_evidence":["desktop/main.cpp","../data-game-tools/Invoke-DataGame.ps1"],"disposition":"Data Tools client atop recovered bridge"},
+    {"capability":"autonomous room playtest script","category":"automation","status":"REJECTED","commits":["1a4b170"],"disposition":"do not restore old dbdev-dependent script"},
+    {"capability":"synchronized gameplay evidence harness","category":"evidence capture","status":"PRESENT","commits":["bde8a44","3fbf6ca","f5468af"],"current_evidence":["game/diagnostics/EnemyEvidenceScenario.hpp","desktop/main.cpp","../data-game-tools/Invoke-DataGame.ps1"],"disposition":"extend by scenarios"},
+    {"capability":"multiplayer protocol determinism and peer isolation","category":"multiplayer/networking","status":"PRESENT","current_evidence":["network/MultiplayerProtocol.cpp","tests/multiplayer_determinism_test.cpp","tests/host_remote_peer_simulation_isolation_test.cpp"],"disposition":"retain"},
+    {"capability":"historical network input edge repair","category":"networking/input","status":"SUPERSEDED","commits":["0fe11b7"],"current_evidence":["tests/multiplayer_determinism_test.cpp","network/MultiplayerProtocol.cpp"],"disposition":"document mapping; do not restore one-shot helpers"},
+    {"capability":"controller support and hot-plug recovery","category":"controller/platform","status":"PRESENT","commits":["001fc99","8d7234b"],"current_evidence":["desktop/ControllerInput.hpp","desktop/ControllerInputWin.cpp"],"disposition":"retain; add manual hardware smoke"},
+    {"capability":"desktop release contract","category":"platform/release","status":"PRESENT","commits":["ba86e3f","0eab94a"],"current_evidence":["CMakeLists.txt",".github/workflows/release.yml","tools/release"],"disposition":"retain"},
+    {"capability":"Android and phone-control targets","category":"platform/tooling","status":"REJECTED","commits":["366ab1c"],"disposition":"historical only unless product scope changes"},
+    {"capability":"Pass 7 oracle and asset generation machinery","category":"assets/diagnostics","status":"REJECTED","commits":["7e277ba","0bdaeda"],"disposition":"do not restore as authority"},
+    {"capability":"audio music and Secret TV","category":"audio/gameplay","status":"PRESENT","commits":["3a2f9b8"],"current_evidence":["desktop/DesktopAudio.cpp","tests/secret_tv_policy_test.cpp","tv"],"disposition":"retain; add cue-state/manual audio survival checks"},
+    {"capability":"external exact-revision evidence orchestration","category":"release/diagnostics","status":"PRESENT","commits":["1fdb95cc"],"current_evidence":["../data-game-tools/Invoke-DataGame.ps1"],"disposition":"preserve authority split"}
+  ],
+  "next_operation": {
+    "capability": "lighting experiment batch index",
+    "product_change": "none",
+    "tools_change": "index retained lighting bundles with control-state path resolved-state summary and evidence hash",
+    "prohibited": ["rank aesthetics", "generalize into an editor or RPC system", "extend runtime tuning to enemies yet"]
+  }
+}
