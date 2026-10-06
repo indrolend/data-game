@@ -16,7 +16,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-#ifdef _WIN32
+#if defined(DB_USE_GL_SHIM)
+#include "GLShim.hpp"
+#elif defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
