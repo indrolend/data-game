@@ -1460,6 +1460,8 @@ void printUsage() {
     std::printf("  --capture-hide-hud  Hide framebuffer HUD elements in visual captures.\n");
     std::printf("  --perf-trace FILE   Record one-second runtime performance summaries as CSV.\n");
     std::printf("  --evidence-scenario NAME --evidence-output DIR  Run a deterministic visual/runtime evidence scenario.\n");
+    std::printf("  --evidence-scenario lighting-replay  Fixed-dt scripted gameplay replay with per-frame lighting snapshots (honors --lighting-command).\n");
+    std::printf("  --lighting-replay-selfcheck  Run the lighting replay twice headlessly and compare state hashes.\n");
     std::printf("  --net-latency-ms N --net-jitter-ms N  Enable explicit deterministic network impairment.\n");
     std::printf("  --net-drop-snapshot-every N --net-drop-input-every N --net-seed N\n");
 }
@@ -1580,7 +1582,91 @@ int runSmokeTest() {
 const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)return argv[i+1];return nullptr;}
 std::vector<std::string> argValues(int argc,char** argv,const char* expected){std::vector<std::string> values;for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)values.emplace_back(argv[i+1]);return values;}
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
-bool captureFramebuffer(const std::filesystem::path& path,int width,int height){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u),static_cast<std::streamsize>(width*3));return static_cast<bool>(out);}
+bool captureFramebuffer(const std::filesystem::path& path,int width,int height,std::uint64_t* fileHash=nullptr){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;const std::string header="P6\n"+std::to_string(width)+" "+std::to_string(height)+"\n255\n";out.write(header.data(),static_cast<std::streamsize>(header.size()));std::uint64_t hash=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,header.data(),header.size());for(int y=height-1;y>=0;--y){const char* row=reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u);out.write(row,static_cast<std::streamsize>(width*3));hash=lighting_evidence::fnv1a(hash,row,static_cast<std::size_t>(width)*3u);}if(fileHash)*fileHash=hash;return static_cast<bool>(out);}
+
+lighting_evidence::LightingStateSnapshot makeLightingSnapshot(const GameState& state,const DesktopRenderer& renderer,std::uint64_t tick,int width,int height,const std::string& capturePath,const std::uint64_t* pixelHash){
+    const auto& identity=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);const auto& control=renderer.lightingControl();
+    lighting_evidence::LightingStateSnapshot snapshot;
+    snapshot.sourceCommit=identity.commit;snapshot.sourceCommitShort=identity.commitShort;snapshot.buildConfiguration=identity.buildConfiguration;
+    snapshot.simulationTick=tick;snapshot.simulationTime=state.time;
+    snapshot.cameraPos={state.camera.pos.x,state.camera.pos.y,state.camera.pos.z};snapshot.cameraLookTarget={state.camera.lookTarget.x,state.camera.lookTarget.y,state.camera.lookTarget.z};snapshot.cameraFov=state.camera.verticalFovDegrees;
+    snapshot.roomSeed=state.roomSeed;snapshot.roomIndex=state.roomIndex;snapshot.roomSetting=room_environment::settingName(plan.setting);snapshot.roomForm=room_environment::formName(plan.form);
+    snapshot.graphicsPreset=state.localSettings.graphicsPreset;snapshot.shadows=state.localSettings.shadows;
+    snapshot.atmosphereReference=control.reference==render_contract::AtmosphereProfile::ReadableStatic?"readable-static":"progressive-candidate";snapshot.overrideMask=control.overrideMask;
+    snapshot.renderer=renderer.lastLightingObservation();snapshot.frameWidth=width;snapshot.frameHeight=height;snapshot.capturePath=capturePath;
+    if(pixelHash){snapshot.pixelHashAvailable=true;snapshot.pixelHash=*pixelHash;}
+    return snapshot;
+}
+
+// Deterministic lighting replay: the real Game advances at a fixed dt from a
+// scripted input table. No wall clock, window or GL is involved.
+constexpr float ReplayDt=1.0f/60.0f;
+constexpr int ReplayTicks=600;
+constexpr int ReplaySeed=424242;
+constexpr std::array<int,12> ReplayCaptureTicks{{0,60,120,180,240,300,360,420,480,510,540,600}};
+struct ReplayInput{float moveX=0.0f,moveZ=0.0f,lookX=0.0f;bool vacuum=false,shoot=false,sprint=false;const char* phase="stationary";const char* dimension="time";};
+// Input for the update that produces simulation tick n (1..ReplayTicks).
+ReplayInput replayInput(int n){
+    ReplayInput in;
+    if(n<=120)return in;
+    if(n<=240){in.phase="camera-yaw";in.dimension="camera";in.lookX=3.0f;return in;}
+    if(n<=420){in.phase="player-move";in.dimension="player";in.moveZ=1.0f;in.sprint=true;return in;}
+    in.dimension="game_state";
+    if(n<=480){in.phase="vacuum-held";in.vacuum=true;return in;}
+    if(n<502){in.phase="vacuum-released";return in;}
+    if(n==502){in.phase="shot";in.shoot=true;return in;}
+    in.phase="post-shot";return in;
+}
+const char* replayPhaseAt(int tick,const char*& dimension){const ReplayInput in=replayInput(std::max(tick,0)==0?1:tick);dimension=tick==0?"time":in.dimension;return tick==0?"initial":in.phase;}
+struct ReplayRecord{int tick=0;float time=0.0f;Vec3 playerPos{},cameraPos{},cameraLook{};float vacuumPower=0.0f,shotAge=0.0f,discharge=0.0f;std::uint64_t stateHash=0;};
+std::uint64_t hashReplayState(int tick,const GameState& s){
+    const float values[]={s.time,s.player.pos.x,s.player.pos.y,s.player.pos.z,s.player.vel.x,s.player.vel.y,s.player.vel.z,s.camera.pos.x,s.camera.pos.y,s.camera.pos.z,s.camera.lookTarget.x,s.camera.lookTarget.y,s.camera.lookTarget.z,s.camera.verticalFovDegrees,s.vacuum.power,s.environmentVisual.latestShotAge,s.energy.dischargePositionAmount,s.hud.criticalHitPulse};
+    std::uint64_t hash=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,&tick,sizeof(tick));hash=lighting_evidence::fnv1a(hash,&s.frame,sizeof(s.frame));
+    return lighting_evidence::fnv1a(hash,values,sizeof(values));
+}
+int findSterileCorridorRoom(int seed){for(int room=2;room<=64;++room){const auto plan=room_environment::roomPlan(seed,room);if(plan.setting==room_environment::RoomSetting::Sterile&&plan.form==room_environment::RoomForm::Corridor)return room;}return 0;}
+// Runs the script and calls onCapture(record,state) at every capture tick; stops early if it returns false.
+template<class OnCapture> bool runLightingReplay(Game& game,std::vector<ReplayRecord>& records,OnCapture&& onCapture){
+    const int room=findSterileCorridorRoom(ReplaySeed);if(room==0)return false;
+    game.debugStartGeneratedRoomFixture(ReplaySeed,room);
+    GameState& fixture=game.networkMutableState();fixture.started=true;fixture.uiPaused=false;fixture.attractMode=false;fixture.cinematic.introActive=false;fixture.upgradeMenu.active=false;
+    fixture.localSettings.graphicsPreset=1;fixture.localSettings.shadows=true;fixture.localSettings.portalWindow=false;fixture.localSettings.particles=false;fixture.localSettings.fpsCounter=false;fixture.localSettings.mobileFraming=false;
+    for(auto& target:fixture.targets)target=TargetState{};
+    fixture.player.pos={0,0.08f,14};fixture.player.vel={};fixture.player.grounded=true;fixture.player.battery=100;fixture.player.souls=1;
+    int nextCapture=0;
+    for(int tick=0;tick<=ReplayTicks;++tick){
+        if(tick>0){const ReplayInput in=replayInput(tick);game.setTouchControls(in.moveX,in.moveZ,in.lookX,0.0f,in.vacuum,in.sprint,false,false,in.shoot,false);game.update(ReplayDt);}
+        if(nextCapture<static_cast<int>(ReplayCaptureTicks.size())&&tick==ReplayCaptureTicks[static_cast<std::size_t>(nextCapture)]){
+            const GameState& s=game.state();records.push_back({tick,s.time,s.player.pos,s.camera.pos,s.camera.lookTarget,s.vacuum.power,s.environmentVisual.latestShotAge,s.energy.dischargePositionAmount,hashReplayState(tick,s)});
+            ++nextCapture;if(!onCapture(records.back(),s))return false;
+        }
+    }
+    return true;
+}
+struct ReplayChecks{bool finite=false,tickSequence=false,timeAdvanced=false,cameraMoved=false,playerMoved=false,phoneRamped=false,shotObserved=false;bool all()const{return finite&&tickSequence&&timeAdvanced&&cameraMoved&&playerMoved&&phoneRamped&&shotObserved;}};
+ReplayChecks evaluateReplay(const std::vector<ReplayRecord>& r){
+    ReplayChecks c;if(r.size()!=ReplayCaptureTicks.size())return c;
+    c.finite=true;c.tickSequence=true;c.timeAdvanced=true;
+    for(std::size_t i=0;i<r.size();++i){const auto& x=r[i];c.finite&=std::isfinite(x.time)&&std::isfinite(x.playerPos.x)&&std::isfinite(x.playerPos.y)&&std::isfinite(x.playerPos.z)&&std::isfinite(x.cameraPos.x)&&std::isfinite(x.cameraPos.y)&&std::isfinite(x.cameraPos.z)&&std::isfinite(x.vacuumPower)&&std::isfinite(x.shotAge);c.tickSequence&=x.tick==ReplayCaptureTicks[i];c.timeAdvanced&=std::abs(x.time-static_cast<float>(x.tick)/60.0f)<0.01f;}
+    const auto at=[&](int tick)->const ReplayRecord&{for(const auto& x:r)if(x.tick==tick)return x;return r.front();};
+    c.cameraMoved=lengthSq(at(240).cameraPos-at(120).cameraPos)>0.0001f||lengthSq(at(240).cameraLook-at(120).cameraLook)>0.0001f;
+    c.playerMoved=std::abs(at(420).playerPos.z-at(240).playerPos.z)>1.0f;
+    c.phoneRamped=at(480).vacuumPower>at(420).vacuumPower+0.01f&&at(480).vacuumPower>at(540).vacuumPower+0.01f;
+    c.shotObserved=at(510).shotAge<0.18f&&at(540).shotAge>=0.18f&&at(480).shotAge>=0.18f;
+    return c;
+}
+// Headless determinism self-check: two fresh Games must produce identical state hashes at every capture tick.
+int runLightingReplaySelfCheck(){
+    const auto run=[](std::vector<ReplayRecord>& records){Game game;return runLightingReplay(game,records,[](const ReplayRecord&,const GameState&){return true;});};
+    std::vector<ReplayRecord> first,second;
+    const bool ran=run(first)&&run(second);
+    bool identical=ran&&first.size()==second.size();std::uint64_t sequence=lighting_evidence::Fnv1aOffset;
+    for(std::size_t i=0;identical&&i<first.size();++i){identical=first[i].stateHash==second[i].stateHash;sequence=lighting_evidence::fnv1a(sequence,&first[i].stateHash,sizeof(std::uint64_t));}
+    const ReplayChecks checks=evaluateReplay(first);
+    std::printf("LIGHTING_REPLAY_SELFCHECK=%s ran=%d captures=%zu deterministic=%d finite=%d tick_sequence=%d time=%d camera=%d player=%d phone=%d shot=%d sequence_hash=%s\n",identical&&checks.all()?"PASS":"FAIL",ran?1:0,first.size(),identical?1:0,checks.finite?1:0,checks.tickSequence?1:0,checks.timeAdvanced?1:0,checks.cameraMoved?1:0,checks.playerMoved?1:0,checks.phoneRamped?1:0,checks.shotObserved?1:0,lighting_evidence::hashHex(sequence).c_str());
+    return identical&&checks.all()?0:1;
+}
+
 
 int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::path& framePath,int width,int height){
     std::uint64_t tick=0;
@@ -1936,11 +2022,44 @@ int runLightingComparisonEvidence(GLFWwindow* window,HostState& host,const std::
         const auto response=scene_lighting_response::resolve({renderState.vacuum.power,renderState.energy.dischargePositionAmount,renderState.environmentVisual.latestShotAge,renderState.hud.criticalHitPulse,objectiveProgress,renderState.roomClear});observedResponses[sample]=response;
         render_contract::RuntimeLightingControl readable,progressive;progressive.reference=render_contract::AtmosphereProfile::ProgressiveCandidate;
         const std::array<render_contract::RuntimeLightingControl,3> controls{{readable,progressive,experiment}};const std::array<const char*,3> names{{"readable-static","progressive-candidate","runtime-experiment"}};
-        for(std::size_t variant=0;variant<controls.size();++variant){host.renderer.setLightingControl(controls[variant]);const auto atmosphere=host.renderer.resolvedAtmosphere(renderState);const auto effective=render_contract::effectiveAtmosphereInputs(controls[variant],{renderState.time,renderState.roomIndex,renderState.vacuum.power*0.62f});char cleanName[128]{},videoName[64]{};std::snprintf(cleanName,sizeof(cleanName),"sample-%zu-tick-%04d-%s.ppm",sample,sampleTicks[sample],names[variant]);std::snprintf(videoName,sizeof(videoName),"frame-%04d.ppm",frameIndex++);const auto clean=std::filesystem::path("frames")/"clean"/cleanName,video=std::filesystem::path("frames")/"video"/videoName;host.renderer.draw(renderState,&host.codec);glFinish();failed|=!captureFramebuffer(outputDirectory/clean,width,height)||!captureFramebuffer(outputDirectory/video,width,height);glfwSwapBuffers(window);glfwPollEvents();frames.push_back(clean.generic_string());timeline<<std::fixed<<std::setprecision(6)<<"{\"sample\":"<<sample<<",\"profile\":\""<<names[variant]<<"\",\"tick\":"<<sampleTicks[sample]<<",\"time\":"<<renderState.time<<",\"room_seed\":"<<renderState.roomSeed<<",\"room_index\":"<<renderState.roomIndex<<",\"room_setting\":\""<<room_environment::settingName(roomPlan.setting)<<"\",\"room_form\":\""<<room_environment::formName(roomPlan.form)<<"\",\"primary_light_source\":\""<<sourceName<<"\",\"local_light_count\":"<<lightRig.localLightCount<<",\"shot_light\":"<<response.shotLight<<",\"action_light\":"<<response.actionLight<<",\"critical_light\":"<<response.criticalLight<<",\"phone_light_scale\":"<<response.phoneLightScale<<",\"exit_glow\":"<<response.exitGlow<<",\"phone_power\":"<<renderState.vacuum.power<<",\"lighting_reference\":\""<<(controls[variant].reference==render_contract::AtmosphereProfile::ReadableStatic?"a":"b")<<"\",\"override_mask\":"<<controls[variant].overrideMask<<",\"effective_time\":"<<effective.time<<",\"effective_room\":"<<effective.roomIndex<<",\"effective_phone\":"<<effective.phonePower<<",\"background\":";writeColor(timeline,atmosphere.background);timeline<<",\"ambient\":";writeColor(timeline,atmosphere.ambient);timeline<<",\"sun\":";writeColor(timeline,atmosphere.sun);timeline<<",\"fill\":";writeColor(timeline,atmosphere.fill);timeline<<",\"phone\":";writeColor(timeline,atmosphere.phone);timeline<<",\"fog\":";writeColor(timeline,atmosphere.fog);timeline<<",\"fog_density\":"<<atmosphere.fogDensity<<"}\n";events<<"{\"tick\":"<<sampleTicks[sample]<<",\"event\":\"lighting_capture\",\"profile\":\""<<names[variant]<<"\",\"frame\":\""<<clean.generic_string()<<"\"}\n";}
+        for(std::size_t variant=0;variant<controls.size();++variant){host.renderer.setLightingControl(controls[variant]);const auto atmosphere=host.renderer.resolvedAtmosphere(renderState);const auto effective=render_contract::effectiveAtmosphereInputs(controls[variant],{renderState.time,renderState.roomIndex,renderState.vacuum.power*0.62f});char cleanName[128]{},videoName[64]{};std::snprintf(cleanName,sizeof(cleanName),"sample-%zu-tick-%04d-%s.ppm",sample,sampleTicks[sample],names[variant]);std::snprintf(videoName,sizeof(videoName),"frame-%04d.ppm",frameIndex++);const auto clean=std::filesystem::path("frames")/"clean"/cleanName,video=std::filesystem::path("frames")/"video"/videoName;host.renderer.draw(renderState,&host.codec);glFinish();std::uint64_t pixelHash=0;failed|=!captureFramebuffer(outputDirectory/clean,width,height,&pixelHash)||!captureFramebuffer(outputDirectory/video,width,height);glfwSwapBuffers(window);glfwPollEvents();frames.push_back(clean.generic_string());timeline<<std::fixed<<std::setprecision(6)<<"{\"sample\":"<<sample<<",\"profile\":\""<<names[variant]<<"\",\"tick\":"<<sampleTicks[sample]<<",\"time\":"<<renderState.time<<",\"room_seed\":"<<renderState.roomSeed<<",\"room_index\":"<<renderState.roomIndex<<",\"room_setting\":\""<<room_environment::settingName(roomPlan.setting)<<"\",\"room_form\":\""<<room_environment::formName(roomPlan.form)<<"\",\"primary_light_source\":\""<<sourceName<<"\",\"local_light_count\":"<<lightRig.localLightCount<<",\"shot_light\":"<<response.shotLight<<",\"action_light\":"<<response.actionLight<<",\"critical_light\":"<<response.criticalLight<<",\"phone_light_scale\":"<<response.phoneLightScale<<",\"exit_glow\":"<<response.exitGlow<<",\"phone_power\":"<<renderState.vacuum.power<<",\"lighting_reference\":\""<<(controls[variant].reference==render_contract::AtmosphereProfile::ReadableStatic?"a":"b")<<"\",\"override_mask\":"<<controls[variant].overrideMask<<",\"effective_time\":"<<effective.time<<",\"effective_room\":"<<effective.roomIndex<<",\"effective_phone\":"<<effective.phonePower<<",\"background\":";writeColor(timeline,atmosphere.background);timeline<<",\"ambient\":";writeColor(timeline,atmosphere.ambient);timeline<<",\"sun\":";writeColor(timeline,atmosphere.sun);timeline<<",\"fill\":";writeColor(timeline,atmosphere.fill);timeline<<",\"phone\":";writeColor(timeline,atmosphere.phone);timeline<<",\"fog\":";writeColor(timeline,atmosphere.fog);timeline<<",\"fog_density\":"<<atmosphere.fogDensity<<",\"lighting_snapshot\":"<<lighting_evidence::serializeSnapshot(makeLightingSnapshot(renderState,host.renderer,static_cast<std::uint64_t>(sampleTicks[sample]),width,height,clean.generic_string(),&pixelHash))<<"}\n";events<<"{\"tick\":"<<sampleTicks[sample]<<",\"event\":\"lighting_capture\",\"profile\":\""<<names[variant]<<"\",\"frame\":\""<<clean.generic_string()<<"\"}\n";}
     }
     const bool sourceRigValid=lightRig.primarySource==room_lighting::PrimaryLightSource::CeilingFixtures&&lightRig.localLightCount==2&&lightRig.localLights[0].visibleFixture&&lightRig.localLights[1].visibleFixture;const bool responseValid=observedResponses[0].shotLight==0.0f&&observedResponses[0].actionLight==0.0f&&observedResponses[0].exitGlow==0.0f&&observedResponses[1].shotLight==1.0f&&observedResponses[1].actionLight>0.0f&&observedResponses[2].criticalLight==1.0f&&observedResponses[2].exitGlow==1.0f;const char* classification=failed?"visual_capture_failure":(!sourceRigValid?"source_rig_failure":(responseValid?"pass":"scene_response_failure"));{std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<classification<<"\",\n  \"reference_conditions_identical\": true,\n  \"visible_sources_colocated_with_local_lights\": "<<(sourceRigValid?"true":"false")<<",\n  \"bounded_scene_response_sequence\": "<<(responseValid?"true":"false")<<",\n  \"primary_light_source\": \""<<sourceName<<"\",\n  \"local_light_count\": "<<lightRig.localLightCount<<",\n  \"sample_count\": 3,\n  \"frame_count\": 9\n}\n";}
     const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"lighting-comparison\",\n  \"classification\": \""<<classification<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": 600,\n  \"subject\": \"scene-lighting\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"lighting_control\": \"lighting-control.txt\",\n  \"frames\": [";for(std::size_t i=0;i<frames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<frames[i]<<'"';manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"frame-%04d.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";
     std::printf("EVIDENCE_RUN=%s scenario=lighting-comparison manifest=%s\n",failed||!sourceRigValid||!responseValid?"FAIL":"PASS",manifestPath.string().c_str());return failed?5:(sourceRigValid&&responseValid?0:10);
+}
+
+int runLightingReplayEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"clean",error);std::filesystem::create_directories(outputDirectory/"frames"/"video",error);
+    if(error)return 4;
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),events(outputDirectory/"events.ndjson",std::ios::trunc);
+    {std::ofstream state(outputDirectory/"lighting-control.txt",std::ios::trunc);state<<serializeLightingControl(host.renderer.lightingControl())<<'\n';}
+    host.renderer.setHudVisible(false);
+    bool failed=false,snapshotsPresent=true,glObserved=true;int frameIndex=0;std::vector<std::string> frames;std::vector<ReplayRecord> records;
+    const bool ran=runLightingReplay(host.game,records,[&](const ReplayRecord& record,const GameState& state){
+        const char* dimension="time";const char* phase=replayPhaseAt(record.tick,dimension);
+        char cleanName[96]{},videoName[64]{};std::snprintf(cleanName,sizeof(cleanName),"tick-%04d-%s.ppm",record.tick,phase);std::snprintf(videoName,sizeof(videoName),"frame-%04d.ppm",frameIndex++);
+        const auto clean=std::filesystem::path("frames")/"clean"/cleanName,video=std::filesystem::path("frames")/"video"/videoName;
+        host.renderer.draw(state,&host.codec);glFinish();
+        std::uint64_t pixelHash=0;const bool cleanSaved=captureFramebuffer(outputDirectory/clean,width,height,&pixelHash);const bool videoSaved=captureFramebuffer(outputDirectory/video,width,height);
+        glfwSwapBuffers(window);glfwPollEvents();failed|=!cleanSaved||!videoSaved;frames.push_back(clean.generic_string());
+        const auto snapshot=makeLightingSnapshot(state,host.renderer,static_cast<std::uint64_t>(record.tick),width,height,clean.generic_string(),cleanSaved?&pixelHash:nullptr);
+        const auto& gl=snapshot.renderer.gl;snapshotsPresent&=snapshot.renderer.valid;glObserved&=snapshot.renderer.valid&&gl.lights.observed&&gl.globalAmbientBlock.observed&&gl.fogBlock.observed&&gl.flagsBlock.observed;
+        timeline<<std::fixed<<std::setprecision(6)<<"{\"tick\":"<<record.tick<<",\"time\":"<<record.time<<",\"phase\":\""<<phase<<"\",\"dimension\":\""<<dimension<<"\",\"player_pos\":["<<record.playerPos.x<<','<<record.playerPos.y<<','<<record.playerPos.z<<"],\"camera\":{\"pos\":["<<record.cameraPos.x<<','<<record.cameraPos.y<<','<<record.cameraPos.z<<"],\"look_target\":["<<record.cameraLook.x<<','<<record.cameraLook.y<<','<<record.cameraLook.z<<"],\"fov\":"<<state.camera.verticalFovDegrees<<"},\"state_hash\":\""<<lighting_evidence::hashHex(record.stateHash)<<"\",\"frame\":\""<<clean.generic_string()<<"\",\"lighting_snapshot\":"<<lighting_evidence::serializeSnapshot(snapshot)<<"}\n";
+        events<<"{\"tick\":"<<record.tick<<",\"event\":\"lighting_capture\",\"phase\":\""<<phase<<"\",\"dimension\":\""<<dimension<<"\",\"frame\":\""<<clean.generic_string()<<"\"}\n";
+        return true;});
+    const ReplayChecks checks=evaluateReplay(records);const bool frameCountMatches=frames.size()==ReplayCaptureTicks.size();
+    const bool scriptValid=ran&&frameCountMatches&&checks.all()&&snapshotsPresent;
+    const char* classification=!ran?"fixture_failure":(failed?"visual_capture_failure":(!glObserved?"gl_state_unobserved":(scriptValid?"pass":"script_failure")));
+    {std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<classification<<"\",\n  \"finite_values\": "<<(checks.finite?"true":"false")<<",\n  \"deterministic_tick_sequence\": "<<(checks.tickSequence?"true":"false")<<",\n  \"simulation_time_advanced\": "<<(checks.timeAdvanced?"true":"false")<<",\n  \"camera_changed_in_yaw_segment\": "<<(checks.cameraMoved?"true":"false")<<",\n  \"player_moved_in_move_segment\": "<<(checks.playerMoved?"true":"false")<<",\n  \"phone_power_ramped\": "<<(checks.phoneRamped?"true":"false")<<",\n  \"shot_light_age_observed\": "<<(checks.shotObserved?"true":"false")<<",\n  \"snapshot_present_for_each_frame\": "<<(snapshotsPresent&&frameCountMatches?"true":"false")<<",\n  \"gl_state_observed\": "<<(glObserved?"true":"false")<<",\n  \"frame_count\": "<<frames.size()<<"\n}\n";}
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);
+    manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"lighting-replay\",\n  \"classification\": \""<<classification<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<ReplayTicks<<",\n  \"subject\": \"scene-lighting\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"lighting_control\": \"lighting-control.txt\",\n  \"dimensions\": [\"time\", \"camera\", \"player\", \"game_state\", \"lighting_param\"],\n  \"frames\": [";
+    for(std::size_t i=0;i<frames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<frames[i]<<'"';
+    manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"frame-%04d.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=lighting-replay manifest=%s classification=%s\n",failed||!scriptValid||!glObserved?"FAIL":"PASS",manifestPath.string().c_str(),classification);
+    return failed?5:(scriptValid&&glObserved?0:10);
 }
 }
 
@@ -2008,6 +2127,9 @@ int main(int argc, char** argv) {
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
     if (hasArg(argc, argv, "--smoke-test")) {
         return runSmokeTest();
+    }
+    if (hasArg(argc, argv, "--lighting-replay-selfcheck")) {
+        return runLightingReplaySelfCheck();
     }
     if (hasArg(argc, argv, "--save-roundtrip-test")) {
         return runSaveRoundtripTest();
@@ -2238,6 +2360,7 @@ int main(int argc, char** argv) {
         if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
         else if(std::strcmp(evidenceScenario,"enemy-obstruction")==0)result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
+        else if(std::strcmp(evidenceScenario,"lighting-replay")==0)result=runLightingReplayEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"soul-lifecycle")==0)result=runSoulLifecycleEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
         glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;

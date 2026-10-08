@@ -378,6 +378,10 @@ add_executable(ExpressiveVisualTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/expressiv
 target_include_directories(ExpressiveVisualTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(ExpressiveVisualTest PRIVATE cxx_std_17)
 
+add_executable(LightingStateSnapshotTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/lighting_state_snapshot_test.cpp")
+target_include_directories(LightingStateSnapshotTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(LightingStateSnapshotTest PRIVATE cxx_std_17)
+
 add_executable(EnemyEvidenceScenarioTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_evidence_scenario_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
 target_include_directories(EnemyEvidenceScenarioTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(EnemyEvidenceScenarioTest PRIVATE cxx_std_17)
@@ -495,6 +499,8 @@ set_tests_properties(SlopeTraversalFixtureTest SlopeTraversalCheck PROPERTIES
 add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
 add_test(NAME SceneLightingResponseTest COMMAND SceneLightingResponseTest)
 add_test(NAME ExpressiveVisualTest COMMAND ExpressiveVisualTest)
+add_test(NAME LightingStateSnapshotTest COMMAND LightingStateSnapshotTest)
+add_test(NAME LightingReplayDeterminismTest COMMAND DigitalBreakdown --lighting-replay-selfcheck)
 add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
 add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
 add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)

@@ -6,6 +6,7 @@
 #include "DeveloperCodec.hpp"
 #include "RenderContracts.hpp"
 #include "SceneLightingResponse.hpp"
+#include "LightingStateSnapshot.hpp"
 
 #include <filesystem>
 #include <vector>
@@ -24,6 +25,7 @@ public:
     const render_contract::RuntimeLightingControl& lightingControl() const;
     render_contract::SceneAtmosphere resolvedAtmosphere(const GameState& state) const;
     void draw(const GameState& state, const DeveloperCodecState* codec=nullptr) const;
+    const lighting_evidence::RendererLightingObservation& lastLightingObservation() const { return lightingObservation_; }
 
 private:
     static void drawFacetedRock(const room_environment::EnvironmentPropSpec& prop, int roomSeed, int roomIndex, int propIndex, float zOffset, const VisualColor& color);
@@ -49,6 +51,7 @@ private:
     mutable int datamoshHeight_ = 0;
     bool hudVisible_ = true;
     render_contract::RuntimeLightingControl lightingControl_{};
+    mutable lighting_evidence::RendererLightingObservation lightingObservation_{};
 
     void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
     void drawFieldGrass(int tileIndex) const;

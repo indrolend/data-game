@@ -1293,6 +1293,30 @@ void DesktopRenderer::drawDoorDataMosh(const GameState& state) const {
     glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_BLEND);glDisable(GL_TEXTURE_2D);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);
 }
 
+namespace {
+// Reads back the fixed-function lighting state. Any GL error while reading marks
+// the affected blocks unobserved instead of reporting stale or invented values.
+lighting_evidence::GlFixedFunctionState observeGlFixedFunctionState(const char* capturePoint){
+    using namespace lighting_evidence;
+    GlFixedFunctionState gl{};
+    while(glGetError()!=GL_NO_ERROR){}
+    for(int i=0;i<GlLightCount;++i){
+        GlLightState& light=gl.light[static_cast<std::size_t>(i)];const GLenum id=GL_LIGHT0+i;
+        light.enabled=glIsEnabled(id)==GL_TRUE;
+        glGetLightfv(id,GL_POSITION,light.position.data());glGetLightfv(id,GL_DIFFUSE,light.diffuse.data());glGetLightfv(id,GL_AMBIENT,light.ambient.data());
+        glGetLightfv(id,GL_CONSTANT_ATTENUATION,&light.constantAttenuation);glGetLightfv(id,GL_LINEAR_ATTENUATION,&light.linearAttenuation);glGetLightfv(id,GL_QUADRATIC_ATTENUATION,&light.quadraticAttenuation);
+    }
+    gl.lights={glGetError()==GL_NO_ERROR,capturePoint};
+    glGetFloatv(GL_LIGHT_MODEL_AMBIENT,gl.globalAmbient.data());
+    gl.globalAmbientBlock={glGetError()==GL_NO_ERROR,capturePoint};
+    gl.fogEnabled=glIsEnabled(GL_FOG)==GL_TRUE;glGetFloatv(GL_FOG_COLOR,gl.fogColor.data());glGetFloatv(GL_FOG_DENSITY,&gl.fogDensity);
+    gl.fogBlock={glGetError()==GL_NO_ERROR,capturePoint};
+    gl.normalize=glIsEnabled(GL_NORMALIZE)==GL_TRUE;gl.lighting=glIsEnabled(GL_LIGHTING)==GL_TRUE;gl.colorMaterial=glIsEnabled(GL_COLOR_MATERIAL)==GL_TRUE;gl.depthTest=glIsEnabled(GL_DEPTH_TEST)==GL_TRUE;
+    gl.flagsBlock={glGetError()==GL_NO_ERROR,capturePoint};
+    return gl;
+}
+}
+
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
@@ -1325,6 +1349,11 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(lightingResponse.exitGlow>0.01f){const GLfloat exitDiffuse[]={0.34f*lightingResponse.exitGlow,0.72f*lightingResponse.exitGlow,0.68f*lightingResponse.exitGlow,1.0f},exitPosition[]={0.0f,2.2f,lightTileOrigin-ROOM_DEPTH*0.5f+0.8f,1.0f};glEnable(GL_LIGHT7);glLightfv(GL_LIGHT7,GL_DIFFUSE,exitDiffuse);glLightfv(GL_LIGHT7,GL_POSITION,exitPosition);glLightf(GL_LIGHT7,GL_CONSTANT_ATTENUATION,0.8f);glLightf(GL_LIGHT7,GL_LINEAR_ATTENUATION,0.11f);glLightf(GL_LIGHT7,GL_QUADRATIC_ATTENUATION,0.035f);}else glDisable(GL_LIGHT7);
     glEnable(GL_FOG);const GLfloat fogColor[]={atmosphere.fog.r,atmosphere.fog.g,atmosphere.fog.b,1.0f};glFogfv(GL_FOG_COLOR,fogColor);glFogi(GL_FOG_MODE,GL_EXP2);glFogf(GL_FOG_DENSITY,atmosphere.fogDensity);
     glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_LIGHTING); glEnable(GL_NORMALIZE);
+    // Observation point: every world-pass light is set; HUD and later passes have not touched GL state yet.
+    // Rigs with CeilingFixtures disable the global sun/fill (GL_LIGHT0/1); the enabled flags record that.
+    lightingObservation_={true,atmosphere,render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount}),lightRig,
+        {state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear},lightingResponse,
+        observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
     const bool cheapVisuals=state.localSettings.graphicsPreset<=0;
     const auto actorVisible=[&](const Vec3& position){const Vec3 delta=position-state.camera.pos;const float maxDist=cheapVisuals?38.0f:55.0f;return lengthSq(delta)<maxDist*maxDist&&dot3(delta,state.camera.forward)>-8.0f;};
     for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,tile,lightingResponse);
