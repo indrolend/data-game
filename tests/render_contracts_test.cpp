@@ -45,6 +45,11 @@ int main(){
     if(!(progressiveDeep.fogDensity>progressiveOpening.fogDensity&&progressiveDeep.fog.r>progressiveOpening.fog.r&&progressiveDeep.phone.b==1.32f)){
         std::fputs("RENDER_CONTRACTS_FAIL progressive candidate\n",stderr);return 1;
     }
+    if(progressiveOpening.ambient.r<0.055f||progressiveOpening.ambient.g<0.042f||progressiveOpening.ambient.b<0.065f||
+        progressiveDeep.fogDensity>DesktopSceneLighting.fog.density||
+        progressiveOpening.fog.r<=progressiveOpening.background.r||progressiveOpening.fog.g<=progressiveOpening.background.g||progressiveOpening.fog.b<=progressiveOpening.background.b){
+        std::fputs("RENDER_CONTRACTS_FAIL progressive readability floor\n",stderr);return 1;
+    }
     RuntimeLightingControl control;control.reference=AtmosphereProfile::ProgressiveCandidate;
     setAtmosphereColorOverride(control,AtmosphereChannel::Fill,{0.16f,0.36f,0.52f});setAtmosphereFogDensityOverride(control,0.0125f);
     control.timeFixed=true;control.roomFixed=true;control.phoneFixed=true;control.fixedInputs={7.25f,6,0.45f};
