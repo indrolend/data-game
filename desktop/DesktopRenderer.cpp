@@ -252,7 +252,12 @@ unsigned int compileStaticModel(const StaticModelData& model, bool shadow = fals
             const Vec3 va{model.vertices[a],model.vertices[a+1],model.vertices[a+2]};
             const Vec3 vb{model.vertices[b],model.vertices[b+1],model.vertices[b+2]};
             const Vec3 vc{model.vertices[c],model.vertices[c+1],model.vertices[c+2]};
-            const Vec3 normal=normalized(cross3(vb-va,vc-va));
+            Vec3 normal{};
+            const bool storedNormal=model.normals.size()==model.vertices.size();
+            if(storedNormal)normal={model.normals[a],model.normals[a+1],model.normals[a+2]};
+            const bool validStoredNormal=storedNormal&&std::isfinite(normal.x)&&std::isfinite(normal.y)&&std::isfinite(normal.z)&&lengthSq(normal)>0.5f;
+            if(validStoredNormal)normal=normal/std::sqrt(lengthSq(normal));
+            else triangle_geometry::faceNormal(va,vb,vc,normal);
             glNormal3f(normal.x,normal.y,normal.z);
             glVertex3f(va.x,va.y,va.z); glVertex3f(vb.x,vb.y,vb.z); glVertex3f(vc.x,vc.y,vc.z);
         }
