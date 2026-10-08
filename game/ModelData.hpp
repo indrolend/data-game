@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TriangleNormal.hpp"
+
 #include <cstdint>
 #include <cmath>
 #include <cstring>
@@ -27,7 +29,7 @@ struct StaticModelData {
         const std::size_t expected=12u+static_cast<std::size_t>(vertexCount)*12u+static_cast<std::size_t>(batchCount)*24u;
         if(bytes.size()!=expected || vertexCount>1000000u || batchCount>1024u) return false;
         vertices.resize(static_cast<std::size_t>(vertexCount)*3u); std::memcpy(vertices.data(),bytes.data()+12,vertices.size()*sizeof(float));
-        normals.assign(vertices.size(),0.0f);for(std::size_t i=0;i+8<vertices.size();i+=9){const float ax=vertices[i],ay=vertices[i+1],az=vertices[i+2],bx=vertices[i+3],by=vertices[i+4],bz=vertices[i+5],cx=vertices[i+6],cy=vertices[i+7],cz=vertices[i+8],ux=bx-ax,uy=by-ay,uz=bz-az,vx=cx-ax,vy=cy-ay,vz=cz-az;float nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const float len=std::sqrt(nx*nx+ny*ny+nz*nz);if(len>0.000001f){nx/=len;ny/=len;nz/=len;}for(int v=0;v<3;++v){normals[i+v*3]=nx;normals[i+v*3+1]=ny;normals[i+v*3+2]=nz;}}
+        normals.assign(vertices.size(),0.0f);for(std::size_t i=0;i+8<vertices.size();i+=9){const Vec3 a{vertices[i],vertices[i+1],vertices[i+2]},b{vertices[i+3],vertices[i+4],vertices[i+5]},c{vertices[i+6],vertices[i+7],vertices[i+8]};Vec3 normal{};triangle_geometry::faceNormal(a,b,c,normal);for(int vertex=0;vertex<3;++vertex){normals[i+vertex*3]=normal.x;normals[i+vertex*3+1]=normal.y;normals[i+vertex*3+2]=normal.z;}}
         batches.resize(batchCount); std::size_t at=12+vertices.size()*sizeof(float);
         for(auto& batch:batches){std::memcpy(&batch.start,bytes.data()+at,4);std::memcpy(&batch.count,bytes.data()+at+4,4);std::memcpy(batch.color,bytes.data()+at+8,16);at+=24;if(batch.start+batch.count>vertexCount)return false;}
         return true;
