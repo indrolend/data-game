@@ -244,7 +244,7 @@ unsigned int compileStaticModel(const StaticModelData& model, bool shadow = fals
             const bool storedNormal=model.normals.size()==model.vertices.size();
             if(storedNormal)normal={model.normals[a],model.normals[a+1],model.normals[a+2]};
             const bool validStoredNormal=storedNormal&&std::isfinite(normal.x)&&std::isfinite(normal.y)&&std::isfinite(normal.z)&&lengthSq(normal)>0.5f;
-            if(validStoredNormal)normal=normal/std::sqrt(lengthSq(normal));
+            if(validStoredNormal)normal=normal*(1.0f/std::sqrt(lengthSq(normal)));
             else triangle_geometry::faceNormal(va,vb,vc,normal);
             glNormal3f(normal.x,normal.y,normal.z);
             glVertex3f(va.x,va.y,va.z); glVertex3f(vb.x,vb.y,vb.z); glVertex3f(vc.x,vc.y,vc.z);
