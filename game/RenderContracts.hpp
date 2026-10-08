@@ -86,12 +86,12 @@ inline SceneAtmosphere progressiveSceneAtmosphere(float time,int roomIndex,float
     const float roomThreat=clampf((static_cast<float>(roomIndex)-1.0f)/18.0f,0.0f,1.0f);
     const float phonePulse=clampf(phonePower,0.0f,1.0f);
     return {{0.003f+omenPulse*0.004f,0.002f,0.009f+roomThreat*0.008f},
-        {0.018f+omenPulse*0.012f,0.014f,0.030f+roomThreat*0.018f},
+        {0.055f+omenPulse*0.018f,0.042f+omenPulse*0.012f,0.065f+roomThreat*0.025f+omenPulse*0.012f},
         {0.48f+roomThreat*0.12f,0.055f+omenPulse*0.035f,0.13f+roomThreat*0.16f},
         {0.04f,0.30f+omenPulse*0.10f,0.52f+roomThreat*0.18f},
         {0.18f*phonePulse,1.05f*phonePulse,1.32f*phonePulse},
-        {0.010f+roomThreat*0.018f,0.002f,0.024f+omenPulse*0.012f},
-        0.020f+roomThreat*0.010f+omenPulse*0.003f};
+        {0.025f+roomThreat*0.015f,0.018f+omenPulse*0.008f,0.040f+roomThreat*0.025f+omenPulse*0.012f},
+        0.0115f+roomThreat*0.005f+omenPulse*0.0015f};
 }
 
 inline SceneAtmosphere sceneAtmosphere(AtmosphereProfile profile,float time,int roomIndex,float phonePower){return profile==AtmosphereProfile::ProgressiveCandidate?progressiveSceneAtmosphere(time,roomIndex,phonePower):sceneAtmosphere(phonePower);}
