@@ -57,7 +57,7 @@ enum class AtmosphereProfile : unsigned char { ReadableStatic, ProgressiveCandid
 enum class AtmosphereChannel : std::uint32_t { Background=1u<<0,Ambient=1u<<1,Sun=1u<<2,Fill=1u<<3,Phone=1u<<4,Fog=1u<<5,FogDensity=1u<<6 };
 struct AtmosphereInputs { float time=0.0f;int roomIndex=1;float phonePower=0.0f; };
 struct RuntimeLightingControl {
-    AtmosphereProfile reference=AtmosphereProfile::ReadableStatic;
+    AtmosphereProfile reference=AtmosphereProfile::ProgressiveCandidate;
     std::uint32_t overrideMask=0;
     SceneAtmosphere overrides{};
     bool timeFixed=false,roomFixed=false,phoneFixed=false;

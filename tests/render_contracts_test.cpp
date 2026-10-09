@@ -6,6 +6,9 @@
 int main(){
     using namespace render_contract;
     using namespace room_lighting;
+    if(RuntimeLightingControl{}.reference!=AtmosphereProfile::ProgressiveCandidate){
+        std::fputs("RENDER_CONTRACTS_FAIL runtime atmosphere default\n",stderr);return 1;
+    }
     if(DesktopSceneLighting.sun.direction.x!=30.0f||DesktopSceneLighting.fog.density!=0.018f){
         std::fputs("RENDER_CONTRACTS_FAIL desktop profile\n",stderr);return 1;
     }
@@ -55,6 +58,20 @@ int main(){
         progressiveDeep.fogDensity>DesktopSceneLighting.fog.density||
         progressiveOpening.fog.r<=progressiveOpening.background.r||progressiveOpening.fog.g<=progressiveOpening.background.g||progressiveOpening.fog.b<=progressiveOpening.background.b){
         std::fputs("RENDER_CONTRACTS_FAIL progressive readability floor\n",stderr);return 1;
+    }
+    const auto fieldAtmosphere=settingAtmosphere(progressiveDeep,room_environment::RoomSetting::Field,AtmosphereProfile::ProgressiveCandidate);
+    const auto cityAtmosphere=settingAtmosphere(progressiveDeep,room_environment::RoomSetting::City,AtmosphereProfile::ProgressiveCandidate);
+    const auto sterileAtmosphere=settingAtmosphere(progressiveOpening,room_environment::RoomSetting::Sterile,AtmosphereProfile::ProgressiveCandidate);
+    const auto coastalAtmosphere=settingAtmosphere(progressiveDeep,room_environment::RoomSetting::Coastal,AtmosphereProfile::ProgressiveCandidate);
+    if(!(fieldAtmosphere.ambient.g>progressiveDeep.ambient.g&&fieldAtmosphere.ambient.r<progressiveDeep.ambient.r&&cityAtmosphere.ambient.b>progressiveDeep.ambient.b&&
+        sterileAtmosphere.ambient.r>progressiveOpening.ambient.r&&sterileAtmosphere.ambient.g>progressiveOpening.ambient.g&&sterileAtmosphere.ambient.b>progressiveOpening.ambient.b&&
+        coastalAtmosphere.fog.b>progressiveDeep.fog.b)){
+        std::fputs("RENDER_CONTRACTS_FAIL setting atmosphere identity\n",stderr);return 1;
+    }
+    const auto staticSterile=settingAtmosphere(unpowered,room_environment::RoomSetting::Sterile,AtmosphereProfile::ReadableStatic);
+    const auto explicitSterile=settingAtmosphere(progressiveOpening,room_environment::RoomSetting::Sterile,AtmosphereProfile::ProgressiveCandidate,atmosphereChannelBit(AtmosphereChannel::Ambient));
+    if(staticSterile.ambient.r!=unpowered.ambient.r||explicitSterile.ambient.r!=progressiveOpening.ambient.r){
+        std::fputs("RENDER_CONTRACTS_FAIL setting atmosphere fallback\n",stderr);return 1;
     }
     RuntimeLightingControl control;control.reference=AtmosphereProfile::ProgressiveCandidate;
     setAtmosphereColorOverride(control,AtmosphereChannel::Fill,{0.16f,0.36f,0.52f});setAtmosphereFogDensityOverride(control,0.0125f);

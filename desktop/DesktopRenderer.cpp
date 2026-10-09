@@ -291,7 +291,11 @@ void DesktopRenderer::setAtmosphereProfile(render_contract::AtmosphereProfile pr
 void DesktopRenderer::setLightingControl(const render_contract::RuntimeLightingControl& control){lightingControl_=control;}
 render_contract::RuntimeLightingControl& DesktopRenderer::lightingControl(){return lightingControl_;}
 const render_contract::RuntimeLightingControl& DesktopRenderer::lightingControl() const{return lightingControl_;}
-render_contract::SceneAtmosphere DesktopRenderer::resolvedAtmosphere(const GameState& state) const{return render_contract::resolveSceneAtmosphere(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount});}
+render_contract::SceneAtmosphere DesktopRenderer::resolvedAtmosphere(const GameState& state) const{
+    const auto atmosphere=render_contract::resolveSceneAtmosphere(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount});
+    const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;
+    return room_lighting::settingAtmosphere(atmosphere,setting,lightingControl_.reference,lightingControl_.overrideMask);
+}
 
 void DesktopRenderer::drawBox(const Vec3& p, const Vec3& s, float pitch, float yaw, float roll, float r, float g, float b, float a) {
     glPushMatrix();
