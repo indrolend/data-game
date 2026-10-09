@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Math.hpp"
+#include "TriangleNormal.hpp"
 
 #include <cmath>
 
@@ -18,11 +19,6 @@ struct HorizontalResolution {
     Vec3 normal{};
     bool blocked=false;
 };
-
-inline Vec3 faceNormal(const Vec3& a,const Vec3& b,const Vec3& c){
-    const Vec3 u=b-a,v=c-a;
-    return normalized({u.y*v.z-u.z*v.y,u.z*v.x-u.x*v.z,u.x*v.y-u.y*v.x});
-}
 
 inline bool projectedTriangleHeight(const Vec3& a,const Vec3& b,const Vec3& c,float x,float z,float& height){
     const float denominator=(b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z);
@@ -49,11 +45,11 @@ template<class Mesh>
 Sample sample(const Mesh& mesh,float x,float z,float radius,float minimumNormalY){
     Sample result{};bool eligible=minimumNormalY<=0.0f;
     const auto point=[&](int index){return Vec3{mesh.positions[index*3],mesh.positions[index*3+1],mesh.positions[index*3+2]};};
-    if(!eligible)for(int vertex=0;vertex+2<mesh.vertexCount;vertex+=3){const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2),normal=faceNormal(a,b,c);if(normal.y>=minimumNormalY&&projectedTriangleOverlapsCircle(a,b,c,x,z,radius)){eligible=true;break;}}
+    if(!eligible)for(int vertex=0;vertex+2<mesh.vertexCount;vertex+=3){const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2),normal=triangle_geometry::faceNormalOrZero(a,b,c);if(normal.y>=minimumNormalY&&projectedTriangleOverlapsCircle(a,b,c,x,z,radius)){eligible=true;break;}}
     if(!eligible)return result;
     const float radiusSq=radius*radius;
     for(int vertex=0;vertex+2<mesh.vertexCount;vertex+=3){
-        const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2),normal=faceNormal(a,b,c);if(normal.y<=0.0001f||!projectedTriangleOverlapsCircle(a,b,c,x,z,radius))continue;
+        const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2),normal=triangle_geometry::faceNormalOrZero(a,b,c);if(normal.y<=0.0001f||!projectedTriangleOverlapsCircle(a,b,c,x,z,radius))continue;
         const auto consider=[&](float px,float pz){const float dx=px-x,dz=pz-z;if(dx*dx+dz*dz>radiusSq+0.000001f)return;float height=0.0f;if(projectedTriangleHeight(a,b,c,px,pz,height)&&(!result.inside||height>result.height)){result.inside=true;result.height=height;result.normal=normal;}};
         consider(x,z);consider(a.x,a.z);consider(b.x,b.z);consider(c.x,c.z);
         if(radius<=0.0f)continue;
@@ -87,7 +83,7 @@ bool obstructsBody(const Mesh& mesh,float x,float z,float bottom,float top,float
     Vec3 center{};for(int i=0;i<mesh.vertexCount;++i)center+=point(i);if(mesh.vertexCount>0)center*=1.0f/static_cast<float>(mesh.vertexCount);
     bool hit=false;float nearest=1.0e30f;
     for(int vertex=0;vertex+2<mesh.vertexCount;vertex+=3){
-        const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2),normal=faceNormal(a,b,c);if(normal.y>=walkableNormalY)continue;
+        const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2),normal=triangle_geometry::faceNormalOrZero(a,b,c);if(normal.y>=walkableNormalY)continue;
         const float low=std::min(a.y,std::min(b.y,c.y)),high=std::max(a.y,std::max(b.y,c.y));if(top<=low+0.001f||bottom>=high-0.001f||!projectedTriangleOverlapsCircle(a,b,c,x,z,radius))continue;
         hit=true;if(!contactNormal)continue;const Vec3 faceCenter=(a+b+c)*(1.0f/3.0f);const float dx=faceCenter.x-x,dz=faceCenter.z-z,distance=dx*dx+dz*dz;
         if(distance<nearest){Vec3 outward=normal;if(outward.x*(faceCenter.x-center.x)+outward.z*(faceCenter.z-center.z)<0.0f)outward*=-1.0f;*contactNormal=normalized(Vec3{outward.x,0,outward.z});nearest=distance;}

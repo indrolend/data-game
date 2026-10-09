@@ -31,7 +31,7 @@ float horizontalSpeed(const Vec3& velocity){return std::sqrt(velocity.x*velocity
 float exactRockHeight(const faceted_rock::Mesh& mesh,float x,float z,float radius){const auto sample=faceted_rock::sampleEnvelopeFootprint(mesh,x,z,radius);return sample.inside?sample.height:-1.0f;}
 std::vector<Vec3> walkableRockFaceCenters(const faceted_rock::Support& rock){
     const auto mesh=faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex);std::vector<Vec3> centers;
-    for(int vertex=0;vertex+2<mesh.vertexCount;vertex+=3){const auto point=[&](int index){return Vec3{mesh.positions[index*3],mesh.positions[index*3+1],mesh.positions[index*3+2]};};const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2);if(faceted_rock::triangleWalkable(faceted_rock::faceNormal(a,b,c)))centers.push_back((a+b+c)*(1.0f/3.0f));}
+    for(int vertex=0;vertex+2<mesh.vertexCount;vertex+=3){const auto point=[&](int index){return Vec3{mesh.positions[index*3],mesh.positions[index*3+1],mesh.positions[index*3+2]};};const Vec3 a=point(vertex),b=point(vertex+1),c=point(vertex+2);if(faceted_rock::triangleWalkable(triangle_geometry::faceNormalOrZero(a,b,c)))centers.push_back((a+b+c)*(1.0f/3.0f));}
     return centers;
 }
 struct PhoneWorldBounds{float bottom=0.0f;float horizontalRadius=0.0f;};

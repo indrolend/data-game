@@ -25,4 +25,10 @@ inline bool faceNormal(const Vec3& a,const Vec3& b,const Vec3& c,Vec3& normal) {
     return finite(normal);
 }
 
+inline Vec3 faceNormalOrZero(const Vec3& a,const Vec3& b,const Vec3& c) {
+    Vec3 normal{};
+    faceNormal(a,b,c,normal);
+    return normal;
+}
+
 }

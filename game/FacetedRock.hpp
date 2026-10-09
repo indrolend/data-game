@@ -46,10 +46,6 @@ struct Support {
 
 using SurfaceSample=surface_geometry::Sample;
 
-inline Vec3 faceNormal(const Vec3& a,const Vec3& b,const Vec3& c){
-    return surface_geometry::faceNormal(a,b,c);
-}
-
 inline bool eligible(room_environment::RoomSetting setting,
                      room_environment::EnvironmentRole role) {
     using room_environment::EnvironmentRole;
@@ -92,7 +88,7 @@ inline Mesh makeMesh(const room_environment::EnvironmentPropSpec& prop,
                            prop.size.y*(0.69f+room_environment::unit(key+103u)*0.04f),
                            (room_environment::unit(key+107u)-0.5f)*halfZ*(landmark?0.28f:0.14f));
     const auto emit=[&](const Vec3& a,const Vec3& b,const Vec3& c){
-        const Vec3 normal=faceNormal(a,b,c);
+        const Vec3 normal=triangle_geometry::faceNormalOrZero(a,b,c);
         for(const Vec3& p:{a,b,c}){
             mesh.positions[mesh.vertexCount*3]=p.x;mesh.positions[mesh.vertexCount*3+1]=p.y;mesh.positions[mesh.vertexCount*3+2]=p.z;
             mesh.normals[mesh.vertexCount*3]=normal.x;mesh.normals[mesh.vertexCount*3+1]=normal.y;mesh.normals[mesh.vertexCount*3+2]=normal.z;
