@@ -1,5 +1,6 @@
 #include "RenderContracts.hpp"
 #include "RoomLighting.hpp"
+#include "FieldGrassTexture.hpp"
 #include <cstdio>
 
 int main(){
@@ -27,7 +28,12 @@ int main(){
         !sterileCorridorRig.localLights[0].visibleFixture||sterileCorridorRig.localLights[0].radius<=0.0f||sterileCorridorRig.localLights[0].fixtureSize.x<=0.0f){
         std::fputs("RENDER_CONTRACTS_FAIL room light source rig\n",stderr);return 1;
     }
-    static_assert(FieldOpenGround.texture==TextureId::FieldGrass&&FieldOpenGround.textureWorldScale==2.4f);
+    static_assert(FieldOpenGround.texture==TextureId::FieldGrass&&FieldOpenGround.textureWorldScale==6.4f);
+    const auto fieldPixels=field_grass_texture::pixels(),fieldPixelsAgain=field_grass_texture::pixels();
+    if(fieldPixels!=fieldPixelsAgain){std::fputs("RENDER_CONTRACTS_FAIL field texture determinism\n",stderr);return 1;}
+    int minimumGreen=255,maximumGreen=0;
+    for(std::size_t i=1;i<fieldPixels.size();i+=3){minimumGreen=std::min(minimumGreen,static_cast<int>(fieldPixels[i]));maximumGreen=std::max(maximumGreen,static_cast<int>(fieldPixels[i]));}
+    if(field_grass_texture::Size<64||maximumGreen-minimumGreen<24){std::fprintf(stderr,"RENDER_CONTRACTS_FAIL field texture range %d\n",maximumGreen-minimumGreen);return 1;}
     static_assert(CityGround.texture==TextureId::CityAsphalt&&CityGround.textureWorldScale==3.2f);
     const auto unpowered=sceneAtmosphere(0.0f);
     const auto powered=sceneAtmosphere(1.0f);

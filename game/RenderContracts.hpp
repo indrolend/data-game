@@ -28,7 +28,7 @@ struct MaterialDefinition {
 constexpr MaterialDefinition sceneMatte(VisualColor color,float opacity=1.0f){return {color,ShadingModel::ColorGraded,opacity,true,TextureId::None,1.0f};}
 constexpr MaterialDefinition normalLit(VisualColor color,float opacity=1.0f){return {color,ShadingModel::NormalLit,opacity,true,TextureId::None,1.0f};}
 constexpr MaterialDefinition unlit(VisualColor color,float opacity=1.0f){return {color,ShadingModel::Unlit,opacity,false,TextureId::None,1.0f};}
-inline constexpr MaterialDefinition FieldOpenGround{VisualIdentity::FieldGround,ShadingModel::ColorGraded,1.0f,true,TextureId::FieldGrass,2.4f};
+inline constexpr MaterialDefinition FieldOpenGround{VisualIdentity::FieldGround,ShadingModel::ColorGraded,1.0f,true,TextureId::FieldGrass,6.4f};
 inline constexpr MaterialDefinition CityGround{{0.24f,0.26f,0.28f},ShadingModel::ColorGraded,1.0f,true,TextureId::CityAsphalt,3.2f};
 struct DirectionalLightDefinition { Vec3 direction{};VisualColor color{1,1,1};float intensity=1.0f; };
 struct FogDefinition { VisualColor color{};float density=0.0f; };
