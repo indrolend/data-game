@@ -54,8 +54,8 @@ inline RoomLightRig roomLightRig(room_environment::RoomSetting setting,room_envi
     RoomLightRig rig{};
     if(setting==RoomSetting::City){
         rig.primarySource=PrimaryLightSource::UrbanSky;
-        rig.sunDirection={-42.0f,32.0f,18.0f};
-        rig.fillDirection={28.0f,18.0f,-35.0f};
+        rig.sunDirection={-28.0f,36.0f,42.0f};
+        rig.fillDirection={36.0f,22.0f,-18.0f};
         return rig;
     }
     if(setting!=RoomSetting::Sterile)return rig;

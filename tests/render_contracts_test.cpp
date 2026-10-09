@@ -26,7 +26,8 @@ int main(){
     const auto sterileChamberRig=roomLightRig(room_environment::RoomSetting::Sterile,room_environment::RoomForm::Chamber);
     if(fieldRig.primarySource!=PrimaryLightSource::OutdoorSun||fieldRig.localLightCount!=0||
         cityRig.primarySource!=PrimaryLightSource::UrbanSky||cityRig.localLightCount!=0||
-        cityRig.sunDirection.x==fieldRig.sunDirection.x||cityRig.fillDirection.z==fieldRig.fillDirection.z||
+        cityRig.sunDirection.x!=-28.0f||cityRig.sunDirection.y!=36.0f||cityRig.sunDirection.z!=42.0f||
+        cityRig.fillDirection.x!=36.0f||cityRig.fillDirection.y!=22.0f||cityRig.fillDirection.z!=-18.0f||
         sterileCorridorRig.primarySource!=PrimaryLightSource::CeilingFixtures||sterileCorridorRig.localLightCount!=2||
         sterileChamberRig.localLightCount!=3||sterileChamberRig.localLights[1].localPosition.z!=0.0f||
         !sterileCorridorRig.localLights[0].visibleFixture||sterileCorridorRig.localLights[0].radius<=0.0f||sterileCorridorRig.localLights[0].fixtureSize.x<=0.0f){
