@@ -7,6 +7,7 @@
 #include "PhoneStencilReveal.hpp"
 #include "GameplayPhoneModel.hpp"
 #include "RenderContracts.hpp"
+#include "MaterialResponse.hpp"
 #include "FieldGrassTexture.hpp"
 #include "CitySurfaceTexture.hpp"
 #include "FacetedRock.hpp"
@@ -88,6 +89,27 @@ Vec3 gradedSceneColor(float r,float g,float b) {
 }
 Vec3 mix3(const Vec3& a,const Vec3& b,float t){const float u=clampf(t,0.0f,1.0f);return {a.x+(b.x-a.x)*u,a.y+(b.y-a.y)*u,a.z+(b.z-a.z)*u};}
 void gradedColor(float r,float g,float b,float a=1.0f){const Vec3 color=gradedSceneColor(r,g,b);glColor4f(color.x,color.y,color.z,a);}
+
+void applyMaterial(const render_contract::MaterialDefinition& material){
+    const GLfloat specular[]={material.specular.r,material.specular.g,material.specular.b,1.0f};
+    const GLfloat emission[]={material.emission.r,material.emission.g,material.emission.b,1.0f};
+    if(material.shading==render_contract::ShadingModel::Unlit)glDisable(GL_LIGHTING);else glEnable(GL_LIGHTING);
+    if(material.fog)glEnable(GL_FOG);else glDisable(GL_FOG);
+    glMaterialfv(GL_FRONT_AND_BACK,GL_SPECULAR,specular);
+    glMaterialf(GL_FRONT_AND_BACK,GL_SHININESS,material.shininess);
+    glMaterialfv(GL_FRONT_AND_BACK,GL_EMISSION,emission);
+    gradedColor(material.baseColor.r,material.baseColor.g,material.baseColor.b,material.opacity);
+}
+
+class ScopedMaterial {
+public:
+    explicit ScopedMaterial(const render_contract::MaterialDefinition& material,bool active=true):active_(active){if(active_)applyMaterial(material);}
+    ~ScopedMaterial(){if(active_)applyMaterial(semanticMaterial(SemanticSurface::Default));}
+    ScopedMaterial(const ScopedMaterial&)=delete;
+    ScopedMaterial& operator=(const ScopedMaterial&)=delete;
+private:
+    bool active_=false;
+};
 
 Vec3 cross3(const Vec3& a, const Vec3& b) {
     return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
@@ -907,6 +929,7 @@ void DesktopRenderer::drawStaticModel(unsigned int list, const Vec3& p, const Ve
 }
 
 void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_environment::RoomSetting setting,bool shadow) const {
+    const ScopedMaterial material(semanticMaterial(SemanticSurface::Organic),!shadow);
     const HumanBodyPresentation body=target.humanBodyPresentation();
     const Vec3 leftFoot=body.leftFootTarget(),rightFoot=body.rightFootTarget();
     HumanModelFootTargets footTargets{};
@@ -959,14 +982,18 @@ void DesktopRenderer::drawSoulFlesh(const TargetState& target,const Vec3& center
 
 void DesktopRenderer::drawFieldGrass(int tileIndex) const{
     if(!fieldGrassTexture_){const auto pixels=field_grass_texture::pixels();glGenTextures(1,&fieldGrassTexture_);glBindTexture(GL_TEXTURE_2D,fieldGrassTexture_);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,field_grass_texture::Size,field_grass_texture::Size,0,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());}
-    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=render_contract::FieldOpenGround.textureWorldScale;
+    const auto material=semanticMaterial(SemanticSurface::FieldGround,VisualIdentity::FieldGround);
+    const ScopedMaterial applied(material);
+    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=material.textureWorldScale;
     glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,fieldGrassTexture_);glColor3f(1,1,1);glNormal3f(0,1,0);glBegin(GL_QUADS);
     glTexCoord2f(0,0);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,0);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,ROOM_DEPTH/scale);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glTexCoord2f(0,ROOM_DEPTH/scale);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glEnd();glDisable(GL_TEXTURE_2D);
 }
 
 void DesktopRenderer::drawCityGround(int tileIndex) const{
     if(!citySurfaceTexture_){const auto pixels=city_surface_texture::pixels();glGenTextures(1,&citySurfaceTexture_);glBindTexture(GL_TEXTURE_2D,citySurfaceTexture_);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,city_surface_texture::Size,city_surface_texture::Size,0,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());}
-    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=render_contract::CityGround.textureWorldScale;
+    const auto material=semanticMaterial(SemanticSurface::CityAsphalt,render_contract::CityGround.baseColor);
+    const ScopedMaterial applied(material);
+    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=material.textureWorldScale;
     glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,citySurfaceTexture_);glColor3f(1,1,1);glNormal3f(0,1,0);glBegin(GL_QUADS);
     glTexCoord2f(0,0);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,0);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,ROOM_DEPTH/scale);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glTexCoord2f(0,ROOM_DEPTH/scale);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glEnd();glDisable(GL_TEXTURE_2D);
 }
@@ -995,23 +1022,27 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     const float topY = doorHeight + topH * 0.5f;
     const float wallR = VisualIdentity::RoomWall.r, wallG = VisualIdentity::RoomWall.g, wallB = VisualIdentity::RoomWall.b;
     const bool field=plan.setting==room_environment::RoomSetting::Field,sterile=plan.setting==room_environment::RoomSetting::Sterile,coastal=plan.setting==room_environment::RoomSetting::Coastal;
+    const auto drawStructuralBox=[&](const Vec3& center,const Vec3& size,float pitch,float yaw,float roll,float r,float g,float b){
+        if(sterile){const ScopedMaterial material(semanticMaterial(SemanticSurface::SterilePanel,{r,g,b}));drawBox(center,size,pitch,yaw,roll,r,g,b);}
+        else drawBox(center,size,pitch,yaw,roll,r,g,b);
+    };
     drawBox({0,-0.04f,z0},{ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
     if(field&&plan.form==room_environment::RoomForm::Open)drawFieldGrass(tileIndex);
     if(plan.setting==room_environment::RoomSetting::City)drawCityGround(tileIndex);
     if(coastal)drawBox({0,0.005f,z0},{23.5f,0.01f,35.5f},0,0,0,0.64f,0.58f,0.43f);
     if(sterile){
-        drawBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+        drawStructuralBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
         glDisable(GL_LIGHTING);
         for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture)drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity,fixture.color.g*fixture.intensity,fixture.color.b*fixture.intensity);}
         glEnable(GL_LIGHTING);
     }
     for (float seam : {-ROOM_DEPTH*0.5f, ROOM_DEPTH*0.5f}) {
-        drawBox({-sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
-        drawBox({ sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
-        drawBox({0,topY,z0+seam},{doorWidth,topH,0.5f},0,0,0,wallR,wallG,wallB);
+        drawStructuralBox({-sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
+        drawStructuralBox({ sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
+        drawStructuralBox({0,topY,z0+seam},{doorWidth,topH,0.5f},0,0,0,wallR,wallG,wallB);
     }
-    drawBox({-ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
-    drawBox({ ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+    drawStructuralBox({-ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+    drawStructuralBox({ ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
     if(tileIndex==state.topology.currentTileIndex&&lightingResponse.exitGlow>0.01f){
         const VisualColor guide=sterile?VisualColor{0.62f,0.88f,0.94f}:VisualColor{0.72f,0.90f,0.82f};
         glDisable(GL_LIGHTING);drawBox({0,doorHeight+0.12f,z0-ROOM_DEPTH*0.5f+0.27f},{doorWidth,0.12f,0.08f},0,0,0,guide.r*(0.38f+lightingResponse.exitGlow*0.62f),guide.g*(0.38f+lightingResponse.exitGlow*0.62f),guide.b*(0.38f+lightingResponse.exitGlow*0.62f));glEnable(GL_LIGHTING);
@@ -1019,7 +1050,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     const int authoredObstacleCount=(state.traversalLab||state.slopeLab)?state.debug.colliderCount:std::min(state.debug.colliderCount,plan.obstacleCount);
     for (int i=0;i<authoredObstacleCount;++i) {
         const RoomCollider& c=state.roomColliders[i];
-        drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,VisualIdentity::RoomObstacle.r,VisualIdentity::RoomObstacle.g,VisualIdentity::RoomObstacle.b);
+        drawStructuralBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,VisualIdentity::RoomObstacle.r,VisualIdentity::RoomObstacle.g,VisualIdentity::RoomObstacle.b);
         if(plan.setting==room_environment::RoomSetting::City&&plan.form==room_environment::RoomForm::Corridor&&room_environment::obstacleRole(plan,state.roomSeed,state.roomIndex,i)==room_environment::EnvironmentRole::Landmark){
             const float tierH=gameplay::WORLD_SCALE.storyHeight*0.34f;
             drawBox({c.center.x,c.topY+tierH*0.5f,z0+c.center.z},{c.width*0.58f,tierH,c.depth*0.62f},0,0,0,0.34f,0.40f,0.44f);
@@ -1346,7 +1377,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear});
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
-    glEnable(GL_LIGHTING); glEnable(GL_LIGHT2); glEnable(GL_COLOR_MATERIAL);
+    glEnable(GL_LIGHTING);glEnable(GL_LIGHT2);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
+    applyMaterial(semanticMaterial(SemanticSurface::Default));
     const auto& lighting=render_contract::DesktopSceneLighting;
     const GLfloat ambient[]={atmosphere.ambient.r,atmosphere.ambient.g,atmosphere.ambient.b,1.0f}; glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);
     const GLfloat sunDiffuse[]={atmosphere.sun.r,atmosphere.sun.g,atmosphere.sun.b,1.0f};
@@ -1444,14 +1476,22 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         const Vec3 phonePos=state.phoneTransform.position;
         const auto& pv=state.phoneVisual;
         const Quat phoneOrientation=state.phoneTransform.orientation;
+        {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneMetal,VisualIdentity::PhoneBody));
         if(phoneModelList_) drawStaticModel(phoneModelList_,phonePos,pv.bodyScale,phoneOrientation);
-        else drawBox(phonePos,{PHONE_BODY_WIDTH*pv.bodyScale.x,PHONE_BODY_HEIGHT*pv.bodyScale.y,PHONE_BODY_DEPTH},phoneOrientation,VisualIdentity::PhoneBody.r,VisualIdentity::PhoneBody.g,VisualIdentity::PhoneBody.b);
+        else drawBox(phonePos,{PHONE_BODY_WIDTH*pv.bodyScale.x,PHONE_BODY_HEIGHT*pv.bodyScale.y,PHONE_BODY_DEPTH},phoneOrientation,VisualIdentity::PhoneBody.r,VisualIdentity::PhoneBody.g,VisualIdentity::PhoneBody.b);}
         const float glow=std::min(1.0f,0.45f+pv.screenGlow*0.36f);
-        drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*pv.screenScale.x,PHONE_SCREEN_HEIGHT*pv.screenScale.y,PHONE_SCREEN_DEPTH},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);
+        {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneGlass,{VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow}));
+        drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*pv.screenScale.x,PHONE_SCREEN_HEIGHT*pv.screenScale.y,PHONE_SCREEN_DEPTH},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);}
         if(state.phoneDisplay.mode!=PhoneDisplayMode::Off&&state.phoneDisplay.mode!=PhoneDisplayMode::Death)
             drawPhoneDisplayTexture(state);
     }
-    if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){const auto& pv=peer.phoneVisual;if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,pv.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0.32f,0.86f,1.0f);drawBox(peer.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH,PHONE_SCREEN_HEIGHT,PHONE_SCREEN_DEPTH},peer.phoneTransform.orientation,0.05f,0.55f,0.78f);}
+    if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){
+        const auto& pv=peer.phoneVisual;
+        {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneMetal,{0.32f,0.86f,1.0f}));
+        if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,pv.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0.32f,0.86f,1.0f);}
+        {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneGlass,{0.05f,0.55f,0.78f}));
+        drawBox(peer.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH,PHONE_SCREEN_HEIGHT,PHONE_SCREEN_DEPTH},peer.phoneTransform.orientation,0.05f,0.55f,0.78f);}
+    }
 
     const MeleeVisualState& melee=state.meleeVisual;
     if(melee.visualTimer>0.0f && !melee.locomotionLunge){

@@ -32,6 +32,18 @@ int main(){
     assert(same(particleMaterialColor(ParticleMaterial::Soul,RoomSetting::Field,0.5f),VisualIdentity::SoulBase));
     assert(same(particleMaterialColor(ParticleMaterial::Data,RoomSetting::Field,0.5f),VisualIdentity::ElectricCyan));
 
+    const auto fallback=semanticMaterial(SemanticSurface::Default);
+    const auto fieldMaterial=semanticMaterial(SemanticSurface::FieldGround,VisualIdentity::FieldGround);
+    const auto asphalt=semanticMaterial(SemanticSurface::CityAsphalt,{0.24f,0.26f,0.28f});
+    const auto sterileMaterial=semanticMaterial(SemanticSurface::SterilePanel);
+    const auto metal=semanticMaterial(SemanticSurface::PhoneMetal);
+    const auto glass=semanticMaterial(SemanticSurface::PhoneGlass);
+    const auto organic=semanticMaterial(SemanticSurface::Organic);
+    assert(fallback.specular.r==0.0f&&fallback.shininess==0.0f&&fallback.emission.b==0.0f);
+    assert(fieldMaterial.texture==render_contract::TextureId::FieldGrass&&asphalt.texture==render_contract::TextureId::CityAsphalt);
+    assert(asphalt.shininess<sterileMaterial.shininess&&sterileMaterial.shininess<metal.shininess&&glass.shininess>metal.shininess);
+    assert(organic.specular.r<sterileMaterial.specular.r&&glass.emission.b>0.0f);
+
     std::puts("Material response tests passed.");
     return 0;
 }

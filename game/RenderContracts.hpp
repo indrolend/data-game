@@ -23,6 +23,9 @@ struct MaterialDefinition {
     bool fog=true;
     TextureId texture=TextureId::None;
     float textureWorldScale=1.0f;
+    VisualColor specular{};
+    float shininess=0.0f;
+    VisualColor emission{};
 };
 
 constexpr MaterialDefinition sceneMatte(VisualColor color,float opacity=1.0f){return {color,ShadingModel::ColorGraded,opacity,true,TextureId::None,1.0f};}
