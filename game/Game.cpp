@@ -3324,6 +3324,12 @@ bool Game::damageSoulShell(int index, float amount) {
         t.hitFlash=std::max(t.hitFlash,0.75f);
     }
     Vec3 away=normalized(Vec3{t.pos.x-state_.player.pos.x,0.0f,t.pos.z-state_.player.pos.z});
+    if(!state_.multiplayer.enabled){
+        const Vec3 right{std::cos(t.visualYaw),0.0f,-std::sin(t.visualYaw)};
+        const Vec3 forward{-std::sin(t.visualYaw),0.0f,-std::cos(t.visualYaw)};
+        gameplay::applyPhysicalEnemyImpact(enemyRuntime().bodies[index],{
+            dot3(away,right)*2.4f,0.0f,dot3(away,forward)*2.4f});
+    }
     t.vel.x+=away.x*2.4f; t.vel.z+=away.z*2.4f; t.vel.y=std::max(t.vel.y,1.2f);
     feedSupplementalBattery(FLOWER_ATTACK_FEED);
     spawnParticleBurst(t.pos+Vec3{0,0.65f,0},ParticleMaterial::Flesh);
@@ -3635,6 +3641,7 @@ void Game::updateTargets(float dt) {
     for (int i = 0; i < TARGET_COUNT; ++i) {
         TargetState& t = state_.targets[i];
         if (!t.alive) continue;
+        t.bodyPresentationFlags=0;
         const Vec3 physicalFrameStart=t.pos;
         float presentationAwareness=0.0f,presentationUncertainty=1.0f;
         float presentationCommitment=0.0f,presentationDisruption=0.0f,presentationSearch=0.0f;
@@ -3702,6 +3709,9 @@ void Game::updateTargets(float dt) {
                 bodyState.gaitPhase=feet.gaitPhase;
                 const auto body=gameplay::updatePhysicalEnemyBody(bodyState,bodyInput,t.visualYaw);
                 bodyState.gaitPhase=feet.gaitPhase;
+                t.setHumanBodyPresentation(makeHumanBodyPresentation(
+                    bodyState.bodyPitch,bodyState.bodyRoll,feet.leftContact,
+                    feet.rightContact,bodyState.fallen,true));
                 t.vel.x=body.velocity.x;
                 t.vel.z=body.velocity.z;
                 t.visualYaw=body.yaw;

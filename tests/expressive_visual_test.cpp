@@ -45,5 +45,21 @@ int main() {
     assert(committed.torsoPitch < searching.torsoPitch - 0.04f);
     assert(std::abs(searching.leftArmSwing-searching.rightArmSwing) > 0.08f);
 
+    HumanBodyPresentation physical;
+    physical=makeHumanBodyPresentation(0.42f,-0.31f,0.0f,0.0f,true,true);
+    HumanReactionVisual struck=makeHumanReactionVisual(0.4f,1.0f,1.0f,1.0f,0.0f,0.0f,0.0f,true);
+    const auto embodied=makeHumanVisualPose(0.0f,1.0f,0.73f,struck,true,physical);
+    assert(std::abs(embodied.torsoPitch-physical.pitch())<0.08f);
+    assert(std::abs(embodied.torsoRoll-physical.roll())<0.08f);
+    assert(embodied.rootBob<0.0f);
+
+    HumanBodyPresentation next=physical;
+    next=makeHumanBodyPresentation(-0.20f,0.25f,1.0f,0.5f,false,true);
+    const auto midpoint=interpolateHumanBodyPresentation(physical,next,0.5f);
+    assert(std::abs(midpoint.pitch()-0.11f)<0.0002f);
+    assert(std::abs(midpoint.roll()+0.03f)<0.0002f);
+    assert(std::abs(midpoint.leftFootContact()-0.5f)<0.005f&&std::abs(midpoint.rightFootContact()-0.25f)<0.005f);
+    assert(!midpoint.fallen()&&midpoint.authoritative());
+
     std::puts("EXPRESSIVE_VISUAL_OK phone=INGEST_SPRING enemy=IMPACT_COGNITION_CONTACT");
 }

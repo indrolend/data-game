@@ -241,6 +241,7 @@ struct TargetState {
     Vec3 latchPoint;
     bool alive = false;
     bool slurpable = false;
+    std::int16_t bodyPitchQuantized = 0;
     float armor = 2.0f;
     float health = 1.0f;
     float capture = 0.0f;
@@ -249,6 +250,7 @@ struct TargetState {
     bool captureQueued = false;
     bool captureCommitted = false;
     bool latchedToScreen = false;
+    std::uint8_t bodyPresentationFlags = 0;
     float respawnTimer = 0.0f;
     float scale = 1.0f;
     float phase = 0.0f;
@@ -272,6 +274,8 @@ struct TargetState {
     float attackCooldown = 0.0f;
     int attackVariant = 0;
     bool attackHit = false;
+    std::int16_t bodyRollQuantized = 0;
+    std::uint8_t leftFootContactByte = 255;
     Vec3 attackDirection{0.0f,0.0f,-1.0f};
     int attackTargetPlayerId = 0;
     int grabbedPlayerId = -1;
@@ -289,8 +293,21 @@ struct TargetState {
     Vec3 tetherDestination;
     float tetherWidth = 0.0f;
     bool tetherVisible = false;
+    std::uint8_t rightFootContactByte = 255;
     int networkOwnerPlayerId = -1;
     SoulRecord soul;
+
+    HumanBodyPresentation humanBodyPresentation() const {
+        return {bodyPitchQuantized,bodyRollQuantized,leftFootContactByte,
+                rightFootContactByte,bodyPresentationFlags};
+    }
+    void setHumanBodyPresentation(const HumanBodyPresentation& presentation) {
+        bodyPitchQuantized=presentation.pitchQuantized;
+        bodyRollQuantized=presentation.rollQuantized;
+        leftFootContactByte=presentation.leftFootContactByte;
+        rightFootContactByte=presentation.rightFootContactByte;
+        bodyPresentationFlags=presentation.flags;
+    }
 };
 
 struct CapturePointState {

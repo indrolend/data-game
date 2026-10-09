@@ -79,6 +79,46 @@ struct HumanVisualPose {
     Vec3 expressiveScale{1.0f, 1.0f, 1.0f};
 };
 
+struct HumanBodyPresentation {
+    std::int16_t pitchQuantized = 0;
+    std::int16_t rollQuantized = 0;
+    std::uint8_t leftFootContactByte = 255;
+    std::uint8_t rightFootContactByte = 255;
+    std::uint8_t flags = 0;
+    float pitch() const { return static_cast<float>(pitchQuantized)*(1.5f/32767.0f); }
+    float roll() const { return static_cast<float>(rollQuantized)*(1.5f/32767.0f); }
+    float leftFootContact() const { return static_cast<float>(leftFootContactByte)/255.0f; }
+    float rightFootContact() const { return static_cast<float>(rightFootContactByte)/255.0f; }
+    bool fallen() const { return (flags&1u)!=0; }
+    bool authoritative() const { return (flags&2u)!=0; }
+};
+
+inline HumanBodyPresentation makeHumanBodyPresentation(float pitch,float roll,float leftContact,float rightContact,bool fallen,bool authoritative) {
+    HumanBodyPresentation result;
+    result.pitchQuantized=static_cast<std::int16_t>(clampf(pitch,-1.5f,1.5f)*(32767.0f/1.5f));
+    result.rollQuantized=static_cast<std::int16_t>(clampf(roll,-1.5f,1.5f)*(32767.0f/1.5f));
+    result.leftFootContactByte=static_cast<std::uint8_t>(clampf(leftContact,0.0f,1.0f)*255.0f+0.5f);
+    result.rightFootContactByte=static_cast<std::uint8_t>(clampf(rightContact,0.0f,1.0f)*255.0f+0.5f);
+    result.flags=static_cast<std::uint8_t>((fallen?1u:0u)|(authoritative?2u:0u));
+    return result;
+}
+
+inline HumanBodyPresentation interpolateHumanBodyPresentation(
+    const HumanBodyPresentation& previous,const HumanBodyPresentation& current,float alpha) {
+    if(!previous.authoritative()||!current.authoritative())return current;
+    alpha=clampf(alpha,0.0f,1.0f);
+    HumanBodyPresentation result=current;
+    const float pitch=previous.pitch()+(current.pitch()-previous.pitch())*alpha;
+    const float roll=previous.roll()+(current.roll()-previous.roll())*alpha;
+    result.pitchQuantized=static_cast<std::int16_t>(clampf(pitch,-1.5f,1.5f)*(32767.0f/1.5f));
+    result.rollQuantized=static_cast<std::int16_t>(clampf(roll,-1.5f,1.5f)*(32767.0f/1.5f));
+    const float left=previous.leftFootContact()+(current.leftFootContact()-previous.leftFootContact())*alpha;
+    const float right=previous.rightFootContact()+(current.rightFootContact()-previous.rightFootContact())*alpha;
+    result.leftFootContactByte=static_cast<std::uint8_t>(clampf(left,0.0f,1.0f)*255.0f+0.5f);
+    result.rightFootContactByte=static_cast<std::uint8_t>(clampf(right,0.0f,1.0f)*255.0f+0.5f);
+    return result;
+}
+
 struct HumanReactionVisual {
     float locomotionPhase = 0.0f;
     float locomotionAmount = 0.0f;
@@ -183,7 +223,7 @@ inline HumanReactionVisual makeHumanReactionVisual(
     return visual;
 }
 
-inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, const HumanReactionVisual& reaction, bool aliveHuman) {
+inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, const HumanReactionVisual& reaction, bool aliveHuman, const HumanBodyPresentation& body = {}) {
     HumanVisualPose pose;
     pose.yaw = yaw + HUMAN_VISUAL_SPEC.forwardYawOffset;
     pose.scale = scale;
@@ -201,8 +241,12 @@ inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, c
     pose.collapse = reaction.captureCollapseAmount;
     pose.vacuumLean = reaction.vacuumPullAmount;
     pose.rootBob = (0.012f * idle + 0.028f * std::abs(stride) * active) * pose.scale;
-    pose.torsoPitch = -0.04f * active - reaction.hitAmount * 0.16f - reaction.vacuumPullAmount * 0.20f + pose.collapse * 0.42f;
-    pose.torsoRoll = stride * 0.055f * active + reaction.hitDirectionLocal * reaction.hitAmount * 0.18f;
+    pose.torsoPitch = body.authoritative()
+        ? body.pitch() - reaction.vacuumPullAmount * 0.12f + pose.collapse * 0.42f
+        : -0.04f * active - reaction.hitAmount * 0.16f - reaction.vacuumPullAmount * 0.20f + pose.collapse * 0.42f;
+    pose.torsoRoll = body.authoritative()
+        ? body.roll()
+        : stride * 0.055f * active + reaction.hitDirectionLocal * reaction.hitAmount * 0.18f;
     pose.headPitch = 0.035f * idle - reaction.hitAmount * 0.12f + pose.collapse * 0.24f;
     const float armTrail = reaction.vacuumPullAmount * 0.28f + pose.collapse * 0.42f;
     pose.leftArmSwing = counterStride * 0.46f * active - 0.08f + reaction.hitDirectionLocal * reaction.hitAmount * 0.32f - armTrail;
@@ -217,15 +261,19 @@ inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, c
     const float scan = std::sin(time * (1.35f + std::abs(temperament) * 0.55f)
         + temperament * 2.7f) * reaction.searchAmount;
     const float doubt = reaction.uncertainty * reaction.awareness;
-    pose.torsoPitch -= reaction.commitment * 0.12f;
-    pose.torsoRoll += scan * (0.055f + doubt * 0.055f)
-        + temperament * reaction.disruption * 0.10f;
+    const float secondaryAttitude=body.authoritative()?0.32f:1.0f;
+    pose.torsoPitch -= reaction.commitment * 0.12f * secondaryAttitude;
+    pose.torsoRoll += (scan * (0.055f + doubt * 0.055f)
+        + temperament * reaction.disruption * 0.10f) * secondaryAttitude;
     pose.headPitch += scan * 0.085f + doubt * 0.035f
         - reaction.commitment * 0.045f;
     pose.leftArmSwing += scan * 0.11f - reaction.disruption * 0.16f;
     pose.rightArmSwing -= scan * 0.11f + reaction.disruption * 0.16f;
-    pose.leftLegSwing -= reaction.disruption * 0.09f;
-    pose.rightLegSwing -= reaction.disruption * 0.09f;
+    const float supportLoss=body.authoritative()
+        ? clampf(1.0f-(body.leftFootContact()+body.rightFootContact())*0.5f,0.0f,1.0f):0.0f;
+    pose.leftLegSwing -= reaction.disruption * 0.09f + supportLoss * 0.16f;
+    pose.rightLegSwing -= reaction.disruption * 0.09f + supportLoss * 0.16f;
+    if(body.authoritative()&&body.fallen()){pose.rootBob-=0.18f*pose.scale;pose.headPitch-=0.20f;}
     const float rubberPulse = reaction.hitAmount * (0.78f + std::sin(time * 23.0f) * 0.22f);
     pose.expressiveScale = {
         1.0f + rubberPulse * 0.10f,

@@ -428,6 +428,7 @@ struct TargetPresentationSample {
     float attackTimer=0.0f;
     float locomotionAmount=0.0f;
     HumanReactionVisual visualReaction;
+    HumanBodyPresentation bodyPresentation;
     float hitFlash=0.0f;
 };
 
@@ -453,7 +454,7 @@ FramePresentationSample capturePresentation(const GameState& state){
         const TargetState& target=state.targets[i];
         sample.targets[i]={target.alive,target.slurpable,target.pos,target.visualYaw,
             target.visualWalkPhase,target.humanAnimationTime,target.attackTimer,
-            target.locomotionAmount,target.visualReaction,target.hitFlash};
+            target.locomotionAmount,target.visualReaction,target.humanBodyPresentation(),target.hitFlash};
     }
     for(int i=0;i<BULLET_COUNT;++i){sample.bulletPositions[i]=state.bullets[i].pos;sample.bulletActive[i]=state.bullets[i].alive;}
     for(int i=0;i<FLOWER_POWERUP_COUNT;++i){sample.flowerPositions[i]=state.flowers[i].pos;sample.flowerActive[i]=state.flowers[i].active;}
@@ -503,6 +504,11 @@ void interpolatePresentation(GameState& renderState,const FramePresentationSampl
             (now.visualReaction.soulCubeAmount-before.visualReaction.soulCubeAmount)*alpha;
         target.visualReaction.attackTimer=before.visualReaction.attackTimer+
             (now.visualReaction.attackTimer-before.visualReaction.attackTimer)*alpha;
+        const HumanBodyPresentation currentBody=now.humanBodyPresentation();
+        if(before.bodyPresentation.authoritative()&&currentBody.authoritative()){
+            target.setHumanBodyPresentation(interpolateHumanBodyPresentation(
+                before.bodyPresentation,currentBody,alpha));
+        }
         target.hitFlash=before.hitFlash+(now.hitFlash-before.hitFlash)*alpha;
     }
     for(int i=0;i<BULLET_COUNT;++i)if(previous.bulletActive[i]&&current.bullets[i].alive&&lengthSq(previous.bulletPositions[i]-current.bullets[i].pos)<64.0f)renderState.bullets[i].pos=previous.bulletPositions[i]+(current.bullets[i].pos-previous.bulletPositions[i])*alpha;
