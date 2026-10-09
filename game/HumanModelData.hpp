@@ -31,6 +31,12 @@ struct HumanModelExpressiveness {
   float time = 0.0f;
 };
 
+struct HumanModelFootTargets {
+  float left[3]{}, right[3]{};
+  float leftContact = 0.0f, rightContact = 0.0f;
+  bool active = false;
+};
+
 struct HumanModelData {
   std::vector<HumanModelVertex> vertices;
   std::vector<HumanModelBone> bones;
@@ -107,7 +113,8 @@ struct HumanModelData {
 
   void skin(float animationTime, float attackTimer, int attackVariant,
             std::vector<float> &output,
-            const HumanModelExpressiveness &expressiveness = {}) const {
+            const HumanModelExpressiveness &expressiveness = {},
+            const HumanModelFootTargets &footTargets = {}) const {
     if (!valid()) {
       output.clear();
       return;
@@ -146,6 +153,9 @@ struct HumanModelData {
         multiply(world, rootParentMatrix, local);
       multiply(skinMatrices.data() + i * 16u, world, bones[i].inverse);
     }
+    if (footTargets.active)
+      ensureFootCorrectionWeights();
+    float footAnchors[2][3]{}, footAnchorTotals[2]{};
     output.resize(vertices.size() * 3u);
     for (std::size_t i = 0; i < vertices.size(); ++i) {
       float bound[3];
@@ -165,7 +175,17 @@ struct HumanModelData {
       output[i * 3] = sum[0] * unitScale;
       output[i * 3 + 1] = (sum[1] - minY) * unitScale;
       output[i * 3 + 2] = sum[2] * unitScale;
+      if (footTargets.active) {
+        for (int side = 0; side < 2; ++side) {
+          const float weight=footAnchorWeights_[side][i];
+          footAnchorTotals[side]+=weight;
+          for(int axis=0;axis<3;++axis)
+            footAnchors[side][axis]+=output[i*3u+axis]*weight;
+        }
+      }
     }
+    if (footTargets.active)
+      applyFootTargets(output, footTargets, footAnchors, footAnchorTotals);
   }
 
 private:
@@ -296,6 +316,66 @@ private:
   }
   static bool rigIsLeftArm(const HumanModelBone &bone) { return bone.flags & 4; }
   static bool rigIsRightArm(const HumanModelBone &bone) { return bone.flags & 8; }
+
+  mutable std::vector<float> footCorrectionWeights_[2];
+  mutable std::vector<float> footAnchorWeights_[2];
+
+  void ensureFootCorrectionWeights() const {
+    if(footCorrectionWeights_[0].size()==vertices.size()
+        &&footCorrectionWeights_[1].size()==vertices.size())return;
+    for(int side=0;side<2;++side){
+      footCorrectionWeights_[side].assign(vertices.size(),0.0f);
+      footAnchorWeights_[side].assign(vertices.size(),0.0f);
+    }
+    for (std::size_t vertexIndex = 0; vertexIndex < vertices.size(); ++vertexIndex) {
+      for (int influence = 0; influence < 4; ++influence) {
+        const float weight = vertices[vertexIndex].weights[influence];
+        if (weight <= 0.0f)
+          continue;
+        const HumanModelBone &bone = bones[vertices[vertexIndex].bones[influence]];
+        const RigRegion region = rigRegion(bone);
+        if (bone.side == 0)
+          continue;
+        const int side = bone.side < 0 ? 0 : 1;
+        if(region==RigFoot||region==RigToe)
+          footAnchorWeights_[side][vertexIndex]+=weight;
+        const float gain = region == RigFoot || region == RigToe ? 1.0f
+            : region == RigShin ? 0.72f : region == RigThigh ? 0.24f : 0.0f;
+        footCorrectionWeights_[side][vertexIndex]+=weight*gain;
+      }
+    }
+  }
+
+  void applyFootTargets(std::vector<float> &output,
+                        const HumanModelFootTargets &targets,
+                        float anchors[2][3],const float anchorWeights[2]) const {
+    float corrections[2][3]{};
+    const float *desired[2]{targets.left, targets.right};
+    for (int side = 0; side < 2; ++side) {
+      if (anchorWeights[side] <= 0.001f)
+        continue;
+      float magnitudeSq = 0.0f;
+      for (int axis = 0; axis < 3; ++axis) {
+        anchors[side][axis] /= anchorWeights[side];
+        corrections[side][axis] = desired[side][axis] - anchors[side][axis];
+        magnitudeSq += corrections[side][axis] * corrections[side][axis];
+      }
+      const float magnitude = std::sqrt(magnitudeSq);
+      if (magnitude > 0.28f)
+        for (float &component : corrections[side])
+          component *= 0.28f / magnitude;
+    }
+    const float contacts[2]{std::clamp(targets.leftContact, 0.0f, 1.0f),
+                            std::clamp(targets.rightContact, 0.0f, 1.0f)};
+    for (std::size_t vertexIndex = 0; vertexIndex < vertices.size(); ++vertexIndex) {
+      for (int side = 0; side < 2; ++side) {
+        const float authority = footCorrectionWeights_[side][vertexIndex]
+            * (0.20f + contacts[side] * 0.80f);
+        for (int axis = 0; axis < 3; ++axis)
+          output[vertexIndex * 3u + axis] += corrections[side][axis] * authority;
+      }
+    }
+  }
 
   static void applyExpressiveness(const HumanModelBone &bone,
                                   const HumanModelExpressiveness &expression,

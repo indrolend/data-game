@@ -4058,6 +4058,19 @@ void Game::updateTargets(float dt) {
             // faster or slower than the root that owns contact.
             t.humanAnimationTime += distance*0.68f;
         }
+        if(!state_.multiplayer.enabled&&t.humanBodyPresentation().authoritative()){
+            const auto feet=gameplay::enemyLocomotionOutput(enemyRuntimeState.locomotions[i]);
+            const auto localFoot=[&](const Vec3& world){
+                const Vec3 delta=(world-t.pos)*(1.0f/std::max(0.01f,t.scale));
+                const float yaw=t.visualYaw+DB_PI,c=std::cos(yaw),s=std::sin(yaw);
+                return Vec3{c*delta.x-s*delta.z,delta.y,s*delta.x+c*delta.z};
+            };
+            const auto& body=enemyRuntimeState.bodies[i];
+            t.setHumanBodyPresentation(makeHumanBodyPresentation(
+                body.bodyPitch,body.bodyRoll,feet.leftContact,feet.rightContact,
+                body.fallen,true,localFoot(feet.leftFootPosition),
+                localFoot(feet.rightFootPosition)));
+        }
         syncTargetReactionVisual(t,presentationAwareness,presentationUncertainty,
             presentationCommitment,presentationDisruption,presentationSearch,presentationIndividuality);
     }

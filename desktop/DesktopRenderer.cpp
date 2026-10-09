@@ -185,7 +185,8 @@ void roundedEllipsoid(const Vec3& p, const Vec3& scale, float pitch, float yaw, 
 void drawProceduralHumanDesktop(const TargetState& target, float time, float r, float g, float b) {
     const HumanVisualSpec& spec = HUMAN_VISUAL_SPEC;
     const bool aliveHuman = !target.slurpable;
-    const HumanVisualPose pose = makeHumanVisualPose(target.visualYaw, target.scale, time, target.visualReaction, aliveHuman, target.humanBodyPresentation());
+    const HumanBodyPresentation body=target.humanBodyPresentation();
+    const HumanVisualPose pose = makeHumanVisualPose(target.visualYaw, target.scale, time, target.visualReaction, aliveHuman, body);
     if (pose.scale <= 0.001f) return;
     const float s = pose.scale;
     const float collapseScale = std::max(0.18f, 1.0f - pose.collapse * 0.62f);
@@ -211,9 +212,20 @@ void drawProceduralHumanDesktop(const TargetState& target, float time, float r, 
         roundedEllipsoid(shoulder+forward*(armSwing*0.11f*s)+Vec3{0,-(spec.upperArmLength+spec.forearmLength*0.5f)*s*collapseScale,0},{0.052f*s,spec.forearmLength*s*collapseScale,0.060f*s},armSwing*0.7f,yaw,0,r,g,b);
         roundedEllipsoid(shoulder+forward*(armSwing*0.14f*s)+Vec3{0,-(spec.upperArmLength+spec.forearmLength)*s,0},{spec.handSize*s,spec.handSize*s,spec.handSize*0.75f*s},0,yaw,0,r,g,b);
         const Vec3 hip=root+right*(side*spec.pelvisWidth*0.28f*s);
-        roundedEllipsoid(hip+forward*(legSwing*0.05f*s)+Vec3{0,thighY*collapseScale,0},{0.075f*s,spec.thighLength*s*collapseScale,0.080f*s},legSwing,yaw,0,r,g,b);
-        roundedEllipsoid(hip-forward*(legSwing*0.05f*s)+Vec3{0,shinY*collapseScale,0},{0.070f*s,spec.shinLength*s*collapseScale,0.075f*s},-legSwing*0.65f,yaw,0,r,g,b);
-        roundedEllipsoid(hip+forward*(spec.footLength*0.25f*s+legSwing*0.04f*s)+Vec3{0,footY,0},{0.075f*s,spec.footHeight*s,spec.footLength*s},0,yaw,0,r,g,b);
+        Vec3 thighCenter=hip+forward*(legSwing*0.05f*s)+Vec3{0,thighY*collapseScale,0};
+        Vec3 shinCenter=hip-forward*(legSwing*0.05f*s)+Vec3{0,shinY*collapseScale,0};
+        Vec3 footCenter=hip+forward*(spec.footLength*0.25f*s+legSwing*0.04f*s)+Vec3{0,footY,0};
+        if(body.authoritative()){
+            const Vec3 local=side<0?body.leftFootTarget():body.rightFootTarget();
+            footCenter=target.pos+(right*local.x-forward*local.z+Vec3{0,local.y,0})*s
+                +Vec3{0,spec.footHeight*s*0.5f,0};
+            const Vec3 hipJoint=hip+Vec3{0,(spec.footHeight+spec.shinLength+spec.thighLength)*s*collapseScale,0};
+            const Vec3 knee=(hipJoint+footCenter)*0.5f+forward*(0.055f*s);
+            thighCenter=(hipJoint+knee)*0.5f;shinCenter=(knee+footCenter)*0.5f;
+        }
+        roundedEllipsoid(thighCenter,{0.075f*s,spec.thighLength*s*collapseScale,0.080f*s},legSwing,yaw,0,r,g,b);
+        roundedEllipsoid(shinCenter,{0.070f*s,spec.shinLength*s*collapseScale,0.075f*s},-legSwing*0.65f,yaw,0,r,g,b);
+        roundedEllipsoid(footCenter,{0.075f*s,spec.footHeight*s,spec.footLength*s},0,yaw,0,r,g,b);
     }
 }
 Quat quaternionFromEulerXYZ(float x,float y,float z) {
@@ -886,8 +898,16 @@ void DesktopRenderer::drawStaticModel(unsigned int list, const Vec3& p, const Ve
 }
 
 void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_environment::RoomSetting setting,bool shadow) const {
-    humanModel_.skin(target.humanAnimationTime,target.attackTimer,target.attackVariant,humanVertices_,{target.hitFlash,target.hitDirectionLocal,time});if(humanVertices_.empty())return;
-    const bool aliveHuman=!target.slurpable;const HumanVisualPose pose=makeHumanVisualPose(target.visualYaw,target.scale,time,target.visualReaction,aliveHuman,target.humanBodyPresentation());
+    const HumanBodyPresentation body=target.humanBodyPresentation();
+    const Vec3 leftFoot=body.leftFootTarget(),rightFoot=body.rightFootTarget();
+    HumanModelFootTargets footTargets{};
+    footTargets.left[0]=leftFoot.x;footTargets.left[1]=leftFoot.y;footTargets.left[2]=leftFoot.z;
+    footTargets.right[0]=rightFoot.x;footTargets.right[1]=rightFoot.y;footTargets.right[2]=rightFoot.z;
+    footTargets.leftContact=body.leftFootContact();footTargets.rightContact=body.rightFootContact();
+    footTargets.active=body.authoritative();
+    humanModel_.skin(target.humanAnimationTime,target.attackTimer,target.attackVariant,
+        humanVertices_,{target.hitFlash,target.hitDirectionLocal,time},footTargets);if(humanVertices_.empty())return;
+    const bool aliveHuman=!target.slurpable;const HumanVisualPose pose=makeHumanVisualPose(target.visualYaw,target.scale,time,target.visualReaction,aliveHuman,body);
     const float attackT=target.attackTimer>0?1-clampf(target.attackTimer/HUMAN_SWING_ATTACK_DURATION,0.0f,1.0f):0;
     const float low=target.attackVariant>=2?1.0f:0.0f;
     const float reach=target.attackTimer>0?smoothStep01(clampf((attackT-HUMAN_SWING_COMMIT_PHASE)/(HUMAN_SWING_END_PHASE-HUMAN_SWING_COMMIT_PHASE),0.0f,1.0f)):0.0f;

@@ -275,7 +275,7 @@ struct TargetState {
     int attackVariant = 0;
     bool attackHit = false;
     std::int16_t bodyRollQuantized = 0;
-    std::uint8_t leftFootContactByte = 255;
+    std::uint8_t footContactNibbles = 255;
     Vec3 attackDirection{0.0f,0.0f,-1.0f};
     int attackTargetPlayerId = 0;
     int grabbedPlayerId = -1;
@@ -283,6 +283,8 @@ struct TargetState {
     HumanReactionVisual visualReaction;
     bool brute = false;
     SoulState soulState = SoulState::Free;
+    std::int8_t leftFootTargetX = 0;
+    std::int8_t leftFootTargetZ = 0;
     SoulVisualState soulVisual;
     std::array<Vec3,SOUL_LATTICE_NODE_COUNT> latticePos{};
     std::array<Vec3,SOUL_LATTICE_NODE_COUNT> latticeVel{};
@@ -293,20 +295,37 @@ struct TargetState {
     Vec3 tetherDestination;
     float tetherWidth = 0.0f;
     bool tetherVisible = false;
-    std::uint8_t rightFootContactByte = 255;
+    std::int8_t rightFootTargetX = 0;
+    std::int8_t rightFootTargetZ = 0;
+    std::uint8_t footTargetYNibbles = 0;
     int networkOwnerPlayerId = -1;
     SoulRecord soul;
 
     HumanBodyPresentation humanBodyPresentation() const {
-        return {bodyPitchQuantized,bodyRollQuantized,leftFootContactByte,
-                rightFootContactByte,bodyPresentationFlags};
+        const auto height=[](std::uint8_t nibble){
+            const int value=(nibble&8u)?static_cast<int>(nibble)-16:static_cast<int>(nibble);
+            return static_cast<std::int8_t>(value*4);
+        };
+        return {bodyPitchQuantized,bodyRollQuantized,footContactNibbles,
+                bodyPresentationFlags,leftFootTargetX,height(footTargetYNibbles&15u),
+                leftFootTargetZ,rightFootTargetX,height((footTargetYNibbles>>4u)&15u),
+                rightFootTargetZ};
     }
     void setHumanBodyPresentation(const HumanBodyPresentation& presentation) {
         bodyPitchQuantized=presentation.pitchQuantized;
         bodyRollQuantized=presentation.rollQuantized;
-        leftFootContactByte=presentation.leftFootContactByte;
-        rightFootContactByte=presentation.rightFootContactByte;
+        footContactNibbles=presentation.footContactNibbles;
         bodyPresentationFlags=presentation.flags;
+        leftFootTargetX=presentation.leftFootX;
+        leftFootTargetZ=presentation.leftFootZ;
+        rightFootTargetX=presentation.rightFootX;
+        rightFootTargetZ=presentation.rightFootZ;
+        const auto height=[](std::int8_t value){
+            const int quantized=std::max(-8,std::min(7,static_cast<int>(value)/4));
+            return static_cast<std::uint8_t>(quantized&15);
+        };
+        footTargetYNibbles=static_cast<std::uint8_t>(height(presentation.leftFootY)
+            |(height(presentation.rightFootY)<<4u));
     }
 };
 

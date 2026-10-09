@@ -82,24 +82,54 @@ struct HumanVisualPose {
 struct HumanBodyPresentation {
     std::int16_t pitchQuantized = 0;
     std::int16_t rollQuantized = 0;
-    std::uint8_t leftFootContactByte = 255;
-    std::uint8_t rightFootContactByte = 255;
+    std::uint8_t footContactNibbles = 255;
     std::uint8_t flags = 0;
+    std::int8_t leftFootX = 0, leftFootY = 0, leftFootZ = 0;
+    std::int8_t rightFootX = 0, rightFootY = 0, rightFootZ = 0;
+    HumanBodyPresentation() = default;
+    HumanBodyPresentation(std::int16_t pitchValue,std::int16_t rollValue,
+        std::uint8_t contacts,std::uint8_t flagValue,std::int8_t leftX,
+        std::int8_t leftY,std::int8_t leftZ,std::int8_t rightX,
+        std::int8_t rightY,std::int8_t rightZ)
+        :pitchQuantized(pitchValue),rollQuantized(rollValue),
+         footContactNibbles(contacts),flags(flagValue),leftFootX(leftX),
+         leftFootY(leftY),leftFootZ(leftZ),rightFootX(rightX),
+         rightFootY(rightY),rightFootZ(rightZ){}
     float pitch() const { return static_cast<float>(pitchQuantized)*(1.5f/32767.0f); }
     float roll() const { return static_cast<float>(rollQuantized)*(1.5f/32767.0f); }
-    float leftFootContact() const { return static_cast<float>(leftFootContactByte)/255.0f; }
-    float rightFootContact() const { return static_cast<float>(rightFootContactByte)/255.0f; }
+    float leftFootContact() const { return static_cast<float>(footContactNibbles&15u)/15.0f; }
+    float rightFootContact() const { return static_cast<float>((footContactNibbles>>4u)&15u)/15.0f; }
+    Vec3 leftFootTarget() const { return decodeFootTarget(leftFootX,leftFootY,leftFootZ); }
+    Vec3 rightFootTarget() const { return decodeFootTarget(rightFootX,rightFootY,rightFootZ); }
     bool fallen() const { return (flags&1u)!=0; }
     bool authoritative() const { return (flags&2u)!=0; }
+private:
+    static Vec3 decodeFootTarget(std::int8_t x,std::int8_t y,std::int8_t z) {
+        constexpr float scale=1.0f/120.0f;
+        return {static_cast<float>(x)*scale,static_cast<float>(y)*scale,
+                static_cast<float>(z)*scale};
+    }
 };
 
-inline HumanBodyPresentation makeHumanBodyPresentation(float pitch,float roll,float leftContact,float rightContact,bool fallen,bool authoritative) {
+inline std::int8_t quantizeHumanFootCoordinate(float value) {
+    return static_cast<std::int8_t>(clampf(value,-1.0f,1.0f)*120.0f);
+}
+
+inline HumanBodyPresentation makeHumanBodyPresentation(float pitch,float roll,
+    float leftContact,float rightContact,bool fallen,bool authoritative,
+    const Vec3& leftFootTarget={},const Vec3& rightFootTarget={}) {
     HumanBodyPresentation result;
     result.pitchQuantized=static_cast<std::int16_t>(clampf(pitch,-1.5f,1.5f)*(32767.0f/1.5f));
     result.rollQuantized=static_cast<std::int16_t>(clampf(roll,-1.5f,1.5f)*(32767.0f/1.5f));
-    result.leftFootContactByte=static_cast<std::uint8_t>(clampf(leftContact,0.0f,1.0f)*255.0f+0.5f);
-    result.rightFootContactByte=static_cast<std::uint8_t>(clampf(rightContact,0.0f,1.0f)*255.0f+0.5f);
+    const auto contact=[](float value){return static_cast<std::uint8_t>(clampf(value,0.0f,1.0f)*15.0f+0.5f);};
+    result.footContactNibbles=static_cast<std::uint8_t>(contact(leftContact)|(contact(rightContact)<<4u));
     result.flags=static_cast<std::uint8_t>((fallen?1u:0u)|(authoritative?2u:0u));
+    result.leftFootX=quantizeHumanFootCoordinate(leftFootTarget.x);
+    result.leftFootY=quantizeHumanFootCoordinate(leftFootTarget.y);
+    result.leftFootZ=quantizeHumanFootCoordinate(leftFootTarget.z);
+    result.rightFootX=quantizeHumanFootCoordinate(rightFootTarget.x);
+    result.rightFootY=quantizeHumanFootCoordinate(rightFootTarget.y);
+    result.rightFootZ=quantizeHumanFootCoordinate(rightFootTarget.z);
     return result;
 }
 
@@ -114,8 +144,16 @@ inline HumanBodyPresentation interpolateHumanBodyPresentation(
     result.rollQuantized=static_cast<std::int16_t>(clampf(roll,-1.5f,1.5f)*(32767.0f/1.5f));
     const float left=previous.leftFootContact()+(current.leftFootContact()-previous.leftFootContact())*alpha;
     const float right=previous.rightFootContact()+(current.rightFootContact()-previous.rightFootContact())*alpha;
-    result.leftFootContactByte=static_cast<std::uint8_t>(clampf(left,0.0f,1.0f)*255.0f+0.5f);
-    result.rightFootContactByte=static_cast<std::uint8_t>(clampf(right,0.0f,1.0f)*255.0f+0.5f);
+    const Vec3 leftTarget=previous.leftFootTarget()+(current.leftFootTarget()-previous.leftFootTarget())*alpha;
+    const Vec3 rightTarget=previous.rightFootTarget()+(current.rightFootTarget()-previous.rightFootTarget())*alpha;
+    const auto contact=[](float value){return static_cast<std::uint8_t>(clampf(value,0.0f,1.0f)*15.0f+0.5f);};
+    result.footContactNibbles=static_cast<std::uint8_t>(contact(left)|(contact(right)<<4u));
+    result.leftFootX=quantizeHumanFootCoordinate(leftTarget.x);
+    result.leftFootY=quantizeHumanFootCoordinate(leftTarget.y);
+    result.leftFootZ=quantizeHumanFootCoordinate(leftTarget.z);
+    result.rightFootX=quantizeHumanFootCoordinate(rightTarget.x);
+    result.rightFootY=quantizeHumanFootCoordinate(rightTarget.y);
+    result.rightFootZ=quantizeHumanFootCoordinate(rightTarget.z);
     return result;
 }
 
