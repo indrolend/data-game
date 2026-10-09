@@ -82,7 +82,9 @@ int main(){
         fieldLighting.localLights[0].enabled||fieldLighting.shot.enabled||fieldLighting.exit.enabled||
         sterileLighting.sun.enabled||sterileLighting.fill.enabled||!sterileLighting.localLights[0].enabled||!sterileLighting.localLights[1].enabled||
         sterileLighting.localLights[2].enabled||!sterileLighting.shot.enabled||!sterileLighting.exit.enabled||
-        sterileLighting.localLights[0].position.z!=34.0f||sterileLighting.phone.position.x!=1.0f||sterileLighting.fog.density!=sterileAtmosphere.fogDensity){
+        sterileLighting.localLights[0].position.z!=34.0f||sterileLighting.localLights[0].constantAttenuation!=0.48f||
+        sterileLighting.localLights[0].linearAttenuation!=0.035f||sterileLighting.localLights[0].quadraticAttenuation!=1.25f/(12.5f*12.5f)||
+        sterileLighting.phone.position.x!=1.0f||sterileLighting.fog.density!=sterileAtmosphere.fogDensity){
         std::fputs("RENDER_CONTRACTS_FAIL resolved scene lighting\n",stderr);return 1;
     }
     RuntimeLightingControl control;control.reference=AtmosphereProfile::ProgressiveCandidate;

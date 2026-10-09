@@ -90,7 +90,7 @@ inline ResolvedSceneLighting resolveSceneLighting(
         result.localLights[static_cast<std::size_t>(i)]={true,false,
             {source.localPosition.x,source.localPosition.y,tileOrigin+source.localPosition.z},
             {source.color.r*source.intensity,source.color.g*source.intensity,source.color.b*source.intensity},
-            0.65f,0.05f,4.0f/(source.radius*source.radius)};
+            0.48f,0.035f,1.25f/(source.radius*source.radius)};
     }
     if(response.shotLight>0.001f)result.shot={true,false,
         {latestShotOrigin.x,latestShotOrigin.y+0.2f,latestShotOrigin.z},
