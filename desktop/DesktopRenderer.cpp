@@ -101,6 +101,16 @@ void applyMaterial(const render_contract::MaterialDefinition& material){
     gradedColor(material.baseColor.r,material.baseColor.g,material.baseColor.b,material.opacity);
 }
 
+void applyLight(GLenum slot,const room_lighting::ResolvedLight& light){
+    if(!light.enabled){glDisable(slot);return;}
+    const GLfloat diffuse[]={light.diffuse.r,light.diffuse.g,light.diffuse.b,1.0f};
+    const GLfloat position[]={light.position.x,light.position.y,light.position.z,light.directional?0.0f:1.0f};
+    glEnable(slot);glLightfv(slot,GL_DIFFUSE,diffuse);glLightfv(slot,GL_POSITION,position);
+    glLightf(slot,GL_CONSTANT_ATTENUATION,light.constantAttenuation);
+    glLightf(slot,GL_LINEAR_ATTENUATION,light.linearAttenuation);
+    glLightf(slot,GL_QUADRATIC_ATTENUATION,light.quadraticAttenuation);
+}
+
 class ScopedMaterial {
 public:
     explicit ScopedMaterial(const render_contract::MaterialDefinition& material,bool active=true):active_(active){if(active_)applyMaterial(material);}
@@ -1377,29 +1387,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear});
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
-    glEnable(GL_LIGHTING);glEnable(GL_LIGHT2);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
+    glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
     applyMaterial(semanticMaterial(SemanticSurface::Default));
-    const auto& lighting=render_contract::DesktopSceneLighting;
-    const GLfloat ambient[]={atmosphere.ambient.r,atmosphere.ambient.g,atmosphere.ambient.b,1.0f}; glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);
-    const GLfloat sunDiffuse[]={atmosphere.sun.r,atmosphere.sun.g,atmosphere.sun.b,1.0f};
-    const GLfloat sunPos[]={
-        lighting.sun.direction.x,
-        lighting.sun.direction.y,
-        lighting.sun.direction.z,
-        0.0f
-    };
-    const bool localPrimary=lightRig.primarySource==room_lighting::PrimaryLightSource::CeilingFixtures;
-    if(localPrimary){glDisable(GL_LIGHT0);glDisable(GL_LIGHT1);}else{glEnable(GL_LIGHT0);glEnable(GL_LIGHT1);glLightfv(GL_LIGHT0,GL_DIFFUSE,sunDiffuse);glLightfv(GL_LIGHT0,GL_POSITION,sunPos);}
-    const GLfloat fillDiffuse[]={atmosphere.fill.r,atmosphere.fill.g,atmosphere.fill.b,1.0f}, fillPos[]={lighting.fill.direction.x,lighting.fill.direction.y,lighting.fill.direction.z,0.0f};
-    if(!localPrimary){glLightfv(GL_LIGHT1,GL_DIFFUSE,fillDiffuse); glLightfv(GL_LIGHT1,GL_POSITION,fillPos);}
-    const GLfloat phoneDiffuse[]={atmosphere.phone.r*lightingResponse.phoneLightScale+lightingResponse.actionLight*0.08f+lightingResponse.criticalLight*0.28f,atmosphere.phone.g*lightingResponse.phoneLightScale+lightingResponse.actionLight*0.18f+lightingResponse.criticalLight*0.08f,atmosphere.phone.b*lightingResponse.phoneLightScale+lightingResponse.actionLight*0.24f+lightingResponse.criticalLight*0.24f,1.0f};
-    const GLfloat phoneLightPos[]={state.phoneTransform.screenCenter.x,state.phoneTransform.screenCenter.y,state.phoneTransform.screenCenter.z,1.0f};
-    glLightfv(GL_LIGHT2,GL_DIFFUSE,phoneDiffuse);glLightfv(GL_LIGHT2,GL_POSITION,phoneLightPos);glLightf(GL_LIGHT2,GL_CONSTANT_ATTENUATION,1.0f);glLightf(GL_LIGHT2,GL_LINEAR_ATTENUATION,1.6f);
     const float lightTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int i=0;i<3;++i){const GLenum light=GL_LIGHT3+i;if(i>=lightRig.localLightCount){glDisable(light);continue;}const auto& local=lightRig.localLights[i];const GLfloat diffuse[]={local.color.r*local.intensity,local.color.g*local.intensity,local.color.b*local.intensity,1.0f};const GLfloat position[]={local.localPosition.x,local.localPosition.y,lightTileOrigin+local.localPosition.z,1.0f};glEnable(light);glLightfv(light,GL_DIFFUSE,diffuse);glLightfv(light,GL_POSITION,position);glLightf(light,GL_CONSTANT_ATTENUATION,0.65f);glLightf(light,GL_LINEAR_ATTENUATION,0.05f);glLightf(light,GL_QUADRATIC_ATTENUATION,4.0f/(local.radius*local.radius));}
-    if(lightingResponse.shotLight>0.001f){const GLfloat shotDiffuse[]={1.15f*lightingResponse.shotLight,0.82f*lightingResponse.shotLight,0.55f*lightingResponse.shotLight,1.0f},shotPosition[]={state.environmentVisual.latestShotOrigin.x,state.environmentVisual.latestShotOrigin.y+0.2f,state.environmentVisual.latestShotOrigin.z,1.0f};glEnable(GL_LIGHT6);glLightfv(GL_LIGHT6,GL_DIFFUSE,shotDiffuse);glLightfv(GL_LIGHT6,GL_POSITION,shotPosition);glLightf(GL_LIGHT6,GL_CONSTANT_ATTENUATION,0.72f);glLightf(GL_LIGHT6,GL_LINEAR_ATTENUATION,0.22f);glLightf(GL_LIGHT6,GL_QUADRATIC_ATTENUATION,0.08f);}else glDisable(GL_LIGHT6);
-    if(lightingResponse.exitGlow>0.01f){const GLfloat exitDiffuse[]={0.34f*lightingResponse.exitGlow,0.72f*lightingResponse.exitGlow,0.68f*lightingResponse.exitGlow,1.0f},exitPosition[]={0.0f,2.2f,lightTileOrigin-ROOM_DEPTH*0.5f+0.8f,1.0f};glEnable(GL_LIGHT7);glLightfv(GL_LIGHT7,GL_DIFFUSE,exitDiffuse);glLightfv(GL_LIGHT7,GL_POSITION,exitPosition);glLightf(GL_LIGHT7,GL_CONSTANT_ATTENUATION,0.8f);glLightf(GL_LIGHT7,GL_LINEAR_ATTENUATION,0.11f);glLightf(GL_LIGHT7,GL_QUADRATIC_ATTENUATION,0.035f);}else glDisable(GL_LIGHT7);
-    glEnable(GL_FOG);const GLfloat fogColor[]={atmosphere.fog.r,atmosphere.fog.g,atmosphere.fog.b,1.0f};glFogfv(GL_FOG_COLOR,fogColor);glFogi(GL_FOG_MODE,GL_EXP2);glFogf(GL_FOG_DENSITY,atmosphere.fogDensity);
+    const auto resolvedLighting=room_lighting::resolveSceneLighting(atmosphere,lightRig,lightingResponse,state.phoneTransform.screenCenter,state.environmentVisual.latestShotOrigin,lightTileOrigin);
+    const GLfloat ambient[]={resolvedLighting.ambient.r,resolvedLighting.ambient.g,resolvedLighting.ambient.b,1.0f};glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);
+    applyLight(GL_LIGHT0,resolvedLighting.sun);applyLight(GL_LIGHT1,resolvedLighting.fill);applyLight(GL_LIGHT2,resolvedLighting.phone);
+    for(int i=0;i<3;++i)applyLight(GL_LIGHT3+i,resolvedLighting.localLights[static_cast<std::size_t>(i)]);
+    applyLight(GL_LIGHT6,resolvedLighting.shot);applyLight(GL_LIGHT7,resolvedLighting.exit);
+    glEnable(GL_FOG);const GLfloat fogColor[]={resolvedLighting.fog.color.r,resolvedLighting.fog.color.g,resolvedLighting.fog.color.b,1.0f};glFogfv(GL_FOG_COLOR,fogColor);glFogi(GL_FOG_MODE,GL_EXP2);glFogf(GL_FOG_DENSITY,resolvedLighting.fog.density);
     glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_LIGHTING); glEnable(GL_NORMALIZE);
     // Observation point: every world-pass light is set; HUD and later passes have not touched GL state yet.
     // Rigs with CeilingFixtures disable the global sun/fill (GL_LIGHT0/1); the enabled flags record that.

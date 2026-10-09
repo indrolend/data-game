@@ -5,6 +5,7 @@
 #include "Math.hpp"
 #include "RenderContracts.hpp"
 #include "RoomEnvironment.hpp"
+#include "SceneLightingResponse.hpp"
 #include "VisualIdentity.hpp"
 #include "world/RoomGeometry.hpp"
 
@@ -27,6 +28,24 @@ struct RoomLightRig {
     int localLightCount=0;
 };
 
+struct ResolvedLight {
+    bool enabled=false;
+    bool directional=false;
+    Vec3 position{};
+    VisualColor diffuse{};
+    float constantAttenuation=1.0f;
+    float linearAttenuation=0.0f;
+    float quadraticAttenuation=0.0f;
+};
+
+struct ResolvedSceneLighting {
+    VisualColor ambient{};
+    ResolvedLight sun{},fill{},phone{};
+    std::array<ResolvedLight,3> localLights{};
+    ResolvedLight shot{},exit{};
+    render_contract::FogDefinition fog{};
+};
+
 inline RoomLightRig roomLightRig(room_environment::RoomSetting setting,room_environment::RoomForm form){
     using room_environment::RoomForm;
     using room_environment::RoomSetting;
@@ -40,6 +59,40 @@ inline RoomLightRig roomLightRig(room_environment::RoomSetting setting,room_envi
         rig.localLights[i]={{0.0f,world::RoomWallHeight-0.18f,z},{5.8f,0.055f,0.72f},{0.68f,0.88f,0.94f},i==rig.localLightCount-1?1.05f:1.24f,12.5f,true};
     }
     return rig;
+}
+
+inline ResolvedSceneLighting resolveSceneLighting(
+    const render_contract::SceneAtmosphere& atmosphere,
+    const RoomLightRig& rig,
+    const scene_lighting_response::Response& response,
+    const Vec3& phonePosition,
+    const Vec3& latestShotOrigin,
+    float tileOrigin){
+    ResolvedSceneLighting result{};
+    result.ambient=atmosphere.ambient;
+    const bool globalLights=rig.primarySource!=PrimaryLightSource::CeilingFixtures;
+    result.sun={globalLights,true,render_contract::DesktopSceneLighting.sun.direction,atmosphere.sun};
+    result.fill={globalLights,true,render_contract::DesktopSceneLighting.fill.direction,atmosphere.fill};
+    result.phone={true,false,phonePosition,
+        {atmosphere.phone.r*response.phoneLightScale+response.actionLight*0.08f+response.criticalLight*0.28f,
+         atmosphere.phone.g*response.phoneLightScale+response.actionLight*0.18f+response.criticalLight*0.08f,
+         atmosphere.phone.b*response.phoneLightScale+response.actionLight*0.24f+response.criticalLight*0.24f},
+        1.0f,1.6f,0.0f};
+    for(int i=0;i<rig.localLightCount;++i){
+        const auto& source=rig.localLights[static_cast<std::size_t>(i)];
+        result.localLights[static_cast<std::size_t>(i)]={true,false,
+            {source.localPosition.x,source.localPosition.y,tileOrigin+source.localPosition.z},
+            {source.color.r*source.intensity,source.color.g*source.intensity,source.color.b*source.intensity},
+            0.65f,0.05f,4.0f/(source.radius*source.radius)};
+    }
+    if(response.shotLight>0.001f)result.shot={true,false,
+        {latestShotOrigin.x,latestShotOrigin.y+0.2f,latestShotOrigin.z},
+        {1.15f*response.shotLight,0.82f*response.shotLight,0.55f*response.shotLight},0.72f,0.22f,0.08f};
+    if(response.exitGlow>0.01f)result.exit={true,false,
+        {0.0f,2.2f,tileOrigin-world::RoomDepth*0.5f+0.8f},
+        {0.34f*response.exitGlow,0.72f*response.exitGlow,0.68f*response.exitGlow},0.8f,0.11f,0.035f};
+    result.fog={atmosphere.fog,atmosphere.fogDensity};
+    return result;
 }
 
 inline render_contract::SceneAtmosphere settingAtmosphere(

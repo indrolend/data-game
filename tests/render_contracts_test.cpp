@@ -73,6 +73,17 @@ int main(){
     if(staticSterile.ambient.r!=unpowered.ambient.r||explicitSterile.ambient.r!=progressiveOpening.ambient.r){
         std::fputs("RENDER_CONTRACTS_FAIL setting atmosphere fallback\n",stderr);return 1;
     }
+    const auto calmResponse=scene_lighting_response::resolve({0.0f,0.0f,9999.0f,0.0f,0.0f,false});
+    const auto activeResponse=scene_lighting_response::resolve({1.0f,1.0f,0.0f,1.0f,1.0f,true});
+    const auto fieldLighting=resolveSceneLighting(fieldAtmosphere,fieldRig,calmResponse,{1,2,3},{4,5,6},42.0f);
+    const auto sterileLighting=resolveSceneLighting(sterileAtmosphere,sterileCorridorRig,activeResponse,{1,2,3},{4,5,6},42.0f);
+    if(!fieldLighting.sun.enabled||!fieldLighting.fill.enabled||!fieldLighting.sun.directional||!fieldLighting.phone.enabled||
+        fieldLighting.localLights[0].enabled||fieldLighting.shot.enabled||fieldLighting.exit.enabled||
+        sterileLighting.sun.enabled||sterileLighting.fill.enabled||!sterileLighting.localLights[0].enabled||!sterileLighting.localLights[1].enabled||
+        sterileLighting.localLights[2].enabled||!sterileLighting.shot.enabled||!sterileLighting.exit.enabled||
+        sterileLighting.localLights[0].position.z!=34.0f||sterileLighting.phone.position.x!=1.0f||sterileLighting.fog.density!=sterileAtmosphere.fogDensity){
+        std::fputs("RENDER_CONTRACTS_FAIL resolved scene lighting\n",stderr);return 1;
+    }
     RuntimeLightingControl control;control.reference=AtmosphereProfile::ProgressiveCandidate;
     setAtmosphereColorOverride(control,AtmosphereChannel::Fill,{0.16f,0.36f,0.52f});setAtmosphereFogDensityOverride(control,0.0125f);
     control.timeFixed=true;control.roomFixed=true;control.phoneFixed=true;control.fixedInputs={7.25f,6,0.45f};
@@ -80,6 +91,6 @@ int main(){
     if(manipulated.fill.g!=0.36f||manipulated.fogDensity!=0.0125f||fixed.time!=7.25f||fixed.roomIndex!=6||fixed.phonePower!=0.45f){
         std::fputs("RENDER_CONTRACTS_FAIL runtime lighting control\n",stderr);return 1;
     }
-    std::puts("RENDER_CONTRACTS_OK profiles=2 light_sources=3 sterile_fixture_rigs=2 shading_models=3 shadow_qualities=3 atmosphere=ACCEPTED_STATIC field_grass=TEXTURED city_ground=TEXTURED");
+    std::puts("RENDER_CONTRACTS_OK profiles=2 light_sources=3 sterile_fixture_rigs=2 resolved_lighting=AUTHORITATIVE shading_models=3 shadow_qualities=3 atmosphere=ACCEPTED_STATIC field_grass=TEXTURED city_ground=TEXTURED");
     return 0;
 }
