@@ -24,6 +24,8 @@ struct LocalLightDefinition {
 
 struct RoomLightRig {
     PrimaryLightSource primarySource=PrimaryLightSource::OutdoorSun;
+    Vec3 sunDirection=render_contract::DesktopSceneLighting.sun.direction;
+    Vec3 fillDirection=render_contract::DesktopSceneLighting.fill.direction;
     std::array<LocalLightDefinition,3> localLights{};
     int localLightCount=0;
 };
@@ -50,7 +52,12 @@ inline RoomLightRig roomLightRig(room_environment::RoomSetting setting,room_envi
     using room_environment::RoomForm;
     using room_environment::RoomSetting;
     RoomLightRig rig{};
-    if(setting==RoomSetting::City){rig.primarySource=PrimaryLightSource::UrbanSky;return rig;}
+    if(setting==RoomSetting::City){
+        rig.primarySource=PrimaryLightSource::UrbanSky;
+        rig.sunDirection={-42.0f,32.0f,18.0f};
+        rig.fillDirection={28.0f,18.0f,-35.0f};
+        return rig;
+    }
     if(setting!=RoomSetting::Sterile)return rig;
     rig.primarySource=PrimaryLightSource::CeilingFixtures;
     rig.localLightCount=form==RoomForm::Chamber?3:2;
@@ -71,8 +78,8 @@ inline ResolvedSceneLighting resolveSceneLighting(
     ResolvedSceneLighting result{};
     result.ambient=atmosphere.ambient;
     const bool globalLights=rig.primarySource!=PrimaryLightSource::CeilingFixtures;
-    result.sun={globalLights,true,render_contract::DesktopSceneLighting.sun.direction,atmosphere.sun};
-    result.fill={globalLights,true,render_contract::DesktopSceneLighting.fill.direction,atmosphere.fill};
+    result.sun={globalLights,true,rig.sunDirection,atmosphere.sun};
+    result.fill={globalLights,true,rig.fillDirection,atmosphere.fill};
     result.phone={true,false,phonePosition,
         {atmosphere.phone.r*response.phoneLightScale+response.actionLight*0.08f+response.criticalLight*0.28f,
          atmosphere.phone.g*response.phoneLightScale+response.actionLight*0.18f+response.criticalLight*0.08f,
