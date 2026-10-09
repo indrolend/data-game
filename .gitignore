@@ -5,3 +5,7 @@ multiplayer-server/node_modules/
 multiplayer-server/.wrangler/
 .DS_Store
 Thumbs.db
+
+# iOS generated build output
+ios/build/
+ios/build-sim/

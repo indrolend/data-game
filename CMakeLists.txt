@@ -458,8 +458,38 @@ add_executable(
 target_include_directories(SignalResidueLifecycleTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(SignalResidueLifecycleTest PRIVATE cxx_std_17)
 
+# iOS port adapters are platform neutral and verified on every host: the real
+# DesktopRenderer is compiled against the GL shim, and touch input is mapped to
+# the shared Game::setTouchControls contract.
+add_executable(IosTouchControlsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/ios_touch_controls_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(IosTouchControlsTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/ios")
+target_compile_features(IosTouchControlsTest PRIVATE cxx_std_17)
+
+add_executable(
+    IosGlShimTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ios_gl_shim_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/desktop/DesktopRenderer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ios/GLShim.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ios/TouchOverlay.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(IosGlShimTest PRIVATE
+    "${DB_GAME_ROOT}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/desktop"
+    "${CMAKE_CURRENT_SOURCE_DIR}/desktop/third_party/stb"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ios"
+)
+target_compile_features(IosGlShimTest PRIVATE cxx_std_17)
+target_compile_definitions(IosGlShimTest PRIVATE DB_USE_GL_SHIM DB_TEST_MODEL_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/models")
+if(MSVC)
+    target_link_options(IosTouchControlsTest PRIVATE /STACK:8388608)
+    target_link_options(IosGlShimTest PRIVATE /STACK:8388608)
+endif()
+
 add_test(NAME GameplayRoleAndSoulMotionTest COMMAND GameplayRoleAndSoulMotionTest)
 add_test(NAME RunProgressionTest COMMAND RunProgressionTest)
+add_test(NAME IosTouchControlsTest COMMAND IosTouchControlsTest)
+add_test(NAME IosGlShimTest COMMAND IosGlShimTest)
 add_test(NAME EnemyPerceptionTest COMMAND EnemyPerceptionTest)
 add_test(NAME PhysicalEnemyBodyTest COMMAND PhysicalEnemyBodyTest)
 add_test(NAME EnemyBehaviorStateTest COMMAND EnemyBehaviorStateTest)
