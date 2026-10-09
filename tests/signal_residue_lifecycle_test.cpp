@@ -16,6 +16,24 @@ bool near(float a,float b,float epsilon=0.001f) { return std::fabs(a-b)<=epsilon
 }  // namespace
 
 int main() {
+    Game surfaceGame;
+    surfaceGame.debugStartSlopeLab();
+    GameState& surfaceState=surfaceGame.networkMutableState();
+    for(auto& particle:surfaceState.particles)particle=ParticleState{};
+    const SlopeSupport slope=surfaceState.slopeSupports[0];
+    ParticleState& surfaceResidue=surfaceState.particles[0];
+    surfaceResidue.material=ParticleMaterial::SignalResidue;
+    surfaceResidue.life=surfaceResidue.maxLife=signal_residue::LifetimeSeconds;
+    surfaceResidue.size=0.14f;
+    surfaceResidue.pos={(slope.minX+slope.maxX)*0.5f,2.0f,(slope.minZ+slope.maxZ)*0.5f};
+    for(int frame=0;frame<180&&!particleSurfaceSettled(surfaceResidue);++frame)
+        SignalResidueLifecycleAccess::update(surfaceGame,1.0f/60.0f);
+    const auto expectedSurface=surfaceGame.debugWorldSupportAt(
+        surfaceResidue.pos.x,surfaceResidue.pos.z,surfaceResidue.size*0.35f);
+    const bool surfaceAttached=particleSurfaceSettled(surfaceResidue)
+        &&near(surfaceResidue.pos.y,expectedSurface.height+0.025f,0.002f)
+        &&dot3(particleSurfaceNormal(surfaceResidue),expectedSurface.normal)>0.995f;
+
     Game game;
     game.reset();
     GameState& state=game.networkMutableState();
@@ -33,7 +51,7 @@ int main() {
     int residueCount=0;
     for(const auto& particle:state.particles)
         if(particle.life>0.0f&&particle.material==ParticleMaterial::SignalResidue)++residueCount;
-    bool ok=!target.alive&&state.player.souls==1;
+    bool ok=surfaceAttached&&!target.alive&&state.player.souls==1;
     ok&=near(state.player.battery,20.0f+signal_residue::ImmediateCaptureCharge);
     ok&=residueCount==signal_residue::FragmentCount;
 

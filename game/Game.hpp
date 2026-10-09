@@ -374,7 +374,22 @@ struct ParticleState {
     float maxLife = 0.0f;
     float size = 0.08f;
     ParticleMaterial material = ParticleMaterial::Impact;
+    std::int8_t surfaceNormalX = 0;
+    std::int8_t surfaceNormalZ = 0;
+    std::uint8_t surfaceFlags = 0;
 };
+
+inline bool particleSurfaceSettled(const ParticleState& particle){return (particle.surfaceFlags&1u)!=0;}
+inline Vec3 particleSurfaceNormal(const ParticleState& particle){
+    const float x=static_cast<float>(particle.surfaceNormalX)/127.0f;
+    const float z=static_cast<float>(particle.surfaceNormalZ)/127.0f;
+    return normalized({x,std::sqrt(std::max(0.0f,1.0f-x*x-z*z)),z});
+}
+inline void setParticleSurface(ParticleState& particle,const Vec3& normal,bool settled){
+    particle.surfaceNormalX=static_cast<std::int8_t>(clampf(normal.x,-1.0f,1.0f)*127.0f);
+    particle.surfaceNormalZ=static_cast<std::int8_t>(clampf(normal.z,-1.0f,1.0f)*127.0f);
+    particle.surfaceFlags=static_cast<std::uint8_t>(settled?1u:0u);
+}
 
 enum class RoomColliderKind : unsigned char { Generic, TreeTrunk };
 

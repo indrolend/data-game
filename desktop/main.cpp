@@ -2285,13 +2285,17 @@ int main(int argc, char** argv) {
         fixture.cinematic.introActive=false;
         fixture.localSettings.particles=true;
         for(auto& particle:fixture.particles)particle=ParticleState{};
+        const Vec3 residueCenter=slopeLab?Vec3{0.0f,0.0f,7.0f}:fixture.player.pos+Vec3{0.0f,-fixture.player.pos.y,0.0f};
         constexpr float residueOffsets[signal_residue::FragmentCount][2]={
             {-0.92f,-1.52f},{-0.36f,-1.17f},{0.28f,-1.44f},{0.86f,-1.02f},
             {-0.70f,-0.62f},{-0.08f,-0.78f},{0.52f,-0.48f},{1.04f,-0.72f}};
         for(int i=0;i<signal_residue::FragmentCount;++i){
             ParticleState& particle=fixture.particles[i];
             particle.material=ParticleMaterial::SignalResidue;
-            particle.pos=fixture.player.pos+Vec3{residueOffsets[i][0],-fixture.player.pos.y+0.025f,residueOffsets[i][1]};
+            particle.pos=residueCenter+Vec3{residueOffsets[i][0],0.0f,residueOffsets[i][1]};
+            const WorldSupportSample support=host.game.debugWorldSupportAt(particle.pos.x,particle.pos.z,0.05f);
+            particle.pos.y=support.height+0.025f;
+            setParticleSurface(particle,support.normal,true);
             particle.life=7.5f+0.18f*static_cast<float>(i);
             particle.maxLife=signal_residue::LifetimeSeconds;
             particle.size=0.13f+0.015f*static_cast<float>(i%4);
@@ -2686,7 +2690,7 @@ int main(int argc, char** argv) {
         if(captureMosh&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.55f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
         if(captureMenuUpgrade&&captureFrames>=10){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.localSettings.portalWindow=true;fixture.doorTransition.active=true;fixture.doorTransition.progress=0.62f;fixture.doorTransition.distanceTravelled=0;fixture.doorTransition.lastPlayerPos=fixture.player.pos;}
         if(capturePhone){GameState& fixture=const_cast<GameState&>(host.game.state());fixture.camera.pos=fixture.phoneTransform.position+Vec3{0,0.035f,0.38f};fixture.camera.lookTarget=fixture.phoneTransform.position;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
-        if(captureResidue){GameState& fixture=const_cast<GameState&>(host.game.state());const Vec3 focus=fixture.player.pos+Vec3{0,-fixture.player.pos.y+0.05f,-1.35f};fixture.camera.pos=focus+Vec3{0,3.4f,4.8f};fixture.camera.lookTarget=focus;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
+        if(captureResidue){GameState& fixture=const_cast<GameState&>(host.game.state());Vec3 focus{};for(int i=0;i<signal_residue::FragmentCount;++i)focus+=fixture.particles[i].pos;focus=focus*(1.0f/static_cast<float>(signal_residue::FragmentCount));fixture.camera.pos=focus+Vec3{0,3.4f,4.8f};fixture.camera.lookTarget=focus;fixture.camera.forward=normalized(fixture.camera.lookTarget-fixture.camera.pos);}
         updateOutcomeRumble(host);
         const auto audioBegin=std::chrono::steady_clock::now();
         host.audio.update(host.game.state());
