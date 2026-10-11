@@ -56,7 +56,8 @@ int main(){
     if(!(progressiveDeep.fogDensity>progressiveOpening.fogDensity&&progressiveDeep.fog.r>progressiveOpening.fog.r&&progressiveDeep.phone.b==1.32f)){
         std::fputs("RENDER_CONTRACTS_FAIL progressive candidate\n",stderr);return 1;
     }
-    if(progressiveOpening.ambient.r<0.055f||progressiveOpening.ambient.g<0.042f||progressiveOpening.ambient.b<0.065f||
+    if(progressiveOpening.ambient.r<0.087f||progressiveOpening.ambient.g<0.062f||progressiveOpening.ambient.b<0.094f||
+        progressiveOpening.fill.r<0.12f||progressiveDeep.fill.r<0.12f||
         progressiveDeep.fogDensity>DesktopSceneLighting.fog.density||
         progressiveOpening.fog.r<=progressiveOpening.background.r||progressiveOpening.fog.g<=progressiveOpening.background.g||progressiveOpening.fog.b<=progressiveOpening.background.b){
         std::fputs("RENDER_CONTRACTS_FAIL progressive readability floor\n",stderr);return 1;
@@ -95,6 +96,6 @@ int main(){
     if(manipulated.fill.g!=0.36f||manipulated.fogDensity!=0.0125f||fixed.time!=7.25f||fixed.roomIndex!=6||fixed.phonePower!=0.45f){
         std::fputs("RENDER_CONTRACTS_FAIL runtime lighting control\n",stderr);return 1;
     }
-    std::puts("RENDER_CONTRACTS_OK profiles=2 light_sources=3 sterile_fixture_rigs=2 resolved_lighting=AUTHORITATIVE shading_models=3 shadow_qualities=3 atmosphere=ACCEPTED_STATIC field_grass=TEXTURED city_ground=TEXTURED");
+    std::puts("RENDER_CONTRACTS_OK profiles=2 light_sources=3 sterile_fixture_rigs=2 resolved_lighting=AUTHORITATIVE shading_models=3 shadow_qualities=3 atmosphere=RUNTIME_BASELINE field_grass=TEXTURED city_ground=TEXTURED");
     return 0;
 }
