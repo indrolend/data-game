@@ -2129,6 +2129,16 @@ int main(int argc, char** argv) {
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
     const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame"))))))))));
     const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory;
+    std::string automaticPerfTracePath;
+    const bool ordinaryDevelopmentGameplay=!isolatedPersistence&&!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector&&!multiplayerTest&&!combatRenderStress&&!combatCrowdStress;
+    if(!perfTracePath&&ordinaryDevelopmentGameplay){
+        const std::filesystem::path traceDirectory=std::filesystem::path(DB_DEVELOPMENT_ARTIFACT_ROOT)/"runtime-perf";
+        std::error_code directoryError;
+        std::filesystem::create_directories(traceDirectory,directoryError);
+        if(directoryError){std::fprintf(stderr,"PERF_TRACE_FAILED path=%s reason=%s\n",traceDirectory.string().c_str(),directoryError.message().c_str());return 1;}
+        automaticPerfTracePath=(traceDirectory/"latest.csv").string();
+        perfTracePath=automaticPerfTracePath.c_str();
+    }
     const int windowWidth=std::max(320,std::min(7680,argInt(argc,argv,"--capture-width",1280)));
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
     if (hasArg(argc, argv, "--smoke-test")) {
