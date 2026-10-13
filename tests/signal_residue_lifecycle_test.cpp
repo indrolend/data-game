@@ -42,6 +42,7 @@ int main() {
     state.nextParticle=0;
     state.player.battery=20.0f;
     state.player.souls=0;
+    state.audio.slurpPlaying=true;
     TargetState& target=state.targets[0];
     target.alive=true;
     target.slurpable=true;
@@ -54,6 +55,13 @@ int main() {
     bool ok=surfaceAttached&&!target.alive&&state.player.souls==1;
     ok&=near(state.player.battery,20.0f+signal_residue::ImmediateCaptureCharge);
     ok&=residueCount==signal_residue::FragmentCount;
+    ok&=!state.audio.slurpPlaying;
+    const unsigned int completionSerial=state.audio.nextSerial-1;
+    ok&=completionSerial>=4;
+    ok&=state.audio.events[(completionSerial-4)%AUDIO_EVENT_COUNT].cue==AudioCue::SlurpRingtoneStop;
+    ok&=state.audio.events[(completionSerial-3)%AUDIO_EVENT_COUNT].cue==AudioCue::EndCallTone;
+    ok&=state.audio.events[(completionSerial-2)%AUDIO_EVENT_COUNT].cue==AudioCue::ReceivedMessage;
+    ok&=state.audio.events[(completionSerial-1)%AUDIO_EVENT_COUNT].cue==AudioCue::RewardNice;
 
     state.vacuum.active=true;
     state.player.battery=30.0f;

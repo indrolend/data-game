@@ -29,6 +29,13 @@ struct HumanModelExpressiveness {
   float hitAmount = 0.0f;
   float hitDirection = 0.0f;
   float time = 0.0f;
+  float locomotionPhase = 0.0f;
+  float locomotionAmount = 0.0f;
+  float commitment = 0.0f;
+  float searchAmount = 0.0f;
+  float disruption = 0.0f;
+  float vacuumPull = 0.0f;
+  float individuality = 0.0f;
 };
 
 struct HumanModelFootTargets {
@@ -339,8 +346,11 @@ private:
         const int side = bone.side < 0 ? 0 : 1;
         if(region==RigFoot||region==RigToe)
           footAnchorWeights_[side][vertexIndex]+=weight;
+        // Contact correction is strongest below the ankle. Large weighted
+        // translations on the shin were visually bending the calf sideways;
+        // the authored thigh/knee rotations now carry almost all of the leg.
         const float gain = region == RigFoot || region == RigToe ? 1.0f
-            : region == RigShin ? 0.72f : region == RigThigh ? 0.24f : 0.0f;
+            : region == RigShin ? 0.22f : region == RigThigh ? 0.055f : 0.0f;
         footCorrectionWeights_[side][vertexIndex]+=weight*gain;
       }
     }
@@ -361,9 +371,9 @@ private:
         magnitudeSq += corrections[side][axis] * corrections[side][axis];
       }
       const float magnitude = std::sqrt(magnitudeSq);
-      if (magnitude > 0.28f)
+      if (magnitude > 0.16f)
         for (float &component : corrections[side])
-          component *= 0.28f / magnitude;
+          component *= 0.16f / magnitude;
     }
     const float contacts[2]{std::clamp(targets.leftContact, 0.0f, 1.0f),
                             std::clamp(targets.rightContact, 0.0f, 1.0f)};
@@ -381,24 +391,55 @@ private:
                                   const HumanModelExpressiveness &expression,
                                   float *q) {
     const bool left = rigIsLeftArm(bone), right = rigIsRightArm(bone);
-    if (!left && !right)
-      return;
-    const float hit = std::clamp(expression.hitAmount, 0.0f, 1.0f);
-    if (hit <= 0.001f)
-      return;
     const RigRegion region = rigRegion(bone);
-    const float gain = region == RigHand ? 1.0f :
-                       region == RigForearm ? 0.76f :
-                       region == RigUpperArm ? 0.48f :
-                       region == RigShoulder ? 0.28f : 0.18f;
+    const float hit = std::clamp(expression.hitAmount, 0.0f, 1.0f);
+    const float active=std::clamp(expression.locomotionAmount,0.0f,1.0f);
+    const float commitment=std::clamp(expression.commitment,0.0f,1.0f);
+    const float disruption=std::clamp(expression.disruption,0.0f,1.0f);
+    const float vacuum=std::clamp(expression.vacuumPull,0.0f,1.0f);
     const float side = left ? -1.0f : 1.0f;
     const float direction = std::clamp(expression.hitDirection, -1.0f, 1.0f);
-    const float rebound = std::sin(expression.time * 24.0f + side * 0.9f) * hit * gain;
+    const float stride=std::sin(expression.locomotionPhase);
+    const float sideStride=std::sin(expression.locomotionPhase+(bone.side<0?0.0f:3.14159265358979323846f));
+    const float scan=std::sin(expression.time*(1.35f+std::abs(expression.individuality)*0.55f)
+        +expression.individuality*2.7f)*std::clamp(expression.searchAmount,0.0f,1.0f);
+    float dx=0.0f,dy=0.0f,dz=0.0f;
+    if(region==RigSpine){
+      dx-=commitment*0.055f;dy-=stride*active*0.035f;
+      dz+=stride*active*0.030f+scan*0.035f+expression.individuality*disruption*0.045f;
+    }else if(region==RigHead){
+      dx-=commitment*0.025f;dy+=scan*0.15f;dz+=scan*0.055f;
+    }else if(region==RigPelvis){
+      dy+=stride*active*0.045f;dz-=stride*active*0.040f;
+    }else if(region==RigThigh&&bone.side!=0){
+      dx+=sideStride*active*0.13f-disruption*0.035f;
+    }else if(region==RigShin&&bone.side!=0){
+      const float lift=std::max(0.0f,-sideStride)*active;
+      // The knee is a forward hinge here: no generic yaw/roll reorientation.
+      dx+=lift*0.19f+disruption*0.025f;
+    }else if(region==RigFoot&&bone.side!=0){
+      dx-=sideStride*active*0.045f;
+    }
+    if(left||right){
+      const float counter=left?-stride:stride;
+      const float armGain=region==RigHand?0.72f:region==RigForearm?0.86f:
+          region==RigUpperArm?1.0f:region==RigShoulder?0.52f:0.24f;
+      dx+=counter*active*0.13f*armGain-vacuum*(0.14f+0.10f*armGain);
+      dy+=side*scan*0.045f*armGain;
+      dz+=side*(counter*active*0.035f-vacuum*0.09f)*armGain;
+      if(hit>0.001f){
+        const float gain=region==RigHand?1.0f:region==RigForearm?0.76f:
+            region==RigUpperArm?0.48f:region==RigShoulder?0.28f:0.18f;
+        const float rebound=std::sin(expression.time*24.0f+side*0.9f)*hit*gain;
+        dx+=rebound*0.34f;
+        dy+=(side*0.20f-direction*0.24f)*rebound;
+        dz+=side*rebound*0.38f;
+      }
+    }
+    if(dx==0.0f&&dy==0.0f&&dz==0.0f)return;
     float x, y, z;
     quaternionToEuler(q, x, y, z);
-    x += rebound * 0.34f;
-    y += (side * 0.20f - direction * 0.24f) * rebound;
-    z += side * rebound * 0.38f;
+    x+=dx;y+=dy;z+=dz;
     eulerToQuaternion(x, y, z, q);
   }
 

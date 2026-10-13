@@ -48,24 +48,38 @@ inline float humanSubstrateAmount(float armor,float armorMax,bool slurpable) {
 
 inline VisualColor humanDamageSurfaceColor(const VisualColor& base,
     room_environment::RoomSetting setting,float armor,float armorMax,bool slurpable,float hitFlash) {
-    VisualColor color=mixVisualColor(base,roomSubstrateColor(setting),humanSubstrateAmount(armor,armorMax,slurpable));
+    const float exposure=humanSubstrateAmount(armor,armorMax,slurpable);
+    const VisualColor wound=mixVisualColor(VisualIdentity::ExposedSignal,VisualIdentity::DigitalBlood,exposure*0.62f);
+    const VisualColor embedded=mixVisualColor(wound,roomSubstrateColor(setting),0.10f);
+    VisualColor color=mixVisualColor(base,embedded,exposure);
     const float flash=clampf(hitFlash,0.0f,1.0f)*0.34f;
     return mixVisualColor(color,VisualIdentity::HitFlash,flash);
+}
+
+inline VisualColor enemyShellColor(bool brute,int attackVariant,int roomIndex) {
+    const VisualColor base=brute?VisualIdentity::BruteEnemy:VisualIdentity::NormalEnemy;
+    // Attack variants already affect real behavior. Give that difference a
+    // quiet material bias; body, timing, and mass remain the primary cues.
+    const float variant=clampf(static_cast<float>(attackVariant)/3.0f,0.0f,1.0f);
+    const float escalation=clampf(static_cast<float>(std::max(0,roomIndex-1))/18.0f,0.0f,1.0f);
+    const float pressure=(0.025f+variant*0.045f+escalation*0.035f)*(brute?1.22f:1.0f);
+    return mixVisualColor(base,VisualIdentity::AttackPressure,pressure);
 }
 
 inline VisualColor particleMaterialColor(ParticleMaterial material,
     room_environment::RoomSetting setting,float remainingLife) {
     const VisualColor substrate=roomSubstrateColor(setting);
     switch(material) {
-        case ParticleMaterial::Flesh: return VisualIdentity::SoulFlesh;
+        case ParticleMaterial::Flesh: return VisualIdentity::LivingLeak;
         case ParticleMaterial::Environment:
-            return mixVisualColor(VisualIdentity::SoulFlesh,substrate,1.0f-clampf(remainingLife,0.0f,1.0f));
-        case ParticleMaterial::Soul: return VisualIdentity::SoulBase;
-        case ParticleMaterial::Data: return VisualIdentity::ElectricCyan;
+            return mixVisualColor(VisualIdentity::DigitalBlood,substrate,1.0f-clampf(remainingLife,0.0f,1.0f));
+        case ParticleMaterial::Soul: return mixVisualColor(VisualIdentity::LivingLeak,
+            VisualIdentity::IngestibleMatter,0.78f+0.18f*(1.0f-clampf(remainingLife,0.0f,1.0f)));
+        case ParticleMaterial::Data: return VisualIdentity::ComputedOutput;
         case ParticleMaterial::SignalResidue:
             return mixVisualColor(VisualIdentity::ElectricMagenta,VisualIdentity::ElectricCyan,
                 0.20f+0.42f*(1.0f-clampf(remainingLife,0.0f,1.0f)));
-        case ParticleMaterial::Impact: return {1.0f,0.267f,0.267f};
+        case ParticleMaterial::Impact: return mixVisualColor(VisualIdentity::DigitalBlood,VisualIdentity::HitFlash,0.72f);
     }
     return VisualIdentity::HitFlash;
 }

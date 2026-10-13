@@ -1078,6 +1078,7 @@ void armLifecycleEnemy(GameState& state){
   target.alive=true;
   target.pos={0,0.08f,-1.0f};
   target.walkTarget=target.pos;
+  target.visualYaw=DB_PI;
   target.attackCooldown=0.0f;
   state.enemyAttackOwner=-1;
   state.enemyAttackCadence=0.0f;

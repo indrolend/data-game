@@ -67,6 +67,25 @@ struct RuntimeLightingControl {
     AtmosphereInputs fixedInputs{};
 };
 
+constexpr float DayCycleSeconds=480.0f;
+inline float celestialPhase(float time){
+    float phase=std::fmod(std::max(0.0f,time)/DayCycleSeconds+0.20f,1.0f);
+    return phase<0.0f?phase+1.0f:phase;
+}
+inline float celestialElevation(float time){return std::sin(celestialPhase(time)*6.28318530717958647692f);}
+inline float celestialDaylight(float time){
+    const float x=clampf((celestialElevation(time)+0.16f)/0.38f,0.0f,1.0f);
+    return x*x*(3.0f-2.0f*x);
+}
+inline Vec3 celestialSunDirection(float time){
+    const float angle=celestialPhase(time)*6.28318530717958647692f;
+    return {std::cos(angle)*54.0f,std::sin(angle)*62.0f,28.0f};
+}
+inline VisualColor atmosphereMix(VisualColor a,VisualColor b,float amount){
+    const float t=clampf(amount,0.0f,1.0f);
+    return {a.r+(b.r-a.r)*t,a.g+(b.g-a.g)*t,a.b+(b.b-a.b)*t};
+}
+
 inline SceneAtmosphere sceneAtmosphere(float phonePower){
     const float phonePulse=clampf(phonePower,0.0f,1.0f);
     return {
@@ -85,16 +104,25 @@ inline SceneAtmosphere sceneAtmosphere(float phonePower){
 }
 
 inline SceneAtmosphere progressiveSceneAtmosphere(float time,int roomIndex,float phonePower){
-    const float omenPulse=0.5f+0.5f*std::sin(time*0.73f+static_cast<float>(roomIndex)*0.41f);
+    const float elevation=celestialElevation(time),daylight=celestialDaylight(time);
+    const float horizon=clampf(1.0f-std::abs(elevation)/0.42f,0.0f,1.0f);
+    const float omenPulse=0.5f+0.5f*std::sin(time*0.19f+static_cast<float>(roomIndex)*0.41f);
     const float roomThreat=clampf((static_cast<float>(roomIndex)-1.0f)/18.0f,0.0f,1.0f);
     const float phonePulse=clampf(phonePower,0.0f,1.0f);
-    return {{0.003f+omenPulse*0.004f,0.002f,0.009f+roomThreat*0.008f},
-        {0.087f+omenPulse*0.008f,0.062f+omenPulse*0.006f,0.094f+roomThreat*0.018f+omenPulse*0.006f},
-        {0.48f+roomThreat*0.12f,0.055f+omenPulse*0.035f,0.13f+roomThreat*0.16f},
-        {0.12f,0.34f+omenPulse*0.04f,0.52f+roomThreat*0.18f},
+    VisualColor sky=atmosphereMix({0.008f,0.012f,0.036f},{0.25f,0.48f,0.66f},daylight);
+    sky=atmosphereMix(sky,{0.42f,0.10f,0.18f},horizon*(0.30f+0.45f*daylight));
+    const VisualColor ambient=atmosphereMix({0.078f,0.092f,0.145f},{0.25f,0.31f,0.34f},daylight);
+    const VisualColor sun=atmosphereMix({0.085f,0.115f,0.205f},{0.98f,0.78f,0.60f},daylight);
+    const VisualColor fill=atmosphereMix({0.12f,0.20f,0.36f},{0.20f,0.34f,0.48f},daylight);
+    VisualColor fog=atmosphereMix({0.018f,0.026f,0.060f},{0.22f,0.34f,0.42f},daylight);
+    fog=atmosphereMix(fog,{0.34f,0.09f,0.16f},horizon*0.32f);
+    return {sky,
+        {ambient.r+omenPulse*0.006f,ambient.g+omenPulse*0.005f,ambient.b+roomThreat*0.014f},
+        {sun.r*(0.92f+roomThreat*0.08f),sun.g,sun.b+roomThreat*0.035f},
+        {fill.r,fill.g+omenPulse*0.025f,fill.b+roomThreat*0.10f},
         {0.18f*phonePulse,1.05f*phonePulse,1.32f*phonePulse},
-        {0.025f+roomThreat*0.015f,0.018f+omenPulse*0.008f,0.040f+roomThreat*0.025f+omenPulse*0.012f},
-        0.0118f+roomThreat*0.003f+omenPulse*0.0007f};
+        {fog.r+roomThreat*0.012f,fog.g+omenPulse*0.006f,fog.b+roomThreat*0.020f},
+        0.0088f+(1.0f-daylight)*0.0032f+roomThreat*0.0022f+horizon*0.0012f};
 }
 
 inline SceneAtmosphere sceneAtmosphere(AtmosphereProfile profile,float time,int roomIndex,float phonePower){return profile==AtmosphereProfile::ProgressiveCandidate?progressiveSceneAtmosphere(time,roomIndex,phonePower):sceneAtmosphere(phonePower);}

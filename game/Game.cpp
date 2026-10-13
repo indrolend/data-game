@@ -2943,7 +2943,7 @@ void Game::updateCamera(float dt) {
         const PhoneTransformState& phone = state_.phoneTransform;
         const float fovRadians = MENU_CAMERA_VERTICAL_FOV * DB_PI / 180.0f;
         const float menuDistance = PHONE_BODY_HEIGHT / (2.0f * MENU_PHONE_VIEWPORT_HEIGHT * std::tan(fovRadians * 0.5f));
-        Vec3 desiredTarget = phone.position;
+        Vec3 desiredTarget = phone.screenCenter;
         Vec3 desired = desiredTarget + phone.screenNormal * menuDistance;
         if (dt > 0.0f) {
             const float response = 1.0f - std::exp(-12.0f * dt);
@@ -3431,7 +3431,7 @@ void Game::processPendingShots(float dt) {
         slot->vel=direction*(slot->brute?BULLET_BRUTE_SPEED:BULLET_SPEED);
         slot->vel.y+=BULLET_VERTICAL_LIFT;
         emitAudio(AudioCue::SentMessage,0.62f);
-        spawnParticleBurst(slot->pos,ParticleMaterial::Data);
+        spawnParticleBurst(slot->pos,ParticleMaterial::Soul);
         pending=PendingShotState{};
     }
 }
@@ -3490,10 +3490,14 @@ void Game::captureSoul(int index) {
     state_.progression.run.roomHeat=clampf(state_.progression.run.roomHeat+0.045f,0.0f,1.0f);
     gainBattery(signal_residue::ImmediateCaptureCharge,BatteryReason::Ingest);
     feedSupplementalBattery(FLOWER_SLURP_FEED);
+    // Resolve the sustained extraction loop on the exact commit tick, then
+    // let the short confirmation cues read as one physical release.
+    if(state_.audio.slurpPlaying){state_.audio.slurpPlaying=false;emitAudio(AudioCue::SlurpRingtoneStop,0.13f);}
+    emitAudio(AudioCue::EndCallTone,0.18f);
     emitAudio(AudioCue::ReceivedMessage,0.58f);
     emitAudio(AudioCue::RewardNice,0.30f);
     t.captureQueued=false; t.captureCommitted=false; t.soulState=SoulState::Free; t.networkOwnerPlayerId=-1;
-    spawnParticleBurst(capturedAt,ParticleMaterial::Data);
+    spawnParticleBurst(capturedAt,ParticleMaterial::Soul);
     spawnSignalResidue(capturedAt);
     queueHumanRespawn(capturedAt);
 }
@@ -3747,7 +3751,7 @@ void Game::updateTargets(float dt) {
             const PlayerState* attackedPlayer=attackedPlayerId==0?&state_.player:&state_.multiplayer.peers[attackedPlayerId].player;
             gameplay::EnemyPerceptionOutput perception{};
             float vagueAwareness=0.0f;
-            if(!state_.multiplayer.enabled){
+            {
                 auto& perceptionState=enemyRuntimeState.perceptions[i];
                 const bool sampled=i==enemyRuntimeState.perceptionCursor||i==(enemyRuntimeState.perceptionCursor+1)%TARGET_COUNT;
                 const Vec3 headOrigin=t.pos+Vec3{0.0f,(HUMAN_VISUAL_SPEC.totalHeight-HUMAN_VISUAL_SPEC.headRadius)*t.scale,0.0f};
@@ -3817,7 +3821,7 @@ void Game::updateTargets(float dt) {
                 attackedPlayerPos=perception.hasSpatialBelief?perception.believedPosition:t.pos;
             }
             gameplay::EnemyBehaviorOutput behavior{};
-            if(!state_.multiplayer.enabled){
+            {
                 gameplay::EnemyBehaviorInput behaviorInput{};
                 behaviorInput.confidence=perception.confidence;
                 behaviorInput.uncertainty=perception.uncertainty;
@@ -3826,24 +3830,18 @@ void Game::updateTargets(float dt) {
                 behaviorInput.hasSpatialBelief=perception.hasSpatialBelief;
                 behaviorInput.dt=dt;
                 behavior=gameplay::updateEnemyBehavior(enemyRuntimeState.behaviors[i],behaviorInput);
-            }else{
-                behavior.mode=gameplay::EnemyBehaviorMode::Engage;
-                behavior.travelScale=1.0f;
-                behavior.commitment=1.0f;
-                behavior.mayAttack=true;
-                behavior.settled=false;
             }
-            presentationAwareness=state_.multiplayer.enabled?1.0f:std::max(perception.confidence,vagueAwareness);
-            presentationUncertainty=state_.multiplayer.enabled?0.0f:perception.uncertainty;
+            presentationAwareness=std::max(perception.confidence,vagueAwareness);
+            presentationUncertainty=perception.uncertainty;
             presentationCommitment=behavior.commitment;
             presentationDisruption=enemyRuntimeState.bodies[i].disruption;
             presentationSearch=behavior.mode==gameplay::EnemyBehaviorMode::Search?1.0f:
                 behavior.mode==gameplay::EnemyBehaviorMode::Investigate?0.62f:
                 behavior.mode==gameplay::EnemyBehaviorMode::Orient?0.34f:0.0f;
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
-            float playerDist=state_.multiplayer.enabled?horizontalLength(toPlayer):(perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f);
+            float playerDist=perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f;
             float motorPaceExpression=1.0f;
-            if(!state_.multiplayer.enabled){
+            {
                 const float toPlayerLength=horizontalLength(toPlayer);
                 const Vec3 toPlayerDirection=toPlayerLength>0.001f?toPlayer*(1.0f/toPlayerLength):Vec3{};
                 Vec3 toNearestAlly{};float nearestAllyDistance=10.0f;
@@ -3879,7 +3877,7 @@ void Game::updateTargets(float dt) {
             };
             const RoomCollider* pursuedTree=nullptr;
             Vec3 treeGripPoint{};
-            if((state_.multiplayer.enabled||perception.confirmed)&&attackedPlayer->treeClimbing&&
+            if(perception.confirmed&&attackedPlayer->treeClimbing&&
                attackedPlayer->treeCollider>=0&&attackedPlayer->treeCollider<state_.debug.colliderCount){
                 const RoomCollider& tree=state_.roomColliders[attackedPlayer->treeCollider];
                 if(tree.kind==RoomColliderKind::TreeTrunk){
@@ -3913,7 +3911,6 @@ void Game::updateTargets(float dt) {
                     if(towardLength>0.001f)t.visualYaw=std::atan2(-towardTree.x/towardLength,-towardTree.z/towardLength);
                 }
             }
-            if(!climbedTreeThisFrame&&playerDist>0.001f&&playerDist<noticeRange&&state_.multiplayer.enabled)t.visualYaw=std::atan2(-toPlayer.x/playerDist,-toPlayer.z/playerDist);
             if(climbedTreeThisFrame){
                 // Tree climbing is physical pursuit, not an attack shortcut.
                 // The existing vertical-overlap contract decides when combat
@@ -3929,10 +3926,8 @@ void Game::updateTargets(float dt) {
                     if(attackedPlayerId>0&&attackedPlayerId<NETWORK_PLAYER_COUNT&&state_.multiplayer.peers[attackedPlayerId].active)attackedPlayerPos=state_.multiplayer.peers[attackedPlayerId].player.pos;
                     else attackedPlayerId=0;
                 }
-                if(!state_.multiplayer.enabled){
-                    const float attackYaw=std::atan2(-t.attackDirection.x,-t.attackDirection.z);
-                    advanceEmbodiedMovement({},attackYaw,0.88f);
-                }
+                const float attackYaw=std::atan2(-t.attackDirection.x,-t.attackDirection.z);
+                advanceEmbodiedMovement({},attackYaw,0.88f);
                 const float sweepT=clampf((progress-HUMAN_SWING_COMMIT_PHASE)/(HUMAN_SWING_END_PHASE-HUMAN_SWING_COMMIT_PHASE),0.0f,1.0f);
                 const float side=t.attackVariant%2==0?1.0f:-1.0f;
                 const float arcAngle=side*lerpf(1.12f,-1.12f,smooth01(sweepT));
@@ -3959,7 +3954,7 @@ void Game::updateTargets(float dt) {
                 Vec3 delta{destination.x-t.pos.x,0,destination.z-t.pos.z}; float dist=horizontalLength(delta);
                 if(dist<HUMAN_WALK_TARGET_RADIUS && playerDist>=noticeRange){chooseHumanWalkTarget(i); delta=t.walkTarget-t.pos; delta.y=0; dist=horizontalLength(delta);}
                 if(dist>0.001f){
-                    Vec3 dir=delta*(1.0f/dist); const bool physicalPursuit=!state_.multiplayer.enabled;
+                    Vec3 dir=delta*(1.0f/dist); constexpr bool physicalPursuit=true;
                     auto& routeLocomotion=enemyRuntimeState.locomotions[i];
                     const float aggro=playerDist<noticeRange?1.28f:1.0f;
                     const float variation=0.82f+0.18f*std::sin(static_cast<float>(i)*12.9898f);
@@ -4049,8 +4044,7 @@ void Game::updateTargets(float dt) {
                     }
                     const float travelled=horizontalLength(next-t.pos);if(travelled>0.00001f){t.pos=next;if(!physicalPursuit){const Vec3 physicalDirection=normalized(Vec3{t.vel.x,0,t.vel.z});t.visualYaw=std::atan2(-physicalDirection.x,-physicalDirection.z);t.visualWalkPhase+=travelled*HUMAN_WALK_PHASE_PER_METER;}}
                     if(!physicalPursuit)t.locomotionAmount=travelled>0.00001f?1.0f:0.0f;
-                } else if(!state_.multiplayer.enabled){advanceEmbodiedMovement({},t.visualYaw,0.55f);}
-                else {t.locomotionAmount=0.0f;t.vel.x*=std::exp(-8.0f*dt);t.vel.z*=std::exp(-8.0f*dt);}
+                } else {advanceEmbodiedMovement({},t.visualYaw,0.55f);}
             }
             if(!attachedToTreeThisFrame){
                 const WorldSupportSample supportAfter=getWorldSupport(t.pos.x,t.pos.z,HUMAN_SUPPORT_RADIUS);
@@ -4066,7 +4060,7 @@ void Game::updateTargets(float dt) {
             // faster or slower than the root that owns contact.
             t.humanAnimationTime += distance*0.68f;
         }
-        if(!state_.multiplayer.enabled&&t.humanBodyPresentation().authoritative()){
+        if(t.humanBodyPresentation().authoritative()){
             const auto feet=gameplay::enemyLocomotionOutput(enemyRuntimeState.locomotions[i]);
             const auto localFoot=[&](const Vec3& world){
                 const Vec3 delta=(world-t.pos)*(1.0f/std::max(0.01f,t.scale));
@@ -4082,7 +4076,7 @@ void Game::updateTargets(float dt) {
         syncTargetReactionVisual(t,presentationAwareness,presentationUncertainty,
             presentationCommitment,presentationDisruption,presentationSearch,presentationIndividuality);
     }
-    if(!state_.multiplayer.enabled)enemyRuntimeState.perceptionCursor=(enemyRuntimeState.perceptionCursor+2)%TARGET_COUNT;
+    enemyRuntimeState.perceptionCursor=(enemyRuntimeState.perceptionCursor+2)%TARGET_COUNT;
 }
 
 void Game::updateVacuum(float dt) {

@@ -84,5 +84,32 @@ int main() {
     assert(std::abs(corrected[0]-footTargets.left[0])<0.0001f&&std::abs(corrected[2]-footTargets.left[2])<0.0001f);
     assert(std::abs(corrected[3]-footTargets.right[0])<0.0001f&&std::abs(corrected[5]-footTargets.right[2])<0.0001f);
 
-    std::puts("EXPRESSIVE_VISUAL_OK phone=INGEST_SPRING enemy=IMPACT_COGNITION_CONTACT");
+    HumanModelData expressiveModel;
+    expressiveModel.frameCount=1;expressiveModel.unitScale=1.0f;expressiveModel.minY=0.0f;
+    identity(expressiveModel.bindMatrix);identity(expressiveModel.bindMatrixInverse);identity(expressiveModel.rootParentMatrix);
+    expressiveModel.bones.resize(4);expressiveModel.poses.resize(4);expressiveModel.vertices.resize(4);
+    expressiveModel.bones[0].flags=1; // spine
+    expressiveModel.bones[1].flags=2; // head
+    expressiveModel.bones[2].flags=4;expressiveModel.bones[2].kind=2; // left upper arm
+    expressiveModel.bones[3].kind=6;expressiveModel.bones[3].side=-1; // left thigh
+    for(int i=0;i<4;++i){
+        identity(expressiveModel.bones[i].inverse);
+        expressiveModel.poses[i].quaternion[3]=1.0f;
+        expressiveModel.poses[i].scale[0]=expressiveModel.poses[i].scale[1]=expressiveModel.poses[i].scale[2]=1.0f;
+        expressiveModel.vertices[i].position[0]=0.18f;expressiveModel.vertices[i].position[1]=0.34f;expressiveModel.vertices[i].position[2]=0.11f;
+        expressiveModel.vertices[i].bones[0]=static_cast<std::uint16_t>(i);expressiveModel.vertices[i].weights[0]=1.0f;
+    }
+    std::vector<float> neutralVertices,activeVertices;
+    expressiveModel.skin(0.0f,0.0f,0,neutralVertices);
+    HumanModelExpressiveness activeExpression{};
+    activeExpression.time=0.73f;activeExpression.locomotionPhase=1.1f;activeExpression.locomotionAmount=1.0f;
+    activeExpression.commitment=1.0f;activeExpression.searchAmount=0.8f;activeExpression.disruption=0.25f;
+    expressiveModel.skin(0.0f,0.0f,0,activeVertices,activeExpression);
+    for(int region=0;region<4;++region){
+        const Vec3 neutral{neutralVertices[region*3],neutralVertices[region*3+1],neutralVertices[region*3+2]};
+        const Vec3 activeVertex{activeVertices[region*3],activeVertices[region*3+1],activeVertices[region*3+2]};
+        assert(length(activeVertex-neutral)>0.001f);
+    }
+
+    std::puts("EXPRESSIVE_VISUAL_OK phone=INGEST_SPRING enemy=IMPACT_COGNITION_CONTACT_GAIT");
 }

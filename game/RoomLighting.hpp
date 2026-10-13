@@ -74,7 +74,8 @@ inline ResolvedSceneLighting resolveSceneLighting(
     const scene_lighting_response::Response& response,
     const Vec3& phonePosition,
     const Vec3& latestShotOrigin,
-    float tileOrigin){
+    float tileOrigin,
+    const Vec3& capturePosition={}){
     ResolvedSceneLighting result{};
     result.ambient=atmosphere.ambient;
     const bool globalLights=rig.primarySource!=PrimaryLightSource::CeilingFixtures;
@@ -92,7 +93,15 @@ inline ResolvedSceneLighting resolveSceneLighting(
             {source.color.r*source.intensity,source.color.g*source.intensity,source.color.b*source.intensity},
             0.48f,0.035f,1.25f/(source.radius*source.radius)};
     }
-    if(response.shotLight>0.001f)result.shot={true,false,
+    if(response.captureLight>0.001f)result.shot={true,false,
+        capturePosition+Vec3{0.0f,0.32f,0.0f},
+        {0.34f*response.captureLight,1.18f*response.captureLight,1.42f*response.captureLight},
+        0.58f,0.20f,0.055f};
+    else if(response.completionLight>0.001f)result.shot={true,false,
+        capturePosition+Vec3{0.0f,0.18f,0.0f},
+        {0.48f*response.completionLight,0.96f*response.completionLight,1.28f*response.completionLight},
+        0.46f,0.24f,0.085f};
+    else if(response.shotLight>0.001f)result.shot={true,false,
         {latestShotOrigin.x,latestShotOrigin.y+0.2f,latestShotOrigin.z},
         {1.15f*response.shotLight,0.82f*response.shotLight,0.55f*response.shotLight},0.72f,0.22f,0.08f};
     if(response.exitGlow>0.01f)result.exit={true,false,
@@ -112,28 +121,43 @@ inline render_contract::SceneAtmosphere settingAtmosphere(
     if(profile!=render_contract::AtmosphereProfile::ProgressiveCandidate)return atmosphere;
     const bool ambientOverridden=(overrideMask&atmosphereChannelBit(AtmosphereChannel::Ambient))!=0;
     const bool fogOverridden=(overrideMask&atmosphereChannelBit(AtmosphereChannel::Fog))!=0;
+    // Sterile rooms are sealed, sickly interiors.  Keeping their base light
+    // independent of the outdoor clock makes the ceiling fixtures feel like
+    // actual sources instead of sunlight wearing a fluorescent costume.
+    if(setting==room_environment::RoomSetting::Sterile){
+        atmosphere.background={0.012f,0.017f,0.019f};
+        atmosphere.sun={0.035f,0.048f,0.044f};
+        atmosphere.fill={0.055f,0.075f,0.069f};
+        if(!ambientOverridden)atmosphere.ambient={0.086f,0.105f,0.101f};
+        if(!fogOverridden){atmosphere.fog={0.055f,0.071f,0.068f};atmosphere.fogDensity=0.022f;}
+        return atmosphere;
+    }
     if(!ambientOverridden){
         switch(setting){
             case room_environment::RoomSetting::Field:
-                atmosphere.ambient={atmosphere.ambient.r*0.96f,atmosphere.ambient.g*1.06f,atmosphere.ambient.b*0.94f};break;
+                atmosphere.ambient={atmosphere.ambient.r*0.92f,atmosphere.ambient.g*1.34f,atmosphere.ambient.b*1.08f};break;
             case room_environment::RoomSetting::City:
-                atmosphere.ambient={atmosphere.ambient.r*1.02f,atmosphere.ambient.g*0.94f,atmosphere.ambient.b*1.10f};break;
+                atmosphere.ambient={atmosphere.ambient.r*1.12f,atmosphere.ambient.g*1.02f,atmosphere.ambient.b*1.38f};break;
             case room_environment::RoomSetting::Sterile:
-                atmosphere.ambient={atmosphere.ambient.r+0.018f,atmosphere.ambient.g+0.028f,atmosphere.ambient.b+0.026f};break;
+                atmosphere.ambient={atmosphere.ambient.r+0.070f,atmosphere.ambient.g+0.092f,atmosphere.ambient.b+0.098f};break;
             case room_environment::RoomSetting::Coastal:
-                atmosphere.ambient={atmosphere.ambient.r,atmosphere.ambient.g*1.08f,atmosphere.ambient.b*1.14f};break;
+                atmosphere.ambient={atmosphere.ambient.r*1.16f,atmosphere.ambient.g*1.30f,atmosphere.ambient.b*1.46f};break;
         }
     }
     if(!fogOverridden){
         switch(setting){
             case room_environment::RoomSetting::Field:
-                atmosphere.fog={atmosphere.fog.r*0.90f,atmosphere.fog.g*1.08f,atmosphere.fog.b*0.94f};break;
+                atmosphere.fog={atmosphere.fog.r*0.82f,atmosphere.fog.g*1.34f,atmosphere.fog.b*0.92f};
+                atmosphere.fogDensity*=0.78f;break;
             case room_environment::RoomSetting::City:
-                atmosphere.fog={atmosphere.fog.r,atmosphere.fog.g*0.90f,atmosphere.fog.b*1.12f};break;
+                atmosphere.fog={atmosphere.fog.r*1.18f,atmosphere.fog.g*0.86f,atmosphere.fog.b*1.44f};
+                atmosphere.fogDensity*=1.10f;break;
             case room_environment::RoomSetting::Sterile:
-                atmosphere.fog={atmosphere.fog.r*0.88f,atmosphere.fog.g*1.05f,atmosphere.fog.b*1.12f};break;
+                atmosphere.fog={atmosphere.fog.r*1.26f,atmosphere.fog.g*1.72f,atmosphere.fog.b*1.88f};
+                atmosphere.fogDensity*=0.62f;break;
             case room_environment::RoomSetting::Coastal:
-                atmosphere.fog={atmosphere.fog.r*0.88f,atmosphere.fog.g*1.08f,atmosphere.fog.b*1.16f};break;
+                atmosphere.fog={atmosphere.fog.r*0.92f,atmosphere.fog.g*1.42f,atmosphere.fog.b*1.78f};
+                atmosphere.fogDensity*=0.88f;break;
         }
     }
     return atmosphere;

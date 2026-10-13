@@ -285,11 +285,13 @@ int main() {
   enemy.alive = true;
   enemy.pos = {0, 0.08f, -0.7f};
   enemy.walkTarget = enemy.pos;
+  enemy.visualYaw = DB_PI;
   const float hostBattery = combatState.player.battery;
-  for (int i = 0; i < 55; ++i)
+  for (int i = 0; i < 120; ++i)
     combat.update(1.0f / 60.0f);
   ok &= combat.state().multiplayer.peers[1].player.battery < 95 &&
-        std::abs(combat.state().player.battery - hostBattery) < 0.01f;
+        std::abs(combat.state().player.battery - hostBattery) < 0.01f &&
+        combat.state().targets[0].humanBodyPresentation().authoritative();
   Game guestCombat;
   guestCombat.reset();
   guestCombat.configureNetworkGuest(1);

@@ -39,15 +39,26 @@ constexpr VisualColor SecretBlack{0.018f, 0.020f, 0.021f};
 constexpr VisualColor SecretCable{0.025f, 0.028f, 0.030f};
 constexpr VisualColor TvMembrane{0.45f, 0.86f, 0.91f};
 constexpr VisualColor SoulFlesh{224.0f / 255.0f, 160.0f / 255.0f, 143.0f / 255.0f};
+constexpr VisualColor DigitalBlood{0x72 / 255.0f, 0x16 / 255.0f, 0x5f / 255.0f};
+constexpr VisualColor ExposedSignal{0xd2 / 255.0f, 0x8f / 255.0f, 0x72 / 255.0f};
+constexpr VisualColor SoulPrism{0xb8 / 255.0f, 0xe8 / 255.0f, 0xd2 / 255.0f};
+constexpr VisualColor SoulVoid{0x08 / 255.0f, 0x05 / 255.0f, 0x12 / 255.0f};
 constexpr VisualColor Tether{1.0f, 183.0f / 255.0f, 166.0f / 255.0f};
 constexpr VisualColor PhoneBody{0xd0 / 255.0f, 0xd0 / 255.0f, 0xd0 / 255.0f};
 constexpr VisualColor PhoneScreen{0x16 / 255.0f, 0x20 / 255.0f, 0x2a / 255.0f};
 constexpr VisualColor PhoneEmission{0x78 / 255.0f, 0xd5 / 255.0f, 0xe1 / 255.0f};
-constexpr VisualColor SoulBase{0xd4 / 255.0f, 0xec / 255.0f, 0x8e / 255.0f};
+constexpr VisualColor SoulBase=SoulPrism;
 constexpr VisualColor SoulEmission{0x78 / 255.0f, 0xd5 / 255.0f, 0xe1 / 255.0f};
 constexpr VisualColor HitFlash{1.0f, 1.0f, 1.0f};
 constexpr VisualColor NormalEnemy{0x22 / 255.0f, 0x2a / 255.0f, 0x30 / 255.0f};
 constexpr VisualColor BruteEnemy{0x43 / 255.0f, 0x2b / 255.0f, 0x2b / 255.0f};
+// Semantic roles keep effects related to the material that produced them.
+// This is intentionally a small vocabulary, not a second status palette.
+constexpr VisualColor AttackPressure=ElectricMagenta;
+constexpr VisualColor IngestibleMatter=SoulPrism;
+constexpr VisualColor LivingLeak=DigitalBlood;
+constexpr VisualColor UsableCharge=AcidChartreuse;
+constexpr VisualColor ComputedOutput=ElectricCyan;
 constexpr VisualColor Flower{0xd4 / 255.0f, 0xec / 255.0f, 0x8e / 255.0f};
 constexpr VisualColor FlowerCore{0x33 / 255.0f, 0x55 / 255.0f, 0x25 / 255.0f};
 constexpr float HemisphereIntensity = 1.1f;

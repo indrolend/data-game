@@ -49,6 +49,9 @@ constexpr int ROOM_VISUAL_HORIZON = 2;
 constexpr float ROOM_WALL_HEIGHT = world::RoomWallHeight;
 constexpr float PI = 3.14159265358979323846f;
 constexpr float SHADOW_PROJECTION_SCALE = 0.5f;
+constexpr float PHONE_DISPLAY_INSET_X = 0.94f;
+constexpr float PHONE_DISPLAY_INSET_Y = 0.96f;
+constexpr float PHONE_DISPLAY_PLANE_OFFSET = 0.00115f;
 
 struct MenuFontAtlas {
     std::vector<unsigned char> bytes;
@@ -67,6 +70,25 @@ struct MenuFontAtlas {
 
 MenuFontAtlas menuRegularFont;
 MenuFontAtlas menuSemiboldFont;
+
+struct MenuPaintAtlas {
+    static constexpr int Width = 512;
+    static constexpr int Height = 512;
+    static constexpr int Cell = 256;
+    std::vector<unsigned char> pixels;
+    bool ready = false;
+
+    bool load(const std::filesystem::path& path) {
+        std::ifstream in(path, std::ios::binary);
+        if (!in) return false;
+        pixels.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        ready = pixels.size() == static_cast<std::size_t>(Width * Height * 4);
+        if (!ready) pixels.clear();
+        return ready;
+    }
+};
+
+MenuPaintAtlas menuPaintAtlas;
 
 void hashPhoneDisplayValue(std::uint64_t& hash, std::uint64_t value) {
     hash ^= value;
@@ -307,11 +329,27 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     const std::filesystem::path fontRoot = root.parent_path() / "fonts";
     const bool menuRegularLoaded = menuRegularFont.load(fontRoot / "SourceSans3-Regular.ttf");
     const bool menuSemiboldLoaded = menuSemiboldFont.load(fontRoot / "SourceSans3-Semibold.ttf");
+    const bool menuPaintLoaded = menuPaintAtlas.load(root / "menu-direction-paint-atlas.rgba");
+    bool birdSpriteLoaded=false;
+    {
+        constexpr int width=528,height=256;
+        std::ifstream input(root/"public"/"rmazanek-bird-behaviors.rgba",std::ios::binary);
+        std::vector<unsigned char> pixels(std::istreambuf_iterator<char>(input),{});
+        if(pixels.size()==static_cast<std::size_t>(width*height*4)){
+            glGenTextures(1,&birdSpriteTexture_);glBindTexture(GL_TEXTURE_2D,birdSpriteTexture_);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,width,height,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+            birdSpriteLoaded=true;
+        }
+    }
     StaticModelData phone;
     const bool phoneLoaded=phone.load((root/"phone.dbmesh").string());
     const bool humanLoaded=humanModel_.load((root/"human.dbhuman").string());
     phoneModelList_=phoneLoaded?compileStaticModel(phone):0; phoneShadowList_=phoneLoaded?compileStaticModel(phone,true):0;
-    std::printf("Models: phone=%s flower=prismatic human=%s menuFont=%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap");
+    std::printf("Models: phone=%s flower=prismatic human=%s menuFont=%s/%s menuPaint=%s birds=%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",menuPaintLoaded?"atlas":"fallback",birdSpriteLoaded?"cc0-atlas":"off");
 }
 
 void DesktopRenderer::resize(int width, int height) {
@@ -388,6 +426,37 @@ void cpuRect(CpuCanvas& canvas, float x, float y, float w, float h, float r, flo
             canvas.pixels[at + 1] = static_cast<unsigned char>((static_cast<float>(canvas.pixels[at + 1]) * (1.0f - alpha) + g * 255.0f * alpha));
             canvas.pixels[at + 2] = static_cast<unsigned char>((static_cast<float>(canvas.pixels[at + 2]) * (1.0f - alpha) + b * 255.0f * alpha));
             canvas.pixels[at + 3] = 255;
+        }
+    }
+}
+
+void cpuMenuPaint(CpuCanvas& canvas,int frame,float x,float y,float w,float h,
+                  const VisualColor& tint,float opacity) {
+    if(!menuPaintAtlas.ready||w<=0.0f||h<=0.0f||opacity<=0.0f)return;
+    const int safeFrame=std::max(0,std::min(3,frame));
+    const int sourceX=(safeFrame&1)*MenuPaintAtlas::Cell;
+    const int sourceY=(safeFrame>>1)*MenuPaintAtlas::Cell;
+    const int x0=std::max(0,static_cast<int>(std::floor(x)));
+    const int y0=std::max(0,static_cast<int>(std::floor(y)));
+    const int x1=std::min(canvas.w,static_cast<int>(std::ceil(x+w)));
+    const int y1=std::min(canvas.h,static_cast<int>(std::ceil(y+h)));
+    for(int py=y0;py<y1;++py){
+        const float v=clampf((static_cast<float>(py)+0.5f-y)/h,0.0f,0.9999f);
+        const int sy=sourceY+static_cast<int>(v*MenuPaintAtlas::Cell);
+        for(int px=x0;px<x1;++px){
+            const float u=clampf((static_cast<float>(px)+0.5f-x)/w,0.0f,0.9999f);
+            const int sx=sourceX+static_cast<int>(u*MenuPaintAtlas::Cell);
+            const int source=(sy*MenuPaintAtlas::Width+sx)*4;
+            const float sourceAlpha=static_cast<float>(menuPaintAtlas.pixels[source+3])/255.0f;
+            if(sourceAlpha<=0.01f)continue;
+            const float luma=(menuPaintAtlas.pixels[source]*0.22f+menuPaintAtlas.pixels[source+1]*0.70f+menuPaintAtlas.pixels[source+2]*0.08f)/255.0f;
+            const float alpha=sourceAlpha*clampf(opacity,0.0f,1.0f);
+            const float shade=0.58f+luma*0.42f;
+            const int target=(py*canvas.w+px)*4;
+            canvas.pixels[target]=static_cast<unsigned char>(canvas.pixels[target]*(1.0f-alpha)+tint.r*shade*255.0f*alpha);
+            canvas.pixels[target+1]=static_cast<unsigned char>(canvas.pixels[target+1]*(1.0f-alpha)+tint.g*shade*255.0f*alpha);
+            canvas.pixels[target+2]=static_cast<unsigned char>(canvas.pixels[target+2]*(1.0f-alpha)+tint.b*shade*255.0f*alpha);
+            canvas.pixels[target+3]=255;
         }
     }
 }
@@ -531,19 +600,11 @@ void drawPaletteMenuTitle(const std::string& text, float centerX, float centerY,
         const CachedTitleGlyph& glyph = cachedGlyphs[i];
         const unsigned char c = glyph.code;
         if (previous) pen += static_cast<float>(stbtt_GetCodepointKernAdvance(&font.info, previous, c)) * scale;
-        const float hue = std::fmod(time * 0.026f + static_cast<float>(i) * 0.115f, 1.0f);
-        const float k = hue * 6.0f, f = k - std::floor(k), q = 1.0f - f;
-        Vec3 color{1.0f, f, 0.0f};
-        switch (static_cast<int>(k) % 6) {
-            case 1: color = {q, 1.0f, 0.0f}; break;
-            case 2: color = {0.0f, 1.0f, f}; break;
-            case 3: color = {0.0f, q, 1.0f}; break;
-            case 4: color = {f, 0.0f, 1.0f}; break;
-            case 5: color = {1.0f, 0.0f, q}; break;
-        }
-        const float r = 0.55f + color.x * 0.42f;
-        const float g = 0.65f + color.y * 0.34f;
-        const float b = 0.72f + color.z * 0.28f;
+        const float signal=0.08f+0.06f*std::sin(time*1.8f+static_cast<float>(i)*1.7f);
+        const VisualColor accent=(i+1==text.size())?VisualIdentity::ElectricMagenta:VisualIdentity::ElectricCyan;
+        const float r=0.82f+(accent.r-0.82f)*signal;
+        const float g=0.94f+(accent.g-0.94f)*signal;
+        const float b=0.98f+(accent.b-0.98f)*signal;
         for (int yy = 0; yy < glyph.bh; ++yy) for (int xx = 0; xx < glyph.bw; ++xx) {
             const float alpha = static_cast<float>(glyph.bitmap[yy * glyph.bw + xx]) / 255.0f * 0.96f * opacity;
             if (alpha <= 0.01f) continue;
@@ -696,8 +757,15 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             const float response=clampf(state.cinematic.textInteraction,0.0f,1.0f);
             const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
                 (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:channelAccent);
-            cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
-                focusColor.r,focusColor.g,focusColor.b,0.075f+response*0.055f);
+            if(menuPaintAtlas.ready){
+                const int gesture=response>0.035f?state.cinematic.menuPaintGesture:0;
+                const float overscan=gesture>=2?30.0f:12.0f;
+                cpuMenuPaint(canvas,gesture,row.visual.x-overscan,row.visual.y-10.0f,
+                    row.visual.w+overscan*2.0f,row.visual.h+20.0f,focusColor,0.11f+response*0.27f);
+            }else{
+                cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
+                    focusColor.r,focusColor.g,focusColor.b,0.075f+response*0.055f);
+            }
         }
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
@@ -750,6 +818,8 @@ std::uint64_t phoneDisplayRenderKey(const GameState& state) {
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(state.localSettings.menuPage));
     hashPhoneDisplayFloat(hash, state.localSettings.menuScroll, 10.0f);
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(0, state.hud.menuSelection)));
+    hashPhoneDisplayFloat(hash, state.cinematic.textInteraction, 120.0f);
+    hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(0, std::min(3, state.cinematic.menuPaintGesture))));
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(-1, state.localSettings.rebindingAction) + 1));
     hashPhoneDisplayValue(hash, state.localSettings.musicMuted ? 1u : 0u);
     hashPhoneDisplayValue(hash, state.localSettings.sfxMuted ? 1u : 0u);
@@ -892,9 +962,9 @@ void DesktopRenderer::drawPhoneDisplayTexture(const GameState& state) const {
     }
 
     const PhoneTransformState& phone = state.phoneTransform;
-    const float halfW = PHONE_SCREEN_WIDTH * state.phoneVisual.screenScale.x * 0.5f;
-    const float halfH = PHONE_SCREEN_HEIGHT * state.phoneVisual.screenScale.y * 0.5f;
-    const Vec3 center = phone.screenCenter + phone.screenNormal * (PHONE_SCREEN_DEPTH * 0.52f);
+    const float halfW = PHONE_SCREEN_WIDTH * PHONE_DISPLAY_INSET_X * state.phoneVisual.screenScale.x * 0.5f;
+    const float halfH = PHONE_SCREEN_HEIGHT * PHONE_DISPLAY_INSET_Y * state.phoneVisual.screenScale.y * 0.5f;
+    const Vec3 center = phone.screenCenter + phone.screenNormal * PHONE_DISPLAY_PLANE_OFFSET;
     const Vec3 rx = phone.screenRight * halfW;
     const Vec3 uy = phone.screenUp * halfH;
     const PhoneDisplayState& display = state.phoneDisplay;
@@ -913,15 +983,7 @@ void DesktopRenderer::drawPhoneDisplayTexture(const GameState& state) const {
     glTexCoord2f(0, 0); glVertex3f((center-rx+uy).x, (center-rx+uy).y, (center-rx+uy).z);
     glEnd();
 
-    const Vec3 rim = display.emissionColor;
     glDisable(GL_TEXTURE_2D);
-    glColor4f(rim.x, rim.y, rim.z, clampf(display.material.rimEmission * 0.22f, 0.03f, 0.16f));
-    glBegin(GL_LINE_LOOP);
-    glVertex3f((center-rx-uy).x, (center-rx-uy).y, (center-rx-uy).z);
-    glVertex3f((center+rx-uy).x, (center+rx-uy).y, (center+rx-uy).z);
-    glVertex3f((center+rx+uy).x, (center+rx+uy).y, (center+rx+uy).z);
-    glVertex3f((center-rx+uy).x, (center-rx+uy).y, (center-rx+uy).z);
-    glEnd();
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
     glDisable(GL_TEXTURE_2D);
@@ -947,8 +1009,11 @@ void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_e
     footTargets.right[0]=rightFoot.x;footTargets.right[1]=rightFoot.y;footTargets.right[2]=rightFoot.z;
     footTargets.leftContact=body.leftFootContact();footTargets.rightContact=body.rightFootContact();
     footTargets.active=body.authoritative();
+    const auto& reaction=target.visualReaction;
     humanModel_.skin(target.humanAnimationTime,target.attackTimer,target.attackVariant,
-        humanVertices_,{target.hitFlash,target.hitDirectionLocal,time},footTargets);if(humanVertices_.empty())return;
+        humanVertices_,{target.hitFlash,target.hitDirectionLocal,time,reaction.locomotionPhase,
+            reaction.locomotionAmount,reaction.commitment,reaction.searchAmount,reaction.disruption,
+            reaction.vacuumPullAmount,reaction.individuality},footTargets);if(humanVertices_.empty())return;
     const bool aliveHuman=!target.slurpable;const HumanVisualPose pose=makeHumanVisualPose(target.visualYaw,target.scale,time,target.visualReaction,aliveHuman,body);
     const float attackT=target.attackTimer>0?1-clampf(target.attackTimer/HUMAN_SWING_ATTACK_DURATION,0.0f,1.0f):0;
     const float low=target.attackVariant>=2?1.0f:0.0f;
@@ -964,8 +1029,7 @@ void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_e
     // Model-file materials are deliberately not authoritative here: the source
     // asset is pale and made enemies read as unstyled mannequins. Gameplay
     // actors belong to Data's dark shell / bright signal value hierarchy.
-    const VisualColor base=target.brute?VisualIdentity::BruteEnemy:VisualIdentity::NormalEnemy;const VisualColor damageColor=humanDamageSurfaceColor(base,setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
-    const auto& reaction=target.visualReaction;
+    const VisualColor base=enemyShellColor(target.brute,target.attackVariant,0);const VisualColor damageColor=humanDamageSurfaceColor(base,setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
     const float searchSignal=reaction.searchAmount*reaction.awareness*(0.12f+reaction.uncertainty*0.10f);
     const float threatSignal=reaction.commitment*reaction.awareness*0.22f;
     const float fractureSignal=reaction.disruption*0.16f;
@@ -982,12 +1046,34 @@ void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_e
 void DesktopRenderer::drawSoulFlesh(const TargetState& target,const Vec3& center){
     auto index=[](int x,int y,int z){return x+y*3+z*9;};
     auto emitQuad=[&](int ia,int ib,int ic,int id){const Vec3 a=center+target.latticeSurfacePos[ia],b=center+target.latticeSurfacePos[ib],c=center+target.latticeSurfacePos[ic],d=center+target.latticeSurfacePos[id];Vec3 n{};triangle_geometry::faceNormal(a,b,c,n);glNormal3f(n.x,n.y,n.z);glVertex3f(a.x,a.y,a.z);glVertex3f(b.x,b.y,b.z);glVertex3f(c.x,c.y,c.z);triangle_geometry::faceNormal(a,c,d,n);glNormal3f(n.x,n.y,n.z);glVertex3f(a.x,a.y,a.z);glVertex3f(c.x,c.y,c.z);glVertex3f(d.x,d.y,d.z);};
-    gradedColor(224.0f/255.0f,160.0f/255.0f,143.0f/255.0f);glBegin(GL_TRIANGLES);
+    gradedColor(VisualIdentity::DigitalBlood.r,VisualIdentity::DigitalBlood.g,VisualIdentity::DigitalBlood.b);glBegin(GL_TRIANGLES);
     for(int y=0;y<2;++y)for(int z=0;z<2;++z){emitQuad(index(0,y,z),index(0,y+1,z),index(0,y+1,z+1),index(0,y,z+1));emitQuad(index(2,y,z),index(2,y,z+1),index(2,y+1,z+1),index(2,y+1,z));}
     for(int x=0;x<2;++x)for(int z=0;z<2;++z){emitQuad(index(x,0,z),index(x,0,z+1),index(x+1,0,z+1),index(x+1,0,z));emitQuad(index(x,2,z),index(x+1,2,z),index(x+1,2,z+1),index(x,2,z+1));}
     for(int x=0;x<2;++x)for(int y=0;y<2;++y){emitQuad(index(x,y,0),index(x+1,y,0),index(x+1,y+1,0),index(x,y+1,0));emitQuad(index(x,y,2),index(x,y+1,2),index(x+1,y+1,2),index(x+1,y,2));}
     glEnd();
-    if(target.tetherVisible){const Vec3 endpoint=target.tetherAnchor;const Vec3 destination=target.tetherDestination;const Vec3 delta=destination-endpoint;const float len=length(delta);if(len>0.001f){const Vec3 mid=endpoint+delta*0.5f;const float yaw=std::atan2(delta.x,delta.z),pitch=-std::asin(clampf(delta.y/len,-1,1));glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);drawBox(mid,{0.13f*target.tetherWidth,0.13f*target.tetherWidth,std::min(len,4.5f)},pitch,yaw,0,VisualIdentity::Tether.r,VisualIdentity::Tether.g,VisualIdentity::Tether.b,0.34f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);}}
+    // Beneath the deforming matter is one consistent object: a dark data
+    // volume with captive symbols sliding across different internal depths.
+    // The translucent prism drawn later contains this rather than replacing it.
+    const float reveal=clampf(target.soulCubeAmount*1.7f-0.18f,0.0f,1.0f);
+    if(reveal>0.01f){
+        const float core=0.31f*target.scale*target.soulVisual.morphScale;
+        drawBox(center,{core,core,core},0,target.soulVisual.rotationY*0.63f,0,VisualIdentity::SoulVoid.r,VisualIdentity::SoulVoid.g,VisualIdentity::SoulVoid.b);
+        constexpr char substrateGlyphs[]="01DATA+-";
+        const int glyphIndex=(static_cast<int>(std::abs(target.soulVisual.rotationY)*3.4f)+std::abs(target.walkTargetSequence))%7;
+        const auto rows=bitmapGlyph(substrateGlyphs[glyphIndex]);
+        const float angle=target.soulVisual.rotationY*0.41f,ca=std::cos(angle),sa=std::sin(angle);
+        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);
+        for(int row=0;row<7;++row)for(int col=0;col<5;++col)if(rows[row]&(1u<<(4-col))){
+            const float lx=(static_cast<float>(col)-2.0f)*core*0.23f;
+            const float ly=(3.0f-static_cast<float>(row))*core*0.23f;
+            const float depth=(static_cast<float>((row+col+glyphIndex)%3)-1.0f)*core*0.10f;
+            const Vec3 pixel=center+Vec3{lx*ca+depth*sa,ly,-lx*sa+depth*ca};
+            const VisualColor ink=((row+col)&1)?VisualIdentity::ElectricCyan:VisualIdentity::ElectricMagenta;
+            drawBox(pixel,{core*0.16f,core*0.16f,core*0.035f},0,angle,0,ink.r,ink.g,ink.b,0.42f+0.38f*reveal);
+        }
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
+    }
+    if(target.tetherVisible){const Vec3 base=target.tetherAnchor,apex=target.tetherDestination,axis=base-apex;const float len=length(axis);if(len>0.001f){const Vec3 forward=axis*(1.0f/len);const Vec3 reference=std::abs(forward.y)>0.92f?Vec3{1,0,0}:Vec3{0,1,0};const Vec3 right=normalized(cross3(forward,reference)),up=normalized(cross3(right,forward));const float activity=clampf(std::max(target.vacuumPullAmount,target.ingestProgress),0.0f,1.0f),radius=0.11f+target.tetherWidth*0.16f+activity*0.035f;constexpr int segments=20;glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);glBegin(GL_TRIANGLE_FAN);glColor4f(VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.15f+activity*0.10f);glVertex3f(apex.x,apex.y,apex.z);for(int i=0;i<=segments;++i){const float angle=2.0f*PI*static_cast<float>(i)/segments;const Vec3 edge=base+right*(std::cos(angle)*radius)+up*(std::sin(angle)*radius);glColor4f(VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.012f+activity*0.018f);glVertex3f(edge.x,edge.y,edge.z);}glEnd();glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}}
 }
 
 void DesktopRenderer::drawFieldGrass(int tileIndex) const{
@@ -1006,6 +1092,65 @@ void DesktopRenderer::drawCityGround(int tileIndex) const{
     const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=material.textureWorldScale;
     glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,citySurfaceTexture_);glColor3f(1,1,1);glNormal3f(0,1,0);glBegin(GL_QUADS);
     glTexCoord2f(0,0);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,0);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,ROOM_DEPTH/scale);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glTexCoord2f(0,ROOM_DEPTH/scale);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glEnd();glDisable(GL_TEXTURE_2D);
+}
+
+void DesktopRenderer::drawBirdFlocks(const GameState& state,int tileIndex,room_environment::RoomSetting setting) const{
+    if(!birdSpriteTexture_||(setting!=room_environment::RoomSetting::Field&&setting!=room_environment::RoomSetting::Coastal))return;
+    // The public-domain atlas contains authored idle, peck, hop, takeoff,
+    // flight and landing rows. Deterministic local schedules make the birds
+    // inhabitants of each room; nearby violence interrupts every schedule.
+    const float tileZ=static_cast<float>(tileIndex)*ROOM_DEPTH;
+    Vec3 cameraRight=normalized(cross3(state.camera.forward,{0,1,0}));
+    if(lengthSq(cameraRight)<0.01f)cameraRight={1,0,0};
+    const Vec3 cameraUp=normalized(cross3(cameraRight,state.camera.forward));
+    glDisable(GL_LIGHTING);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,birdSpriteTexture_);
+    glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,0.08f);
+    glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.88f,0.94f,0.96f,0.84f);
+    const bool disturbed=state.environmentVisual.latestShotAge<1.8f||state.hud.criticalHitPulse>0.22f;
+    for(int flock=0;flock<2;++flock){
+        const float direction=flock==0?1.0f:-1.0f;
+        const float localTime=std::fmod(state.time+static_cast<float>(tileIndex*7+flock*11)*1.73f,26.0f);
+        int row=2;float stateStart=0.0f,stateDuration=4.5f;
+        if(disturbed){row=6;stateStart=0.0f;stateDuration=8.0f;}
+        else if(localTime<4.5f){row=2;stateStart=0.0f;stateDuration=4.5f;}
+        else if(localTime<8.0f){row=3;stateStart=4.5f;stateDuration=3.5f;}
+        else if(localTime<10.5f){row=4;stateStart=8.0f;stateDuration=2.5f;}
+        else if(localTime<12.0f){row=5;stateStart=10.5f;stateDuration=1.5f;}
+        else if(localTime<21.5f){row=6;stateStart=12.0f;stateDuration=9.5f;}
+        else if(localTime<23.0f){row=7;stateStart=21.5f;stateDuration=1.5f;}
+        else {row=2;stateStart=23.0f;stateDuration=3.0f;}
+        const bool airborne=row==5||row==6||row==7;
+        const float stateT=clampf((localTime-stateStart)/std::max(0.01f,stateDuration),0.0f,1.0f);
+        for(int bird=0;bird<5;++bird){
+            const float rank=static_cast<float>(bird),wing=bird==0?0.0f:static_cast<float>((bird+1)/2);
+            const float side=bird==0?0.0f:(bird&1?1.0f:-1.0f);
+            const float roostX=-3.7f+flock*6.4f+direction*wing*0.62f+side*0.18f;
+            float x=roostX+direction*(row==4?std::sin(stateT*PI*3.0f)*0.22f:0.0f);
+            float y=0.24f+(row==4?std::abs(std::sin(stateT*PI*3.0f))*0.16f:0.0f);
+            float z=tileZ+(flock==0?-2.8f:3.0f)+side*wing*0.74f;
+            if(airborne){
+                const float flightT=disturbed?clampf(state.environmentVisual.latestShotAge/1.8f,0.0f,1.0f):stateT;
+                x=roostX+direction*(flightT*9.0f-wing*0.58f);
+                const float arc=row==5?stateT:row==7?(1.0f-stateT):1.0f;
+                y=0.30f+arc*(3.0f+flock*0.55f)-wing*0.07f+std::sin(state.time*0.9f+rank)*0.08f;
+                z+=side*wing*0.22f;
+            }
+            const float halfW=0.34f+(bird%2)*0.025f,halfH=0.23f+(bird%3)*0.012f;
+            const Vec3 center{x,y,z},rx=cameraRight*halfW,uy=cameraUp*halfH;
+            const int frame=(static_cast<int>(std::floor(state.time*(row==6?9.0f:6.0f)+rank*1.7f+flock*2.0f)))%11;
+            float u0=static_cast<float>(frame)/11.0f,u1=static_cast<float>(frame+1)/11.0f;
+            if(direction<0.0f)std::swap(u0,u1);
+            const float v0=static_cast<float>(row)/8.0f,v1=static_cast<float>(row+1)/8.0f;
+            glBegin(GL_QUADS);
+            glTexCoord2f(u0,v1);glVertex3f((center-rx-uy).x,(center-rx-uy).y,(center-rx-uy).z);
+            glTexCoord2f(u1,v1);glVertex3f((center+rx-uy).x,(center+rx-uy).y,(center+rx-uy).z);
+            glTexCoord2f(u1,v0);glVertex3f((center+rx+uy).x,(center+rx+uy).y,(center+rx+uy).z);
+            glTexCoord2f(u0,v0);glVertex3f((center-rx+uy).x,(center-rx+uy).y,(center-rx+uy).z);
+            glEnd();
+        }
+    }
+    glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_TEXTURE_2D);glEnable(GL_LIGHTING);
 }
 
 void DesktopRenderer::drawFacetedRock(const room_environment::EnvironmentPropSpec& prop,int roomSeed,int roomIndex,int propIndex,float zOffset,const VisualColor& color){
@@ -1053,6 +1198,42 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     }
     drawStructuralBox({-ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
     drawStructuralBox({ ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+    // Render-only mid-scale composition. These pieces break up room-sized slabs
+    // without changing collision, traversal, or the authored capacity plan.
+    if(field){
+        const float boundaryX=ROOM_WIDTH*0.5f-0.42f;
+        for(int side=-1;side<=1;side+=2)for(int marker=0;marker<5;++marker){
+            const float localZ=-ROOM_DEPTH*0.38f+static_cast<float>(marker)*ROOM_DEPTH*0.19f;
+            const float height=0.48f+0.16f*std::sin(static_cast<float>(tileIndex*7+marker*3+side));
+            drawBox({side*boundaryX,height*0.5f,z0+localZ},{0.09f,height,0.09f},0,0,side*0.025f,0.20f,0.31f,0.19f);
+        }
+        for(int band=0;band<2;++band)drawBox({0,0.018f,z0-ROOM_DEPTH*0.20f+band*ROOM_DEPTH*0.40f},{ROOM_WIDTH*0.58f,0.018f,0.12f},0,0.04f*(band?1.0f:-1.0f),0,0.18f,0.32f,0.20f);
+    }else if(plan.setting==room_environment::RoomSetting::City){
+        const bool canyon=plan.form==room_environment::RoomForm::Canyon;
+        for(int side=-1;side<=1;side+=2){
+            drawBox({side*(ROOM_WIDTH*0.5f-0.38f),0.12f,z0},{0.18f,0.24f,ROOM_DEPTH-1.2f},0,0,0,0.20f,0.23f,0.27f);
+            for(int row=0;row<(canyon?4:3);++row)for(int bay=0;bay<4;++bay){
+                const float y=1.35f+row*1.18f,localZ=-ROOM_DEPTH*0.34f+bay*ROOM_DEPTH*0.225f;
+                const float live=0.30f+0.22f*std::sin(state.time*0.22f+tileIndex*1.7f+row*2.1f+bay*0.9f+side);
+                glDisable(GL_LIGHTING);drawBox({side*(ROOM_WIDTH*0.5f-0.245f),y,z0+localZ},{0.035f,0.34f,0.66f},0,0,0,0.16f+live*0.18f,0.24f+live*0.26f,0.38f+live*0.34f);glEnable(GL_LIGHTING);
+            }
+        }
+        drawBox({0,0.016f,z0},{0.075f,0.018f,ROOM_DEPTH*0.72f},0,0,0,0.52f,0.43f,0.24f);
+    }else if(sterile){
+        for(int side=-1;side<=1;side+=2){
+            for(int bay=0;bay<5;++bay){
+                const float localZ=-ROOM_DEPTH*0.40f+bay*ROOM_DEPTH*0.20f;
+                drawStructuralBox({side*(ROOM_WIDTH*0.5f-0.24f),ROOM_WALL_HEIGHT*0.47f,z0+localZ},{0.035f,ROOM_WALL_HEIGHT*0.62f,ROOM_DEPTH*0.0028f},0,0,0,0.32f,0.39f,0.42f);
+            }
+            glDisable(GL_LIGHTING);drawBox({side*(ROOM_WIDTH*0.5f-0.215f),0.42f,z0},{0.028f,0.055f,ROOM_DEPTH-1.0f},0,0,0,0.30f,0.72f,0.78f);glEnable(GL_LIGHTING);
+        }
+    }else if(coastal){
+        const float tide=0.025f+0.018f*std::sin(state.time*0.46f+tileIndex*0.8f);
+        drawBox({ROOM_WIDTH*0.31f,tide,z0},{ROOM_WIDTH*0.37f,0.035f,ROOM_DEPTH-0.6f},0,0,0,0.08f,0.30f,0.40f);
+        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
+        for(int foam=0;foam<3;++foam){const float x=ROOM_WIDTH*(0.105f+foam*0.047f)+std::sin(state.time*0.58f+foam*1.9f+tileIndex)*0.16f;drawBox({x,0.052f+foam*0.002f,z0},{0.035f,0.012f,ROOM_DEPTH*(0.72f-foam*0.10f)},0,0.018f*(foam-1),0,0.72f,0.86f,0.86f,0.34f-foam*0.06f);}
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
+    }
     if(tileIndex==state.topology.currentTileIndex&&lightingResponse.exitGlow>0.01f){
         const VisualColor guide=sterile?VisualColor{0.62f,0.88f,0.94f}:VisualColor{0.72f,0.90f,0.82f};
         glDisable(GL_LIGHTING);drawBox({0,doorHeight+0.12f,z0-ROOM_DEPTH*0.5f+0.27f},{doorWidth,0.12f,0.08f},0,0,0,guide.r*(0.38f+lightingResponse.exitGlow*0.62f),guide.g*(0.38f+lightingResponse.exitGlow*0.62f),guide.b*(0.38f+lightingResponse.exitGlow*0.62f));glEnable(GL_LIGHTING);
@@ -1060,7 +1241,27 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     const int authoredObstacleCount=(state.traversalLab||state.slopeLab)?state.debug.colliderCount:std::min(state.debug.colliderCount,plan.obstacleCount);
     for (int i=0;i<authoredObstacleCount;++i) {
         const RoomCollider& c=state.roomColliders[i];
-        drawStructuralBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,VisualIdentity::RoomObstacle.r,VisualIdentity::RoomObstacle.g,VisualIdentity::RoomObstacle.b);
+        const float materialPhase=0.5f+0.5f*std::sin(static_cast<float>(state.roomSeed*3+state.roomIndex*11+i*17));
+        const VisualColor substrate=roomSubstrateColor(plan.setting);
+        const VisualColor obstacleColor={
+            VisualIdentity::RoomObstacle.r*0.72f+substrate.r*(0.20f+materialPhase*0.08f),
+            VisualIdentity::RoomObstacle.g*0.72f+substrate.g*(0.20f+materialPhase*0.08f),
+            VisualIdentity::RoomObstacle.b*0.72f+substrate.b*(0.20f+materialPhase*0.08f)};
+        drawStructuralBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,obstacleColor.r,obstacleColor.g,obstacleColor.b);
+        // A shallow dark plinth provides contact and a worn cap catches the
+        // directional light. Both stay inside the authored collider footprint.
+        drawBox({c.center.x,0.022f,z0+c.center.z},{c.width*0.94f,0.035f,c.depth*0.94f},0,0,0,obstacleColor.r*0.34f,obstacleColor.g*0.36f,obstacleColor.b*0.38f);
+        drawBox({c.center.x,c.topY+0.012f,z0+c.center.z},{c.width*0.88f,0.024f,c.depth*0.88f},0,0,0,std::min(1.0f,obstacleColor.r*1.18f),std::min(1.0f,obstacleColor.g*1.16f),std::min(1.0f,obstacleColor.b*1.14f));
+        if(plan.setting==room_environment::RoomSetting::Sterile){
+            const float faceZ=z0+c.center.z-c.depth*0.5f-0.014f;
+            drawBox({c.center.x,c.center.y,faceZ},{c.width*0.64f,c.height*0.52f,0.022f},0,0,0,obstacleColor.r*0.66f,obstacleColor.g*0.72f,obstacleColor.b*0.76f);
+            glDisable(GL_LIGHTING);drawBox({c.center.x,c.center.y+c.height*0.22f,faceZ-0.014f},{c.width*0.46f,0.025f,0.012f},0,0,0,0.28f,0.70f,0.76f);glEnable(GL_LIGHTING);
+        }else if(plan.setting==room_environment::RoomSetting::City){
+            drawBox({c.center.x,c.center.y+c.height*0.18f,z0+c.center.z-c.depth*0.5f-0.012f},{c.width*0.72f,0.055f,0.018f},0,0,0,0.46f,0.40f,0.30f);
+        }else if(field||coastal){
+            const VisualColor growth=field?VisualColor{0.16f,0.34f,0.19f}:VisualColor{0.46f,0.48f,0.36f};
+            drawBox({c.center.x,0.055f,z0+c.center.z-c.depth*0.46f},{c.width*0.76f,0.065f,0.035f},0,0,0,growth.r,growth.g,growth.b);
+        }
         if(plan.setting==room_environment::RoomSetting::City&&plan.form==room_environment::RoomForm::Corridor&&room_environment::obstacleRole(plan,state.roomSeed,state.roomIndex,i)==room_environment::EnvironmentRole::Landmark){
             const float tierH=gameplay::WORLD_SCALE.storyHeight*0.34f;
             drawBox({c.center.x,c.topY+tierH*0.5f,z0+c.center.z},{c.width*0.58f,tierH,c.depth*0.62f},0,0,0,0.34f,0.40f,0.44f);
@@ -1082,7 +1283,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         if(!geometry.propIncluded[i])continue;
         const auto prop=room_environment::environmentProp(plan,state.roomSeed,state.roomIndex,i);const Vec3 p=prop.center+Vec3{0,0,z0};
         using room_environment::EnvironmentPrimitive;
-        if(prop.primitive==EnvironmentPrimitive::House){for(const auto& part:house_geometry::parts(prop,z0)){const VisualColor color=part.surface==0?VisualColor{0.40f,0.47f,0.50f}:(part.surface==3?VisualColor{0.05f,0.08f,0.09f}:VisualColor{part.surface==1?0.30f:0.26f,part.surface==1?0.37f:0.32f,part.surface==1?0.41f:0.36f});drawBox(part.center,part.size,0,part.yaw,0,color.r,color.g,color.b);}}
+        if(prop.primitive==EnvironmentPrimitive::House){int partIndex=0;for(const auto& part:house_geometry::parts(prop,z0)){const float variation=0.92f+0.045f*static_cast<float>((partIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.40f*variation,0.47f*variation,0.50f*variation}:(part.surface==3?VisualColor{0.05f,0.08f,0.09f}:VisualColor{(part.surface==1?0.30f:0.26f)*variation,(part.surface==1?0.37f:0.32f)*variation,(part.surface==1?0.41f:0.36f)*variation});drawBox(part.center,part.size,0,part.yaw,0,color.r,color.g,color.b);}drawBox({p.x,0.028f,p.z},{prop.size.x*0.82f,0.04f,prop.size.z*0.82f},0,prop.yaw,0,0.10f,0.15f,0.15f);}
         else if(prop.primitive==EnvironmentPrimitive::Tree){
             int trunkIndex=0;for(const auto& part:tree_geometry::trunkParts(prop,z0)){const float shade=static_cast<float>(trunkIndex++);drawBox(part.center,part.size,0,part.yaw,0,0.25f+shade*0.02f,0.20f+shade*0.01f,0.14f);}
             bool activeClimb=false;
@@ -1099,16 +1300,43 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             }
         }
         else if(prop.primitive==EnvironmentPrimitive::LawnFragment)drawBox(p,prop.size,0,prop.yaw,0,0.20f,0.39f,0.23f);
-        else if(prop.primitive==EnvironmentPrimitive::Ruin){for(const auto& part:ruin_geometry::parts(prop,z0)){const VisualColor color=part.surface==0?VisualColor{0.38f,0.36f,0.30f}:VisualColor{0.29f,0.28f,0.25f};drawBox(part.center,part.size,0,0,0,color.r,color.g,color.b);}}
+        else if(prop.primitive==EnvironmentPrimitive::Ruin){int ruinIndex=0;for(const auto& part:ruin_geometry::parts(prop,z0)){const float weather=0.88f+0.055f*static_cast<float>((ruinIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.38f*weather,0.36f*weather,0.30f*weather}:VisualColor{0.29f*weather,0.28f*weather,0.25f*weather};drawBox(part.center,part.size,0,0,0,color.r,color.g,color.b);if(part.size.y>0.42f)drawBox({part.center.x,part.center.y-part.size.y*0.39f,part.center.z-part.size.z*0.505f},{part.size.x*0.74f,0.045f,0.024f},0,0,0,0.20f,0.27f,0.20f);}}
         else if(prop.primitive==EnvironmentPrimitive::Rock){const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(prop,state.roomSeed,state.roomIndex,i,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f});}
         else {for(const auto& part:marker_pillar_geometry::parts(prop,z0)){const VisualColor color=part.surface==0?VisualColor{0.48f,0.55f,0.58f}:VisualColor{0.72f,0.90f,0.94f};drawBox(part.center,part.size,0,0,0,color.r,color.g,color.b);}}
     }
+    drawBirdFlocks(state,tileIndex,plan.setting);
     if(plan.grass){const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};glDisable(GL_LIGHTING);glBegin(GL_QUADS);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side,tipL=tip-side*0.62f,tipR=tip+side*0.62f;gradedColor(VisualIdentity::GrassRoot.r,VisualIdentity::GrassRoot.g,VisualIdentity::GrassRoot.b);glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(VisualIdentity::GrassTip.r,VisualIdentity::GrassTip.g,VisualIdentity::GrassTip.b);glVertex3f(tipR.x,tipR.y,tipR.z);glVertex3f(tipL.x,tipL.y,tipL.z);}glEnd();glEnable(GL_LIGHTING);}
 }
 
 void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
-    glMatrixMode(GL_PROJECTION); glLoadIdentity(); perspective(state.camera.verticalFovDegrees, aspect, VisualIdentity::CameraNearPlane, VisualIdentity::CameraFarPlane);
-    glMatrixMode(GL_MODELVIEW); glLoadIdentity(); lookAt(state.camera.pos, state.camera.lookTarget, {0,1,0});
+    Vec3 renderPos=state.camera.pos,renderTarget=state.camera.lookTarget;
+    float renderFov=state.camera.verticalFovDegrees;
+    const bool gameplayCamera=state.started&&!state.camera.firstPerson&&state.camera.spectatedPlayerId<0&&!state.cinematic.introActive&&!state.cinematic.deathActive;
+    if(gameplayCamera){
+        float capture=0.0f;Vec3 soulFocus=renderTarget;
+        for(const auto& target:state.targets)if(target.alive&&target.slurpable){
+            const float activity=clampf(std::max({target.vacuumPullAmount,target.soulVisual.latchAmount*0.72f,target.ingestProgress}),0.0f,1.0f);
+            if(activity>capture){capture=activity;soulFocus=target.pos+Vec3{0,0.57f+target.soulVisual.verticalOffset,0};}
+        }
+        const float captureEase=capture*capture*(3.0f-2.0f*capture);
+        const Vec3 forward=normalized(renderTarget-renderPos),right=normalized(cross3(forward,{0,1,0}));
+        // Extraction gains weight through a slow focus pull and restrained
+        // dolly. The world-space camera state remains authoritative for aim.
+        renderTarget+=(soulFocus-renderTarget)*(captureEase*0.085f);
+        renderPos-=forward*(captureEase*0.105f);
+        renderPos.y-=captureEase*0.018f;
+        renderFov+=captureEase*1.15f;
+        // Critical impact is a brief directional recoil rather than broadband
+        // shake; amplitude is deliberately below normal camera follow error.
+        const float impact=clampf(state.hud.criticalHitPulse,0.0f,1.0f);
+        const float recoil=impact*impact;
+        renderPos-=forward*(recoil*0.045f);
+        const float lateral=std::sin(state.time*31.0f)*recoil*0.014f;
+        renderPos+=right*lateral;renderTarget+=right*(lateral*0.42f);
+        renderFov-=recoil*0.65f;
+    }
+    glMatrixMode(GL_PROJECTION); glLoadIdentity(); perspective(renderFov, aspect, VisualIdentity::CameraNearPlane, VisualIdentity::CameraFarPlane);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity(); lookAt(renderPos, renderTarget, {0,1,0});
 }
 
 void DesktopRenderer::drawHud(const GameState& state) const {
@@ -1233,7 +1461,7 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     // Reflex-critical state remains glanceable without duplicating the phone's
     // detailed instrument panel. Objective text appears only after progress or
     // completion gives the player a reason to consult it.
-    {const float charge=clampf(state.player.battery/100.0f,0.0f,1.0f);const bool low=state.hud.lowBattery;const VisualColor chargeColor=low?VisualIdentity::Copper:VisualIdentity::ElectricCyan;const float x=22.0f,y=height_-30.0f,w=132.0f,h=5.0f;quad(x,y,w,h,VisualIdentity::DeepPlum.r,VisualIdentity::DeepPlum.g,VisualIdentity::DeepPlum.b,0.54f);quad(x,y,std::max(h,w*charge),h,chargeColor.r,chargeColor.g,chargeColor.b,low?0.96f:0.68f);if(state.roomClear||state.depositedSouls>0){const std::string objective=state.roomClear?"PATH OPEN":std::to_string(state.depositedSouls)+" / "+std::to_string(std::max(1,state.requiredSouls));const float s=1.0f;text(objective,width_-22.0f-objective.size()*6.0f*s,height_-35.0f,s,state.roomClear?VisualIdentity::AcidChartreuse.r:VisualIdentity::ElectricCyan.r,state.roomClear?VisualIdentity::AcidChartreuse.g:VisualIdentity::ElectricCyan.g,state.roomClear?VisualIdentity::AcidChartreuse.b:VisualIdentity::ElectricCyan.b,0.74f);}}
+    {const float charge=clampf(state.player.battery/100.0f,0.0f,1.0f);const bool low=state.hud.lowBattery;const VisualColor chargeColor=low?VisualIdentity::Copper:VisualIdentity::ElectricCyan;const float w=220.0f,h=5.0f,x=(width_-w)*0.5f,y=22.0f;quad(x,y,w,h,VisualIdentity::DeepPlum.r,VisualIdentity::DeepPlum.g,VisualIdentity::DeepPlum.b,0.54f);quad(x,y,std::max(h,w*charge),h,chargeColor.r,chargeColor.g,chargeColor.b,low?0.96f:0.68f);if(state.roomClear||state.depositedSouls>0){const std::string objective=state.roomClear?"PATH OPEN":std::to_string(state.depositedSouls)+" / "+std::to_string(std::max(1,state.requiredSouls));const float s=1.0f;text(objective,width_-22.0f-objective.size()*6.0f*s,height_-35.0f,s,state.roomClear?VisualIdentity::AcidChartreuse.r:VisualIdentity::ElectricCyan.r,state.roomClear?VisualIdentity::AcidChartreuse.g:VisualIdentity::ElectricCyan.g,state.roomClear?VisualIdentity::AcidChartreuse.b:VisualIdentity::ElectricCyan.b,0.74f);}}
     if(std::max(state.hud.headshotPulse,state.hud.criticalHitPulse)>0.001f){const float charge=clampf(state.hud.headshotKillCharge,0,1),pulse=std::max(state.hud.headshotPulse,state.hud.criticalHitPulse),eased=pulse*pulse,w=static_cast<float>(width_),h=static_cast<float>(height_),breath=0.5f+0.5f*std::sin(state.time*2.4f),mist=12.0f+charge*9.0f+state.hud.perfectPulse*4.0f;const Vec3 magenta{VisualIdentity::ElectricMagenta.r,VisualIdentity::ElectricMagenta.g,VisualIdentity::ElectricMagenta.b};const Vec3 violet{0.58f,0.34f,0.92f};const Vec3 cyan{VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b};const Vec3 core=mix3(violet,magenta,0.72f),accent=mix3(cyan,magenta,0.46f);const float veil=eased*(0.035f+charge*0.070f),wisp=pulse*(0.075f+charge*0.105f),spark=pulse*(0.10f+charge*0.14f);quad(0,0,w,mist,core.x,core.y,core.z,veil);quad(0,h-mist,w,mist,accent.x,accent.y,accent.z,veil);quad(0,0,mist,h,accent.x,accent.y,accent.z,veil*0.90f);quad(w-mist,0,mist,h,core.x,core.y,core.z,veil*0.90f);for(int i=0;i<3;++i){const float phase=state.time*(0.55f+i*0.17f)+i*2.1f,drift=0.5f+0.5f*std::sin(phase),len=w*(0.22f+0.10f*i+0.08f*breath),thick=1.2f+i*1.1f+charge*1.4f,alpha=wisp*(0.72f-0.14f*i),x=clampf(drift*(w+len)-len,0.0f,w-len);const Vec3 c=i==1?accent:core;quad(x,2.0f+i*4.0f,len,thick,c.x,c.y,c.z,alpha);quad(w-x-len,h-3.0f-i*4.4f,len,thick,c.x,c.y,c.z,alpha*0.82f);const float y=clampf((0.5f+0.5f*std::sin(phase*0.81f+1.7f))*(h+len)-len,0.0f,h-len);quad(2.0f+i*4.0f,y,thick,len,c.x,c.y,c.z,alpha*0.70f);quad(w-3.0f-i*4.4f,h-y-len,thick,len,c.x,c.y,c.z,alpha*0.64f);}const float corner=clampf(std::min(w,h)*0.10f,34.0f,84.0f);quad(0,0,corner,2.0f,core.x,core.y,core.z,spark);quad(0,0,2.0f,corner,accent.x,accent.y,accent.z,spark*0.85f);quad(w-corner,h-2.0f,corner,2.0f,accent.x,accent.y,accent.z,spark*0.75f);quad(w-2.0f,h-corner,2.0f,corner,core.x,core.y,core.z,spark*0.65f);}
 
     if(state.hud.energyTicker[0]&&state.time<state.hud.energyTickerUntil){const std::string ticker=state.hud.energyTicker.data();const float scale=1.35f,tw=ticker.size()*6*scale,pw=std::max(118.0f,tw+16.0f),px=(width_-pw)*0.5f;const int type=state.hud.energyTickerType;const VisualColor tickerColor=type==1?VisualIdentity::Copper:(type==0?VisualIdentity::SignalGreen:VisualIdentity::ElectricCyan);quad(px,72,pw,18,0,0,0,0.54f);quad(px,72,pw,1,tickerColor.r,tickerColor.g,tickerColor.b,0.72f);text(ticker,(width_-tw)*0.5f,77,scale,tickerColor.r,tickerColor.g,tickerColor.b);}
@@ -1261,9 +1489,11 @@ void DesktopRenderer::drawHud(const GameState& state) const {
         const float arrival=clampf(state.upgradeMenu.presentationTime/0.42f,0.0f,1.0f);
         const float reveal=arrival*arrival*(3.0f-2.0f*arrival);
         quad(px,py,pw,ph,0.008f,0.022f,0.030f,0.70f*reveal);
-        const float mosaicGap=2.0f,progressionCellW=(pw-36.0f-mosaicGap*24.0f)/25.0f;
-        const int revealedCells=static_cast<int>(std::ceil(reveal*25.0f));
-        for(int i=0;i<revealedCells;++i){const VisualColor c=VisualIdentity::DataMosaicPalette[i];quad(px+18.0f+i*(progressionCellW+mosaicGap),py+7.0f,progressionCellW,5.0f,c.r,c.g,c.b,0.36f+0.42f*reveal);}
+        // A single compile trace communicates arrival. Showing the entire
+        // palette here made authored material roles read like a color legend.
+        quad(px+18.0f,py+8.0f,(pw-36.0f)*reveal,2.0f,
+            VisualIdentity::ComputedOutput.r,VisualIdentity::ComputedOutput.g,
+            VisualIdentity::ComputedOutput.b,0.66f*reveal);
         text("ROOM "+std::to_string(state.roomIndex)+" / RECOMPILE",px+18,py+20,1.55f,0.82f,0.97f,1.0f,0.96f*reveal);
         const bool remoteChoice=state.multiplayer.enabled&&!state.multiplayer.authoritativeHost;
         text(remoteChoice?"HOST HOLDS RULE AUTHORITY":"RUN MUTATION / SELECT ONE",px+18,py+46,1.08f,0.62f,0.88f,0.94f,0.88f*reveal);
@@ -1381,16 +1611,28 @@ lighting_evidence::GlFixedFunctionState observeGlFixedFunctionState(const char* 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
+    const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount});
     const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
-    const auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
+    auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
+    const bool openSky=roomPlan.setting!=room_environment::RoomSetting::Sterile;
+    if(openSky)lightRig.sunDirection=render_contract::celestialSunDirection(atmosphereInputs.time);
     const float objectiveProgress=state.requiredSouls>0?static_cast<float>(state.depositedSouls)/static_cast<float>(state.requiredSouls):0.0f;
-    const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear});
+    float captureActivity=0.0f;Vec3 capturePosition=state.phoneTransform.screenCenter;
+    for(const auto& target:state.targets)if(target.alive&&target.slurpable){const float activity=clampf(std::max({target.vacuumPullAmount,target.soulVisual.latchAmount*0.72f,target.ingestProgress}),0.0f,1.0f);if(activity>captureActivity){captureActivity=activity;capturePosition=target.pos+Vec3{0,0.57f+target.soulVisual.verticalOffset,0};}}
+    float completionAfterglow=0.0f,completionWeight=0.0f;Vec3 completionPosition{};
+    for(const auto& particle:state.particles)if(particle.life>0.0f&&particle.maxLife>0.0f&&particle.material==ParticleMaterial::SignalResidue){
+        const float age=particle.maxLife-particle.life;
+        const float fresh=clampf(1.0f-age/1.15f,0.0f,1.0f);
+        if(fresh>0.0f){completionAfterglow=std::max(completionAfterglow,fresh);completionPosition+=particle.pos*fresh;completionWeight+=fresh;}
+    }
+    if(captureActivity<=0.001f&&completionWeight>0.001f)capturePosition=completionPosition*(1.0f/completionWeight);
+    const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear,captureActivity,completionAfterglow});
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
     applyMaterial(semanticMaterial(SemanticSurface::Default));
     const float lightTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    const auto resolvedLighting=room_lighting::resolveSceneLighting(atmosphere,lightRig,lightingResponse,state.phoneTransform.screenCenter,state.environmentVisual.latestShotOrigin,lightTileOrigin);
+    const auto resolvedLighting=room_lighting::resolveSceneLighting(atmosphere,lightRig,lightingResponse,state.phoneTransform.screenCenter,state.environmentVisual.latestShotOrigin,lightTileOrigin,capturePosition);
     const GLfloat ambient[]={resolvedLighting.ambient.r,resolvedLighting.ambient.g,resolvedLighting.ambient.b,1.0f};glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);
     applyLight(GL_LIGHT0,resolvedLighting.sun);applyLight(GL_LIGHT1,resolvedLighting.fill);applyLight(GL_LIGHT2,resolvedLighting.phone);
     for(int i=0;i<3;++i)applyLight(GL_LIGHT3+i,resolvedLighting.localLights[static_cast<std::size_t>(i)]);
@@ -1399,11 +1641,28 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_LIGHTING); glEnable(GL_NORMALIZE);
     // Observation point: every world-pass light is set; HUD and later passes have not touched GL state yet.
     // Rigs with CeilingFixtures disable the global sun/fill (GL_LIGHT0/1); the enabled flags record that.
-    lightingObservation_={true,atmosphere,render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount}),lightRig,
+    lightingObservation_={true,atmosphere,atmosphereInputs,lightRig,
         {state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear},lightingResponse,
         observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
     const bool cheapVisuals=state.localSettings.graphicsPreset<=0;
     const auto actorVisible=[&](const Vec3& position){const Vec3 delta=position-state.camera.pos;const float maxDist=cheapVisuals?38.0f:55.0f;return lengthSq(delta)<maxDist*maxDist&&dot3(delta,state.camera.forward)>-8.0f;};
+    // A restrained physical disc anchors the outdoor lighting. It is drawn as
+    // part of the distant sky and is then naturally occluded by world geometry.
+    if(openSky){
+        const Vec3 celestial=normalized(lightRig.sunDirection);
+        const float daylight=render_contract::celestialDaylight(atmosphereInputs.time);
+        const bool sunAbove=celestial.y>-0.04f;
+        const Vec3 direction=sunAbove?celestial:celestial*-1.0f;
+        const Vec3 center=state.camera.pos+direction*82.0f;
+        Vec3 right=normalized(cross3(state.camera.forward,{0,1,0}));if(lengthSq(right)<0.01f)right={1,0,0};
+        const Vec3 up=normalized(cross3(right,state.camera.forward));
+        const float radius=sunAbove?(1.65f+0.45f*(1.0f-daylight)):0.82f;
+        const VisualColor color=sunAbove?atmosphere.sun:VisualColor{0.43f,0.52f,0.66f};
+        glDisable(GL_LIGHTING);glDisable(GL_FOG);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);
+        glBegin(GL_TRIANGLE_FAN);glColor4f(color.r,color.g,color.b,sunAbove?0.82f:0.42f);glVertex3f(center.x,center.y,center.z);
+        constexpr int celestialSegments=28;for(int i=0;i<=celestialSegments;++i){const float a=2.0f*PI*static_cast<float>(i)/celestialSegments;const Vec3 edge=center+right*(std::cos(a)*radius)+up*(std::sin(a)*radius);glColor4f(color.r,color.g,color.b,0.0f);glVertex3f(edge.x,edge.y,edge.z);}glEnd();
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_FOG);glEnable(GL_LIGHTING);
+    }
     for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,tile,lightingResponse);
 
     // The secret room is deliberately disconnected from the repeating corridor:
@@ -1453,7 +1712,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
     else if(shadowQuality==render_contract::ShadowQuality::Directional&&!menuPresentation){
-        const Vec3& sun=render_contract::DesktopSceneLighting.sun.direction;
+        Vec3 sun=lightRig.sunDirection;
+        if(sun.y<0.10f)sun={-sun.x,std::max(0.18f,-sun.y),-sun.z};
         const float shadowMatrix[16]={1,0,0,0,-sun.x/sun.y,0,-sun.z/sun.y,0,0,0,1,0,0.006f,0.012f,0.005f,1};
         glStencilMask(0xff);glClearStencil(0);glClear(GL_STENCIL_BUFFER_BIT);glEnable(GL_STENCIL_TEST);glStencilFunc(GL_ALWAYS,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
         glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_FALSE);glDisable(GL_DEPTH_TEST);glPushMatrix();glMultMatrixf(shadowMatrix);
@@ -1477,16 +1737,18 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         else drawBox(phonePos,{PHONE_BODY_WIDTH*pv.bodyScale.x,PHONE_BODY_HEIGHT*pv.bodyScale.y,PHONE_BODY_DEPTH},phoneOrientation,VisualIdentity::PhoneBody.r,VisualIdentity::PhoneBody.g,VisualIdentity::PhoneBody.b);}
         const float glow=std::min(1.0f,0.45f+pv.screenGlow*0.36f);
         {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneGlass,{VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow}));
-        drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*pv.screenScale.x,PHONE_SCREEN_HEIGHT*pv.screenScale.y,PHONE_SCREEN_DEPTH},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);}
+        drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*pv.screenScale.x,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*pv.screenScale.y,PHONE_SCREEN_DEPTH*0.30f},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);}
         if(state.phoneDisplay.mode!=PhoneDisplayMode::Off&&state.phoneDisplay.mode!=PhoneDisplayMode::Death)
             drawPhoneDisplayTexture(state);
+        const float captureAura=clampf(pv.captureContactAmount*0.72f+std::max(0.0f,pv.ingestBulge)*0.58f+captureActivity*0.34f+completionAfterglow*0.42f,0.0f,1.0f);
+        if(captureAura>0.015f){glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);const float pulse=0.92f+0.08f*std::sin(state.time*24.0f);drawBox(state.phoneTransform.screenCenter+state.phoneTransform.screenNormal*0.012f,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*(1.04f+captureAura*0.12f)*pulse,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*(1.03f+captureAura*0.10f)*pulse,PHONE_SCREEN_DEPTH*0.22f},phoneOrientation,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.14f+captureAura*0.24f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
     }
     if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){
         const auto& pv=peer.phoneVisual;
         {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneMetal,{0.32f,0.86f,1.0f}));
         if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,pv.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0.32f,0.86f,1.0f);}
         {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneGlass,{0.05f,0.55f,0.78f}));
-        drawBox(peer.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH,PHONE_SCREEN_HEIGHT,PHONE_SCREEN_DEPTH},peer.phoneTransform.orientation,0.05f,0.55f,0.78f);}
+        drawBox(peer.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y,PHONE_SCREEN_DEPTH*0.30f},peer.phoneTransform.orientation,0.05f,0.55f,0.78f);}
     }
 
     const MeleeVisualState& melee=state.meleeVisual;
@@ -1515,7 +1777,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         target.tetherAnchor.z+=mirrorShift;target.tetherDestination.z+=mirrorShift;target.latchPoint.z+=mirrorShift;
         target.pos = p;
         if (!target.slurpable) {
-            const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;const VisualColor damageColor=humanDamageSurfaceColor(VisualIdentity::NormalEnemy,setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
+            const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;const VisualColor damageColor=humanDamageSurfaceColor(enemyShellColor(target.brute,target.attackVariant,state.roomIndex),setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
             if(humanModel_.valid())drawHumanModel(target,state.time,setting);else drawProceduralHumanDesktop(target,state.time,damageColor.r,damageColor.g,damageColor.b);
         }
         if (target.slurpable && target.soulCubeAmount > 0.001f) {
@@ -1525,7 +1787,9 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
             drawSoulFlesh(target,soulCenter);
             const float cube=0.72f*0.78f*target.scale*sv.morphScale;
             const Vec3 delta=soulCenter-state.camera.pos;
-            translucentSouls[translucentSoulCount++]={soulCenter,{cube*sv.scale.x,cube*sv.scale.y,cube*sv.scale.z},sv.rotationY,sv.color,sv.shellOpacity,delta.x*delta.x+delta.y*delta.y+delta.z*delta.z};
+            const VisualColor prismColor={sv.color.r*0.48f+VisualIdentity::SoulPrism.r*0.52f,sv.color.g*0.48f+VisualIdentity::SoulPrism.g*0.52f,sv.color.b*0.48f+VisualIdentity::SoulPrism.b*0.52f};
+            const float readableShellOpacity=clampf(sv.shellOpacity*0.64f,0.08f,0.42f);
+            translucentSouls[translucentSoulCount++]={soulCenter,{cube*sv.scale.x,cube*sv.scale.y,cube*sv.scale.z},sv.rotationY,prismColor,readableShellOpacity,delta.x*delta.x+delta.y*delta.y+delta.z*delta.z};
         }
     }
     std::sort(translucentSouls.begin(),translucentSouls.begin()+translucentSoulCount,[](const auto& a,const auto& b){return a.distanceSquared>b.distanceSquared;});
@@ -1560,6 +1824,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     for (const auto& bullet:state.bullets) if (bullet.alive) {
         const float size=0.72f*1.12f*(bullet.brute?1.7f:1.0f);
         drawBox(bullet.pos,{size,size,size},bullet.spin*1.2f,bullet.spin*1.7f,bullet.spin*0.9f,VisualIdentity::SoulBase.r,VisualIdentity::SoulBase.g,VisualIdentity::SoulBase.b,0.68f);
+    }
+    if(completionAfterglow>0.015f&&completionWeight>0.001f){
+        const float release=1.0f-completionAfterglow;
+        const float span=0.34f+release*0.82f;
+        const Vec3 echoCenter=capturePosition+Vec3{0,0.035f-release*0.08f,0};
+        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);
+        drawBox(echoCenter,{span,0.018f,span},0,release*PI*0.30f,0,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,completionAfterglow*0.16f);
+        drawBox(echoCenter,{span*0.64f,0.022f,span*0.64f},0,-release*PI*0.46f,0,VisualIdentity::ElectricMagenta.r,VisualIdentity::ElectricMagenta.g,VisualIdentity::ElectricMagenta.b,completionAfterglow*0.11f);
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
     }
     if(state.localSettings.particles)for(const auto& particle:state.particles) if(particle.life>0.0f) {
         const float t=particle.maxLife>0.0f?clampf(particle.life/particle.maxLife,0.0f,1.0f):0.0f;

@@ -608,10 +608,11 @@ bool adjustMenuSetting(HostState& host,int direction){
             applyPhoneGraphicsPreset(settings,phoneMenuCycleIndex(settings.graphicsPreset,direction,3));break;
         default:return false;
     }
+    state.cinematic.menuPaintGesture=direction<0?2:3;
     state.cinematic.textInteraction=0.65f;
     return true;
 }
-bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;switch(selectedPhoneAction(state)){case PhoneMenuAction::MusicMute:settings.musicMuted=!settings.musicMuted;break;case PhoneMenuAction::SfxMute:settings.sfxMuted=!settings.sfxMuted;break;case PhoneMenuAction::ToggleShadows:settings.shadows=!settings.shadows;break;case PhoneMenuAction::ToggleParticles:settings.particles=!settings.particles;break;case PhoneMenuAction::ToggleFps:settings.fpsCounter=!settings.fpsCounter;break;default:return false;}state.cinematic.textInteraction=0.65f;return true;}
+bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;switch(selectedPhoneAction(state)){case PhoneMenuAction::MusicMute:settings.musicMuted=!settings.musicMuted;break;case PhoneMenuAction::SfxMute:settings.sfxMuted=!settings.sfxMuted;break;case PhoneMenuAction::ToggleShadows:settings.shadows=!settings.shadows;break;case PhoneMenuAction::ToggleParticles:settings.particles=!settings.particles;break;case PhoneMenuAction::ToggleFps:settings.fpsCounter=!settings.fpsCounter;break;default:return false;}state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.65f;return true;}
 
 void setMenuSelection(HostState& host,int selection) {
     const int count=menuItemCount(host.game.state());
@@ -631,6 +632,7 @@ void setMenuSelection(HostState& host,int selection) {
     }
 
     state.hud.menuSelection=next;
+    state.cinematic.menuPaintGesture=0;
 
     if(state.dead){
         state.cinematic.deathChoice=next;
@@ -675,7 +677,7 @@ int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double wi
 }
 
 void activateMenuSelection(GLFWwindow* window,HostState& host) {
-    GameState& state=host.game.networkMutableState();const int selection=state.hud.menuSelection;state.cinematic.textInteraction=0.42f;
+    GameState& state=host.game.networkMutableState();const int selection=state.hud.menuSelection;state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.42f;
     host.audio.playMenuCue(true);
     if(state.upgradeMenu.active){
         if(selection<3)host.game.chooseTemporaryUpgrade(selection);else host.game.purchasePermanentUpgrade(selection-3);
@@ -1452,6 +1454,7 @@ void printUsage() {
     std::printf("  --combat-render-stress  Measure ten repeated kill/capture/respawn cycles.\n");
     std::printf("  --combat-crowd-stress   Measure repeated six-enemy overlapping combat waves.\n");
     std::printf("  --capture-soul-lifecycle DIR  Capture two annotated soul lifecycle cycles.\n");
+    std::printf("  --capture-enemy-motion DIR  Capture a close native enemy motion reel.\n");
     std::printf("  --save-roundtrip-test  Verify persistent save write and reload.\n");
     std::printf("  --parity-proximity-test  Run the camera/player wall parity test and exit.\n");
     std::printf("  --controller-test    Print connected controller state once and exit.\n");
@@ -1460,6 +1463,7 @@ void printUsage() {
     std::printf("  --capture-frame PATH Capture a hidden frame and exit.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
+    std::printf("  --menu-paint-gesture select|confirm|left|right  Fix the menu feedback pose for capture.\n");
     std::printf("  --capture-cpu-demo DIR  Record a HUD-free deterministic gameplay vignette as PPM frames.\n");
     std::printf("  --capture-cinematic-demo DIR  Record the real lunge/capture sequence from a cinematic spectator camera.\n");
     std::printf("  --capture-width N --capture-height N  Set capture framebuffer dimensions.\n");
@@ -1589,6 +1593,37 @@ const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<
 std::vector<std::string> argValues(int argc,char** argv,const char* expected){std::vector<std::string> values;for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)values.emplace_back(argv[i+1]);return values;}
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height,std::uint64_t* fileHash=nullptr){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;const std::string header="P6\n"+std::to_string(width)+" "+std::to_string(height)+"\n255\n";out.write(header.data(),static_cast<std::streamsize>(header.size()));std::uint64_t hash=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,header.data(),header.size());for(int y=height-1;y>=0;--y){const char* row=reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u);out.write(row,static_cast<std::streamsize>(width*3));hash=lighting_evidence::fnv1a(hash,row,static_cast<std::size_t>(width)*3u);}if(fileHash)*fileHash=hash;return static_cast<bool>(out);}
+
+int runEnemyMotionReel(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    std::error_code error;std::filesystem::create_directories(outputDirectory,error);if(error)return 1;
+    std::ofstream timeline(outputDirectory/"timeline.csv",std::ios::trunc);if(!timeline)return 1;
+    timeline<<"frame,time,phase,variant,locomotion,search,commitment,disruption,vacuum,file\n";
+    host.game.restart();GameState base=host.game.state();for(auto& target:base.targets)target=TargetState{};
+    base.cinematic=CinematicState{};base.started=true;base.uiPaused=false;base.attractMode=false;base.localSettings.fpsCounter=false;base.localSettings.particles=false;base.localSettings.shadows=true;
+    base.player.pos={0,0.08f,2.0f};base.phoneTransform.position={8,-8,8};TargetState& subject=base.targets[0];subject.alive=true;subject.visibility=1.0f;subject.scale=1.36f;subject.pos={0,0,-1.65f};subject.visualYaw=0.0f;subject.attackDirection={0,0,1};subject.armor=2.0f;
+    base.camera.pos={2.65f,1.32f,1.05f};base.camera.lookTarget={0,0.82f,-1.65f};base.camera.forward=normalized(base.camera.lookTarget-base.camera.pos);base.camera.verticalFovDegrees=35.0f;base.camera.firstPerson=false;
+    host.renderer.setHudVisible(false);
+    auto reelLighting=host.renderer.lightingControl();reelLighting.timeFixed=true;reelLighting.roomFixed=true;reelLighting.phoneFixed=true;reelLighting.fixedInputs={7.25f,base.roomIndex,0.0f};render_contract::setAtmosphereColorOverride(reelLighting,render_contract::AtmosphereChannel::Ambient,{0.16f,0.14f,0.18f});render_contract::setAtmosphereColorOverride(reelLighting,render_contract::AtmosphereChannel::Sun,{0.72f,0.52f,0.44f});render_contract::setAtmosphereColorOverride(reelLighting,render_contract::AtmosphereChannel::Fill,{0.24f,0.38f,0.50f});host.renderer.setLightingControl(reelLighting);
+    const auto ease=[](float x){x=std::clamp(x,0.0f,1.0f);return x*x*(3.0f-2.0f*x);};
+    constexpr int frameCount=540;constexpr float frameRate=30.0f;
+    for(int frame=0;frame<frameCount;++frame){
+        GameState render=base;render.time=static_cast<float>(frame)/frameRate;render.frame=frame*2;TargetState& target=render.targets[0];
+        const char* phase="walk";int variant=-1;float locomotion=0,search=0,commitment=0,disruption=0,vacuum=0;bool fallen=false;float bodyPitch=0,bodyRoll=0;
+        const float gait=std::fmod(static_cast<float>(frame)/42.0f,1.0f),stride=std::sin(gait*DB_PI*2.0f);target.humanAnimationTime=gait;target.visualWalkPhase=gait*DB_PI*2.0f;
+        if(frame<90){phase="walk_accelerate";locomotion=ease(static_cast<float>(frame)/35.0f);commitment=0.35f+locomotion*0.45f;}
+        else if(frame<150){phase="turn_search";const float p=static_cast<float>(frame-90)/60.0f;target.visualYaw=std::sin(p*DB_PI)*0.72f;locomotion=0.18f;search=1.0f;}
+        else if(frame<330){variant=(frame-150)/45;phase=variant<2?"attack_high":"attack_low";const float p=static_cast<float>((frame-150)%45)/44.0f;target.attackVariant=variant;target.attackTimer=HUMAN_SWING_ATTACK_DURATION*(1.0f-p);commitment=1.0f;}
+        else if(frame<390){phase="impact_recovery";const float p=static_cast<float>(frame-330)/60.0f;target.hitFlash=(1.0f-p)*(0.72f+0.28f*std::sin(p*DB_PI*8.0f));target.hitDirectionLocal=1.0f;disruption=1.0f-p;}
+        else if(frame<450){phase="fall_recovery";const float p=static_cast<float>(frame-390)/59.0f;fallen=p<0.62f;bodyPitch=(1.0f-ease(p))*0.95f;bodyRoll=(1.0f-ease(p))*0.52f;disruption=1.0f-ease(p);}
+        else {phase="vacuum_resistance";const float p=static_cast<float>(frame-450)/89.0f;vacuum=std::sin(p*DB_PI);commitment=0.35f*(1.0f-vacuum);disruption=vacuum*0.45f;}
+        target.locomotionAmount=locomotion;target.vacuumPullAmount=vacuum;target.visualReaction=makeHumanReactionVisual(target.visualWalkPhase,locomotion,target.hitFlash,target.hitDirectionLocal,vacuum,0.0f,0.0f,true,target.attackTimer,std::max(0,variant),0.9f,search>0?0.85f:0.15f,commitment,disruption,search,-0.42f);
+        const float leftLift=std::max(0.0f,stride)*0.055f*locomotion,rightLift=std::max(0.0f,-stride)*0.055f*locomotion;
+        target.setHumanBodyPresentation(makeHumanBodyPresentation(bodyPitch-commitment*0.05f+vacuum*0.08f,bodyRoll+stride*locomotion*0.035f,stride<0?1.0f:0.18f,stride>0?1.0f:0.18f,fallen,true,{-0.15f,leftLift,stride*0.14f*locomotion},{0.15f,rightLift,-stride*0.14f*locomotion}));
+        char name[32]{};std::snprintf(name,sizeof(name),"frame-%04d.ppm",frame);const auto path=outputDirectory/name;host.renderer.draw(render);glFinish();if(!captureFramebuffer(path,width,height))return 1;glfwSwapBuffers(window);glfwPollEvents();
+        timeline<<frame<<','<<render.time<<','<<phase<<','<<variant<<','<<locomotion<<','<<search<<','<<commitment<<','<<disruption<<','<<vacuum<<','<<name<<'\n';
+    }
+    std::printf("ENEMY_MOTION_REEL_OK directory=%s frames=%d fps=%.0f\n",outputDirectory.string().c_str(),frameCount,frameRate);return 0;
+}
 
 lighting_evidence::LightingStateSnapshot makeLightingSnapshot(const GameState& state,const DesktopRenderer& renderer,std::uint64_t tick,int width,int height,const std::string& capturePath,const std::uint64_t* pixelHash){
     const auto& identity=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);const auto& control=renderer.lightingControl();
@@ -2108,6 +2143,7 @@ int main(int argc, char** argv) {
     const char* agentFrame=argValue(argc,argv,"--agent-frame");
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
+    const char* captureMenuPaintGesture=argValue(argc,argv,"--menu-paint-gesture");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
     const bool captureMenuUpgrade=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"upgrade")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
@@ -2127,8 +2163,9 @@ int main(int argc, char** argv) {
     const bool combatRenderStress=hasArg(argc,argv,"--combat-render-stress");
     const bool combatCrowdStress=hasArg(argc,argv,"--combat-crowd-stress");
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
+    const char* enemyMotionDirectory=argValue(argc,argv,"--capture-enemy-motion");
     const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame"))))))))));
-    const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory;
+    const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory||enemyMotionDirectory;
     std::string automaticPerfTracePath;
     const bool ordinaryDevelopmentGameplay=!isolatedPersistence&&!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector&&!multiplayerTest&&!combatRenderStress&&!combatCrowdStress;
     if(!perfTracePath&&ordinaryDevelopmentGameplay){
@@ -2179,7 +2216,7 @@ int main(int argc, char** argv) {
     // Four samples are a modest desktop cost and remove the most visible
     // geometry and crosshair jaggies.
     glfwWindowHint(GLFW_SAMPLES, 4);
-    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||evidenceScenario||agentPlaytest)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
+    if(capturePath||multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||enemyMotionDirectory||evidenceScenario||agentPlaytest)glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(
         windowWidth,
@@ -2243,6 +2280,11 @@ int main(int argc, char** argv) {
         else if(page&&std::strcmp(page,"death")==0){fixture.dead=true;fixture.started=false;fixture.player.alive=false;fixture.player.battery=0.0f;}
         else fixture.localSettings.menuPage=LocalMenuPage::Main;
         if(!(page&&std::strcmp(page,"controls-bottom")==0)&&!(page&&std::strcmp(page,"controls-middle")==0))fixture.hud.menuSelection=0;
+        if(captureMenuPaintGesture){
+            fixture.cinematic.menuPaintGesture=std::strcmp(captureMenuPaintGesture,"confirm")==0?1:
+                (std::strcmp(captureMenuPaintGesture,"left")==0?2:(std::strcmp(captureMenuPaintGesture,"right")==0?3:0));
+            fixture.cinematic.textInteraction=1.0f;
+        }
     }
     if(tvRoomTest||tvRoomEnter){
         host.game.debugStartSecretTvTest(tvRoomEnter);
@@ -2362,7 +2404,7 @@ int main(int argc, char** argv) {
     glfwSetWindowTitle(window,"Data");
     // Let the platform compositor pace presentation while gameplay remains fixed
     // at 60 Hz. The renderer interpolates camera state between simulation ticks.
-    glfwSwapInterval((multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||agentPlaytest)?0:1);
+    glfwSwapInterval((multiplayerTest||combatRenderStress||combatCrowdStress||soulLifecycleDirectory||enemyMotionDirectory||agentPlaytest)?0:1);
     setMouseCaptured(window, host, host.game.state().started&&!host.game.state().attractMode);
     if(capturePaused||captureMenuPause)host.game.setUiPaused(true);
 
@@ -2375,6 +2417,7 @@ int main(int argc, char** argv) {
     if(combatRenderStress){const int result=runCombatRenderStress(window,host);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
     if(combatCrowdStress){const int result=runCombatCrowdStress(window,host);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
     if(soulLifecycleDirectory){const int result=runSoulLifecycleCapture(window,host,soulLifecycleDirectory,framebufferWidth,framebufferHeight);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
+    if(enemyMotionDirectory){const int result=runEnemyMotionReel(window,host,enemyMotionDirectory,framebufferWidth,framebufferHeight);glfwDestroyWindow(window);host.audio.stopAll();glfwTerminate();return result;}
     if(evidenceScenario){
         int result=4;
         if(!evidenceOutput)std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=missing_output\n");
@@ -2724,6 +2767,11 @@ int main(int argc, char** argv) {
         }
         GameState renderState = host.game.state();
         host.multiplayer.applyPresentation(renderState);
+        if(captureMenu&&captureMenuPaintGesture){
+            renderState.cinematic.menuPaintGesture=std::strcmp(captureMenuPaintGesture,"confirm")==0?1:
+                (std::strcmp(captureMenuPaintGesture,"left")==0?2:(std::strcmp(captureMenuPaintGesture,"right")==0?3:0));
+            renderState.cinematic.textInteraction=1.0f;
+        }
         if(captureMenuPause){
             renderState.started=true;
             renderState.uiPaused=true;

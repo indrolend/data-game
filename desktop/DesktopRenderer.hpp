@@ -42,6 +42,7 @@ private:
     mutable unsigned int phoneDisplayTexture_ = 0;
     mutable unsigned int fieldGrassTexture_ = 0;
     mutable unsigned int citySurfaceTexture_ = 0;
+    mutable unsigned int birdSpriteTexture_ = 0;
     mutable std::vector<unsigned char> phoneDisplayPixels_;
     mutable unsigned long long phoneDisplayCacheKey_ = 0;
     mutable bool phoneDisplayCacheValid_ = false;
@@ -56,6 +57,7 @@ private:
     void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
     void drawFieldGrass(int tileIndex) const;
     void drawCityGround(int tileIndex) const;
+    void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
     void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;

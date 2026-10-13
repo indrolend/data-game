@@ -27,10 +27,19 @@ int main(){
 
     const auto freshFragment=particleMaterialColor(ParticleMaterial::Environment,RoomSetting::Coastal,1.0f);
     const auto reclaimedFragment=particleMaterialColor(ParticleMaterial::Environment,RoomSetting::Coastal,0.0f);
-    assert(same(freshFragment,VisualIdentity::SoulFlesh));
+    assert(same(freshFragment,VisualIdentity::LivingLeak));
     assert(same(reclaimedFragment,coastal));
-    assert(same(particleMaterialColor(ParticleMaterial::Soul,RoomSetting::Field,0.5f),VisualIdentity::SoulBase));
-    assert(same(particleMaterialColor(ParticleMaterial::Data,RoomSetting::Field,0.5f),VisualIdentity::ElectricCyan));
+    const auto freshSoul=particleMaterialColor(ParticleMaterial::Soul,RoomSetting::Field,1.0f);
+    const auto settledSoul=particleMaterialColor(ParticleMaterial::Soul,RoomSetting::Field,0.0f);
+    assert(!same(freshSoul,VisualIdentity::LivingLeak)&&settledSoul.g>freshSoul.g&&settledSoul.b>freshSoul.b);
+    assert(same(particleMaterialColor(ParticleMaterial::Data,RoomSetting::Field,0.5f),VisualIdentity::ComputedOutput));
+
+    const auto quietEnemy=enemyShellColor(false,0,1);
+    const auto aggressiveEnemy=enemyShellColor(false,3,1);
+    const auto lateEnemy=enemyShellColor(false,3,19);
+    const auto bruteEnemy=enemyShellColor(true,3,19);
+    assert(aggressiveEnemy.r>quietEnemy.r&&lateEnemy.r>aggressiveEnemy.r);
+    assert(!same(bruteEnemy,lateEnemy));
 
     const auto fallback=semanticMaterial(SemanticSurface::Default);
     const auto fieldMaterial=semanticMaterial(SemanticSurface::FieldGround,VisualIdentity::FieldGround);

@@ -208,6 +208,10 @@ struct CinematicState {
     float introElapsed = 0.0f;
     float deathElapsed = 0.0f;
     float textInteraction = 0.0f;
+    // 0 = selection impact, 1 = confirmation, 2 = left swipe, 3 = right swipe.
+    // Kept beside the interaction pulse so menu feedback has a stable visual
+    // meaning instead of choosing decorative marks arbitrarily.
+    int menuPaintGesture = 0;
     float baseYaw = 0.0f;
     float attractCameraYaw = 0.0f;
     bool attractCameraYawValid = false;

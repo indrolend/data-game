@@ -53,13 +53,15 @@ int main(){
     }
     const auto progressiveOpening=progressiveSceneAtmosphere(0.0f,1,0.0f);
     const auto progressiveDeep=progressiveSceneAtmosphere(10.0f,19,1.0f);
+    const auto progressiveNight=progressiveSceneAtmosphere(DayCycleSeconds*0.55f,1,0.0f);
     if(!(progressiveDeep.fogDensity>progressiveOpening.fogDensity&&progressiveDeep.fog.r>progressiveOpening.fog.r&&progressiveDeep.phone.b==1.32f)){
         std::fputs("RENDER_CONTRACTS_FAIL progressive candidate\n",stderr);return 1;
     }
     if(progressiveOpening.ambient.r<0.087f||progressiveOpening.ambient.g<0.062f||progressiveOpening.ambient.b<0.094f||
         progressiveOpening.fill.r<0.12f||progressiveDeep.fill.r<0.12f||
-        progressiveDeep.fogDensity>DesktopSceneLighting.fog.density||
-        progressiveOpening.fog.r<=progressiveOpening.background.r||progressiveOpening.fog.g<=progressiveOpening.background.g||progressiveOpening.fog.b<=progressiveOpening.background.b){
+        progressiveNight.ambient.r<0.045f||progressiveNight.fill.b<0.20f||
+        progressiveOpening.background.b<=progressiveNight.background.b||progressiveOpening.sun.r<=progressiveNight.sun.r||
+        progressiveDeep.fogDensity>DesktopSceneLighting.fog.density){
         std::fputs("RENDER_CONTRACTS_FAIL progressive readability floor\n",stderr);return 1;
     }
     const auto fieldAtmosphere=settingAtmosphere(progressiveDeep,room_environment::RoomSetting::Field,AtmosphereProfile::ProgressiveCandidate);
@@ -67,7 +69,7 @@ int main(){
     const auto sterileAtmosphere=settingAtmosphere(progressiveOpening,room_environment::RoomSetting::Sterile,AtmosphereProfile::ProgressiveCandidate);
     const auto coastalAtmosphere=settingAtmosphere(progressiveDeep,room_environment::RoomSetting::Coastal,AtmosphereProfile::ProgressiveCandidate);
     if(!(fieldAtmosphere.ambient.g>progressiveDeep.ambient.g&&fieldAtmosphere.ambient.r<progressiveDeep.ambient.r&&cityAtmosphere.ambient.b>progressiveDeep.ambient.b&&
-        sterileAtmosphere.ambient.r>progressiveOpening.ambient.r&&sterileAtmosphere.ambient.g>progressiveOpening.ambient.g&&sterileAtmosphere.ambient.b>progressiveOpening.ambient.b&&
+        sterileAtmosphere.ambient.r==0.086f&&sterileAtmosphere.ambient.g==0.105f&&sterileAtmosphere.ambient.b==0.101f&&
         coastalAtmosphere.fog.b>progressiveDeep.fog.b)){
         std::fputs("RENDER_CONTRACTS_FAIL setting atmosphere identity\n",stderr);return 1;
     }
