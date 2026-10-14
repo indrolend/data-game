@@ -30,11 +30,17 @@ public:
 private:
     static void drawFacetedRock(const room_environment::EnvironmentPropSpec& prop, int roomSeed, int roomIndex, int propIndex, float zOffset, const VisualColor& color);
     static void drawSlopeWedge(const SlopeSupport& slope, float zOffset, const VisualColor& color);
+    static void drawTaperedSegment(const Vec3& start,const Vec3& end,float startRadius,float endRadius,const VisualColor& color,int sides=8);
+    static void drawFacetedCanopy(const Vec3& center,const Vec3& size,float yaw,const VisualColor& color,unsigned int seed);
     TvGifWall tvGifWall_;
     mutable int width_ = 1280;
     mutable int height_ = 720;
     unsigned int phoneModelList_ = 0;
     unsigned int phoneShadowList_ = 0;
+    unsigned int commonTreeModelList_ = 0;
+    unsigned int twistedTreeModelList_ = 0;
+    unsigned int deadTreeModelList_ = 0;
+    unsigned int pineTreeModelList_ = 0;
     HumanModelData humanModel_;
     mutable std::vector<float> humanVertices_;
     mutable unsigned int datamoshTexture_ = 0;
@@ -48,6 +54,7 @@ private:
     mutable unsigned int sandTexture_ = 0;
     mutable unsigned int sterileTileTexture_ = 0;
     mutable unsigned int birdSpriteTexture_ = 0;
+    mutable unsigned int foliageTexture_ = 0;
     mutable std::vector<unsigned char> phoneDisplayPixels_;
     mutable unsigned long long phoneDisplayCacheKey_ = 0;
     mutable bool phoneDisplayCacheValid_ = false;
@@ -64,6 +71,8 @@ private:
     void drawCityGround(int tileIndex) const;
     static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);
     void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;
+    void drawFoliageCards(const Vec3& center,const Vec3& size,float yaw,const VisualColor& tint,unsigned int seed) const;
+    void drawFieldBackdrop(const GameState& state,int tileIndex) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
     void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;

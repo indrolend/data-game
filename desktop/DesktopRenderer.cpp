@@ -6,6 +6,7 @@
 #include "PhoneDisplayLayout.hpp"
 #include "PhoneStencilReveal.hpp"
 #include "GameplayPhoneModel.hpp"
+#include "CityFacadeGrammar.hpp"
 #include "RenderContracts.hpp"
 #include "MaterialResponse.hpp"
 #include "FieldGrassTexture.hpp"
@@ -71,25 +72,6 @@ struct MenuFontAtlas {
 
 MenuFontAtlas menuRegularFont;
 MenuFontAtlas menuSemiboldFont;
-
-struct MenuPaintAtlas {
-    static constexpr int Width = 512;
-    static constexpr int Height = 512;
-    static constexpr int Cell = 256;
-    std::vector<unsigned char> pixels;
-    bool ready = false;
-
-    bool load(const std::filesystem::path& path) {
-        std::ifstream in(path, std::ios::binary);
-        if (!in) return false;
-        pixels.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-        ready = pixels.size() == static_cast<std::size_t>(Width * Height * 4);
-        if (!ready) pixels.clear();
-        return ready;
-    }
-};
-
-MenuPaintAtlas menuPaintAtlas;
 
 void hashPhoneDisplayValue(std::uint64_t& hash, std::uint64_t value) {
     hash ^= value;
@@ -181,14 +163,23 @@ void cube() {
     glEnd();
 }
 
-void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha) {
+float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,float radius){
+    const float localZ=worldZ-std::floor((worldZ+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH;
+    float height=0.0f;
+    for(int i=0;i<state.debug.colliderCount;++i){const RoomCollider& c=state.roomColliders[i];if(worldX>c.minX-radius&&worldX<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)height=std::max(height,c.topY);}
+    for(int i=0;i<state.slopeSupportCount;++i){const auto sample=sampleSlopeSupport(state.slopeSupports[i],worldX,localZ);if(sample.inside&&sample.classification!=SupportClassification::Steep)height=std::max(height,sample.height);}
+    for(int i=0;i<state.rockSupportCount;++i){const auto sample=faceted_rock::sampleSupportFootprint(state.rockSupports[i],worldX,localZ,radius);if(sample.inside)height=std::max(height,sample.height);}
+    return height;
+}
+
+void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY=0.0f) {
     constexpr int segments = 8;
     const Vec3& sunDirection=render_contract::DesktopSceneLighting.sun.direction;
     const float sunXOverY=sunDirection.x/sunDirection.y;
     const float sunZOverY=sunDirection.z/sunDirection.y;
     const Vec3 center{
         caster.x-height*SHADOW_PROJECTION_SCALE*sunXOverY,
-        0.012f,
+        receiverY+0.012f,
         caster.z-height*SHADOW_PROJECTION_SCALE*sunZOverY
     };
     const float stretch=height*0.16f;
@@ -330,7 +321,6 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     const std::filesystem::path fontRoot = root.parent_path() / "fonts";
     const bool menuRegularLoaded = menuRegularFont.load(fontRoot / "SourceSans3-Regular.ttf");
     const bool menuSemiboldLoaded = menuSemiboldFont.load(fontRoot / "SourceSans3-Semibold.ttf");
-    const bool menuPaintLoaded = menuPaintAtlas.load(root / "menu-direction-paint-atlas.rgba");
     bool birdSpriteLoaded=false;
     {
         constexpr int width=1024,height=256;
@@ -360,6 +350,21 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
         return true;
     };
     const auto materialRoot=root/"materials";
+    bool foliageLoaded=false;
+    {
+        constexpr int size=512;
+        std::ifstream input(materialRoot/"cc0-fir-foliage.rgba",std::ios::binary);
+        std::vector<unsigned char> pixels(std::istreambuf_iterator<char>(input),{});
+        if(pixels.size()==static_cast<std::size_t>(size*size*4)){
+            glGenTextures(1,&foliageTexture_);glBindTexture(GL_TEXTURE_2D,foliageTexture_);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
+            glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,size,size,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+            foliageLoaded=true;
+        }
+    }
     const bool grassPhotoLoaded=loadPhotoMaterial(materialRoot/"photo-grass.rgb",fieldGrassTexture_);
     const bool barkPhotoLoaded=loadPhotoMaterial(materialRoot/"photo-bark.rgb",barkTexture_);
     const bool stonePhotoLoaded=loadPhotoMaterial(materialRoot/"photo-stone-runtime.rgb",stoneTexture_);
@@ -367,10 +372,15 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     const bool sandPhotoLoaded=loadPhotoMaterial(materialRoot/"photo-sand.rgb",sandTexture_);
     const bool sterileTileLoaded=loadPhotoMaterial(materialRoot/"photo-sterile-tile.rgb",sterileTileTexture_);
     StaticModelData phone;
+    StaticModelData commonTree,twistedTree,deadTree,pineTree;
     const bool phoneLoaded=phone.load((root/"phone.dbmesh").string());
     const bool humanLoaded=humanModel_.load((root/"human.dbhuman").string());
     phoneModelList_=phoneLoaded?compileStaticModel(phone):0; phoneShadowList_=phoneLoaded?compileStaticModel(phone,true):0;
-    std::printf("Models: phone=%s flower=prismatic human=%s menuFont=%s/%s menuPaint=%s birds=%s photos=%s/%s/%s/%s/%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",menuPaintLoaded?"atlas":"fallback",birdSpriteLoaded?"v-atlas":"off",grassPhotoLoaded?"grass":"procedural",barkPhotoLoaded?"bark":"off",stonePhotoLoaded?"stone":"off",metalPhotoLoaded?"metal":"off",sandPhotoLoaded?"sand":"off",sterileTileLoaded?"sterile":"off");
+    commonTreeModelList_=commonTree.load((root/"environment"/"common-tree.dbmesh").string())?compileStaticModel(commonTree):0;
+    twistedTreeModelList_=twistedTree.load((root/"environment"/"twisted-tree.dbmesh").string())?compileStaticModel(twistedTree):0;
+    deadTreeModelList_=deadTree.load((root/"environment"/"dead-tree.dbmesh").string())?compileStaticModel(deadTree):0;
+    pineTreeModelList_=pineTree.load((root/"environment"/"pine-tree.dbmesh").string())?compileStaticModel(pineTree):0;
+    std::printf("Models: phone=%s flower=prismatic human=%s trees=%s/%s/%s/%s menuFont=%s/%s birds=%s foliage=%s photos=%s/%s/%s/%s/%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",commonTreeModelList_?"common":"off",twistedTreeModelList_?"twisted":"off",deadTreeModelList_?"dead":"off",pineTreeModelList_?"pine":"off",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",birdSpriteLoaded?"v-atlas":"off",foliageLoaded?"cc0-fir":"fallback",grassPhotoLoaded?"grass":"procedural",barkPhotoLoaded?"bark":"off",stonePhotoLoaded?"stone":"off",metalPhotoLoaded?"metal":"off",sandPhotoLoaded?"sand":"off",sterileTileLoaded?"sterile":"off");
 }
 
 void DesktopRenderer::resize(int width, int height) {
@@ -471,37 +481,6 @@ void cpuRect(CpuCanvas& canvas, float x, float y, float w, float h, float r, flo
     }
 }
 
-void cpuMenuPaint(CpuCanvas& canvas,int frame,float x,float y,float w,float h,
-                  const VisualColor& tint,float opacity) {
-    if(!menuPaintAtlas.ready||w<=0.0f||h<=0.0f||opacity<=0.0f)return;
-    const int safeFrame=std::max(0,std::min(3,frame));
-    const int sourceX=(safeFrame&1)*MenuPaintAtlas::Cell;
-    const int sourceY=(safeFrame>>1)*MenuPaintAtlas::Cell;
-    const int x0=std::max(0,static_cast<int>(std::floor(x)));
-    const int y0=std::max(0,static_cast<int>(std::floor(y)));
-    const int x1=std::min(canvas.w,static_cast<int>(std::ceil(x+w)));
-    const int y1=std::min(canvas.h,static_cast<int>(std::ceil(y+h)));
-    for(int py=y0;py<y1;++py){
-        const float v=clampf((static_cast<float>(py)+0.5f-y)/h,0.0f,0.9999f);
-        const int sy=sourceY+static_cast<int>(v*MenuPaintAtlas::Cell);
-        for(int px=x0;px<x1;++px){
-            const float u=clampf((static_cast<float>(px)+0.5f-x)/w,0.0f,0.9999f);
-            const int sx=sourceX+static_cast<int>(u*MenuPaintAtlas::Cell);
-            const int source=(sy*MenuPaintAtlas::Width+sx)*4;
-            const float sourceAlpha=static_cast<float>(menuPaintAtlas.pixels[source+3])/255.0f;
-            if(sourceAlpha<=0.01f)continue;
-            const float luma=(menuPaintAtlas.pixels[source]*0.22f+menuPaintAtlas.pixels[source+1]*0.70f+menuPaintAtlas.pixels[source+2]*0.08f)/255.0f;
-            const float alpha=sourceAlpha*clampf(opacity,0.0f,1.0f);
-            const float shade=0.58f+luma*0.42f;
-            const int target=(py*canvas.w+px)*4;
-            canvas.pixels[target]=static_cast<unsigned char>(canvas.pixels[target]*(1.0f-alpha)+tint.r*shade*255.0f*alpha);
-            canvas.pixels[target+1]=static_cast<unsigned char>(canvas.pixels[target+1]*(1.0f-alpha)+tint.g*shade*255.0f*alpha);
-            canvas.pixels[target+2]=static_cast<unsigned char>(canvas.pixels[target+2]*(1.0f-alpha)+tint.b*shade*255.0f*alpha);
-            canvas.pixels[target+3]=255;
-        }
-    }
-}
-
 void cpuMeter(CpuCanvas& canvas, float x, float y, float w, float h, float fill, VisualColor color, float alpha = 0.82f) {
     cpuRect(canvas, x, y, w, h, 0.005f, 0.020f, 0.025f, 0.68f);
     cpuRect(canvas, x, y, w, 2.0f, VisualIdentity::ElectricCyan.r, VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, 0.30f);
@@ -598,6 +577,33 @@ void cpuStencilText(CpuCanvas& canvas,const std::string& text,float x,float base
             }
             stbtt_FreeBitmap(bitmap,nullptr);
             if((seed&3u)!=0u&&reveal>0.0f&&reveal<1.0f){const float fleck=std::max(1.0f,px*0.025f);cpuRect(canvas,pen+jitterX+travel*1.7f,baseline-px*0.45f,fleck,fleck,r,g,b,a*0.28f);}
+        }
+        pen+=static_cast<float>(advance)*scale*phone_stencil::HorizontalScale+px*phone_stencil::TrackingEm;previous=c;
+    }
+}
+
+// Selection paint belongs to each glyph, not to a stretched panel texture.
+// The full label seeds stable variation so it feels handmade without flicker.
+void cpuLetterSplatter(CpuCanvas& canvas,const std::string& text,float x,float baseline,float px,
+                       const VisualColor& color,float opacity,int gesture,bool centered=false) {
+    const MenuFontAtlas& font=cpuMenuFont(true);if(!font.cpuReady||text.empty()||opacity<=0.0f)return;
+    float pen=centered?x-cpuStencilTextWidth(text,px)*0.5f:x;
+    const float scale=stbtt_ScaleForPixelHeight(&font.info,px);
+    std::uint32_t seed=phone_stencil::textSeed(text)^static_cast<std::uint32_t>(gesture*0x9e3779b9u);int previous=0;
+    const float direction=gesture==2?-1.0f:(gesture==3?1.0f:0.0f);
+    for(std::size_t i=0;i<text.size();++i){
+        const unsigned char c=static_cast<unsigned char>(text[i]);seed=phone_stencil::glyphSeed(seed,c,i);
+        if(previous)pen+=static_cast<float>(stbtt_GetCodepointKernAdvance(&font.info,previous,c))*scale*phone_stencil::HorizontalScale;
+        int advance=0,bearing=0;stbtt_GetCodepointHMetrics(&font.info,c,&advance,&bearing);
+        if(c!=' '){
+            const std::string glyph(1,static_cast<char>(c));
+            const float randomX=(static_cast<float>((seed>>4)&15u)-7.5f)*px*0.018f;
+            const float randomY=(static_cast<float>((seed>>9)&15u)-7.5f)*px*0.012f;
+            const float thrust=direction*(px*(0.10f+static_cast<float>((seed>>14)&7u)*0.015f));
+            cpuStencilText(canvas,glyph,pen+randomX+thrust,baseline+randomY,px,color.r,color.g,color.b,opacity*0.30f,1.0f);
+            cpuStencilText(canvas,glyph,pen-randomX*0.42f+thrust*0.48f,baseline-randomY*0.55f,px,color.r,color.g,color.b,opacity*0.18f,1.0f);
+            const float drop=std::max(1.0f,px*(0.025f+static_cast<float>((seed>>18)&3u)*0.008f));
+            cpuRect(canvas,pen+randomX+thrust*1.35f,baseline-px*(0.30f+static_cast<float>((seed>>21)&7u)*0.045f),drop,drop,color.r,color.g,color.b,opacity*0.55f);
         }
         pen+=static_cast<float>(advance)*scale*phone_stencil::HorizontalScale+px*phone_stencil::TrackingEm;previous=c;
     }
@@ -730,6 +736,10 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         cpuStencilText(canvas,soulValue,360.0f-cpuTextWidth(soulValue,42.0f,true)*0.5f,930.0f,42.0f,
             stored.r,stored.g,stored.b,0.88f,reveal);
 
+        const std::string memoryValue="MEMORY "+std::to_string(phone.unlockedMaterialMemories)+" / 3";
+        cpuStencilText(canvas,memoryValue,360.0f-cpuTextWidth(memoryValue,25.0f,false)*0.5f,1136.0f,25.0f,
+            stable.r,stable.g,stable.b,0.48f,reveal);
+
         if(phone.supplementalActive){
             const std::string power="POWER "+std::to_string(phone.flowerStacks);
             cpuStencilText(canvas,power,84.0f,1030.0f,30.0f,stored.r,stored.g,stored.b,0.74f,reveal);
@@ -794,26 +804,18 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             continue;
         }
         const PhoneMenuEmphasis emphasis=phoneMenuEmphasis(row.action);
-        if (selected) {
-            const float response=clampf(state.cinematic.textInteraction,0.0f,1.0f);
-            const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
-                (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:channelAccent);
-            if(menuPaintAtlas.ready){
-                const int gesture=response>0.035f?state.cinematic.menuPaintGesture:0;
-                const float overscan=gesture>=2?30.0f:12.0f;
-                cpuMenuPaint(canvas,gesture,row.visual.x-overscan,row.visual.y-10.0f,
-                    row.visual.w+overscan*2.0f,row.visual.h+20.0f,focusColor,0.11f+response*0.27f);
-            }else{
-                cpuRect(canvas,row.visual.x+18.0f,row.visual.y+7.0f,row.visual.w-36.0f,row.visual.h-14.0f,
-                    focusColor.r,focusColor.g,focusColor.b,0.075f+response*0.055f);
-            }
-        }
+        const float response=selected?clampf(state.cinematic.textInteraction,0.0f,1.0f):0.0f;
+        const int gesture=response>0.035f?state.cinematic.menuPaintGesture:0;
+        const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
+            (emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:channelAccent);
         const float alpha = selected ? 1.0f : 0.72f;
         if (row.kind == PhoneMenuRowKind::TwoColumn) {
             const VisualColor labelColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f};
+            if(selected)cpuLetterSplatter(canvas,row.label,row.labelX,row.baselineY,row.fontPx,focusColor,0.36f+response*0.34f,gesture);
             cpuStencilText(canvas,row.label,row.labelX,row.baselineY,row.fontPx,labelColor.r,labelColor.g,labelColor.b,alpha,stencilAge);
             const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
+            if(selected)cpuLetterSplatter(canvas,row.value,valueLeft,row.baselineY,row.fontPx,focusColor,0.28f+response*0.26f,gesture);
             cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?channelAccent.r:VisualIdentity::MetallicTeal.r,selected?channelAccent.g:VisualIdentity::MetallicTeal.g,selected?channelAccent.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
             const float amount=phoneMenuVisualAmount(row.action,state.localSettings);
             if(amount>=0.0f&&row.horizontal==PhoneMenuHorizontal::Adjust){
@@ -829,6 +831,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;
             const VisualColor actionColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
                 (selected&&emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f});
+            if(selected)cpuLetterSplatter(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,focusColor,0.38f+response*0.36f,gesture,centered);
             cpuStencilText(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,actionColor.r,actionColor.g,actionColor.b,alpha,stencilAge,centered);
         }
     }
@@ -1224,10 +1227,90 @@ void DesktopRenderer::drawBirdFlocks(const GameState& state,int tileIndex,room_e
     glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_TEXTURE_2D);glEnable(GL_LIGHTING);
 }
 
+void DesktopRenderer::drawFoliageCards(const Vec3& center,const Vec3& size,float yaw,const VisualColor& tint,unsigned int seed) const{
+    if(!foliageTexture_){drawFacetedCanopy(center,size,yaw,tint,seed);return;}
+    glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,foliageTexture_);
+    glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,0.30f);
+    glDisable(GL_CULL_FACE);glColor3f(tint.r,tint.g,tint.b);
+    for(int plane=0;plane<3;++plane){
+        const float angle=yaw+static_cast<float>(plane)*PI/3.0f;
+        const Vec3 right{std::cos(angle)*size.x*0.5f,0,std::sin(angle)*size.z*0.5f};
+        const Vec3 down{0,size.y*0.5f,0};
+        const float uFlip=room_environment::unit(seed+static_cast<unsigned int>(plane)*17u)>0.5f?1.0f:0.0f;
+        glBegin(GL_QUADS);glNormal3f(-std::sin(angle),0,std::cos(angle));
+        glTexCoord2f(uFlip,1);glVertex3f(center.x-right.x-down.x,center.y-down.y,center.z-right.z-down.z);
+        glTexCoord2f(1.0f-uFlip,1);glVertex3f(center.x+right.x-down.x,center.y-down.y,center.z+right.z-down.z);
+        glTexCoord2f(1.0f-uFlip,0);glVertex3f(center.x+right.x+down.x,center.y+down.y,center.z+right.z+down.z);
+        glTexCoord2f(uFlip,0);glVertex3f(center.x-right.x+down.x,center.y+down.y,center.z-right.z+down.z);glEnd();
+    }
+    glEnable(GL_CULL_FACE);glDisable(GL_ALPHA_TEST);glDisable(GL_TEXTURE_2D);
+}
+
+void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) const{
+    if(!commonTreeModelList_||!twistedTreeModelList_||!deadTreeModelList_||!pineTreeModelList_)return;
+    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH;
+    const unsigned int key=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<unsigned int>((tileIndex+5)*0x9e3779b9u);
+    struct Dressing { float x,z,height,yaw; unsigned int list; float widthCorrection; };
+    // Asymmetric edge groups frame the playable clearing. They are visual
+    // history rather than obstacles, so the central route remains honest.
+    const float driftA=(room_environment::unit(key+1u)-0.5f)*2.4f;
+    const float driftB=(room_environment::unit(key+2u)-0.5f)*2.8f;
+    const Dressing group[]{
+        {-14.15f,-15.0f+driftA,7.6f, 0.10f,pineTreeModelList_,0.78f},
+        {-13.65f, -7.4f+driftB,5.4f,-0.18f,commonTreeModelList_,0.94f},
+        { 14.20f,  4.8f-driftA,6.7f, 0.36f,twistedTreeModelList_,0.82f},
+        { 13.80f, 13.6f-driftB,8.4f,-0.12f,pineTreeModelList_,0.76f},
+        {-13.95f, 15.7f+driftA,4.1f, 0.58f,deadTreeModelList_,0.88f},
+    };
+    glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
+    for(const auto& tree:group){
+        drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f);
+    }
+    glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
+    for(const auto& tree:group){
+        const float familyVariation=0.92f+room_environment::unit(key+static_cast<unsigned int>((tree.z+20.0f)*17.0f))*0.16f;
+        const float height=tree.height*familyVariation;
+        drawStaticModel(tree.list,{tree.x,0.006f,z0+tree.z},{height*tree.widthCorrection,height,height*tree.widthCorrection},quaternionFromEulerXYZ(0,tree.yaw,0));
+    }
+}
+
 void DesktopRenderer::drawFacetedRock(const room_environment::EnvironmentPropSpec& prop,int roomSeed,int roomIndex,int propIndex,float zOffset,const VisualColor& color){
     const auto mesh=faceted_rock::makeMesh(prop,roomSeed,roomIndex,propIndex,zOffset);
     gradedColor(color.r,color.g,color.b);glBegin(GL_TRIANGLES);
     for(int i=0;i<mesh.vertexCount;++i){glNormal3f(mesh.normals[i*3],mesh.normals[i*3+1],mesh.normals[i*3+2]);glVertex3f(mesh.positions[i*3],mesh.positions[i*3+1],mesh.positions[i*3+2]);}
+    glEnd();
+}
+
+void DesktopRenderer::drawTaperedSegment(const Vec3& start,const Vec3& end,float startRadius,float endRadius,const VisualColor& color,int sides){
+    const Vec3 axis=end-start;const float axisLength=length(axis);if(axisLength<0.001f)return;
+    const Vec3 up=axis*(1.0f/axisLength),reference=std::abs(up.y)>0.92f?Vec3{1,0,0}:Vec3{0,1,0};
+    const Vec3 right=normalized(cross3(up,reference)),forward=normalized(cross3(right,up));
+    gradedColor(color.r,color.g,color.b);glBegin(GL_TRIANGLES);
+    for(int side=0;side<sides;++side){
+        const float a0=2.0f*PI*static_cast<float>(side)/sides,a1=2.0f*PI*static_cast<float>(side+1)/sides;
+        const Vec3 radial0=right*std::cos(a0)+forward*std::sin(a0),radial1=right*std::cos(a1)+forward*std::sin(a1);
+        const Vec3 b0=start+radial0*startRadius,b1=start+radial1*startRadius,t0=end+radial0*endRadius,t1=end+radial1*endRadius;
+        const Vec3 n0=normalized(radial0*axisLength-up*(endRadius-startRadius)),n1=normalized(radial1*axisLength-up*(endRadius-startRadius));
+        glNormal3f(n0.x,n0.y,n0.z);glVertex3f(b0.x,b0.y,b0.z);glNormal3f(n1.x,n1.y,n1.z);glVertex3f(b1.x,b1.y,b1.z);glNormal3f(n1.x,n1.y,n1.z);glVertex3f(t1.x,t1.y,t1.z);
+        glNormal3f(n0.x,n0.y,n0.z);glVertex3f(b0.x,b0.y,b0.z);glNormal3f(n1.x,n1.y,n1.z);glVertex3f(t1.x,t1.y,t1.z);glNormal3f(n0.x,n0.y,n0.z);glVertex3f(t0.x,t0.y,t0.z);
+        glNormal3f(-up.x,-up.y,-up.z);glVertex3f(start.x,start.y,start.z);glVertex3f(b1.x,b1.y,b1.z);glVertex3f(b0.x,b0.y,b0.z);
+        glNormal3f(up.x,up.y,up.z);glVertex3f(end.x,end.y,end.z);glVertex3f(t0.x,t0.y,t0.z);glVertex3f(t1.x,t1.y,t1.z);
+    }
+    glEnd();
+}
+
+void DesktopRenderer::drawFacetedCanopy(const Vec3& center,const Vec3& size,float yaw,const VisualColor& color,unsigned int seed){
+    constexpr int sides=8;const float phase=yaw+static_cast<float>(seed&7u)*0.071f;
+    const auto point=[&](int ring,int side){
+        const float angle=phase+2.0f*PI*static_cast<float>(side)/sides;
+        const float irregular=0.88f+0.12f*room_environment::unit(seed+static_cast<unsigned int>(ring*19+side*7));
+        const float ringRadius=ring==0?0.40f:(ring==1?0.52f:0.35f),ringY=ring==0?-0.22f:(ring==1?0.08f:0.30f);
+        return center+Vec3{std::cos(angle)*size.x*ringRadius*irregular,size.y*ringY,std::sin(angle)*size.z*ringRadius*irregular};
+    };
+    const Vec3 bottom=center-Vec3{0,size.y*0.42f,0},top=center+Vec3{0,size.y*0.48f,0};
+    gradedColor(color.r,color.g,color.b);glBegin(GL_TRIANGLES);
+    const auto emit=[&](const Vec3& a,const Vec3& b,const Vec3& c){const Vec3 n=triangle_geometry::faceNormalOrZero(a,b,c);glNormal3f(n.x,n.y,n.z);glVertex3f(a.x,a.y,a.z);glVertex3f(b.x,b.y,b.z);glVertex3f(c.x,c.y,c.z);};
+    for(int side=0;side<sides;++side){const int next=(side+1)%sides;const Vec3 a=point(0,side),b=point(0,next),c=point(1,side),d=point(1,next),e=point(2,side),f=point(2,next);emit(bottom,b,a);emit(a,b,d);emit(a,d,c);emit(c,d,f);emit(c,f,e);emit(e,f,top);}
     glEnd();
 }
 
@@ -1248,6 +1331,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     const float topY = doorHeight + topH * 0.5f;
     const float wallR = VisualIdentity::RoomWall.r, wallG = VisualIdentity::RoomWall.g, wallB = VisualIdentity::RoomWall.b;
     const bool field=plan.setting==room_environment::RoomSetting::Field,sterile=plan.setting==room_environment::RoomSetting::Sterile,coastal=plan.setting==room_environment::RoomSetting::Coastal;
+    const bool openNatural=(field&&plan.form==room_environment::RoomForm::Open)||coastal;
     const std::uint32_t realityKey=room_environment::roomKey(state.roomSeed,state.roomIndex);
     const bool mutationEligible=state.roomIndex>=8&&!state.roomInspector;
     const auto& permanent=state.progression.permanent;
@@ -1261,7 +1345,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         if(sterile){const ScopedMaterial material(semanticMaterial(SemanticSurface::SterilePanel,{r,g,b}));drawTexturedBox(sterileTileTexture_,center,size,pitch,yaw,roll,{r*0.82f,g*0.86f,b*0.88f},1.34f,std::fmod(std::abs(center.x*0.071f+center.z*0.037f),1.0f));}
         else drawBox(center,size,pitch,yaw,roll,r,g,b);
     };
-    drawBox({0,-0.04f,z0},{ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
+    drawBox({0,-0.04f,z0},{openNatural?ROOM_WIDTH*2.8f:ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
     if(field&&plan.form==room_environment::RoomForm::Open){
         if(festiveMutation||gummyMutation)drawTexturedBox(sandTexture_,{0,0.005f,z0},{ROOM_WIDTH-0.55f,0.018f,ROOM_DEPTH-0.55f},0,0,0,festiveMutation?VisualColor{0.86f,0.94f,0.98f}:VisualColor{1.0f,0.46f,0.86f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
         else drawFieldGrass(tileIndex);
@@ -1275,13 +1359,28 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture)drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity,fixture.color.g*fixture.intensity,fixture.color.b*fixture.intensity);}
         glEnable(GL_LIGHTING);
     }
-    for (float seam : {-ROOM_DEPTH*0.5f, ROOM_DEPTH*0.5f}) {
-        drawStructuralBox({-sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
-        drawStructuralBox({ sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
-        drawStructuralBox({0,topY,z0+seam},{doorWidth,topH,0.5f},0,0,0,wallR,wallG,wallB);
+    if(openNatural){
+        const VisualColor earth=field?VisualColor{0.25f,0.40f,0.26f}:VisualColor{0.43f,0.39f,0.29f};
+        for(int side=-1;side<=1;side+=2)for(int mound=0;mound<3;++mound){
+            const Vec3 center{side*(ROOM_WIDTH*0.67f+mound*3.8f),0.55f+0.22f*mound,z0-ROOM_DEPTH*0.30f+mound*ROOM_DEPTH*0.28f};
+            drawFacetedCanopy(center,{12.0f+mound*2.5f,4.8f+mound*0.7f,18.0f},0,earth,realityKey+static_cast<unsigned int>(side*19+mound*71+200));
+        }
+        for(float seam:{-ROOM_DEPTH*0.5f,ROOM_DEPTH*0.5f}){
+            const VisualColor frame=field?VisualColor{0.20f,0.27f,0.22f}:VisualColor{0.33f,0.36f,0.34f};
+            drawBox({-doorWidth*0.56f,doorHeight*0.48f,z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({ doorWidth*0.56f,doorHeight*0.48f,z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({0,doorHeight*0.96f,z0+seam},{doorWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+        }
+        if(field)drawFieldBackdrop(state,tileIndex);
+    }else{
+        for (float seam : {-ROOM_DEPTH*0.5f, ROOM_DEPTH*0.5f}) {
+            drawStructuralBox({-sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
+            drawStructuralBox({ sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
+            drawStructuralBox({0,topY,z0+seam},{doorWidth,topH,0.5f},0,0,0,wallR,wallG,wallB);
+        }
+        drawStructuralBox({-ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
+        drawStructuralBox({ ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
     }
-    drawStructuralBox({-ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
-    drawStructuralBox({ ROOM_WIDTH*0.5f,ROOM_WALL_HEIGHT*0.5f,z0},{0.5f,ROOM_WALL_HEIGHT,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
     // Render-only mid-scale composition. These pieces break up room-sized slabs
     // without changing collision, traversal, or the authored capacity plan.
     if(field){
@@ -1335,8 +1434,16 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         const VisualColor basePhotoTint=sterile?VisualColor{0.72f,0.75f,0.74f}:
             (plan.setting==room_environment::RoomSetting::City?VisualColor{0.68f,0.72f,0.75f}:
             (coastal?VisualColor{0.82f,0.80f,0.68f}:VisualColor{0.74f,0.78f,0.68f}));
-        const VisualColor photoTint=wireframeMutation?VisualColor{0.12f,0.15f,0.18f}:(gummyMutation?(i&1?VisualColor{0.98f,0.42f,0.72f}:VisualColor{0.36f,0.90f,0.82f}):basePhotoTint);
-        drawTexturedBox(obstacleTexture,{c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,photoTint,1.8f,materialPhase);
+        // Related surfaces share a material family without sharing one exact
+        // swatch. The deterministic warm/cool drift avoids a patchwork look
+        // while breaking up the old room-wide color uniformity.
+        const float warm=0.92f+materialPhase*0.14f,cool=1.06f-materialPhase*0.11f,green=0.96f+std::sin(materialPhase*6.28318f)*0.045f;
+        const VisualColor variedPhotoTint={basePhotoTint.r*warm,basePhotoTint.g*green,basePhotoTint.b*cool};
+        const VisualColor photoTint=wireframeMutation?VisualColor{0.12f,0.15f,0.18f}:(gummyMutation?(i&1?VisualColor{0.98f,0.42f,0.72f}:VisualColor{0.36f,0.90f,0.82f}):variedPhotoTint);
+        if(plan.setting==room_environment::RoomSetting::City){
+            const VisualColor plaster=(i%3)==0?VisualColor{0.40f,0.38f,0.34f}:((i%3)==1?VisualColor{0.34f,0.37f,0.38f}:VisualColor{0.42f,0.36f,0.33f});
+            drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,plaster.r,plaster.g,plaster.b);
+        }else drawTexturedBox(obstacleTexture,{c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,photoTint,1.8f,materialPhase);
         if(wireframeMutation){glDisable(GL_LIGHTING);glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width+0.018f,c.height+0.018f,c.depth+0.018f},0,0,0,(i&1)?0.92f:0.18f,0.24f,(i&1)?0.78f:0.94f);glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);glEnable(GL_LIGHTING);}
         if(gummyMutation){const float pulse=0.015f+0.012f*std::sin(state.time*2.2f+i);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width+pulse,c.height+pulse,c.depth+pulse},0,0,0,(i&1)?0.98f:0.28f,(i&1)?0.34f:0.92f,(i&1)?0.66f:0.78f,0.16f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);}
         // A shallow dark plinth provides contact and a worn cap catches the
@@ -1348,8 +1455,48 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             const float faceZ=z0+c.center.z-c.depth*0.5f-0.014f;
             drawBox({c.center.x,c.center.y,faceZ},{c.width*0.64f,c.height*0.52f,0.022f},0,0,0,obstacleColor.r*0.66f,obstacleColor.g*0.72f,obstacleColor.b*0.76f);
             glDisable(GL_LIGHTING);drawBox({c.center.x,c.center.y+c.height*0.22f,faceZ-0.014f},{c.width*0.46f,0.025f,0.012f},0,0,0,0.28f,0.70f,0.76f);glEnable(GL_LIGHTING);
+            for(float side:{-1.0f,1.0f})drawBox({c.center.x+side*c.width*0.43f,c.center.y,faceZ-0.022f},{0.045f,c.height*0.82f,0.035f},0,0,0,0.20f,0.24f,0.25f);
+            if(c.height>1.25f){for(float side:{-1.0f,1.0f})drawBox({c.center.x+side*c.width*0.32f,0.075f,z0+c.center.z},{0.12f,0.15f,c.depth*0.64f},0,0,0,0.18f,0.21f,0.21f);}
         }else if(plan.setting==room_environment::RoomSetting::City){
-            drawBox({c.center.x,c.center.y+c.height*0.18f,z0+c.center.z-c.depth*0.5f-0.012f},{c.width*0.72f,0.055f,0.018f},0,0,0,0.46f,0.40f,0.30f);
+            // Buildings line the sides of the route, so their authored facade
+            // faces inward along X.  The old decoration was placed on -Z and
+            // was practically invisible during play.
+            const float inward=c.center.x>0.0f?-1.0f:1.0f;
+            const float faceX=c.center.x+inward*(c.width*0.5f+0.014f);
+            const unsigned int facadeKey=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<unsigned int>((i+1)*0x9e3779b9u);
+            const auto facade=city_facade::grammar(c.depth,c.height,facadeKey);
+            const VisualColor frame=facade.family==0?VisualColor{0.24f,0.25f,0.24f}:(facade.family==1?VisualColor{0.29f,0.25f,0.21f}:VisualColor{0.17f,0.20f,0.21f});
+            const VisualColor glass=facade.family==1?VisualColor{0.055f,0.075f,0.082f}:VisualColor{0.026f,0.046f,0.058f};
+            const float facadeZ=z0+c.center.z;
+            // Base, corner piers, cornice and crown establish a readable
+            // construction hierarchy before any windows are added.
+            drawBox({faceX,c.bottomY+facade.baseHeight*0.5f,facadeZ},{0.055f,facade.baseHeight,c.depth*1.015f},0,0,0,frame.r*0.72f,frame.g*0.72f,frame.b*0.72f);
+            for(float edge:{-1.0f,1.0f})drawBox({faceX,c.center.y,facadeZ+edge*c.depth*0.48f},{0.065f,c.height*0.94f,0.10f},0,0,0,frame.r,frame.g,frame.b);
+            for(int story=0;story<facade.stories;++story){
+                const float y=city_facade::storyCenter(facade,story,c.bottomY);
+                const float courseY=c.bottomY+static_cast<float>(story+1)*facade.storyHeight-facade.corniceHeight*0.5f;
+                drawBox({faceX,courseY,facadeZ},{0.070f,facade.corniceHeight,c.depth*0.985f},0,0,0,frame.r,frame.g,frame.b);
+                for(int bay=0;bay<facade.bays;++bay){
+                    const float z=city_facade::bayCenter(facade,bay,facadeZ);
+                    const bool entrance=story==0&&bay==facade.entranceBay;
+                    const float openingW=facade.bayWidth*(entrance?0.58f:facade.windowWidthRatio);
+                    const float openingH=entrance?facade.storyHeight*0.70f:facade.storyHeight*facade.windowHeightRatio;
+                    const float openingY=entrance?c.bottomY+openingH*0.5f+facade.baseHeight*0.18f:y+facade.storyHeight*0.04f;
+                    drawBox({faceX+inward*facade.recessDepth,openingY,z},{0.034f,openingH,openingW},0,0,0,glass.r,glass.g,glass.b);
+                    const float jamb=std::max(0.025f,facade.bayWidth*0.035f);
+                    for(float edge:{-1.0f,1.0f})drawBox({faceX+inward*0.012f,openingY,z+edge*openingW*0.53f},{0.055f,openingH*1.08f,jamb},0,0,0,frame.r,frame.g,frame.b);
+                    drawBox({faceX+inward*0.012f,openingY+openingH*0.54f,z},{0.055f,jamb,openingW*1.10f},0,0,0,frame.r,frame.g,frame.b);
+                    drawBox({faceX+inward*0.020f,openingY-openingH*0.55f,z},{0.075f,jamb*1.25f,openingW*1.16f},0,0,0,frame.r*1.14f,frame.g*1.12f,frame.b*1.08f);
+                    if(!entrance){
+                        drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.035f,openingW*0.94f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
+                        drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.94f,openingW*0.025f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
+                    }else{
+                        drawBox({faceX+inward*0.07f,c.bottomY+0.045f,z},{0.18f,0.09f,openingW*1.35f},0,0,0,0.18f,0.18f,0.17f);
+                    }
+                }
+            }
+            drawBox({c.center.x,c.topY+facade.crownHeight*0.5f,z0+c.center.z},{c.width*1.035f,facade.crownHeight,c.depth*1.035f},0,0,0,frame.r*1.08f,frame.g*1.06f,frame.b*1.02f);
+            if(c.height>1.8f){drawBox({c.center.x-inward*c.width*0.20f,c.topY+facade.crownHeight+0.13f,z0+c.center.z+c.depth*0.18f},{c.width*0.24f,0.26f,c.depth*0.22f},0,0,0,0.23f,0.25f,0.25f);drawBox({c.center.x+inward*c.width*0.18f,c.topY+facade.crownHeight+0.10f,z0+c.center.z-c.depth*0.16f},{0.08f,0.20f,0.08f},0,0,0,0.16f,0.18f,0.18f);}
         }else if(field||coastal){
             const VisualColor growth=field?VisualColor{0.16f,0.34f,0.19f}:VisualColor{0.46f,0.48f,0.36f};
             drawBox({c.center.x,0.055f,z0+c.center.z-c.depth*0.46f},{c.width*0.76f,0.065f,0.035f},0,0,0,growth.r,growth.g,growth.b);
@@ -1375,20 +1522,82 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         if(!geometry.propIncluded[i])continue;
         const auto prop=room_environment::environmentProp(plan,state.roomSeed,state.roomIndex,i);const Vec3 p=prop.center+Vec3{0,0,z0};
         using room_environment::EnvironmentPrimitive;
-        if(prop.primitive==EnvironmentPrimitive::House){int partIndex=0;for(const auto& part:house_geometry::parts(prop,z0)){const float variation=0.92f+0.045f*static_cast<float>((partIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.40f*variation,0.47f*variation,0.50f*variation}:(part.surface==3?VisualColor{0.05f,0.08f,0.09f}:VisualColor{(part.surface==1?0.30f:0.26f)*variation,(part.surface==1?0.37f:0.32f)*variation,(part.surface==1?0.41f:0.36f)*variation});drawBox(part.center,part.size,0,part.yaw,0,color.r,color.g,color.b);}drawBox({p.x,0.028f,p.z},{prop.size.x*0.82f,0.04f,prop.size.z*0.82f},0,prop.yaw,0,0.10f,0.15f,0.15f);}
+        if(prop.primitive==EnvironmentPrimitive::House){
+            int partIndex=0;for(const auto& part:house_geometry::parts(prop,z0)){const float variation=0.92f+0.045f*static_cast<float>((partIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.40f*variation,0.47f*variation,0.50f*variation}:(part.surface==3?VisualColor{0.035f,0.045f,0.048f}:VisualColor{(part.surface==1?0.30f:0.26f)*variation,(part.surface==1?0.37f:0.32f)*variation,(part.surface==1?0.41f:0.36f)*variation});if(part.surface==0)drawTexturedBox(plan.setting==room_environment::RoomSetting::City?metalTexture_:stoneTexture_,part.center,part.size,0,part.yaw,0,color,1.35f,std::fmod((prop.variant+partIndex)*0.173f,1.0f));else drawBox(part.center,part.size,0,part.yaw,0,color.r,color.g,color.b);}
+            const Vec3 front{std::sin(prop.yaw),0,std::cos(prop.yaw)},right{std::cos(prop.yaw),0,-std::sin(prop.yaw)};
+            const Vec3 face=p+front*(prop.size.z*0.505f);
+            drawBox({p.x,0.028f,p.z},{prop.size.x*0.88f,0.055f,prop.size.z*0.88f},0,prop.yaw,0,0.07f,0.10f,0.10f);
+            drawBox(p+Vec3{0,prop.size.y*0.79f,0},{prop.size.x*1.06f,0.075f,prop.size.z*1.06f},0,prop.yaw,0,0.18f,0.22f,0.23f);
+            for(float side:{-1.0f,1.0f}){
+                const Vec3 window=face+right*(side*prop.size.x*0.255f)+Vec3{0,prop.size.y*0.47f,0}+front*0.012f;
+                drawBox(window,{prop.size.x*0.23f,prop.size.y*0.20f,0.028f},0,prop.yaw,0,0.025f,0.035f,0.040f);
+                drawBox(window+Vec3{0,prop.size.y*0.105f,0},{prop.size.x*0.27f,0.025f,0.045f},0,prop.yaw,0,0.42f,0.48f,0.47f);
+                drawBox(window-Vec3{0,prop.size.y*0.105f,0},{prop.size.x*0.27f,0.025f,0.045f},0,prop.yaw,0,0.28f,0.32f,0.32f);
+                drawBox(window,{0.024f,prop.size.y*0.23f,0.045f},0,prop.yaw,0,0.34f,0.39f,0.39f);
+            }
+            const Vec3 step=face+Vec3{0,0.055f,0}+front*0.24f;
+            drawBox(step,{prop.size.x*0.34f,0.11f,0.46f},0,prop.yaw,0,0.20f,0.22f,0.21f);
+        }
         else if(prop.primitive==EnvironmentPrimitive::Tree){
-            int trunkIndex=0;for(const auto& part:tree_geometry::trunkParts(prop,z0)){const float shade=static_cast<float>(trunkIndex++);drawTexturedBox(barkTexture_,part.center,part.size,0,part.yaw,0,{0.78f+shade*0.025f,0.73f+shade*0.018f,0.65f},0.72f,std::fmod((prop.variant+shade)*0.173f,1.0f));}
+            const unsigned int treeSeed=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<unsigned int>((i+1)*0x45d9f3bu);
+            const auto treeProfile=tree_geometry::profile(prop);
+            const unsigned int authoredTree=treeProfile.archetype==tree_geometry::Archetype::Broad?commonTreeModelList_:
+                (treeProfile.archetype==tree_geometry::Archetype::WindShaped?twistedTreeModelList_:pineTreeModelList_);
+            if(authoredTree){
+                const float widthCorrection=treeProfile.archetype==tree_geometry::Archetype::Broad?0.94f:
+                    (treeProfile.archetype==tree_geometry::Archetype::WindShaped?0.82f:0.77f);
+                // The converted models are one unit tall and grounded at Y=0.
+                // Preserve their authored proportions, using prop height as the
+                // single source of truth for climbing and world scale.
+                glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
+                drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f);
+                glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
+                drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection,prop.size.y,prop.size.y*widthCorrection},quaternionFromEulerXYZ(0,prop.yaw,0));
+                const VisualColor bark{0.28f,0.205f,0.13f};
+                const float rootRadius=std::max(prop.size.x,prop.size.z)*0.075f;
+                for(int root=0;root<3;++root){
+                    const float angle=prop.yaw+static_cast<float>(root)*PI*2.0f/3.0f+room_environment::unit(treeSeed+root)*0.22f;
+                    const Vec3 rootEnd=p+Vec3{std::cos(angle)*rootRadius*3.2f,0.018f,std::sin(angle)*rootRadius*3.2f};
+                    drawTaperedSegment(p+Vec3{0,rootRadius*0.30f,0},rootEnd,rootRadius*0.42f,0.018f,bark,6);
+                }
+            }else{
+            const VisualColor bark=treeProfile.archetype==tree_geometry::Archetype::Broad?VisualColor{0.30f,0.235f,0.16f}:VisualColor{0.34f,0.27f,0.19f};
+            const float trunkHeight=prop.size.y*treeProfile.trunkHeight,baseRadius=std::max(prop.size.x,prop.size.z)*treeProfile.baseRadius;
+            const Vec3 lean{prop.size.x*treeProfile.leanX,0,prop.size.z*treeProfile.leanZ};
+            const Vec3 trunkBase=p+Vec3{0,0.015f,0},trunkMid=p+Vec3{-prop.size.x*0.025f,trunkHeight*0.56f,prop.size.z*0.018f}+lean*0.38f,trunkTop=p+Vec3{0,trunkHeight,0}+lean;
+            drawTaperedSegment(trunkBase,trunkMid,baseRadius,baseRadius*0.66f,bark,9);
+            drawTaperedSegment(trunkMid,trunkTop,baseRadius*0.68f,baseRadius*0.34f,{0.38f,0.30f,0.21f},8);
+            const int rootCount=treeProfile.archetype==tree_geometry::Archetype::Broad?7:5;
+            for(int root=0;root<rootCount;++root){const float angle=prop.yaw+static_cast<float>(root)*PI*2.0f/static_cast<float>(rootCount)+room_environment::unit(treeSeed+root)*0.28f;const float rootReach=baseRadius*(treeProfile.archetype==tree_geometry::Archetype::Broad?4.2f:3.2f);const Vec3 rootEnd=p+Vec3{std::cos(angle)*rootReach,0.025f,std::sin(angle)*rootReach};drawTaperedSegment(p+Vec3{0,baseRadius*0.34f,0},rootEnd,baseRadius*0.38f,0.025f,bark,6);}
+            for(int branch=0;branch<treeProfile.branchCount;++branch){
+                float angle=prop.yaw+static_cast<float>(branch)*PI*2.0f/static_cast<float>(treeProfile.branchCount)+room_environment::unit(treeSeed+31u+branch)*0.46f;
+                if(treeProfile.archetype==tree_geometry::Archetype::WindShaped)angle=prop.yaw+(branch&1?0.42f:-0.34f);
+                const float branchY=trunkHeight*(0.48f+branch*0.055f),reach=prop.size.x*(0.25f+0.035f*static_cast<float>(branch%3));
+                const Vec3 branchStart=p+Vec3{0,branchY,0}+lean*(branchY/trunkHeight);
+                const Vec3 branchEnd=branchStart+Vec3{std::cos(angle)*reach,prop.size.y*(0.09f+0.018f*(branch&1)),std::sin(angle)*reach};
+                drawTaperedSegment(branchStart,branchEnd,baseRadius*0.34f,baseRadius*0.085f,{0.36f,0.29f,0.20f},7);
+            }
             bool activeClimb=false;
             if(state.player.treeClimbing&&tileIndex==state.topology.currentTileIndex&&state.player.treeCollider>=0&&state.player.treeCollider<state.debug.colliderCount){
                 const RoomCollider& climbTree=state.roomColliders[state.player.treeCollider];
                 activeClimb=climbTree.kind==RoomColliderKind::TreeTrunk&&std::abs(climbTree.center.x-prop.center.x)<0.05f&&std::abs(climbTree.center.z-prop.center.z)<0.05f;
             }
-            for(const auto& part:tree_geometry::crownParts(prop,z0)){
-                const float radius=std::max(part.size.x,part.size.z)*0.58f;
-                const bool occluding=activeClimb&&room_environment::treeFoliageClusterOccludes(state.camera.pos,state.player.pos,part.center,radius);
+            int crownIndex=0;for(const auto& part:tree_geometry::crownParts(prop,z0)){
+                const float normalizedHeight=(part.center.y-p.y)/std::max(0.001f,prop.size.y);
+                Vec3 crownCenter=part.center+lean*std::min(1.0f,normalizedHeight);
+                if(treeProfile.archetype==tree_geometry::Archetype::WindShaped)crownCenter+=Vec3{prop.size.x*0.10f*(0.45f+crownIndex*0.08f),0,-prop.size.z*0.035f};
+                const Vec3 crownSize{part.size.x*treeProfile.crownWidth,part.size.y*treeProfile.crownHeight,part.size.z*treeProfile.crownWidth};
+                const float radius=std::max(crownSize.x,crownSize.z)*0.58f;
+                const bool occluding=activeClimb&&room_environment::treeFoliageClusterOccludes(state.camera.pos,state.player.pos,crownCenter,radius);
                 if(occluding){glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
-                drawBox(part.center,part.size,0,part.yaw,0,0.16f,0.43f,0.23f,occluding?0.28f:1.0f);
+                const float variation=0.88f+0.045f*static_cast<float>((crownIndex+prop.variant)%4);
+                // The CC0 atlas already carries natural hue and value.  Tint
+                // only supplies family/season drift; multiplying it by the
+                // old synthetic foliage color crushed the cards to black.
+                const VisualColor foliage=treeProfile.archetype==tree_geometry::Archetype::Sentinel?VisualColor{0.72f*variation,0.86f*variation,0.74f*variation}:(treeProfile.archetype==tree_geometry::Archetype::Broad?VisualColor{0.82f*variation,0.92f*variation,0.72f*variation}:VisualColor{0.88f*variation,0.88f*variation,0.66f*variation});
+                drawFoliageCards(crownCenter,crownSize,part.yaw,foliage,treeSeed+static_cast<unsigned int>(crownIndex++)*53u);
                 if(occluding){glDepthMask(GL_TRUE);glDisable(GL_BLEND);}
+            }
             }
         }
         else if(prop.primitive==EnvironmentPrimitive::LawnFragment)drawTexturedBox(fieldGrassTexture_,p,prop.size,0,prop.yaw,0,{0.72f,0.84f,0.70f},1.45f,std::fmod(prop.variant*0.219f,1.0f));
@@ -1397,7 +1606,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         else {for(const auto& part:marker_pillar_geometry::parts(prop,z0)){const VisualColor color=part.surface==0?VisualColor{0.70f,0.76f,0.78f}:VisualColor{0.72f,0.90f,0.94f};if(part.surface==0)drawTexturedBox(metalTexture_,part.center,part.size,0,0,0,color,0.92f);else drawBox(part.center,part.size,0,0,0,color.r,color.g,color.b);}}
     }
     drawBirdFlocks(state,tileIndex,plan.setting);
-    if(plan.grass){const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:VisualIdentity::GrassRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:VisualIdentity::GrassTip);glDisable(GL_LIGHTING);glBegin(GL_QUADS);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side,tipL=tip-side*0.62f,tipR=tip+side*0.62f;gradedColor(bladeRoot.r,bladeRoot.g,bladeRoot.b);glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r,bladeTip.g,bladeTip.b);glVertex3f(tipR.x,tipR.y,tipR.z);glVertex3f(tipL.x,tipL.y,tipL.z);}glEnd();glEnable(GL_LIGHTING);}
+    if(plan.grass){const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:VisualIdentity::GrassRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:VisualIdentity::GrassTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
 }
 
 void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
@@ -1532,14 +1741,14 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     }
     if(state.roomInspector){
         const auto& r=state.roomInspectorReport;const float panelW=std::min(780.0f,static_cast<float>(width_)-24.0f),panelX=(width_-panelW)*0.5f;
-        quad(panelX,12,panelW,132,0.005f,0.012f,0.016f,0.82f);quad(panelX,12,panelW,1,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.82f);
+        quad(panelX,12,panelW,148,0.005f,0.012f,0.016f,0.82f);quad(panelX,12,panelW,1,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.82f);
         text(std::string(room_environment::premiseName(r.premise))+"  "+room_environment::settingName(r.setting)+" / "+room_environment::formName(r.form)+" / "+room_environment::scaleName(r.scale)+" / "+room_environment::conditionName(r.condition)+" / INTENT "+room_environment::traversalIntentName(r.traversalIntent),panelX+12,20,1.30f,0.82f,1.0f,0.94f);
         text("SEED "+std::to_string(r.seed)+"  ROOM "+std::to_string(r.roomIndex)+"  ROUTE "+(r.requiredRouteValid?"VALID":"INVALID"),panelX+12,42,1.05f,1.0f,1.0f,1.0f);
         text("SURF "+std::to_string(r.traversalSurfaceCount)+"  EDGE "+std::to_string(r.traversalEdgeCount)+" (REQ "+std::to_string(r.requiredEdgeCount)+")  COLLIDER "+std::to_string(r.colliderCount)+"  PROP "+std::to_string(r.presentationPropCount),panelX+12,61,1.0f,0.72f,0.94f,1.0f);
-        text("ROLE MASS "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Mass)])+"  LANDMARK "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Landmark)])+"  TRAVERSAL "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Traversal)])+"  DETAIL "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Detail)])+"  HUMAN "+std::to_string(gameplay::WORLD_SCALE.humanHeight).substr(0,4)+"  STORY "+std::to_string(gameplay::WORLD_SCALE.storyHeight).substr(0,4),panelX+12,80,0.88f,0.82f,0.94f,1.0f);
-        text("ENEMY "+std::to_string(r.enemyCount)+" / "+std::to_string(r.enemyBudget)+"  TRANSPARENT "+std::to_string(r.transparentPrimitiveCount)+"  VISIBLE~ "+std::to_string(r.visiblePrimitiveEstimate)+"  DRAW "+(r.drawCallBucket==0?"LOW":(r.drawCallBucket==1?"MED":"HIGH")),panelX+12,79,1.0f,0.82f,1.0f,0.88f);
-        text(std::string("[ ] PREMISE  R SEED  E ENEMIES ")+(state.roomInspectorEnemies?"ON":"OFF"),panelX+12,106,1.0f,1.0f,1.0f,1.0f);
-        text("5 KEEP  6 TUNE  7 REDESIGN  8 REMOVE",panelX+12,118,1.0f,0.72f,1.0f,0.74f);
+        text("ROLE MASS "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Mass)])+"  LANDMARK "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Landmark)])+"  TRAVERSAL "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Traversal)])+"  DETAIL "+std::to_string(r.environmentRoleCounts[static_cast<int>(room_environment::EnvironmentRole::Detail)])+"  HUMAN "+std::to_string(gameplay::WORLD_SCALE.humanHeight).substr(0,4)+"  STORY "+std::to_string(gameplay::WORLD_SCALE.storyHeight).substr(0,4),panelX+12,79,0.88f,0.82f,0.94f,1.0f);
+        text("ENEMY "+std::to_string(r.enemyCount)+" / "+std::to_string(r.enemyBudget)+"  TRANSPARENT "+std::to_string(r.transparentPrimitiveCount)+"  VISIBLE~ "+std::to_string(r.visiblePrimitiveEstimate)+"  DRAW "+(r.drawCallBucket==0?"LOW":(r.drawCallBucket==1?"MED":"HIGH")),panelX+12,96,1.0f,0.82f,1.0f,0.88f);
+        text(std::string("[ ] PREMISE  R SEED  E ENEMIES ")+(state.roomInspectorEnemies?"ON":"OFF"),panelX+12,119,1.0f,1.0f,1.0f,1.0f);
+        text("5 KEEP  6 TUNE  7 REDESIGN  8 REMOVE",panelX+12,133,1.0f,0.72f,1.0f,0.74f);
     }
     if((state.traversalLab||state.slopeLab||state.rallyLab||state.roomInspector)&&state.hud.buildLabel[0])
         text(state.hud.buildLabel.data(),12,336,1.0f,0.58f,0.92f,1.0f,0.82f);
@@ -1703,7 +1912,11 @@ lighting_evidence::GlFixedFunctionState observeGlFixedFunctionState(const char* 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
-    const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f+state.energy.dischargePositionAmount});
+    // The screen is an always-on physical object, not an effect that only
+    // exists while attacking. Its idle floor is deliberately modest in day
+    // light but keeps the phone present in night and sealed-room lighting.
+    const float phoneIllumination=0.16f+state.phoneDisplay.localLightIntensity*0.58f+state.vacuum.power*0.42f+state.energy.dischargePositionAmount;
+    const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,phoneIllumination});
     const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
     const bool openSky=roomPlan.setting!=room_environment::RoomSetting::Sterile;
@@ -1791,13 +2004,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto shadowQuality=render_contract::shadowQualityFor(state.localSettings.graphicsPreset,state.localSettings.shadows,true);
     if(shadowQuality==render_contract::ShadowQuality::Cheap){
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f);
-    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f);
+    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f));
+    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f));
     if(!menuPresentation){
     const float shadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f);}
-    for(const auto& flower:state.flowers)if(flower.active)drawGroundShadow({flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin},0.27f,0.27f,0.72f,0.16f);
-    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f);}
+    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver);}
+    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f));}
+    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f));}
     // Static room geometry already provides the receiving floor and its own
     // lighting. Projecting every collider (including room-scale walls) onto the
     // floor created large overlapping black sheets unrelated to visible casters.
@@ -1818,6 +2031,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         for(const auto& bullet:state.bullets)if(bullet.alive){const float size=0.72f*1.12f*(bullet.brute?1.7f:1.0f);drawBox(bullet.pos,{size,size,size},bullet.spin*1.2f,bullet.spin*1.7f,bullet.spin*0.9f,0,0,0);}
         glPopMatrix();glEnable(GL_DEPTH_TEST);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glStencilMask(0);glStencilFunc(GL_EQUAL,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
         glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);drawBox({0,0.014f,shadowTileOrigin},{ROOM_WIDTH,0.008f,ROOM_DEPTH*3.0f},0,0,0,0.012f,0.018f,0.022f,0.24f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);glDisable(GL_STENCIL_TEST);
+        // Directional projection owns the broad silhouette. A quiet support-
+        // aware contact patch closes the gap on rocks, slopes and transition
+        // tiles that are not represented by the old floor-only receiver.
+        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
+        if(!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.18f,0.13f,0.10f,0.13f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f));
+        for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;drawGroundShadow(target.pos,0.18f*target.scale,0.12f*target.scale,0.08f,0.11f,shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f));}
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
     }
 
     if (state.phoneVisual.visible) {
@@ -1832,6 +2052,10 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*pv.screenScale.x,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*pv.screenScale.y,PHONE_SCREEN_DEPTH*0.30f},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);}
         if(state.phoneDisplay.mode!=PhoneDisplayMode::Off&&state.phoneDisplay.mode!=PhoneDisplayMode::Death)
             drawPhoneDisplayTexture(state);
+        const float idleScreenAura=0.055f+(openSky?1.0f-render_contract::celestialDaylight(atmosphereInputs.time):0.42f)*0.085f;
+        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);
+        drawBox(state.phoneTransform.screenCenter+state.phoneTransform.screenNormal*0.010f,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*1.055f,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*1.035f,PHONE_SCREEN_DEPTH*0.18f},phoneOrientation,state.phoneDisplay.emissionColor.x,state.phoneDisplay.emissionColor.y,state.phoneDisplay.emissionColor.z,idleScreenAura);
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
         const float captureAura=clampf(pv.captureContactAmount*0.72f+std::max(0.0f,pv.ingestBulge)*0.58f+captureActivity*0.34f+completionAfterglow*0.42f,0.0f,1.0f);
         if(captureAura>0.015f){glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);const float pulse=0.92f+0.08f*std::sin(state.time*24.0f);drawBox(state.phoneTransform.screenCenter+state.phoneTransform.screenNormal*0.012f,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*(1.04f+captureAura*0.12f)*pulse,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*(1.03f+captureAura*0.10f)*pulse,PHONE_SCREEN_DEPTH*0.22f},phoneOrientation,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.14f+captureAura*0.24f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
     }
@@ -1901,6 +2125,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         drawBox(p,{0.52f,0.52f,0.08f},0,0,0,0.02f,0.03f,0.04f);
         if(capture.filled) drawBox(p+Vec3{0,0,0.12f},{0.36f,0.36f,0.36f},state.time*1.5f,state.time*2.0f,state.time,VisualIdentity::SoulBase.r,VisualIdentity::SoulBase.g,VisualIdentity::SoulBase.b);
     }
+    // Opaque soul projectiles resolve first. Power flowers then retain their
+    // own readable shell/core/glyph hierarchy instead of being visually
+    // replaced by a coincident brown cube.
+    for (const auto& bullet:state.bullets) if (bullet.alive) {
+        const float size=0.72f*1.12f*(bullet.brute?1.7f:1.0f);
+        drawBox(bullet.pos,{size,size,size},bullet.spin*1.2f,bullet.spin*1.7f,bullet.spin*0.9f,VisualIdentity::SoulBase.r,VisualIdentity::SoulBase.g,VisualIdentity::SoulBase.b,0.68f);
+    }
     for(const auto& flower:state.flowers) if(flower.active){
         for(int offset=-ROOM_VISUAL_HORIZON;offset<=ROOM_VISUAL_HORIZON;++offset){
             const Vec3 center{flower.pos.x,flower.pos.y,flower.pos.z+static_cast<float>(state.topology.currentTileIndex+offset)*ROOM_DEPTH};
@@ -1909,16 +2140,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
             unsigned int symbolHash=(phase+positionHash)*1664525u+1013904223u;
             const auto rows=bitmapGlyph(flowerGlyphs[(symbolHash>>16)%36u]);
             const Vec3 toCamera=normalized(state.camera.pos-center);const Vec3 glyphRight=normalized(cross3({0,1,0},toCamera));const Vec3 glyphUp=normalized(cross3(toCamera,glyphRight));const float glyphYaw=std::atan2(toCamera.x,toCamera.z);
-            for(int row=0;row<7;++row)for(int col=0;col<5;++col)if(rows[row]&(1u<<(4-col))){const Vec3 pixel=center+glyphRight*((static_cast<float>(col)-2.0f)*0.072f)+glyphUp*((3.0f-static_cast<float>(row))*0.072f);drawBox(pixel,{0.058f,0.058f,0.028f},0,glyphYaw,0,0.94f,1.0f,0.86f);}
             glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
             glEnable(GL_CULL_FACE);glCullFace(GL_BACK);
             drawBox(center,{0.72f,0.72f,0.72f},0,flower.rotationY,0,VisualIdentity::Flower.r,VisualIdentity::Flower.g,VisualIdentity::Flower.b,0.36f);
             glDisable(GL_CULL_FACE);glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+            drawBox(center,{0.29f,0.29f,0.29f},flower.rotationY*0.42f,-flower.rotationY*0.61f,0,VisualIdentity::FlowerCore.r,VisualIdentity::FlowerCore.g,VisualIdentity::FlowerCore.b);
+            glDisable(GL_LIGHTING);for(int row=0;row<7;++row)for(int col=0;col<5;++col)if(rows[row]&(1u<<(4-col))){const Vec3 pixel=center+toCamera*0.375f+glyphRight*((static_cast<float>(col)-2.0f)*0.072f)+glyphUp*((3.0f-static_cast<float>(row))*0.072f);drawBox(pixel,{0.058f,0.058f,0.018f},0,glyphYaw,0,0.94f,1.0f,0.86f);}glEnable(GL_LIGHTING);
         }
-    }
-    for (const auto& bullet:state.bullets) if (bullet.alive) {
-        const float size=0.72f*1.12f*(bullet.brute?1.7f:1.0f);
-        drawBox(bullet.pos,{size,size,size},bullet.spin*1.2f,bullet.spin*1.7f,bullet.spin*0.9f,VisualIdentity::SoulBase.r,VisualIdentity::SoulBase.g,VisualIdentity::SoulBase.b,0.68f);
     }
     if(completionAfterglow>0.015f&&completionWeight>0.001f){
         const float release=1.0f-completionAfterglow;

@@ -8,6 +8,25 @@
 namespace tree_geometry {
 
 struct Part { Vec3 center{};Vec3 size{1,1,1};float yaw=0; };
+enum class Archetype : unsigned char { Sentinel, Broad, WindShaped };
+struct Profile {
+    Archetype archetype=Archetype::Sentinel;
+    float trunkHeight=0.80f;
+    float baseRadius=0.145f;
+    float crownWidth=1.0f;
+    float crownHeight=1.0f;
+    float leanX=0.0f;
+    float leanZ=0.0f;
+    int branchCount=4;
+};
+
+inline Profile profile(const room_environment::EnvironmentPropSpec& prop){
+    switch(prop.variant%3u){
+        case 1:return {Archetype::Broad,0.72f,0.175f,1.16f,0.88f,-0.025f,0.018f,6};
+        case 2:return {Archetype::WindShaped,0.78f,0.135f,0.92f,0.94f,0.13f,-0.055f,5};
+        default:return {Archetype::Sentinel,0.84f,0.125f,0.82f,1.10f,0.018f,0.012f,4};
+    }
+}
 constexpr int TrunkPartCount=3;
 constexpr int CrownPartCount=7;
 

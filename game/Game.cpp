@@ -51,6 +51,7 @@ constexpr float AIR_JUMP_SPEED = gameplay::TRAVERSAL_CAPABILITIES.airJumpSpeed;
 constexpr float COYOTE_TIME = 0.12f;
 constexpr float JUMP_BUFFER = 0.12f;
 constexpr float LANDING_MOMENTUM_BOOST = 1.04f;
+constexpr float LANDING_NO_SLIDE_RETENTION = 0.70f;
 constexpr float SKID_MIN_HORIZONTAL_SPEED = 2.8f;
 constexpr float SKID_MIN_IMPACT_SPEED = 3.2f;
 constexpr float SKID_FRICTION = 0.985f;
@@ -2422,6 +2423,13 @@ void Game::updatePlayer(float dt) {
     auto beginLandingSkid=[&](float impactSpeed){
         const float speed=horizontalLength(p.vel);
         if(impactSpeed<SKID_MIN_IMPACT_SPEED||speed<SKID_MIN_HORIZONTAL_SPEED)return;
+        if(!running){
+            lunge.landingRecoveryDuration=0.0f;
+            lunge.landingRecovery=0.0f;
+            lunge.landingPosePitch=0.0f;
+            p.vel*=LANDING_NO_SLIDE_RETENTION;
+            return;
+        }
         lunge.landingRecoveryDuration=clampf(0.18f+(impactSpeed-SKID_MIN_IMPACT_SPEED)*0.036f+speed*0.008f,0.22f,0.78f);
         lunge.landingRecovery=lunge.landingRecoveryDuration;
         lunge.landingPosePitch=clampf(0.48f+impactSpeed*0.045f+speed*0.006f,0.58f,1.08f);
@@ -3411,7 +3419,7 @@ bool Game::damageSoulShell(int index, float amount) {
             t.armor=0.0f; t.slurpable=true; t.soulState=SoulState::Free; t.soulMorph=0.0f; t.hitFlash=1.35f;
             if(t.grabbedPlayerId>=0) releaseTargetGrab(index);
             spawnShellShatter(t);
-            if(t.brute && nextFlowerRandom()<FLOWER_DROP_CHANCE) spawnFlowerPowerup(t.pos.x,GROUND_Y+0.42f,t.pos.z);
+            if(t.brute && nextFlowerRandom()<FLOWER_DROP_CHANCE) spawnFlowerPowerup(t.pos.x,GROUND_Y+0.92f,t.pos.z);
         }
     } else {
         t.hitFlash=std::max(t.hitFlash,0.75f);
@@ -3462,6 +3470,15 @@ void Game::finishAirLungeLanding(float impactSpeed){
     visual.wallGripTimer=0.0f;
     visual.contactPositionValid=false;
     const float horizontalSpeed=horizontalLength(state_.player.vel);
+    const bool runHeld=state_.input.sprint||state_.input.touchSprint;
+    if(!runHeld){
+        visual.landingRecoveryDuration=0.0f;
+        visual.landingRecovery=0.0f;
+        visual.landingPosePitch=0.0f;
+        state_.player.vel*=LANDING_NO_SLIDE_RETENTION;
+        if(pairSynergyTier(UpgradeTrack::Lunge,UpgradeTrack::Attack)>0)state_.progression.run.impactGuardTimer=std::max(state_.progression.run.impactGuardTimer,IMPACT_GUARD_SECONDS*0.65f);
+        return;
+    }
     visual.landingRecoveryDuration=clampf(0.30f+std::max(0.0f,impactSpeed-2.0f)*0.035f+horizontalSpeed*0.007f,0.34f,0.82f);
     visual.landingRecovery=visual.landingRecoveryDuration;
     visual.landingPosePitch=clampf(0.62f+visual.airLungeRotation*0.34f+impactSpeed*0.025f,0.68f,1.20f);
