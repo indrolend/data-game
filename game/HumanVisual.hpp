@@ -278,7 +278,7 @@ inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, c
     const float active = aliveHuman ? reaction.locomotionAmount : 0.0f;
     pose.collapse = reaction.captureCollapseAmount;
     pose.vacuumLean = reaction.vacuumPullAmount;
-    pose.rootBob = (0.012f * idle + 0.028f * std::abs(stride) * active) * pose.scale;
+    pose.rootBob = (0.018f * idle + 0.068f * std::abs(stride) * active) * pose.scale;
     pose.torsoPitch = body.authoritative()
         ? body.pitch() - reaction.vacuumPullAmount * 0.12f + pose.collapse * 0.42f
         : -0.04f * active - reaction.hitAmount * 0.16f - reaction.vacuumPullAmount * 0.20f + pose.collapse * 0.42f;
@@ -312,11 +312,13 @@ inline HumanVisualPose makeHumanVisualPose(float yaw, float scale, float time, c
     pose.leftLegSwing -= reaction.disruption * 0.09f + supportLoss * 0.16f;
     pose.rightLegSwing -= reaction.disruption * 0.09f + supportLoss * 0.16f;
     if(body.authoritative()&&body.fallen()){pose.rootBob-=0.18f*pose.scale;pose.headPitch-=0.20f;}
-    const float rubberPulse = reaction.hitAmount * (0.78f + std::sin(time * 23.0f) * 0.22f);
+    const float rubberPulse = reaction.hitAmount * (0.72f + std::sin(time * 23.0f) * 0.28f);
+    const float runRubber=active*(0.38f+0.62f*std::abs(stride));
+    const float attackRubber=reaction.attackTimer>0.0f?std::sin(clampf(1.0f-reaction.attackTimer/HUMAN_SWING_ATTACK_DURATION,0.0f,1.0f)*DB_PI):0.0f;
     pose.expressiveScale = {
-        1.0f + rubberPulse * 0.10f,
-        1.0f - rubberPulse * 0.14f,
-        1.0f + rubberPulse * 0.075f
+        1.0f + rubberPulse * 0.24f + runRubber*0.10f + attackRubber*0.16f,
+        1.0f - rubberPulse * 0.26f - runRubber*0.11f + attackRubber*0.08f,
+        1.0f + rubberPulse * 0.18f + runRubber*0.06f - attackRubber*0.06f
     };
 
     if (aliveHuman && reaction.attackTimer > 0.0f) {

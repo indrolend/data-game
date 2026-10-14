@@ -240,8 +240,9 @@ std::filesystem::path desktopAssetRoot(const char* executablePath){
 std::filesystem::path legacyTemporaryProgressionSavePath(){return std::filesystem::temp_directory_path()/"DigitalBreakdown"/"progression.v1";}
 std::filesystem::path progressionBackupPath(const std::filesystem::path& path){return path.wstring()+L".bak";}
 bool loadProgression(Game& game,const std::filesystem::path& path){
-    std::ifstream input(path);std::string magic;int version=0,shot=0,lunge=0,attack=0;long long tokens=0;
-    if(!(input>>magic>>version>>tokens>>shot>>lunge>>attack)||magic!="DBPROG"||version<1||version>4)return false;
+    std::ifstream input(path);std::string magic;int version=0,shot=0,lunge=0,attack=0,bestRoomCleared=0;long long tokens=0;std::uint64_t lifetimeRoomsCleared=0;
+    if(!(input>>magic>>version>>tokens>>shot>>lunge>>attack)||magic!="DBPROG"||version<1||version>5)return false;
+    if(version>=5&&!(input>>lifetimeRoomsCleared>>bestRoomCleared))return false;
     LocalSettingsState settings=game.state().localSettings;
     if(version>=2){
         if(!(input>>settings.musicVolume>>settings.sfxVolume>>settings.musicMuted>>settings.sfxMuted>>settings.graphicsPreset>>settings.shadows>>settings.portalWindow>>settings.particles>>settings.fpsCounter>>settings.mouseLookSensitivity>>settings.touchLookSensitivity>>settings.controllerLookSensitivity))return false;
@@ -259,7 +260,7 @@ bool loadProgression(Game& game,const std::filesystem::path& path){
         settings.controllerTriggerSensitivity=std::max(0,std::min(2,settings.controllerTriggerSensitivity));settings.controllerVibration=std::max(0,std::min(2,settings.controllerVibration));
         settings.menuPage=LocalMenuPage::Main;settings.rebindingAction=-1;
     }
-    game.setPersistentProgression(tokens,shot,lunge,attack);
+    game.setPersistentProgression(tokens,shot,lunge,attack,lifetimeRoomsCleared,bestRoomCleared);
     if(version>=2)game.networkMutableState().localSettings=settings;
     return true;
 }
@@ -279,7 +280,7 @@ bool saveProgression(const PermanentProgressionState& progression,const LocalSet
         if(error)return false;
     }
     const std::filesystem::path temporary=path.wstring()+L".tmp";
-    {std::ofstream output(temporary,std::ios::trunc);if(!output)return false;output<<"DBPROG 4 "<<progression.tokens<<' '<<progression.levels[0]<<' '<<progression.levels[1]<<' '<<progression.levels[2]<<' '<<settings.musicVolume<<' '<<settings.sfxVolume<<' '<<settings.musicMuted<<' '<<settings.sfxMuted<<' '<<settings.graphicsPreset<<' '<<settings.shadows<<' '<<settings.portalWindow<<' '<<settings.particles<<' '<<settings.fpsCounter<<' '<<settings.mouseLookSensitivity<<' '<<settings.touchLookSensitivity<<' '<<settings.controllerLookSensitivity<<' '<<settings.controllerTriggerSensitivity<<' '<<settings.controllerVibration;for(int key:settings.keyboardBindings)output<<' '<<key;output<<'\n';output.flush();if(!output)return false;}
+    {std::ofstream output(temporary,std::ios::trunc);if(!output)return false;output<<"DBPROG 5 "<<progression.tokens<<' '<<progression.levels[0]<<' '<<progression.levels[1]<<' '<<progression.levels[2]<<' '<<progression.lifetimeRoomsCleared<<' '<<progression.bestRoomCleared<<' '<<settings.musicVolume<<' '<<settings.sfxVolume<<' '<<settings.musicMuted<<' '<<settings.sfxMuted<<' '<<settings.graphicsPreset<<' '<<settings.shadows<<' '<<settings.portalWindow<<' '<<settings.particles<<' '<<settings.fpsCounter<<' '<<settings.mouseLookSensitivity<<' '<<settings.touchLookSensitivity<<' '<<settings.controllerLookSensitivity<<' '<<settings.controllerTriggerSensitivity<<' '<<settings.controllerVibration;for(int key:settings.keyboardBindings)output<<' '<<key;output<<'\n';output.flush();if(!output)return false;}
     if(!replaceProgressionFile(temporary,path)){std::filesystem::remove(temporary,error);return false;}
     const std::filesystem::path backup=progressionBackupPath(path),backupTemporary=backup.wstring()+L".tmp";
     error.clear();
@@ -1461,6 +1462,7 @@ void printUsage() {
     std::printf("  --controller-live-test   Stream controller state for a short live test.\n");
     std::printf("  --build-identity-json    Print machine-readable build identity and exit.\n");
     std::printf("  --capture-frame PATH Capture a hidden frame and exit.\n");
+    std::printf("  --capture-room-seed N --capture-room-index N  Start a generated room fixture before capturing.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
     std::printf("  --menu-paint-gesture select|confirm|left|right  Fix the menu feedback pose for capture.\n");
@@ -2165,6 +2167,9 @@ int main(int argc, char** argv) {
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
     const char* enemyMotionDirectory=argValue(argc,argv,"--capture-enemy-motion");
     const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame"))))))))));
+    const int captureRoomSeed=argInt(argc,argv,"--capture-room-seed",-1);
+    const int captureRoomIndex=argInt(argc,argv,"--capture-room-index",-1);
+    const bool captureGeneratedRoom=capturePath&&captureRoomSeed>=0&&captureRoomIndex>=1;
     const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory||enemyMotionDirectory;
     std::string automaticPerfTracePath;
     const bool ordinaryDevelopmentGameplay=!isolatedPersistence&&!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector&&!multiplayerTest&&!combatRenderStress&&!combatCrowdStress;
@@ -2301,6 +2306,7 @@ int main(int argc, char** argv) {
         std::printf("RALLY_LAB_READY souls=1 enemies=0 controls=Q/F/Space+F/vacuum\n");
     }
     if(roomInspector){host.game.debugStartRoomInspector();for(int premise=0;premise<roomInspectorPremise;++premise)host.game.debugStepRoomInspector(1,false);std::printf("ROOM_INSPECTOR_READY previous=[ next=] regenerate=R enemies=E review=5/6/7/8\n");}
+    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);const auto& generated=host.game.state();const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form));}
     if(automationPlaytest)std::printf("AUTOMATION_PLAYTEST_READY local_only=YES focus_pause=OFF input_clearing=ON\n");
     host.savedProgressionRevision=host.game.state().progression.permanent.revision;
     host.savedSettings=host.game.state().localSettings;

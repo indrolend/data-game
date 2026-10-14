@@ -471,6 +471,8 @@ enum class UpgradeTrack : unsigned char { Shot, Lunge, Attack, Count };
 struct PermanentProgressionState {
     std::int64_t tokens = 0;
     std::array<int,3> levels{};
+    std::uint64_t lifetimeRoomsCleared = 0;
+    int bestRoomCleared = 0;
     std::uint64_t revision = 0;
 };
 
@@ -833,7 +835,7 @@ public:
     void configureNetworkGuest(int localPlayerId);
     void disableNetwork();
     void setNetworkRoom(const char* code, const char* status, bool connected);
-    void setPersistentProgression(std::int64_t tokens, int shotLevel, int lungeLevel, int attackLevel);
+    void setPersistentProgression(std::int64_t tokens, int shotLevel, int lungeLevel, int attackLevel, std::uint64_t lifetimeRoomsCleared=0, int bestRoomCleared=0);
     bool chooseTemporaryUpgrade(int track);
     bool purchasePermanentUpgrade(int track);
     void setNetworkPeerActive(int playerId, bool active);
