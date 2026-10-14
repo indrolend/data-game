@@ -10,6 +10,7 @@
 #include "gameplay/TraversalCapabilities.hpp"
 #include "gameplay/VacuumGeometry.hpp"
 #include "RoomEnvironment.hpp"
+#include "CoastalWater.hpp"
 #include "world/RoomGeometry.hpp"
 #include "world/RoomCoordinates.hpp"
 
@@ -1151,8 +1152,14 @@ void Game::updateBattery(float dt) {
         state_.meleeVisual.visualTimer > 0.0f,
         energy.dischargeTimer > 0.0f
     });
-    if(demand.active)state_.progression.run.batteryRegenLock=std::max(state_.progression.run.batteryRegenLock,PASSIVE_RECHARGE_DELAY);
-    if (demand.drainPerSecond > 0.0f) spendBattery(demand.drainPerSecond * dt);
+    float waterDrain=0.0f;
+    const auto roomPlan=room_environment::roomPlan(state_.roomSeed,state_.roomIndex);
+    if(roomPlan.setting==room_environment::RoomSetting::Coastal&&!state_.player.inSecretRoom){
+        const float wetness=coastal_water::immersion(state_.player.pos.x,wrapZ(state_.player.pos.z),state_.player.pos.y-PHONE_SOLID_HALF_Y,state_.time);
+        waterDrain=coastal_water::BatteryDrainPerSecond*wetness;
+    }
+    if(demand.active||waterDrain>0.0f)state_.progression.run.batteryRegenLock=std::max(state_.progression.run.batteryRegenLock,PASSIVE_RECHARGE_DELAY);
+    if (demand.drainPerSecond+waterDrain > 0.0f) spendBattery((demand.drainPerSecond+waterDrain) * dt);
     else if(state_.progression.run.batteryRegenLock<=0.0f) {
         const float survivalRegen=(survivalSynergyTier()>0&&state_.player.battery<24.0f)?1.0f+0.10f*survivalSynergyTier():1.0f;
         const float precisionWindow=state_.progression.run.headshotRechargeBoost>0.0f?1.35f:1.0f;

@@ -19,6 +19,32 @@ struct Profile {
     float leanZ=0.0f;
     int branchCount=4;
 };
+inline Profile profile(const room_environment::EnvironmentPropSpec& prop);
+
+// Runtime visual variation derived from one authored family. Collider size and
+// climb authority remain on EnvironmentPropSpec; these parameters only change
+// growth history and silhouette, never gameplay reachability.
+struct AuthoredVariant {
+    float widthScale=1.0f;
+    float depthScale=1.0f;
+    float pitch=0.0f;
+    float roll=0.0f;
+    float yawJitter=0.0f;
+    float rootSpread=1.0f;
+};
+
+inline AuthoredVariant authoredVariant(const room_environment::EnvironmentPropSpec& prop,unsigned int key){
+    const auto profile_=profile(prop);
+    AuthoredVariant result;
+    result.widthScale=0.90f+room_environment::unit(key+11u)*0.22f;
+    result.depthScale=0.88f+room_environment::unit(key+17u)*0.25f;
+    result.pitch=(room_environment::unit(key+23u)-0.5f)*0.075f;
+    result.roll=(room_environment::unit(key+29u)-0.5f)*0.085f;
+    if(profile_.archetype==Archetype::WindShaped)result.roll+=prop.yaw<0.0f?-0.10f:0.10f;
+    result.yawJitter=(room_environment::unit(key+31u)-0.5f)*0.34f;
+    result.rootSpread=0.82f+room_environment::unit(key+37u)*0.42f;
+    return result;
+}
 
 inline Profile profile(const room_environment::EnvironmentPropSpec& prop){
     switch(prop.variant%3u){

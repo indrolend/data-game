@@ -41,6 +41,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <memory>
 #include <numeric>
@@ -1466,6 +1467,7 @@ void printUsage() {
     std::printf("  --capture-frame PATH Capture a hidden frame and exit.\n");
     std::printf("  --capture-flower-frame PATH  Capture the flower/soul readability fixture.\n");
     std::printf("  --capture-room-seed N --capture-room-index N  Start a generated room fixture before capturing.\n");
+    std::printf("  --capture-graphics-preset N  Override fixture quality (0 low, 1 normal, 2 pretty).\n");
     std::printf("  --capture-lifetime-rooms N --capture-best-room N  Set cosmetic accomplishment state for fixture captures.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
@@ -1598,6 +1600,7 @@ int runSmokeTest() {
 const char* argValue(int argc,char** argv,const char* expected){for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)return argv[i+1];return nullptr;}
 std::vector<std::string> argValues(int argc,char** argv,const char* expected){std::vector<std::string> values;for(int i=1;i+1<argc;++i)if(std::strcmp(argv[i],expected)==0)values.emplace_back(argv[i+1]);return values;}
 int argInt(int argc,char** argv,const char* expected,int fallback=0){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stoi(value);}catch(...){return fallback;}}
+float argFloat(int argc,char** argv,const char* expected,float fallback){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stof(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height,std::uint64_t* fileHash=nullptr){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;const std::string header="P6\n"+std::to_string(width)+" "+std::to_string(height)+"\n255\n";out.write(header.data(),static_cast<std::streamsize>(header.size()));std::uint64_t hash=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,header.data(),header.size());for(int y=height-1;y>=0;--y){const char* row=reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u);out.write(row,static_cast<std::streamsize>(width*3));hash=lighting_evidence::fnv1a(hash,row,static_cast<std::size_t>(width)*3u);}if(fileHash)*fileHash=hash;return static_cast<bool>(out);}
 
 int runEnemyMotionReel(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
@@ -2174,8 +2177,11 @@ int main(int argc, char** argv) {
     const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureFlower?argValue(argc,argv,"--capture-flower-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame")))))))))));
     const int captureRoomSeed=argInt(argc,argv,"--capture-room-seed",-1);
     const int captureRoomIndex=argInt(argc,argv,"--capture-room-index",-1);
+    const int captureGraphicsPreset=argInt(argc,argv,"--capture-graphics-preset",-1);
     const int captureLifetimeRooms=argInt(argc,argv,"--capture-lifetime-rooms",0);
     const int captureBestRoom=argInt(argc,argv,"--capture-best-room",0);
+    const float capturePlayerX=argFloat(argc,argv,"--capture-player-x",std::numeric_limits<float>::quiet_NaN());
+    const float capturePlayerZ=argFloat(argc,argv,"--capture-player-z",std::numeric_limits<float>::quiet_NaN());
     const bool captureGeneratedRoom=capturePath&&captureRoomSeed>=0&&captureRoomIndex>=1;
     const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory||enemyMotionDirectory;
     std::string automaticPerfTracePath;
@@ -2313,7 +2319,7 @@ int main(int argc, char** argv) {
         std::printf("RALLY_LAB_READY souls=1 enemies=0 controls=Q/F/Space+F/vacuum\n");
     }
     if(roomInspector){host.game.debugStartRoomInspector();for(int premise=0;premise<roomInspectorPremise;++premise)host.game.debugStepRoomInspector(1,false);std::printf("ROOM_INSPECTOR_READY previous=[ next=] regenerate=R enemies=E review=5/6/7/8\n");}
-    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);auto& generated=host.game.networkMutableState();generated.progression.permanent.lifetimeRoomsCleared=static_cast<std::uint64_t>(std::max(0,captureLifetimeRooms));generated.progression.permanent.bestRoomCleared=std::max(0,captureBestRoom);const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s lifetime=%llu best=%d\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form),static_cast<unsigned long long>(generated.progression.permanent.lifetimeRoomsCleared),generated.progression.permanent.bestRoomCleared);}
+    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);auto& generated=host.game.networkMutableState();generated.progression.permanent.lifetimeRoomsCleared=static_cast<std::uint64_t>(std::max(0,captureLifetimeRooms));generated.progression.permanent.bestRoomCleared=std::max(0,captureBestRoom);if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(generated.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));if(std::isfinite(capturePlayerX))generated.player.pos.x=capturePlayerX;if(std::isfinite(capturePlayerZ))generated.player.pos.z=static_cast<float>(generated.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s quality=%d lifetime=%llu best=%d player=(%.2f,%.2f)\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form),generated.localSettings.graphicsPreset,static_cast<unsigned long long>(generated.progression.permanent.lifetimeRoomsCleared),generated.progression.permanent.bestRoomCleared,generated.player.pos.x,generated.player.pos.z);}
     if(automationPlaytest)std::printf("AUTOMATION_PLAYTEST_READY local_only=YES focus_pause=OFF input_clearing=ON\n");
     host.savedProgressionRevision=host.game.state().progression.permanent.revision;
     host.savedSettings=host.game.state().localSettings;
@@ -2393,7 +2399,11 @@ int main(int argc, char** argv) {
     if(captureDemo){
         std::filesystem::create_directories(captureDemoDir);
         host.game.restart();
+        if(captureRoomSeed>=0&&captureRoomIndex>=1)host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);
         GameState& fixture=host.game.networkMutableState();
+        if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(fixture.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));
+        if(std::isfinite(capturePlayerX))fixture.player.pos.x=capturePlayerX;
+        if(std::isfinite(capturePlayerZ))fixture.player.pos.z=static_cast<float>(fixture.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;
         fixture.camera.firstPerson=false;
         if(captureCinematic)fixture.cinematic.introActive=false;
         for(auto& target:fixture.targets)target.alive=false;

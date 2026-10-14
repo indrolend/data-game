@@ -17,6 +17,10 @@ int main(){
     for(int i=0;i<tree_geometry::CrownPartCount;++i){assert(crowns[i].center.x==repeatCrowns[i].center.x&&crowns[i].size.y==repeatCrowns[i].size.y);assert(std::isfinite(crowns[i].center.y)&&crowns[i].size.x>0&&crowns[i].size.y>0&&crowns[i].size.z>0);}
     assert(plan.setting==repeatPlan.setting);
     assert(std::abs(tree_geometry::climbTopY(prop)-crowns.back().center.y)<0.0001f);
+    const auto authored=tree_geometry::authoredVariant(prop,12345u),authoredRepeat=tree_geometry::authoredVariant(prop,12345u);
+    assert(authored.widthScale==authoredRepeat.widthScale&&authored.depthScale==authoredRepeat.depthScale);
+    assert(authored.widthScale!=authored.depthScale);
+    assert(authored.rootSpread>=0.82f&&authored.rootSpread<=1.24f);
 
     Game game;game.debugStartGeneratedRoomFixture(seed,room);bool found=false;
     for(int i=0;i<game.state().debug.colliderCount;++i){const auto& collider=game.state().roomColliders[i];if(collider.kind!=RoomColliderKind::TreeTrunk)continue;if(std::abs(collider.center.x-prop.center.x)>0.05f||std::abs(collider.center.z-prop.center.z)>0.05f)continue;assert(std::abs(collider.climbTopY-(tree_geometry::climbTopY(prop)+0.08f))<0.0002f);found=true;break;}

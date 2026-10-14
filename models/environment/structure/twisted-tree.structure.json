@@ -1,0 +1,97 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "twisted_tree_1.glb",
+  "runtime": "twisted-tree.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.0.44",
+  "sourceCopyright": null,
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      -2.174241065979004,
+      -0.20147469639778137,
+      -6.726779460906982
+    ],
+    "maximum": [
+      11.341513633728027,
+      16.52402114868164,
+      4.822585105895996
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -0.4040464577223077,
+      0,
+      -0.3452622473432008
+    ],
+    "maximum": [
+      0.4040464577223077,
+      1,
+      0.3452622473432008
+    ]
+  },
+  "runtimeVertexCount": 28692,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 21636,
+      "color": [
+        0.255,
+        0.235,
+        0.205,
+        1
+      ]
+    },
+    {
+      "index": 1,
+      "vertexCount": 7056,
+      "color": [
+        0.34,
+        0.315,
+        0.14,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/TwistedTree_1",
+      "mesh": "tree.038",
+      "primitive": 0,
+      "material": "Bark_TwistedTree",
+      "sourceVertexCount": 9360,
+      "triangleCount": 7212,
+      "bounds": {
+        "minimum": [
+          -1.498000979423523,
+          -0.20147469639778137,
+          -5.117466926574707
+        ],
+        "maximum": [
+          9.911966323852539,
+          15.281858444213867,
+          3.4427638053894043
+        ]
+      }
+    },
+    {
+      "nodePath": "/TwistedTree_1",
+      "mesh": "tree.038",
+      "primitive": 1,
+      "material": "Leaves_TwistedTree",
+      "sourceVertexCount": 4704,
+      "triangleCount": 2352,
+      "bounds": {
+        "minimum": [
+          -2.174241065979004,
+          2.4449024200439453,
+          -6.726779460906982
+        ],
+        "maximum": [
+          11.341513633728027,
+          16.52402114868164,
+          4.822585105895996
+        ]
+      }
+    }
+  ]
+}

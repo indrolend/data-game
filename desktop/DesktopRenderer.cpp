@@ -7,11 +7,14 @@
 #include "PhoneStencilReveal.hpp"
 #include "GameplayPhoneModel.hpp"
 #include "CityFacadeGrammar.hpp"
+#include "CityStreetGrammar.hpp"
 #include "RenderContracts.hpp"
 #include "MaterialResponse.hpp"
 #include "FieldGrassTexture.hpp"
 #include "CitySurfaceTexture.hpp"
 #include "FacetedRock.hpp"
+#include "CoastalWater.hpp"
+#include "CoastalWaterSimulation.hpp"
 #include "MarkerPillarGeometry.hpp"
 #include "world/RoomGeometry.hpp"
 #include "gameplay/MaterialUnlocks.hpp"
@@ -279,7 +282,7 @@ Quat quaternionFromEulerXYZ(float x,float y,float z) {
     return {s1*c2*c3+c1*s2*s3,c1*s2*c3-s1*c2*s3,c1*c2*s3+s1*s2*c3,c1*c2*c3-s1*s2*s3};
 }
 
-unsigned int compileStaticModel(const StaticModelData& model, bool shadow = false) {
+unsigned int compileStaticModel(const StaticModelData& model, bool shadow = false, bool inheritColor = false) {
     if (!model.valid()) return 0;
     const GLuint list=glGenLists(1);
     if (!list) return 0;
@@ -289,7 +292,7 @@ unsigned int compileStaticModel(const StaticModelData& model, bool shadow = fals
         // Do not let source-material alpha toggle that pass off partway through
         // a multi-batch model, which would make subsequent shadow batches opaque.
         const bool translucent=!shadow&&batch.color[3]<0.995f;if(translucent){glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
-        if(shadow) glColor4f(0.012f,0.018f,0.022f,0.28f); else gradedColor(batch.color[0],batch.color[1],batch.color[2],batch.color[3]);
+        if(shadow) glColor4f(0.012f,0.018f,0.022f,0.28f); else if(!inheritColor) gradedColor(batch.color[0],batch.color[1],batch.color[2],batch.color[3]);
         glBegin(GL_TRIANGLES);
         for(std::uint32_t i=batch.start;i+2<batch.start+batch.count;i+=3) {
             const std::size_t a=static_cast<std::size_t>(i)*3u;
@@ -372,7 +375,7 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     const bool sandPhotoLoaded=loadPhotoMaterial(materialRoot/"photo-sand.rgb",sandTexture_);
     const bool sterileTileLoaded=loadPhotoMaterial(materialRoot/"photo-sterile-tile.rgb",sterileTileTexture_);
     StaticModelData phone;
-    StaticModelData commonTree,twistedTree,deadTree,pineTree;
+    StaticModelData commonTree,twistedTree,deadTree,pineTree,cityWindowBay,cityWindowBaySmall,cityDoorBay,cityDoorWindowBay,cityCornice;
     const bool phoneLoaded=phone.load((root/"phone.dbmesh").string());
     const bool humanLoaded=humanModel_.load((root/"human.dbhuman").string());
     phoneModelList_=phoneLoaded?compileStaticModel(phone):0; phoneShadowList_=phoneLoaded?compileStaticModel(phone,true):0;
@@ -380,7 +383,12 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     twistedTreeModelList_=twistedTree.load((root/"environment"/"twisted-tree.dbmesh").string())?compileStaticModel(twistedTree):0;
     deadTreeModelList_=deadTree.load((root/"environment"/"dead-tree.dbmesh").string())?compileStaticModel(deadTree):0;
     pineTreeModelList_=pineTree.load((root/"environment"/"pine-tree.dbmesh").string())?compileStaticModel(pineTree):0;
-    std::printf("Models: phone=%s flower=prismatic human=%s trees=%s/%s/%s/%s menuFont=%s/%s birds=%s foliage=%s photos=%s/%s/%s/%s/%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",commonTreeModelList_?"common":"off",twistedTreeModelList_?"twisted":"off",deadTreeModelList_?"dead":"off",pineTreeModelList_?"pine":"off",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",birdSpriteLoaded?"v-atlas":"off",foliageLoaded?"cc0-fir":"fallback",grassPhotoLoaded?"grass":"procedural",barkPhotoLoaded?"bark":"off",stonePhotoLoaded?"stone":"off",metalPhotoLoaded?"metal":"off",sandPhotoLoaded?"sand":"off",sterileTileLoaded?"sterile":"off");
+    cityWindowBayModelList_=cityWindowBay.load((root/"environment"/"city"/"window-bay.dbmesh").string())?compileStaticModel(cityWindowBay):0;
+    cityWindowBaySmallModelList_=cityWindowBaySmall.load((root/"environment"/"city"/"window-bay-small.dbmesh").string())?compileStaticModel(cityWindowBaySmall):0;
+    cityDoorBayModelList_=cityDoorBay.load((root/"environment"/"city"/"door-bay.dbmesh").string())?compileStaticModel(cityDoorBay):0;
+    cityDoorWindowBayModelList_=cityDoorWindowBay.load((root/"environment"/"city"/"door-window-bay.dbmesh").string())?compileStaticModel(cityDoorWindowBay):0;
+    cityCorniceModelList_=cityCornice.load((root/"environment"/"city"/"cornice.dbmesh").string())?compileStaticModel(cityCornice,false,true):0;
+    std::printf("Models: phone=%s flower=prismatic human=%s trees=%s/%s/%s/%s cityModules=%s/%s/%s/%s/%s menuFont=%s/%s birds=%s foliage=%s photos=%s/%s/%s/%s/%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",commonTreeModelList_?"common":"off",twistedTreeModelList_?"twisted":"off",deadTreeModelList_?"dead":"off",pineTreeModelList_?"pine":"off",cityWindowBayModelList_?"window":"off",cityWindowBaySmallModelList_?"small-window":"off",cityDoorBayModelList_?"door":"off",cityDoorWindowBayModelList_?"door-window":"off",cityCorniceModelList_?"cornice":"off",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",birdSpriteLoaded?"v-atlas":"off",foliageLoaded?"cc0-fir":"fallback",grassPhotoLoaded?"grass":"procedural",barkPhotoLoaded?"bark":"off",stonePhotoLoaded?"stone":"off",metalPhotoLoaded?"metal":"off",sandPhotoLoaded?"sand":"off",sterileTileLoaded?"sterile":"off");
 }
 
 void DesktopRenderer::resize(int width, int height) {
@@ -1250,35 +1258,125 @@ void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) co
     if(!commonTreeModelList_||!twistedTreeModelList_||!deadTreeModelList_||!pineTreeModelList_)return;
     const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH;
     const unsigned int key=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<unsigned int>((tileIndex+5)*0x9e3779b9u);
-    struct Dressing { float x,z,height,yaw; unsigned int list; float widthCorrection; };
+    struct Dressing { float x,z,height,yaw; unsigned int list; float widthCorrection; unsigned char family; };
     // Asymmetric edge groups frame the playable clearing. They are visual
     // history rather than obstacles, so the central route remains honest.
     const float driftA=(room_environment::unit(key+1u)-0.5f)*2.4f;
     const float driftB=(room_environment::unit(key+2u)-0.5f)*2.8f;
     const Dressing group[]{
-        {-14.15f,-15.0f+driftA,7.6f, 0.10f,pineTreeModelList_,0.78f},
-        {-13.65f, -7.4f+driftB,5.4f,-0.18f,commonTreeModelList_,0.94f},
-        { 14.20f,  4.8f-driftA,6.7f, 0.36f,twistedTreeModelList_,0.82f},
-        { 13.80f, 13.6f-driftB,8.4f,-0.12f,pineTreeModelList_,0.76f},
-        {-13.95f, 15.7f+driftA,4.1f, 0.58f,deadTreeModelList_,0.88f},
+        {-14.15f,-15.0f+driftA,7.6f, 0.10f,pineTreeModelList_,0.78f,0},
+        {-13.65f, -7.4f+driftB,5.4f,-0.18f,commonTreeModelList_,0.94f,1},
+        { 14.20f,  4.8f-driftA,6.7f, 0.36f,twistedTreeModelList_,0.82f,2},
+        { 13.80f, 13.6f-driftB,8.4f,-0.12f,pineTreeModelList_,0.76f,0},
+        {-13.95f, 15.7f+driftA,4.1f, 0.58f,deadTreeModelList_,0.88f,2},
     };
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
     for(const auto& tree:group){
         drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f);
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
+    int treeIndex=0;
     for(const auto& tree:group){
-        const float familyVariation=0.92f+room_environment::unit(key+static_cast<unsigned int>((tree.z+20.0f)*17.0f))*0.16f;
+        const unsigned int treeKey=key+static_cast<unsigned int>((tree.z+20.0f)*17.0f)+static_cast<unsigned int>(treeIndex++)*97u;
+        const float familyVariation=0.92f+room_environment::unit(treeKey)*0.16f;
         const float height=tree.height*familyVariation;
-        drawStaticModel(tree.list,{tree.x,0.006f,z0+tree.z},{height*tree.widthCorrection,height,height*tree.widthCorrection},quaternionFromEulerXYZ(0,tree.yaw,0));
+        const room_environment::EnvironmentPropSpec proxy{room_environment::EnvironmentPrimitive::Tree,room_environment::EnvironmentRole::Detail,{tree.x,0,z0+tree.z},{height*tree.widthCorrection,height,height*tree.widthCorrection},tree.yaw,tree.family};
+        const auto variant=tree_geometry::authoredVariant(proxy,treeKey);
+        const Vec3 base{tree.x,0.006f,z0+tree.z};
+        drawStaticModel(tree.list,base,{height*tree.widthCorrection*variant.widthScale,height,height*tree.widthCorrection*variant.depthScale},quaternionFromEulerXYZ(variant.pitch,tree.yaw+variant.yawJitter,variant.roll));
+        if(state.localSettings.graphicsPreset>0){
+            const float rootRadius=height*(tree.family==1?0.028f:0.021f);
+            const int roots=tree.family==1?5:3;
+            for(int root=0;root<roots;++root){
+                const float angle=tree.yaw+variant.yawJitter+static_cast<float>(root)*PI*2.0f/static_cast<float>(roots)+room_environment::unit(treeKey+static_cast<unsigned int>(root)*19u)*0.24f;
+                const float reach=rootRadius*(tree.family==1?5.0f:4.0f)*variant.rootSpread;
+                const Vec3 end=base+Vec3{std::cos(angle)*reach,0.016f,std::sin(angle)*reach};
+                drawTaperedSegment(base+Vec3{0,rootRadius*0.30f,0},end,rootRadius*0.42f,0.014f,{0.27f,0.20f,0.13f},6);
+            }
+        }
     }
 }
 
-void DesktopRenderer::drawFacetedRock(const room_environment::EnvironmentPropSpec& prop,int roomSeed,int roomIndex,int propIndex,float zOffset,const VisualColor& color){
-    const auto mesh=faceted_rock::makeMesh(prop,roomSeed,roomIndex,propIndex,zOffset);
+void DesktopRenderer::drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form) const{
+    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH;
+    const std::uint32_t key=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<std::uint32_t>((tileIndex+11)*0x9e3779b9u);
+    const auto street=city_street::plan(form,key,state.localSettings.graphicsPreset);
+    const float sidewalkCenter=street.roadHalfWidth+street.sidewalkWidth*0.5f;
+
+    // The street section is one construction system: recessed asphalt, raised
+    // pedestrian edges, a transverse intersection, gutters, and markings.
+    drawTexturedBox(citySurfaceTexture_,{0,0.010f,z0},{street.roadHalfWidth*2.0f,0.022f,ROOM_DEPTH},0,0,0,{0.68f,0.70f,0.71f},2.15f,std::fmod((tileIndex+7)*0.173f,1.0f));
+    for(float side:{-1.0f,1.0f}){
+        drawBox({side*sidewalkCenter,0.050f,z0},{street.sidewalkWidth,0.10f,ROOM_DEPTH-0.28f},0,0,0,0.40f,0.405f,0.39f);
+        drawBox({side*(street.roadHalfWidth+0.055f),0.082f,z0},{0.11f,0.164f,ROOM_DEPTH-0.20f},0,0,0,0.54f,0.53f,0.49f);
+        drawBox({side*(street.roadHalfWidth-0.12f),0.022f,z0},{0.16f,0.024f,ROOM_DEPTH-0.36f},0,0,0,0.075f,0.085f,0.09f);
+    }
+    drawTexturedBox(citySurfaceTexture_,{0,0.025f,z0+street.intersectionCenter},{ROOM_WIDTH-0.7f,0.026f,street.intersectionWidth},0,0,0,{0.61f,0.63f,0.64f},2.15f,std::fmod((tileIndex+13)*0.127f,1.0f));
+    for(int approach:{-1,1})for(int stripe=0;stripe<7;++stripe){
+        const float x=-street.roadHalfWidth+0.58f+static_cast<float>(stripe)*(street.roadHalfWidth*2.0f-1.16f)/6.0f;
+        const float z=z0+street.intersectionCenter+static_cast<float>(approach)*(street.intersectionWidth*0.5f+0.42f);
+        drawBox({x,0.041f,z},{0.34f,0.014f,0.68f},0,0,0,0.72f,0.71f,0.64f);
+    }
+    for(int dash=0;dash<8;++dash){
+        const float localZ=-17.5f+static_cast<float>(dash)*5.0f;
+        if(std::abs(localZ-street.intersectionCenter)<street.intersectionWidth*0.62f)continue;
+        const float wear=0.76f+0.12f*room_environment::unit(key+static_cast<std::uint32_t>(dash)*13u);
+        drawBox({0,0.032f,z0+localZ},{0.075f,0.012f,1.75f},0,0,0,0.62f*wear,0.50f*wear,0.22f*wear);
+    }
+    // Drain covers repeat by civil-engineering rhythm rather than random
+    // scatter. They sit in the gutter and visually explain water/wear.
+    for(float side:{-1.0f,1.0f})for(int drain=0;drain<4;++drain){
+        const float localZ=-14.5f+static_cast<float>(drain)*9.7f+(side>0?1.6f:0.0f);
+        drawBox({side*(street.roadHalfWidth-0.16f),0.038f,z0+localZ},{0.28f,0.016f,0.62f},0,0,0,0.07f,0.085f,0.09f);
+        for(int slot=0;slot<3;++slot)drawBox({side*(street.roadHalfWidth-0.16f),0.048f,z0+localZ-0.20f+slot*0.20f},{0.19f,0.006f,0.035f},0,0,0,0.20f,0.22f,0.22f);
+    }
+
+    // Optional inhabited-edge repetition scales with quality, while the street
+    // section and skyline identity survive every preset.
+    const float lampX=street.roadHalfWidth+street.sidewalkWidth-street.lampInset;
+    for(float side:{-1.0f,1.0f})for(int lamp=0;lamp<street.lampPairs;++lamp){
+        const float localZ=city_street::lampZ(street,lamp)+(side>0?1.1f:-1.1f);
+        const float poleHeight=2.75f;
+        drawBox({side*lampX,poleHeight*0.5f,z0+localZ},{0.075f,poleHeight,0.075f},0,0,0,0.13f,0.15f,0.16f);
+        drawBox({side*(lampX-0.18f),poleHeight-0.04f,z0+localZ},{0.42f,0.065f,0.075f},0,0,0,0.13f,0.15f,0.16f);
+        glDisable(GL_LIGHTING);drawBox({side*(lampX-0.37f),poleHeight-0.10f,z0+localZ},{0.16f,0.055f,0.11f},0,0,0,0.78f,0.71f,0.52f);glEnable(GL_LIGHTING);
+    }
+    for(int cluster=0;cluster<street.serviceClusters;++cluster){
+        const float side=(cluster&1)?1.0f:-1.0f;
+        const float localZ=-10.5f+cluster*19.0f+(room_environment::unit(key+81u+cluster)-0.5f)*2.0f;
+        const float outer=street.roadHalfWidth+street.sidewalkWidth+0.46f;
+        drawBox({side*outer,0.44f,z0+localZ},{0.62f,0.88f,0.44f},0,0,0,0.18f,0.21f,0.21f);
+        drawBox({side*(outer-side*0.32f),0.50f,z0+localZ},{0.018f,0.52f,0.25f},0,0,0,0.075f,0.09f,0.095f);
+        for(int vent=0;vent<3;++vent)drawBox({side*(outer-side*0.335f),0.61f-vent*0.13f,z0+localZ},{0.012f,0.025f,0.19f},0,0,0,0.36f,0.38f,0.36f);
+    }
+
+    for(int side:{-1,1})for(int index=0;index<street.skylineBands;++index){
+        const auto block=city_street::skylineBlock(street,key,tileIndex,side,index);
+        const VisualColor body=block.family==0?VisualColor{0.245f,0.26f,0.27f}:(block.family==1?VisualColor{0.31f,0.27f,0.235f}:VisualColor{0.20f,0.225f,0.245f});
+        drawBox({block.x,block.height*0.5f,z0+block.z},{block.width,block.height,block.depth},0,0,0,body.r,body.g,body.b);
+        drawBox({block.x,block.height+0.10f,z0+block.z},{block.width*1.04f,0.20f,block.depth*1.04f},0,0,0,body.r*0.78f,body.g*0.80f,body.b*0.82f);
+        const float faceX=block.x-static_cast<float>(side)*block.width*0.505f;
+        const int rows=state.localSettings.graphicsPreset<=0?2:3;
+        for(int row=0;row<rows;++row)for(int bay=0;bay<2;++bay){
+            const float y=1.4f+row*(block.height-2.0f)/static_cast<float>(std::max(1,rows-1));
+            const float z=z0+block.z+(bay?0.22f:-0.22f)*block.depth;
+            drawBox({faceX,y,z},{0.025f,0.34f,block.depth*0.26f},0,0,0,0.025f,0.038f,0.045f);
+        }
+    }
+}
+
+void DesktopRenderer::drawFacetedRock(const room_environment::EnvironmentPropSpec& prop,int roomSeed,int roomIndex,int propIndex,float zOffset,const VisualColor& color,unsigned int texture,float textureWorldScale){
+    const auto mesh=faceted_rock::makeVisualMesh(prop,roomSeed,roomIndex,propIndex,zOffset);
+    if(texture){glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,texture);}
     gradedColor(color.r,color.g,color.b);glBegin(GL_TRIANGLES);
-    for(int i=0;i<mesh.vertexCount;++i){glNormal3f(mesh.normals[i*3],mesh.normals[i*3+1],mesh.normals[i*3+2]);glVertex3f(mesh.positions[i*3],mesh.positions[i*3+1],mesh.positions[i*3+2]);}
-    glEnd();
+    for(int i=0;i<mesh.vertexCount;++i){
+        const float x=mesh.positions[i*3],y=mesh.positions[i*3+1],z=mesh.positions[i*3+2];
+        const float nx=mesh.normals[i*3],ny=mesh.normals[i*3+1],nz=mesh.normals[i*3+2];
+        glNormal3f(nx,ny,nz);
+        if(texture){const float ax=std::abs(nx),ay=std::abs(ny),az=std::abs(nz);if(ay>=ax&&ay>=az)glTexCoord2f(x/textureWorldScale,z/textureWorldScale);else if(ax>=az)glTexCoord2f(z/textureWorldScale,y/textureWorldScale);else glTexCoord2f(x/textureWorldScale,y/textureWorldScale);}
+        glVertex3f(x,y,z);
+    }
+    glEnd();if(texture)glDisable(GL_TEXTURE_2D);
 }
 
 void DesktopRenderer::drawTaperedSegment(const Vec3& start,const Vec3& end,float startRadius,float endRadius,const VisualColor& color,int sides){
@@ -1319,6 +1417,28 @@ void DesktopRenderer::drawSlopeWedge(const SlopeSupport& slope,float zOffset,con
     for(int i=0;i<mesh.vertexCount;++i){glNormal3f(mesh.normals[i*3],mesh.normals[i*3+1],mesh.normals[i*3+2]);glVertex3f(mesh.positions[i*3],mesh.positions[i*3+1],mesh.positions[i*3+2]);}glEnd();
 }
 
+void DesktopRenderer::updateCoastalWater(const GameState& state) const{
+    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    if(plan.setting!=room_environment::RoomSetting::Coastal){coastalWaterTime_=state.time;return;}
+    const bool changed=coastalWaterRoom_!=state.roomIndex||coastalWaterSeed_!=state.roomSeed||coastalWaterTime_<0.0f||state.time<coastalWaterTime_;
+    if(changed){coastalWaterSimulation_.reset();coastalWaterRoom_=state.roomIndex;coastalWaterSeed_=state.roomSeed;coastalWaterTime_=state.time;coastalWaterPreviousPlayer_=state.player.pos;return;}
+    const float elapsed=std::min(0.10f,std::max(0.0f,state.time-coastalWaterTime_));
+    if(elapsed<=0.000001f)return;
+    const int steps=std::max(1,std::min(8,static_cast<int>(std::ceil(elapsed/(1.0f/120.0f)))));
+    for(int step=0;step<steps;++step)coastalWaterSimulation_.step(elapsed/static_cast<float>(steps));
+    const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
+    const float localZ=state.player.pos.z-tileOrigin;
+    if(coastal_water::contains(state.player.pos.x,localZ)){
+        const float speed=std::sqrt(state.player.vel.x*state.player.vel.x+state.player.vel.z*state.player.vel.z);
+        const float movement=std::sqrt((state.player.pos.x-coastalWaterPreviousPlayer_.x)*(state.player.pos.x-coastalWaterPreviousPlayer_.x)+(state.player.pos.z-coastalWaterPreviousPlayer_.z)*(state.player.pos.z-coastalWaterPreviousPlayer_.z));
+        const float strength=-(0.10f+std::min(1.0f,speed/10.0f)*0.24f)*std::min(1.0f,elapsed*60.0f);
+        coastalWaterSimulation_.disturb(state.player.pos.x,localZ,strength,0.48f+std::min(0.55f,movement*2.5f));
+        if(speed>1.0f){const float inv=1.0f/std::max(0.001f,speed);coastalWaterSimulation_.disturb(state.player.pos.x-state.player.vel.x*inv*0.44f,localZ-state.player.vel.z*inv*0.44f,-strength*0.52f,0.52f);}
+    }
+    coastalWaterPreviousPlayer_=state.player.pos;
+    coastalWaterTime_=state.time;
+}
+
 void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const scene_lighting_response::Response& lightingResponse) const {
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     const auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
@@ -1330,7 +1450,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     const float topH = ROOM_WALL_HEIGHT - doorHeight;
     const float topY = doorHeight + topH * 0.5f;
     const float wallR = VisualIdentity::RoomWall.r, wallG = VisualIdentity::RoomWall.g, wallB = VisualIdentity::RoomWall.b;
-    const bool field=plan.setting==room_environment::RoomSetting::Field,sterile=plan.setting==room_environment::RoomSetting::Sterile,coastal=plan.setting==room_environment::RoomSetting::Coastal;
+    const bool field=plan.setting==room_environment::RoomSetting::Field,city=plan.setting==room_environment::RoomSetting::City,sterile=plan.setting==room_environment::RoomSetting::Sterile,coastal=plan.setting==room_environment::RoomSetting::Coastal;
     const bool openNatural=(field&&plan.form==room_environment::RoomForm::Open)||coastal;
     const std::uint32_t realityKey=room_environment::roomKey(state.roomSeed,state.roomIndex);
     const bool mutationEligible=state.roomIndex>=8&&!state.roomInspector;
@@ -1350,7 +1470,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         if(festiveMutation||gummyMutation)drawTexturedBox(sandTexture_,{0,0.005f,z0},{ROOM_WIDTH-0.55f,0.018f,ROOM_DEPTH-0.55f},0,0,0,festiveMutation?VisualColor{0.86f,0.94f,0.98f}:VisualColor{1.0f,0.46f,0.86f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
         else drawFieldGrass(tileIndex);
     }
-    if(plan.setting==room_environment::RoomSetting::City)drawCityGround(tileIndex);
+    if(city){drawCityGround(tileIndex);drawCityStreet(state,tileIndex,plan.form);}
     if(coastal)drawTexturedBox(sandTexture_,{0,0.005f,z0},{23.5f,0.018f,35.5f},0,0,0,festiveMutation?VisualColor{0.80f,0.88f,0.92f}:VisualColor{0.91f,0.84f,0.68f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
     if(sterile)drawTexturedBox(sterileTileTexture_,{0,0.006f,z0},{ROOM_WIDTH-0.55f,0.016f,ROOM_DEPTH-0.55f},0,0,0,{0.76f,0.79f,0.78f},1.34f,std::fmod(state.roomIndex*0.113f,1.0f));
     if(sterile){
@@ -1372,6 +1492,10 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             drawBox({0,doorHeight*0.96f,z0+seam},{doorWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
         }
         if(field)drawFieldBackdrop(state,tileIndex);
+    }else if(city){
+        // City is a continuous exterior world. Buildings and the street section
+        // define its edges; reusing the Sterile room shell created the former
+        // giant terminal wall and destroyed urban depth.
     }else{
         for (float seam : {-ROOM_DEPTH*0.5f, ROOM_DEPTH*0.5f}) {
             drawStructuralBox({-sideX,ROOM_WALL_HEIGHT*0.5f,z0+seam},{sideW,ROOM_WALL_HEIGHT,0.5f},0,0,0,wallR,wallG,wallB);
@@ -1391,17 +1515,6 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             drawBox({side*boundaryX,height*0.5f,z0+localZ},{0.09f,height,0.09f},0,0,side*0.025f,0.20f,0.31f,0.19f);
         }
         for(int band=0;band<2;++band)drawBox({0,0.018f,z0-ROOM_DEPTH*0.20f+band*ROOM_DEPTH*0.40f},{ROOM_WIDTH*0.58f,0.018f,0.12f},0,0.04f*(band?1.0f:-1.0f),0,0.18f,0.32f,0.20f);
-    }else if(plan.setting==room_environment::RoomSetting::City){
-        const bool canyon=plan.form==room_environment::RoomForm::Canyon;
-        for(int side=-1;side<=1;side+=2){
-            drawBox({side*(ROOM_WIDTH*0.5f-0.38f),0.12f,z0},{0.18f,0.24f,ROOM_DEPTH-1.2f},0,0,0,0.20f,0.23f,0.27f);
-            for(int row=0;row<(canyon?4:3);++row)for(int bay=0;bay<4;++bay){
-                const float y=1.35f+row*1.18f,localZ=-ROOM_DEPTH*0.34f+bay*ROOM_DEPTH*0.225f;
-                const float live=0.30f+0.22f*std::sin(state.time*0.22f+tileIndex*1.7f+row*2.1f+bay*0.9f+side);
-                glDisable(GL_LIGHTING);drawBox({side*(ROOM_WIDTH*0.5f-0.245f),y,z0+localZ},{0.035f,0.34f,0.66f},0,0,0,0.16f+live*0.18f,0.24f+live*0.26f,0.38f+live*0.34f);glEnable(GL_LIGHTING);
-            }
-        }
-        drawBox({0,0.016f,z0},{0.075f,0.018f,ROOM_DEPTH*0.72f},0,0,0,0.52f,0.43f,0.24f);
     }else if(sterile){
         for(int side=-1;side<=1;side+=2){
             for(int bay=0;bay<5;++bay){
@@ -1411,11 +1524,25 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             glDisable(GL_LIGHTING);drawBox({side*(ROOM_WIDTH*0.5f-0.215f),0.42f,z0},{0.028f,0.055f,ROOM_DEPTH-1.0f},0,0,0,0.30f,0.72f,0.78f);glEnable(GL_LIGHTING);
         }
     }else if(coastal){
-        constexpr int strips=12,steps=24;const float x0=ROOM_WIDTH*0.125f,x1=ROOM_WIDTH*0.495f,zMin=z0-ROOM_DEPTH*0.49f,zMax=z0+ROOM_DEPTH*0.49f;
+        const int strips=state.localSettings.graphicsPreset<=0?12:(state.localSettings.graphicsPreset==1?18:24);
+        const int steps=state.localSettings.graphicsPreset<=0?24:(state.localSettings.graphicsPreset==1?36:48);
+        const float x0=coastal_water::ShoreX,x1=coastal_water::FarX,zMin=z0+coastal_water::MinZ,zMax=z0+coastal_water::MaxZ;
+        // The existing Ground054 sand becomes darker and finer where it is
+        // saturated. Reusing one source material keeps the shore coherent.
+        drawTexturedBox(sandTexture_,{x0-0.34f,0.026f,z0},{0.86f,0.018f,ROOM_DEPTH*0.98f},0,0,0,{0.64f,0.60f,0.49f},1.65f,std::fmod((state.roomIndex+tileIndex)*0.217f,1.0f));
+        const float playerLocalZ=state.player.pos.z-z0;
+        const float playerSpeed=std::sqrt(state.player.vel.x*state.player.vel.x+state.player.vel.z*state.player.vel.z);
+        const bool playerInThisWater=tileIndex==state.topology.currentTileIndex&&coastal_water::contains(state.player.pos.x,playerLocalZ);
+        const auto waterHeight=[&](float x,float localZ){return coastal_water::surfaceHeight(x,localZ,state.time)+(tileIndex==state.topology.currentTileIndex?coastalWaterSimulation_.sample(x,localZ):0.0f);};
         glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);glBegin(GL_TRIANGLES);
-        const auto waterVertex=[&](float x,float z){const float phase=x*1.27f+z*0.34f-state.time*1.65f;const float crossWave=std::sin(z*0.58f+state.time*0.72f);const float y=0.036f+std::sin(phase)*0.045f+crossWave*0.018f;const Vec3 normal=normalized(Vec3{-std::cos(phase)*0.057f,1.0f,-std::cos(z*0.58f+state.time*0.72f)*0.010f});glNormal3f(normal.x,normal.y,normal.z);const float shore=clampf((x-x0)/(x1-x0),0.0f,1.0f);glColor4f(0.045f+shore*0.02f,0.28f+shore*0.16f,0.40f+shore*0.22f,0.72f+shore*0.13f);glVertex3f(x,y,z);};
+        const auto waterVertex=[&](float x,float z){const float localZ=z-z0;constexpr float epsilon=0.055f;const float y=waterHeight(x,localZ);const Vec3 normal=normalized(Vec3{waterHeight(x-epsilon,localZ)-waterHeight(x+epsilon,localZ),epsilon*2.0f,waterHeight(x,localZ-epsilon)-waterHeight(x,localZ+epsilon)});glNormal3f(normal.x,normal.y,normal.z);const float shore=coastal_water::shoreAmount(x);const float crest=clampf((y-0.025f)*4.8f,0.0f,0.22f);glColor4f(0.035f+shore*0.025f+crest,0.30f+shore*0.17f+crest,0.43f+shore*0.23f+crest,0.74f+shore*0.12f);glVertex3f(x,y,z);};
         for(int ix=0;ix<strips;++ix)for(int iz=0;iz<steps;++iz){const float xa=x0+(x1-x0)*ix/strips,xb=x0+(x1-x0)*(ix+1)/strips,za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;waterVertex(xa,za);waterVertex(xb,za);waterVertex(xb,zb);waterVertex(xa,za);waterVertex(xb,zb);waterVertex(xa,zb);}glEnd();
-        glDisable(GL_LIGHTING);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glBegin(GL_LINES);for(int foam=0;foam<4;++foam){const float x=x0+0.12f+foam*0.36f+std::sin(state.time*0.64f+foam*1.7f+tileIndex)*0.10f;glColor4f(0.72f,0.92f,0.96f,0.34f-foam*0.045f);for(int iz=0;iz<steps;++iz){const float za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;glVertex3f(x+std::sin(za*0.55f+state.time)*0.035f,0.095f,za);glVertex3f(x+std::sin(zb*0.55f+state.time)*0.035f,0.095f,zb);}}glEnd();glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
+        glDisable(GL_LIGHTING);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glBegin(GL_LINES);for(int foam=0;foam<4;++foam){const float x=x0+0.12f+foam*0.36f+std::sin(state.time*0.64f+foam*1.7f+tileIndex)*0.10f;glColor4f(0.72f,0.92f,0.96f,0.34f-foam*0.045f);for(int iz=0;iz<steps;++iz){const float za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;const float waveXa=x+std::sin(za*0.55f+state.time)*0.035f,waveXb=x+std::sin(zb*0.55f+state.time)*0.035f;glVertex3f(waveXa,waterHeight(waveXa,za-z0)+0.012f,za);glVertex3f(waveXb,waterHeight(waveXb,zb-z0)+0.012f,zb);}}glEnd();
+        if(playerInThisWater){
+            const float speedAmount=clampf(playerSpeed/8.0f,0.0f,1.0f);glLineWidth(1.0f+speedAmount*1.5f);glBegin(GL_LINES);
+            for(int ring=0;ring<3;++ring){const float age=std::fmod(state.time*1.35f+ring/3.0f,1.0f),radius=0.18f+age*(0.58f+speedAmount*0.52f);glColor4f(0.62f,0.92f,1.0f,(1.0f-age)*(0.09f+speedAmount*0.25f));for(int segment=0;segment<24;++segment){if((segment+ring*5)%8==0)continue;const float a=2.0f*PI*segment/24.0f,b=2.0f*PI*(segment+1)/24.0f;const float rippleA=radius*(1.0f+0.045f*std::sin(a*3.0f+state.time*2.1f+ring)),rippleB=radius*(1.0f+0.045f*std::sin(b*3.0f+state.time*2.1f+ring));const float ax=state.player.pos.x+std::cos(a)*rippleA,az=playerLocalZ+std::sin(a)*rippleA*0.58f,bx=state.player.pos.x+std::cos(b)*rippleB,bz=playerLocalZ+std::sin(b)*rippleB*0.58f;glVertex3f(ax,waterHeight(ax,az)+0.014f,z0+az);glVertex3f(bx,waterHeight(bx,bz)+0.014f,z0+bz);}}glEnd();glLineWidth(1.0f);
+        }
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
     }
     if(tileIndex==state.topology.currentTileIndex&&lightingResponse.exitGlow>0.01f){
         const VisualColor guide=sterile?VisualColor{0.62f,0.88f,0.94f}:VisualColor{0.72f,0.90f,0.82f};
@@ -1440,16 +1567,23 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         const float warm=0.92f+materialPhase*0.14f,cool=1.06f-materialPhase*0.11f,green=0.96f+std::sin(materialPhase*6.28318f)*0.045f;
         const VisualColor variedPhotoTint={basePhotoTint.r*warm,basePhotoTint.g*green,basePhotoTint.b*cool};
         const VisualColor photoTint=wireframeMutation?VisualColor{0.12f,0.15f,0.18f}:(gummyMutation?(i&1?VisualColor{0.98f,0.42f,0.72f}:VisualColor{0.36f,0.90f,0.82f}):variedPhotoTint);
+        const bool coastalRock=coastal&&!wireframeMutation&&!gummyMutation;
         if(plan.setting==room_environment::RoomSetting::City){
             const VisualColor plaster=(i%3)==0?VisualColor{0.40f,0.38f,0.34f}:((i%3)==1?VisualColor{0.34f,0.37f,0.38f}:VisualColor{0.42f,0.36f,0.33f});
             drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,plaster.r,plaster.g,plaster.b);
+        }else if(coastalRock){
+            const auto role=room_environment::obstacleRole(plan,state.roomSeed,state.roomIndex,i);
+            const room_environment::EnvironmentPropSpec rock{room_environment::EnvironmentPrimitive::Rock,role,{c.center.x,c.bottomY,c.center.z},{c.width,c.height/0.71f,c.depth},materialPhase*0.34f,static_cast<unsigned char>(i%3)};
+            drawFacetedRock(rock,state.roomSeed,state.roomIndex,i,z0,photoTint,stoneTexture_,1.35f);
         }else drawTexturedBox(obstacleTexture,{c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,photoTint,1.8f,materialPhase);
         if(wireframeMutation){glDisable(GL_LIGHTING);glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width+0.018f,c.height+0.018f,c.depth+0.018f},0,0,0,(i&1)?0.92f:0.18f,0.24f,(i&1)?0.78f:0.94f);glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);glEnable(GL_LIGHTING);}
         if(gummyMutation){const float pulse=0.015f+0.012f*std::sin(state.time*2.2f+i);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width+pulse,c.height+pulse,c.depth+pulse},0,0,0,(i&1)?0.98f:0.28f,(i&1)?0.34f:0.92f,(i&1)?0.66f:0.78f,0.16f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);}
         // A shallow dark plinth provides contact and a worn cap catches the
         // directional light. Both stay inside the authored collider footprint.
-        drawBox({c.center.x,0.022f,z0+c.center.z},{c.width*0.94f,0.035f,c.depth*0.94f},0,0,0,obstacleColor.r*0.34f,obstacleColor.g*0.36f,obstacleColor.b*0.38f);
-        drawBox({c.center.x,c.topY+0.012f,z0+c.center.z},{c.width*0.88f,0.024f,c.depth*0.88f},0,0,0,std::min(1.0f,obstacleColor.r*1.18f),std::min(1.0f,obstacleColor.g*1.16f),std::min(1.0f,obstacleColor.b*1.14f));
+        if(!coastalRock){
+            drawBox({c.center.x,0.022f,z0+c.center.z},{c.width*0.94f,0.035f,c.depth*0.94f},0,0,0,obstacleColor.r*0.34f,obstacleColor.g*0.36f,obstacleColor.b*0.38f);
+            drawBox({c.center.x,c.topY+0.012f,z0+c.center.z},{c.width*0.88f,0.024f,c.depth*0.88f},0,0,0,std::min(1.0f,obstacleColor.r*1.18f),std::min(1.0f,obstacleColor.g*1.16f),std::min(1.0f,obstacleColor.b*1.14f));
+        }
         if(festiveMutation){drawBox({c.center.x,c.topY+0.042f,z0+c.center.z},{c.width*0.94f,0.055f,c.depth*0.94f},0,0,0,0.88f,0.94f,0.96f);drawBox({c.center.x,c.center.y,z0+c.center.z-c.depth*0.505f},{c.width*(0.22f+0.05f*(i%3)),c.height*0.12f,0.025f},0,0,0,(i&1)?0.70f:0.12f,(i&1)?0.10f:0.58f,0.12f);}
         if(plan.setting==room_environment::RoomSetting::Sterile){
             const float faceZ=z0+c.center.z-c.depth*0.5f-0.014f;
@@ -1468,14 +1602,18 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             const VisualColor frame=facade.family==0?VisualColor{0.24f,0.25f,0.24f}:(facade.family==1?VisualColor{0.29f,0.25f,0.21f}:VisualColor{0.17f,0.20f,0.21f});
             const VisualColor glass=facade.family==1?VisualColor{0.055f,0.075f,0.082f}:VisualColor{0.026f,0.046f,0.058f};
             const float facadeZ=z0+c.center.z;
+            const int authoredCadence=state.localSettings.graphicsPreset>=2?2:3;
+            const bool authoredFacade=state.localSettings.graphicsPreset>0&&(i%authoredCadence)==0&&cityWindowBayModelList_&&cityWindowBaySmallModelList_&&cityDoorBayModelList_&&cityDoorWindowBayModelList_&&cityCorniceModelList_;
+            const Quat facadeOrientation=quaternionFromEulerXYZ(0.0f,inward>0.0f?-PI*0.5f:PI*0.5f,0.0f);
             // Base, corner piers, cornice and crown establish a readable
             // construction hierarchy before any windows are added.
             drawBox({faceX,c.bottomY+facade.baseHeight*0.5f,facadeZ},{0.055f,facade.baseHeight,c.depth*1.015f},0,0,0,frame.r*0.72f,frame.g*0.72f,frame.b*0.72f);
             for(float edge:{-1.0f,1.0f})drawBox({faceX,c.center.y,facadeZ+edge*c.depth*0.48f},{0.065f,c.height*0.94f,0.10f},0,0,0,frame.r,frame.g,frame.b);
             for(int story=0;story<facade.stories;++story){
+                const bool authoredStory=authoredFacade&&story<(state.localSettings.graphicsPreset>=2?3:2);
                 const float y=city_facade::storyCenter(facade,story,c.bottomY);
                 const float courseY=c.bottomY+static_cast<float>(story+1)*facade.storyHeight-facade.corniceHeight*0.5f;
-                drawBox({faceX,courseY,facadeZ},{0.070f,facade.corniceHeight,c.depth*0.985f},0,0,0,frame.r,frame.g,frame.b);
+                if(!authoredStory)drawBox({faceX,courseY,facadeZ},{0.070f,facade.corniceHeight,c.depth*0.985f},0,0,0,frame.r,frame.g,frame.b);
                 for(int bay=0;bay<facade.bays;++bay){
                     const float z=city_facade::bayCenter(facade,bay,facadeZ);
                     const bool entrance=story==0&&bay==facade.entranceBay;
@@ -1483,16 +1621,27 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                     const float openingH=entrance?facade.storyHeight*0.70f:facade.storyHeight*facade.windowHeightRatio;
                     const float openingY=entrance?c.bottomY+openingH*0.5f+facade.baseHeight*0.18f:y+facade.storyHeight*0.04f;
                     drawBox({faceX+inward*facade.recessDepth,openingY,z},{0.034f,openingH,openingW},0,0,0,glass.r,glass.g,glass.b);
-                    const float jamb=std::max(0.025f,facade.bayWidth*0.035f);
-                    for(float edge:{-1.0f,1.0f})drawBox({faceX+inward*0.012f,openingY,z+edge*openingW*0.53f},{0.055f,openingH*1.08f,jamb},0,0,0,frame.r,frame.g,frame.b);
-                    drawBox({faceX+inward*0.012f,openingY+openingH*0.54f,z},{0.055f,jamb,openingW*1.10f},0,0,0,frame.r,frame.g,frame.b);
-                    drawBox({faceX+inward*0.020f,openingY-openingH*0.55f,z},{0.075f,jamb*1.25f,openingW*1.16f},0,0,0,frame.r*1.14f,frame.g*1.12f,frame.b*1.08f);
-                    if(!entrance){
-                        drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.035f,openingW*0.94f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
-                        drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.94f,openingW*0.025f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
+                    if(authoredStory){
+                        const unsigned int module=entrance?(facade.family==2?cityDoorWindowBayModelList_:cityDoorBayModelList_):
+                            (facade.family==2?cityWindowBaySmallModelList_:cityWindowBayModelList_);
+                        // These are the kit's actual CC0 window and door
+                        // assemblies, including separate frame and glass
+                        // batches. We fit their one-bay proportions to the
+                        // existing grammar while collision remains the mass.
+                        drawStaticModel(module,{faceX+inward*0.052f,c.bottomY+story*facade.storyHeight,z},{facade.bayWidth,facade.storyHeight,0.12f},facadeOrientation);
+                        gradedColor(frame.r*1.08f,frame.g*1.06f,frame.b*1.02f);
+                        drawStaticModel(cityCorniceModelList_,{faceX+inward*0.065f,courseY-facade.corniceHeight*0.5f,z},{facade.bayWidth/15.0f,facade.corniceHeight,0.28f},facadeOrientation);
                     }else{
-                        drawBox({faceX+inward*0.07f,c.bottomY+0.045f,z},{0.18f,0.09f,openingW*1.35f},0,0,0,0.18f,0.18f,0.17f);
+                        const float jamb=std::max(0.025f,facade.bayWidth*0.035f);
+                        for(float edge:{-1.0f,1.0f})drawBox({faceX+inward*0.012f,openingY,z+edge*openingW*0.53f},{0.055f,openingH*1.08f,jamb},0,0,0,frame.r,frame.g,frame.b);
+                        drawBox({faceX+inward*0.012f,openingY+openingH*0.54f,z},{0.055f,jamb,openingW*1.10f},0,0,0,frame.r,frame.g,frame.b);
+                        drawBox({faceX+inward*0.020f,openingY-openingH*0.55f,z},{0.075f,jamb*1.25f,openingW*1.16f},0,0,0,frame.r*1.14f,frame.g*1.12f,frame.b*1.08f);
+                        if(!entrance){
+                            drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.035f,openingW*0.94f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
+                            drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.94f,openingW*0.025f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
+                        }
                     }
+                    if(entrance)drawBox({faceX+inward*0.07f,c.bottomY+0.045f,z},{0.18f,0.09f,openingW*1.35f},0,0,0,0.18f,0.18f,0.17f);
                 }
             }
             drawBox({c.center.x,c.topY+facade.crownHeight*0.5f,z0+c.center.z},{c.width*1.035f,facade.crownHeight,c.depth*1.035f},0,0,0,frame.r*1.08f,frame.g*1.06f,frame.b*1.02f);
@@ -1507,13 +1656,13 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         }
     }
     for(int i=0;i<state.slopeSupportCount;++i)drawSlopeWedge(state.slopeSupports[i],z0,{0.39f,0.42f,0.36f});
-    if(state.slopeLab)for(int i=0;i<state.rockSupportCount;++i){const auto& rock=state.rockSupports[i];const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f});}
+    if(state.slopeLab)for(int i=0;i<state.rockSupportCount;++i){const auto& rock=state.rockSupports[i];const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f},stoneTexture_,1.35f);}
     const auto traversalPresentation=room_environment::traversalPresentationFor(plan.setting,state.roomInspector||state.traversalLab);
     const auto geometry=state.slopeLab?room_environment::RoomGeometryCapacityPlan{}:room_environment::roomGeometryCapacityPlan(plan,state.roomSeed,state.roomIndex,ROOM_COLLIDER_COUNT);
     for(int i=0;i<plan.traversal.surfaceCount;++i){const auto& surface=plan.traversal.surfaces[i];if(!geometry.traversalIncluded[i]||room_environment::usesShallowElevation(plan,surface))continue;const auto spec=room_environment::physicalTraversalObstacle(surface);
         drawBox(spec.center+Vec3{0,0,z0},spec.size,0,0,0,traversalPresentation.color.x,traversalPresentation.color.y,traversalPresentation.color.z);
     }
-    if(plan.sidewalks){
+    if(plan.sidewalks&&!city){
         const bool canyon=plan.form==room_environment::RoomForm::Canyon,skyline=plan.form==room_environment::RoomForm::Skyline;
         const float walkX=canyon?3.55f:(skyline?8.15f:5.2f),walkW=canyon?1.1f:(skyline?2.4f:1.35f);
         drawBox({-walkX,0.025f,z0},{walkW,0.05f,ROOM_DEPTH-1.0f},0,0,0,0.43f,0.45f,0.46f);drawBox({walkX,0.025f,z0},{walkW,0.05f,ROOM_DEPTH-1.0f},0,0,0,0.43f,0.45f,0.46f);
@@ -1526,21 +1675,27 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             int partIndex=0;for(const auto& part:house_geometry::parts(prop,z0)){const float variation=0.92f+0.045f*static_cast<float>((partIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.40f*variation,0.47f*variation,0.50f*variation}:(part.surface==3?VisualColor{0.035f,0.045f,0.048f}:VisualColor{(part.surface==1?0.30f:0.26f)*variation,(part.surface==1?0.37f:0.32f)*variation,(part.surface==1?0.41f:0.36f)*variation});if(part.surface==0)drawTexturedBox(plan.setting==room_environment::RoomSetting::City?metalTexture_:stoneTexture_,part.center,part.size,0,part.yaw,0,color,1.35f,std::fmod((prop.variant+partIndex)*0.173f,1.0f));else drawBox(part.center,part.size,0,part.yaw,0,color.r,color.g,color.b);}
             const Vec3 front{std::sin(prop.yaw),0,std::cos(prop.yaw)},right{std::cos(prop.yaw),0,-std::sin(prop.yaw)};
             const Vec3 face=p+front*(prop.size.z*0.505f);
+            const bool authoredCityLandmark=plan.setting==room_environment::RoomSetting::City&&prop.role==room_environment::EnvironmentRole::Landmark&&state.localSettings.graphicsPreset>0&&cityWindowBaySmallModelList_&&cityDoorBayModelList_;
             drawBox({p.x,0.028f,p.z},{prop.size.x*0.88f,0.055f,prop.size.z*0.88f},0,prop.yaw,0,0.07f,0.10f,0.10f);
             drawBox(p+Vec3{0,prop.size.y*0.79f,0},{prop.size.x*1.06f,0.075f,prop.size.z*1.06f},0,prop.yaw,0,0.18f,0.22f,0.23f);
             for(float side:{-1.0f,1.0f}){
                 const Vec3 window=face+right*(side*prop.size.x*0.255f)+Vec3{0,prop.size.y*0.47f,0}+front*0.012f;
-                drawBox(window,{prop.size.x*0.23f,prop.size.y*0.20f,0.028f},0,prop.yaw,0,0.025f,0.035f,0.040f);
-                drawBox(window+Vec3{0,prop.size.y*0.105f,0},{prop.size.x*0.27f,0.025f,0.045f},0,prop.yaw,0,0.42f,0.48f,0.47f);
-                drawBox(window-Vec3{0,prop.size.y*0.105f,0},{prop.size.x*0.27f,0.025f,0.045f},0,prop.yaw,0,0.28f,0.32f,0.32f);
-                drawBox(window,{0.024f,prop.size.y*0.23f,0.045f},0,prop.yaw,0,0.34f,0.39f,0.39f);
+                if(authoredCityLandmark)drawStaticModel(cityWindowBaySmallModelList_,window-Vec3{0,prop.size.y*0.12f,0}+front*0.022f,{prop.size.x*0.25f,prop.size.y*0.24f,0.10f},quaternionFromEulerXYZ(0,prop.yaw,0));
+                else{
+                    drawBox(window,{prop.size.x*0.23f,prop.size.y*0.20f,0.028f},0,prop.yaw,0,0.025f,0.035f,0.040f);
+                    drawBox(window+Vec3{0,prop.size.y*0.105f,0},{prop.size.x*0.27f,0.025f,0.045f},0,prop.yaw,0,0.42f,0.48f,0.47f);
+                    drawBox(window-Vec3{0,prop.size.y*0.105f,0},{prop.size.x*0.27f,0.025f,0.045f},0,prop.yaw,0,0.28f,0.32f,0.32f);
+                    drawBox(window,{0.024f,prop.size.y*0.23f,0.045f},0,prop.yaw,0,0.34f,0.39f,0.39f);
+                }
             }
             const Vec3 step=face+Vec3{0,0.055f,0}+front*0.24f;
             drawBox(step,{prop.size.x*0.34f,0.11f,0.46f},0,prop.yaw,0,0.20f,0.22f,0.21f);
+            if(authoredCityLandmark)drawStaticModel(cityDoorBayModelList_,face+front*0.030f,{prop.size.x*0.28f,prop.size.y*0.54f,0.12f},quaternionFromEulerXYZ(0,prop.yaw,0));
         }
         else if(prop.primitive==EnvironmentPrimitive::Tree){
             const unsigned int treeSeed=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<unsigned int>((i+1)*0x45d9f3bu);
             const auto treeProfile=tree_geometry::profile(prop);
+            const auto authoredVariant=tree_geometry::authoredVariant(prop,treeSeed);
             const unsigned int authoredTree=treeProfile.archetype==tree_geometry::Archetype::Broad?commonTreeModelList_:
                 (treeProfile.archetype==tree_geometry::Archetype::WindShaped?twistedTreeModelList_:pineTreeModelList_);
             if(authoredTree){
@@ -1552,12 +1707,12 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
                 drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
-                drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection,prop.size.y,prop.size.y*widthCorrection},quaternionFromEulerXYZ(0,prop.yaw,0));
+                drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
                 const VisualColor bark{0.28f,0.205f,0.13f};
                 const float rootRadius=std::max(prop.size.x,prop.size.z)*0.075f;
                 for(int root=0;root<3;++root){
                     const float angle=prop.yaw+static_cast<float>(root)*PI*2.0f/3.0f+room_environment::unit(treeSeed+root)*0.22f;
-                    const Vec3 rootEnd=p+Vec3{std::cos(angle)*rootRadius*3.2f,0.018f,std::sin(angle)*rootRadius*3.2f};
+                    const Vec3 rootEnd=p+Vec3{std::cos(angle)*rootRadius*3.2f*authoredVariant.rootSpread,0.018f,std::sin(angle)*rootRadius*3.2f*authoredVariant.rootSpread};
                     drawTaperedSegment(p+Vec3{0,rootRadius*0.30f,0},rootEnd,rootRadius*0.42f,0.018f,bark,6);
                 }
             }else{
@@ -1602,7 +1757,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         }
         else if(prop.primitive==EnvironmentPrimitive::LawnFragment)drawTexturedBox(fieldGrassTexture_,p,prop.size,0,prop.yaw,0,{0.72f,0.84f,0.70f},1.45f,std::fmod(prop.variant*0.219f,1.0f));
         else if(prop.primitive==EnvironmentPrimitive::Ruin){int ruinIndex=0;for(const auto& part:ruin_geometry::parts(prop,z0)){const float phase=std::fmod((prop.variant+ruinIndex)*0.137f,1.0f);const float weather=0.88f+0.055f*static_cast<float>((ruinIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.84f*weather,0.82f*weather,0.72f*weather}:VisualColor{0.70f*weather,0.70f*weather,0.66f*weather};drawTexturedBox(stoneTexture_,part.center,part.size,0,0,0,color,1.25f,phase);if(part.size.y>0.42f)drawBox({part.center.x,part.center.y-part.size.y*0.39f,part.center.z-part.size.z*0.505f},{part.size.x*0.74f,0.045f,0.024f},0,0,0,0.20f,0.27f,0.20f);}}
-        else if(prop.primitive==EnvironmentPrimitive::Rock){const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(prop,state.roomSeed,state.roomIndex,i,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f});}
+        else if(prop.primitive==EnvironmentPrimitive::Rock){const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(prop,state.roomSeed,state.roomIndex,i,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f},stoneTexture_,1.35f);}
         else {for(const auto& part:marker_pillar_geometry::parts(prop,z0)){const VisualColor color=part.surface==0?VisualColor{0.70f,0.76f,0.78f}:VisualColor{0.72f,0.90f,0.94f};if(part.surface==0)drawTexturedBox(metalTexture_,part.center,part.size,0,0,0,color,0.92f);else drawBox(part.center,part.size,0,0,0,color.r,color.g,color.b);}}
     }
     drawBirdFlocks(state,tileIndex,plan.setting);
@@ -1910,6 +2065,7 @@ lighting_evidence::GlFixedFunctionState observeGlFixedFunctionState(const char* 
 }
 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
+    updateCoastalWater(state);
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
     // The screen is an always-on physical object, not an effect that only

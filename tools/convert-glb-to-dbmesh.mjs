@@ -7,28 +7,42 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const [inputPath, outputPath] = process.argv.slice(2);
+const arguments_ = process.argv.slice(2);
+const inputPath = arguments_[0];
+const outputPath = arguments_[1];
+const metadataFlag = arguments_.indexOf("--metadata");
+const metadataPath = metadataFlag >= 0 ? arguments_[metadataFlag + 1] : undefined;
+const includeFlag = arguments_.indexOf("--include");
+const includePattern = includeFlag >= 0 ? arguments_[includeFlag + 1] : undefined;
 if (!inputPath || !outputPath) {
-  console.error("usage: node tools/convert-glb-to-dbmesh.mjs input.glb output.dbmesh");
+  console.error("usage: node tools/convert-glb-to-dbmesh.mjs input.glb|input.gltf output.dbmesh [--metadata output.structure.json] [--include exact-node-name]");
   process.exit(2);
 }
+if (metadataFlag >= 0 && !metadataPath) throw new Error("--metadata requires an output path");
+if (includeFlag >= 0 && !includePattern) throw new Error("--include requires an exact node name");
 
 const source = fs.readFileSync(inputPath);
-if (source.readUInt32LE(0) !== 0x46546c67 || source.readUInt32LE(4) !== 2) {
-  throw new Error("expected a glTF 2.0 GLB");
-}
-
 let json;
 let binary;
-for (let offset = 12; offset + 8 <= source.length;) {
-  const length = source.readUInt32LE(offset);
-  const type = source.readUInt32LE(offset + 4);
-  const data = source.subarray(offset + 8, offset + 8 + length);
-  if (type === 0x4e4f534a) json = JSON.parse(data.toString("utf8").replace(/\0+$/, ""));
-  if (type === 0x004e4942) binary = data;
-  offset += 8 + length;
+if (path.extname(inputPath).toLowerCase() === ".gltf") {
+  json = JSON.parse(source.toString("utf8"));
+  const uri = json.buffers?.[0]?.uri;
+  if (!uri || uri.startsWith("data:")) throw new Error("expected one external binary glTF buffer");
+  binary = fs.readFileSync(path.resolve(path.dirname(inputPath), decodeURIComponent(uri)));
+} else {
+  if (source.readUInt32LE(0) !== 0x46546c67 || source.readUInt32LE(4) !== 2) {
+    throw new Error("expected a glTF 2.0 GLB or JSON glTF");
+  }
+  for (let offset = 12; offset + 8 <= source.length;) {
+    const length = source.readUInt32LE(offset);
+    const type = source.readUInt32LE(offset + 4);
+    const data = source.subarray(offset + 8, offset + 8 + length);
+    if (type === 0x4e4f534a) json = JSON.parse(data.toString("utf8").replace(/\0+$/, ""));
+    if (type === 0x004e4942) binary = data;
+    offset += 8 + length;
+  }
 }
-if (!json || !binary) throw new Error("GLB is missing JSON or BIN data");
+if (!json || !binary) throw new Error("glTF is missing JSON or binary data");
 
 const identity = () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const multiply = (a, b) => {
@@ -91,13 +105,21 @@ function semanticColor(materialIndex) {
     if (family.includes("twisted")) return [0.255, 0.235, 0.205, 1];
     return [0.285, 0.205, 0.125, 1];
   }
+  if (name.includes("glass")) return [0.12, 0.24, 0.285, 1];
+  if (name.includes("trim_01")) return [0.21, 0.225, 0.225, 1];
+  if (name.includes("trim_02")) return [0.42, 0.39, 0.345, 1];
+  if (name.includes("plaster")) return [0.49, 0.475, 0.435, 1];
+  if (name.includes("objects")) return [0.275, 0.265, 0.245, 1];
   const factor = material.pbrMetallicRoughness?.baseColorFactor;
   return factor ? factor.map(Number) : [0.55, 0.55, 0.52, 1];
 }
 
 const emitted = [];
-function emitMesh(meshIndex, world) {
-  for (const primitive of json.meshes[meshIndex].primitives) {
+const structure = [];
+function emitMesh(meshIndex, world, nodePath) {
+  const mesh = json.meshes[meshIndex];
+  let primitiveIndex = 0;
+  for (const primitive of mesh.primitives) {
     if ((primitive.mode ?? 4) !== 4) continue;
     const positions = accessorValues(primitive.attributes.POSITION);
     const indices = primitive.indices === undefined
@@ -106,17 +128,32 @@ function emitMesh(meshIndex, world) {
     if (indices.length % 3 !== 0) throw new Error("triangle index count is not divisible by three");
     const vertices = indices.map((index) => transform(world, positions[index]));
     emitted.push({ vertices, color: semanticColor(primitive.material) });
+    const bounds = { minimum: [Infinity, Infinity, Infinity], maximum: [-Infinity, -Infinity, -Infinity] };
+    for (const vertex of vertices) for (let axis = 0; axis < 3; ++axis) {
+      bounds.minimum[axis] = Math.min(bounds.minimum[axis], vertex[axis]);
+      bounds.maximum[axis] = Math.max(bounds.maximum[axis], vertex[axis]);
+    }
+    structure.push({
+      nodePath,
+      mesh: mesh.name ?? `mesh_${meshIndex}`,
+      primitive: primitiveIndex++,
+      material: json.materials?.[primitive.material]?.name ?? null,
+      sourceVertexCount: positions.length,
+      triangleCount: indices.length / 3,
+      bounds,
+    });
   }
 }
-function visit(nodeIndex, parent) {
+function visit(nodeIndex, parent, parentPath = "") {
   const node = json.nodes[nodeIndex];
   const world = multiply(parent, nodeMatrix(node));
-  if (node.mesh !== undefined) emitMesh(node.mesh, world);
-  for (const child of node.children ?? []) visit(child, world);
+  const nodePath = `${parentPath}/${node.name ?? `node_${nodeIndex}`}`;
+  if (node.mesh !== undefined && (!includePattern || node.name === includePattern)) emitMesh(node.mesh, world, nodePath);
+  for (const child of node.children ?? []) visit(child, world, nodePath);
 }
 const scene = json.scenes[json.scene ?? 0];
 for (const node of scene.nodes ?? []) visit(node, identity());
-if (!emitted.length) throw new Error("no triangle primitives found");
+if (!emitted.length) throw new Error(includePattern ? `node '${includePattern}' has no triangle primitives` : "no triangle primitives found");
 
 const all = emitted.flatMap((batch) => batch.vertices);
 const minimum = [Infinity, Infinity, Infinity];
@@ -158,4 +195,25 @@ for (const batch of emitted) {
 }
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, output);
+if (metadataPath) {
+  const metadata = {
+    schema: "digital-breakdown.asset-structure.v1",
+    source: path.basename(inputPath),
+    runtime: path.basename(outputPath),
+    sourceGenerator: json.asset?.generator ?? null,
+    sourceCopyright: json.asset?.copyright ?? null,
+    selectedNode: includePattern ?? null,
+    normalizedBy: "height",
+    sourceBounds: { minimum, maximum },
+    normalizedBounds: {
+      minimum: [(minimum[0] - centerX) / height, 0, (minimum[2] - centerZ) / height],
+      maximum: [(maximum[0] - centerX) / height, 1, (maximum[2] - centerZ) / height],
+    },
+    runtimeVertexCount: vertexCount,
+    batches: emitted.map((batch, index) => ({ index, vertexCount: batch.vertices.length, color: batch.color })),
+    structure,
+  };
+  fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+  fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+}
 console.log(`${path.basename(inputPath)} -> ${path.basename(outputPath)}: ${vertexCount} vertices, ${emitted.length} batches, ${output.length} bytes`);

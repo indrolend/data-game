@@ -1,0 +1,98 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "modular_urban_apartments_facade_1k.gltf",
+  "runtime": "door-bay.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.1.62",
+  "sourceCopyright": null,
+  "selectedNode": "door_centered_large_01",
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      8.459999084472656,
+      0,
+      -0.24000000953674316
+    ],
+    "maximum": [
+      10.540004849433899,
+      2.809999704360962,
+      0.20000004768371582
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -0.37010782629855626,
+      0,
+      -0.07829183336524975
+    ],
+    "maximum": [
+      0.37010782629855626,
+      1,
+      0.07829183336524975
+    ]
+  },
+  "runtimeVertexCount": 5133,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 5097,
+      "color": [
+        0.275,
+        0.265,
+        0.245,
+        1
+      ]
+    },
+    {
+      "index": 1,
+      "vertexCount": 36,
+      "color": [
+        0.12,
+        0.24,
+        0.285,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/door_centered_large_01",
+      "mesh": "Cube.170",
+      "primitive": 0,
+      "material": "modular_urban_apartments_facade_objects",
+      "sourceVertexCount": 2239,
+      "triangleCount": 1699,
+      "bounds": {
+        "minimum": [
+          8.459999084472656,
+          0,
+          -0.24000000953674316
+        ],
+        "maximum": [
+          10.540004849433899,
+          2.809999704360962,
+          0.20000004768371582
+        ]
+      }
+    },
+    {
+      "nodePath": "/door_centered_large_01",
+      "mesh": "Cube.170",
+      "primitive": 1,
+      "material": "modular_urban_apartments_facade_glass",
+      "sourceVertexCount": 24,
+      "triangleCount": 12,
+      "bounds": {
+        "minimum": [
+          8.77707314491272,
+          2.1965720653533936,
+          -0.14500021934509277
+        ],
+        "maximum": [
+          10.222930669784546,
+          2.312929630279541,
+          -0.14500021934509277
+        ]
+      }
+    }
+  ]
+}
