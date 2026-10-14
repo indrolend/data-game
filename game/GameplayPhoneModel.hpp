@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Game.hpp"
+#include "gameplay/MaterialUnlocks.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -18,6 +19,7 @@ struct GameplayPhoneModel {
     bool roomClear = false;
     int roomIndex = 0;
     std::int64_t tokens = 0;
+    int unlockedMaterialMemories = 0;
     bool supplementalActive = false;
     float supplementalFill = 0.0f;
     int flowerStacks = 0;
@@ -34,6 +36,8 @@ inline GameplayPhoneModel makeGameplayPhoneModel(const GameState& state) {
     model.roomClear = state.roomClear;
     model.roomIndex = std::max(0, state.roomIndex);
     model.tokens = std::max<std::int64_t>(0, state.progression.permanent.tokens);
+    for(const auto memory:{material_unlocks::Memory::Gummy,material_unlocks::Memory::Wireframe,material_unlocks::Memory::Festive})
+        if(material_unlocks::unlocked(memory,state.progression.permanent.lifetimeRoomsCleared,state.progression.permanent.bestRoomCleared))++model.unlockedMaterialMemories;
     model.supplementalActive = state.energy.supplementalActive || state.energy.supplementalValue > 0.001f;
     model.supplementalFill = state.energy.supplementalMax > 0.0f
         ? clampf(state.energy.supplementalValue / state.energy.supplementalMax, 0.0f, 1.0f)

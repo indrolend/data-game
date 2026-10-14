@@ -164,6 +164,30 @@ bool runTreeClimbContract(){
     return true;
 }
 
+bool runLandingSlideIntentContract(){
+    const auto land=[](bool runHeld){
+        Game game;game.reset();GameState& state=game.networkMutableState();
+        for(auto& target:state.targets)target={};
+        for(auto& collider:state.roomColliders)collider={};
+        state.debug.colliderCount=0;
+        state.player.pos={0.0f,0.55f,0.0f};
+        state.player.vel={8.0f,0.0f,0.0f};
+        state.player.jumpVel=-7.0f;
+        state.player.grounded=false;
+        for(int frame=0;frame<30&&!game.state().player.grounded;++frame){
+            game.setTouchControls(0.0f,0.0f,0.0f,0.0f,false,runHeld,false,false,false,false);
+            game.update(Dt);
+        }
+        return std::array<float,3>{game.state().player.grounded?1.0f:0.0f,game.state().meleeVisual.landingRecovery,horizontalLength(game.state().player.vel)};
+    };
+    const auto coast=land(false),slide=land(true);
+    if(coast[0]<0.5f||slide[0]<0.5f||coast[1]>0.001f||slide[1]<=0.0f||coast[2]>=slide[2]){
+        std::fprintf(stderr,"LANDING_SLIDE_INTENT_FAIL coast=(ground=%.0f recovery=%.3f speed=%.3f) slide=(ground=%.0f recovery=%.3f speed=%.3f)\n",coast[0],coast[1],coast[2],slide[0],slide[1],slide[2]);
+        return false;
+    }
+    return true;
+}
+
 bool runRaisedSupportContract(){
     Game game;game.reset();
     GameState& state=game.networkMutableState();
@@ -219,6 +243,8 @@ bool runRaisedSupportContract(){
 } // namespace
 
 int main(){
+    if(!runLandingSlideIntentContract())return 1;
+    std::printf("LANDING_SLIDE_INTENT_OK release=drag run=slide\n");
     if(!runRaisedSupportContract()){
         std::fprintf(stderr,"RAISED_SUPPORT_FAIL lip blocking, landing, or edge departure regressed\n");
         return 1;

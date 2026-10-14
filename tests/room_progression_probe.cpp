@@ -172,6 +172,10 @@ int main() {
     }
 
     const GameState& finalState = game.state();
+    if(finalState.progression.permanent.lifetimeRoomsCleared!=static_cast<std::uint64_t>(kRooms)||
+       finalState.progression.permanent.bestRoomCleared!=finalState.roomIndex-1){
+        return fail(kRooms,"accomplishment_progress_not_recorded",finalState);
+    }
     std::printf(
         "ROOM_PROBE_OK rooms=%d final_room=%d tokens=%lld rules=%d "
         "max_required=%d max_humans=%d secret_wakes=%d\n",

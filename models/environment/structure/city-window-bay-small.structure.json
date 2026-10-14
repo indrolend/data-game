@@ -1,0 +1,98 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "modular_urban_apartments_facade_1k.gltf",
+  "runtime": "window-bay-small.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.1.62",
+  "sourceCopyright": null,
+  "selectedNode": "window_centered_small_01",
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      12.939990520477295,
+      3.9999996572732925,
+      -0.24000000953674316
+    ],
+    "maximum": [
+      14.060009598731995,
+      6.299999475479126,
+      0.1500074714422226
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -0.2434824275613195,
+      0,
+      -0.08478424169685367
+    ],
+    "maximum": [
+      0.2434824275613195,
+      1,
+      0.08478424169685367
+    ]
+  },
+  "runtimeVertexCount": 2541,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 2499,
+      "color": [
+        0.275,
+        0.265,
+        0.245,
+        1
+      ]
+    },
+    {
+      "index": 1,
+      "vertexCount": 42,
+      "color": [
+        0.12,
+        0.24,
+        0.285,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/window_centered_small_01",
+      "mesh": "Cube.112",
+      "primitive": 0,
+      "material": "modular_urban_apartments_facade_objects",
+      "sourceVertexCount": 1212,
+      "triangleCount": 833,
+      "bounds": {
+        "minimum": [
+          12.939990520477295,
+          3.9999996572732925,
+          -0.24000000953674316
+        ],
+        "maximum": [
+          14.060009598731995,
+          6.299999475479126,
+          0.1500074714422226
+        ]
+      }
+    },
+    {
+      "nodePath": "/window_centered_small_01",
+      "mesh": "Cube.112",
+      "primitive": 1,
+      "material": "modular_urban_apartments_facade_glass",
+      "sourceVertexCount": 28,
+      "triangleCount": 14,
+      "bounds": {
+        "minimum": [
+          13.179999828338623,
+          4.5677520632743835,
+          -0.1344001144170761
+        ],
+        "maximum": [
+          13.820000171661377,
+          6.0274810791015625,
+          -0.08440019190311432
+        ]
+      }
+    }
+  ]
+}

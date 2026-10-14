@@ -215,9 +215,7 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     } else if (pausedSolo && state.localSettings.menuPage == LocalMenuPage::Main) {
         page.title = "";
         addPhoneMenuItem(page, "Resume", PhoneMenuAction::Resume);
-        addPhoneMenuItem(page, "Controls", PhoneMenuAction::Controls);
-        addPhoneMenuItem(page, "Audio", PhoneMenuAction::Audio);
-        addPhoneMenuItem(page, "Graphics", PhoneMenuAction::Graphics);
+        addPhoneMenuItem(page, "Settings", PhoneMenuAction::Settings);
         addPhoneMenuItem(page, "Exit Run", PhoneMenuAction::ExitRun);
     } else if (state.localSettings.menuPage == LocalMenuPage::Main) {
         addPhoneMenuItem(page, "Play", PhoneMenuAction::Solo);
@@ -274,17 +272,13 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
     } else if (state.localSettings.menuPage == LocalMenuPage::Audio) {
         page.title = "";
         page.tablePage = true;
-        addPhoneMenuValue(page, "Music Level", std::to_string(phoneMenuPercent(state.localSettings.musicVolume)) + "%", PhoneMenuAction::MusicVolume);
-        addPhoneMenuValue(page, "Effects Level", std::to_string(phoneMenuPercent(state.localSettings.sfxVolume)) + "%", PhoneMenuAction::SfxVolume);
-        addPhoneMenuToggle(page, "Music", !state.localSettings.musicMuted, PhoneMenuAction::MusicMute);
-        addPhoneMenuToggle(page, "Effects", !state.localSettings.sfxMuted, PhoneMenuAction::SfxMute);
+        addPhoneMenuValue(page, "Music", state.localSettings.musicMuted ? "Off" : std::to_string(phoneMenuPercent(state.localSettings.musicVolume)) + "%", PhoneMenuAction::MusicVolume);
+        addPhoneMenuValue(page, "Effects", state.localSettings.sfxMuted ? "Off" : std::to_string(phoneMenuPercent(state.localSettings.sfxVolume)) + "%", PhoneMenuAction::SfxVolume);
     } else {
         const char* presets[] = {"Low", "Normal", "Pretty"};
         page.title = "";
         page.tablePage = true;
-        addPhoneMenuValue(page, "Preset", presets[std::max(0, std::min(2, state.localSettings.graphicsPreset))], PhoneMenuAction::GraphicsPreset);
-        addPhoneMenuToggle(page, "Shadows", state.localSettings.shadows, PhoneMenuAction::ToggleShadows);
-        addPhoneMenuToggle(page, "Particles", state.localSettings.particles, PhoneMenuAction::ToggleParticles);
+        addPhoneMenuValue(page, "Quality", presets[std::max(0, std::min(2, state.localSettings.graphicsPreset))], PhoneMenuAction::GraphicsPreset);
         addPhoneMenuToggle(page, "Frame Rate", state.localSettings.fpsCounter, PhoneMenuAction::ToggleFps);
     }
     // Ordinary phone pages communicate through layout and direct response.

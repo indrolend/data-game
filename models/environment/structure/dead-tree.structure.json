@@ -1,0 +1,67 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "dead_tree_2.glb",
+  "runtime": "dead-tree.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.0.44",
+  "sourceCopyright": null,
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      -2.332343816757202,
+      -0.3355545997619629,
+      -2.522876024246216
+    ],
+    "maximum": [
+      4.397274017333984,
+      11.152676582336426,
+      3.8556599617004395
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -0.2928918180449597,
+      0,
+      -0.2776117526206319
+    ],
+    "maximum": [
+      0.2928918180449597,
+      1,
+      0.2776117526206319
+    ]
+  },
+  "runtimeVertexCount": 19671,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 19671,
+      "color": [
+        0.29,
+        0.255,
+        0.205,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/DeadTree_2",
+      "mesh": "tree.043",
+      "primitive": 0,
+      "material": "Bark_DeadTree",
+      "sourceVertexCount": 8635,
+      "triangleCount": 6557,
+      "bounds": {
+        "minimum": [
+          -2.332343816757202,
+          -0.3355545997619629,
+          -2.522876024246216
+        ],
+        "maximum": [
+          4.397274017333984,
+          11.152676582336426,
+          3.8556599617004395
+        ]
+      }
+    }
+  ]
+}

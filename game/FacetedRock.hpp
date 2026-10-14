@@ -14,10 +14,12 @@ namespace faceted_rock {
 constexpr int RingVertexCount=6;
 constexpr int TriangleCount=RingVertexCount*3;
 constexpr int VertexCount=TriangleCount*3;
+constexpr int VisualTriangleCount=RingVertexCount*5;
+constexpr int MeshCapacity=VisualTriangleCount*3;
 
 struct Mesh {
-    std::array<float,VertexCount*3> positions{};
-    std::array<float,VertexCount*3> normals{};
+    std::array<float,MeshCapacity*3> positions{};
+    std::array<float,MeshCapacity*3> normals{};
     int vertexCount=0;
 };
 
@@ -96,6 +98,33 @@ inline Mesh makeMesh(const room_environment::EnvironmentPropSpec& prop,
         }
     };
     for(int i=0;i<RingVertexCount;++i){const int next=(i+1)%RingVertexCount;emit(base[i],shoulder[next],base[next]);emit(base[i],shoulder[i],shoulder[next]);emit(shoulder[i],crown,shoulder[next]);}
+    return mesh;
+}
+
+// Presentation-only plateau form. Physics and AI continue sampling makeMesh,
+// preserving the established traversal surface exactly.
+inline Mesh makeVisualMesh(const room_environment::EnvironmentPropSpec& prop,
+                           int roomSeed,int roomIndex,int propIndex,float zOffset=0.0f) {
+    Mesh mesh{};
+    const std::uint32_t key=shapeKey(roomSeed,roomIndex,propIndex,prop.role);
+    const bool landmark=prop.role==room_environment::EnvironmentRole::Landmark;
+    const float halfX=prop.size.x*0.5f,halfZ=prop.size.z*0.5f;
+    std::array<Vec3,RingVertexCount> base{},shoulder{},top{};
+    const float cosine=std::cos(prop.yaw),sine=std::sin(prop.yaw);
+    const auto place=[&](float x,float y,float z){const float rotatedX=x*cosine+z*sine,rotatedZ=-x*sine+z*cosine;return prop.center+Vec3{clampf(rotatedX,-halfX*0.94f,halfX*0.94f),y,clampf(rotatedZ,-halfZ*0.94f,halfZ*0.94f)+zOffset};};
+    for(int i=0;i<RingVertexCount;++i){
+        const float phase=6.283185307f*static_cast<float>(i)/RingVertexCount;
+        const float angle=phase+(room_environment::unit(key+static_cast<std::uint32_t>(i)*11u)-0.5f)*(landmark?0.18f:0.10f);
+        const float baseRadius=0.88f+room_environment::unit(key+static_cast<std::uint32_t>(i)*11u+1u)*0.08f;
+        const float shoulderRadius=(landmark?0.60f:0.64f)+room_environment::unit(key+static_cast<std::uint32_t>(i)*11u+2u)*0.05f;
+        const float topRadius=(landmark?0.40f:0.44f)+room_environment::unit(key+static_cast<std::uint32_t>(i)*11u+4u)*0.045f;
+        base[i]=place(std::cos(angle)*halfX*baseRadius,0.0f,std::sin(angle)*halfZ*baseRadius);
+        shoulder[i]=place(std::cos(angle)*halfX*shoulderRadius,prop.size.y*(0.34f+room_environment::unit(key+static_cast<std::uint32_t>(i)*11u+3u)*0.04f),std::sin(angle)*halfZ*shoulderRadius);
+        top[i]=place(std::cos(angle)*halfX*topRadius,prop.size.y*(0.68f+room_environment::unit(key+static_cast<std::uint32_t>(i)*11u+5u)*0.025f),std::sin(angle)*halfZ*topRadius);
+    }
+    const Vec3 crown=place((room_environment::unit(key+101u)-0.5f)*halfX*0.08f,prop.size.y*(0.70f+room_environment::unit(key+103u)*0.012f),(room_environment::unit(key+107u)-0.5f)*halfZ*0.08f);
+    const auto emit=[&](const Vec3& a,const Vec3& b,const Vec3& c){const Vec3 normal=triangle_geometry::faceNormalOrZero(a,b,c);for(const Vec3& p:{a,b,c}){mesh.positions[mesh.vertexCount*3]=p.x;mesh.positions[mesh.vertexCount*3+1]=p.y;mesh.positions[mesh.vertexCount*3+2]=p.z;mesh.normals[mesh.vertexCount*3]=normal.x;mesh.normals[mesh.vertexCount*3+1]=normal.y;mesh.normals[mesh.vertexCount*3+2]=normal.z;++mesh.vertexCount;}};
+    for(int i=0;i<RingVertexCount;++i){const int next=(i+1)%RingVertexCount;emit(base[i],shoulder[next],base[next]);emit(base[i],shoulder[i],shoulder[next]);emit(shoulder[i],top[next],shoulder[next]);emit(shoulder[i],top[i],top[next]);emit(top[i],crown,top[next]);}
     return mesh;
 }
 
