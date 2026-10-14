@@ -403,6 +403,11 @@ private:
     const float sideStride=std::sin(expression.locomotionPhase+(bone.side<0?0.0f:3.14159265358979323846f));
     const float scan=std::sin(expression.time*(1.35f+std::abs(expression.individuality)*0.55f)
         +expression.individuality*2.7f)*std::clamp(expression.searchAmount,0.0f,1.0f);
+    const bool idle=active<0.08f&&commitment<0.10f&&disruption<0.08f&&vacuum<0.05f;
+    const float idleCycle=std::fmod(std::max(0.0f,expression.time+expression.individuality*7.0f),18.0f);
+    const bool sitting=idle&&expression.individuality<-0.30f&&idleCycle<8.0f;
+    const bool handGame=idle&&std::abs(expression.individuality)<=0.30f&&idleCycle>5.0f&&idleCycle<12.0f;
+    const bool handInspect=idle&&expression.individuality>0.30f&&idleCycle<9.0f;
     float dx=0.0f,dy=0.0f,dz=0.0f;
     if(region==RigSpine){
       dx-=commitment*0.055f;dy-=stride*active*0.035f;
@@ -436,6 +441,22 @@ private:
         dz+=side*rebound*0.38f;
       }
     }
+    if(sitting){
+      if(region==RigSpine)dx+=0.16f;
+      if(region==RigPelvis)dx-=0.24f;
+      if(region==RigThigh&&bone.side!=0){dx+=1.06f;dy+=side*0.42f;dz+=side*0.20f;}
+      if(region==RigShin&&bone.side!=0)dx-=1.34f;
+      if((left||right)&&(region==RigUpperArm||region==RigForearm)){dx-=0.42f;dz+=side*0.32f;}
+    }else if(handInspect&&(left||right)){
+      const float inspect=0.72f+std::sin(expression.time*2.8f+side)*0.18f;
+      if(region==RigUpperArm){dx-=inspect;dy+=side*0.34f;}
+      if(region==RigForearm){dx-=inspect*0.76f;dz-=side*0.24f;}
+    }else if(handGame&&(left||right)){
+      const float throwBeat=std::pow(std::max(0.0f,std::sin(expression.time*5.4f)),3.0f);
+      if(region==RigUpperArm)dx-=0.38f+throwBeat*0.46f;
+      if(region==RigForearm){dx-=0.62f;dz+=side*(0.22f+throwBeat*0.18f);}
+    }
+    if(handInspect&&region==RigHead){dy+=std::sin(expression.time*1.7f)*0.12f;dx+=0.08f;}
     if(dx==0.0f&&dy==0.0f&&dz==0.0f)return;
     float x, y, z;
     quaternionToEuler(q, x, y, z);

@@ -173,6 +173,12 @@ add_executable(
 )
 target_include_directories(MultiplayerProtocolTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
 target_compile_features(MultiplayerProtocolTest PRIVATE cxx_std_17)
+if(MSVC)
+    # This integration test intentionally keeps several complete Game fixtures
+    # alive at once. Give the test process room for those value-type snapshots
+    # instead of intermittently overflowing Windows' 1 MiB default stack.
+    target_link_options(MultiplayerProtocolTest PRIVATE "/STACK:8388608")
+endif()
 
 add_executable(
     MultiplayerDeterminismTest

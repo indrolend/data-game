@@ -156,22 +156,24 @@ inline PhoneVisualState makePhoneVisualState(float vacuumPose, float vacuumPower
 inline void advancePhoneIngestBulge(PhoneVisualState& visual, const PhoneVisualState& previous, float dt) {
     const float step = std::max(0.0f, std::min(dt, 1.0f / 20.0f));
     const float target = visualSmooth01(visual.captureContactAmount);
-    float amount = std::max(-0.10f, std::min(1.15f, previous.ingestBulge));
-    float velocity = std::max(-5.0f, std::min(5.0f, previous.ingestBulgeVelocity));
-    velocity += (target - amount) * 82.0f * step;
-    velocity *= std::exp(-7.5f * step);
-    amount = std::max(-0.10f, std::min(1.15f, amount + velocity * step));
+    float amount = std::max(-0.22f, std::min(1.60f, previous.ingestBulge));
+    float velocity = std::max(-8.0f, std::min(8.0f, previous.ingestBulgeVelocity));
+    velocity += (target * 1.35f - amount) * 96.0f * step;
+    velocity *= std::exp(-5.4f * step);
+    amount = std::max(-0.22f, std::min(1.60f, amount + velocity * step));
     visual.ingestBulge = amount;
     visual.ingestBulgeVelocity = velocity;
 
     // Presentation stores the arrival impulse without changing collision,
     // capture progress, screen interaction, or soul capacity.
     const float bulge = std::max(0.0f, amount);
-    visual.bodyScale.x *= 1.0f + bulge * 0.15f;
-    visual.bodyScale.y *= 1.0f + bulge * 0.12f;
-    visual.bodyScale.z *= 1.0f + bulge * 0.20f;
-    visual.screenScale.x *= 1.0f + bulge * 0.055f;
-    visual.screenScale.y *= 1.0f + bulge * 0.035f;
+    const float travel = 0.5f + 0.5f * std::sin(amount * 8.4f + velocity * 0.21f);
+    visual.bodyScale.x *= 1.0f + bulge * (0.26f + travel * 0.10f);
+    visual.bodyScale.y *= 1.0f + bulge * (0.18f - travel * 0.06f);
+    visual.bodyScale.z *= 1.0f + bulge * (0.38f + travel * 0.18f);
+    visual.screenScale.x *= 1.0f + bulge * 0.12f;
+    visual.screenScale.y *= 1.0f + bulge * 0.075f;
+    visual.roll += std::sin(amount * 9.0f) * bulge * 0.075f;
 }
 
 // soulState follows SoulState's Free, Attracted, Latched, Ingesting, Recoiling order.

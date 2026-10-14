@@ -42,6 +42,11 @@ private:
     mutable unsigned int phoneDisplayTexture_ = 0;
     mutable unsigned int fieldGrassTexture_ = 0;
     mutable unsigned int citySurfaceTexture_ = 0;
+    mutable unsigned int barkTexture_ = 0;
+    mutable unsigned int stoneTexture_ = 0;
+    mutable unsigned int metalTexture_ = 0;
+    mutable unsigned int sandTexture_ = 0;
+    mutable unsigned int sterileTileTexture_ = 0;
     mutable unsigned int birdSpriteTexture_ = 0;
     mutable std::vector<unsigned char> phoneDisplayPixels_;
     mutable unsigned long long phoneDisplayCacheKey_ = 0;
@@ -55,12 +60,14 @@ private:
     mutable lighting_evidence::RendererLightingObservation lightingObservation_{};
 
     void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
-    void drawFieldGrass(int tileIndex) const;
+    void drawFieldGrass(int tileIndex,const VisualColor& tint={1.0f,1.0f,1.0f}) const;
     void drawCityGround(int tileIndex) const;
+    static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);
     void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
     void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;
+    static void drawEnemyReactionBillboard(const GameState& state,const TargetState& target);
     static void drawSoulFlesh(const TargetState& target,const Vec3& center);
     void drawSecretTvScreen(const GameState& state, float phoneProximity) const;
     void drawPhoneDisplayTexture(const GameState& state) const;

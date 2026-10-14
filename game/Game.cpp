@@ -5,6 +5,7 @@
 #include "gameplay/SoulMotion.hpp"
 #include "gameplay/TargetRoles.hpp"
 #include "gameplay/MeleeConfig.hpp"
+#include "gameplay/MaterialUnlocks.hpp"
 #include "gameplay/RunProgression.hpp"
 #include "gameplay/TraversalCapabilities.hpp"
 #include "gameplay/VacuumGeometry.hpp"
@@ -50,6 +51,11 @@ constexpr float AIR_JUMP_SPEED = gameplay::TRAVERSAL_CAPABILITIES.airJumpSpeed;
 constexpr float COYOTE_TIME = 0.12f;
 constexpr float JUMP_BUFFER = 0.12f;
 constexpr float LANDING_MOMENTUM_BOOST = 1.04f;
+constexpr float SKID_MIN_HORIZONTAL_SPEED = 2.8f;
+constexpr float SKID_MIN_IMPACT_SPEED = 3.2f;
+constexpr float SKID_FRICTION = 0.985f;
+constexpr float SKID_STEER_RATE = 3.2f;
+constexpr float SKID_REVERSE_STEER_RATE = 6.8f;
 constexpr float CEILING_CLEARANCE = 0.42f;
 constexpr float PLAYER_CEILING_BODY_CLEARANCE = gameplay::PHONE_BODY.ceilingClearance;
 constexpr float PLAYER_COLLISION_RADIUS = gameplay::PHONE_BODY.collisionRadius;
@@ -272,6 +278,30 @@ float batteryPower(const PlayerState& p) { return clampf(p.battery / 18.0f, 0.35
 float smooth01(float t) {
     t = clampf(t, 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
+}
+void applyPhoneVisualHumor(PhoneVisualState& visual,const PlayerState& player,float time,float skidAmount=0.0f) {
+    const float speed=horizontalLength(player.vel);
+    const float run=clampf((speed-3.0f)/24.0f,0.0f,1.0f);
+    const float sprint=clampf((speed-18.0f)/24.0f,0.0f,1.0f);
+    const float cadence=time*(7.5f+speed*0.72f);
+    const float step=std::abs(std::sin(cadence));
+    const float rising=clampf(player.jumpVel/8.0f,0.0f,1.0f);
+    const float falling=clampf(-player.jumpVel/10.0f,0.0f,1.0f);
+    const float hang=player.ledgeHanging?1.0f:0.0f;
+    const float mantle=clampf(player.ledgeMantleTimer/0.26f,0.0f,1.0f);
+    visual.bodyScale.x*=1.0f+run*(0.10f+step*0.09f)+falling*0.08f+hang*0.14f;
+    visual.bodyScale.y*=1.0f-run*(0.08f+step*0.07f)+rising*0.24f-falling*0.13f-hang*0.18f+mantle*0.17f;
+    visual.bodyScale.z*=1.0f+sprint*0.28f+rising*0.13f-falling*0.08f;
+    visual.pitch-=run*0.22f+sprint*0.18f-rising*0.12f+falling*0.08f;
+    visual.roll+=std::sin(cadence)*run*0.10f+hang*std::sin(time*8.0f)*0.12f;
+    if(skidAmount>0.0f){
+        const float skid=clampf(skidAmount,0.0f,1.0f),pulse=0.5f+0.5f*std::sin(time*25.0f);
+        visual.bodyScale.x*=1.0f+skid*(0.22f+pulse*0.035f);
+        visual.bodyScale.y*=1.0f-skid*0.23f;
+        visual.bodyScale.z*=1.0f+skid*0.10f;
+        visual.screenScale.x*=1.0f+skid*0.10f;
+        visual.screenScale.y*=1.0f-skid*0.08f;
+    }
 }
 void syncTargetReactionVisual(TargetState& target,float awareness=0.0f,float uncertainty=1.0f,
     float commitment=0.0f,float disruption=0.0f,float searchAmount=0.0f,float individuality=0.0f) {
@@ -634,12 +664,14 @@ std::string Game::debugRoomReviewLine(RoomReviewRating rating) const{
     return out.str();
 }
 
-void Game::setPersistentProgression(std::int64_t tokens,int shotLevel,int lungeLevel,int attackLevel){
+void Game::setPersistentProgression(std::int64_t tokens,int shotLevel,int lungeLevel,int attackLevel,std::uint64_t lifetimeRoomsCleared,int bestRoomCleared){
     auto& permanent=state_.progression.permanent;
     permanent.tokens=std::max<std::int64_t>(0,tokens);
     permanent.levels[static_cast<int>(UpgradeTrack::Shot)]=std::max(0,std::min(5,shotLevel));
     permanent.levels[static_cast<int>(UpgradeTrack::Lunge)]=std::max(0,std::min(5,lungeLevel));
     permanent.levels[static_cast<int>(UpgradeTrack::Attack)]=std::max(0,std::min(5,attackLevel));
+    permanent.lifetimeRoomsCleared=lifetimeRoomsCleared;
+    permanent.bestRoomCleared=std::max(0,bestRoomCleared);
     permanent.revision=1;
 }
 
@@ -1542,6 +1574,8 @@ void Game::update(float dt) {
     }
     state_.phoneVisual = makePhoneVisualState(state_.vacuum.pose, state_.vacuum.power, contact, state_.time, state_.camera.firstPerson);
     advancePhoneIngestBulge(state_.phoneVisual,previousPhoneVisual,dt);
+    applyPhoneVisualHumor(state_.phoneVisual,state_.player,state_.time,
+        state_.meleeVisual.landingRecovery/std::max(0.001f,state_.meleeVisual.landingRecoveryDuration));
     state_.phoneVisual.actionLift=phoneActionAmount*0.65f;
     state_.phoneVisual.actionForward=phoneActionAmount*0.25f;
     processQueuedSoulCaptures();
@@ -1608,7 +1642,7 @@ void Game::applyNetworkPeerSnapshot(int playerId,const PlayerState& player,float
 
 void Game::savePlayerContext(NetworkPeerState& c) const{c.input=state_.input;c.player=state_.player;c.energy=state_.energy;c.camera=state_.camera;c.vacuum=state_.vacuum;c.pendingShots=state_.pendingShots;c.phonePose=state_.phonePose;c.phoneTransform=state_.phoneTransform;c.phoneVisual=state_.phoneVisual;c.hud=state_.hud;c.meleeVisual=state_.meleeVisual;c.meleeCooldown=state_.meleeCooldown;c.meleePose=state_.meleePose;c.meleeComboWindow=state_.meleeComboWindow;}
 void Game::loadPlayerContext(const NetworkPeerState& c){state_.input=c.input;state_.player=c.player;state_.energy=c.energy;state_.camera=c.camera;state_.vacuum=c.vacuum;state_.pendingShots=c.pendingShots;state_.phonePose=c.phonePose;state_.phoneTransform=c.phoneTransform;state_.phoneVisual=c.phoneVisual;state_.hud=c.hud;state_.meleeVisual=c.meleeVisual;state_.meleeCooldown=c.meleeCooldown;state_.meleePose=c.meleePose;state_.meleeComboWindow=c.meleeComboWindow;}
-void Game::updateNetworkPeers(float dt){if(!state_.multiplayer.enabled||!state_.multiplayer.authoritativeHost)return;NetworkPeerState local;savePlayerContext(local);for(int id=1;id<NETWORK_PLAYER_COUNT;++id){auto& peer=state_.multiplayer.peers[id];if(!peer.active)continue;loadPlayerContext(peer);simulationPlayerId_=id;updateInputActions(dt);updatePlayer(dt);state_.phoneVisual=makePhoneVisualState(state_.vacuum.pose,state_.vacuum.power,0,state_.time,state_.camera.firstPerson);updatePhoneTransform();if(state_.meleeVisual.airLungeLandingPending)applyMeleeHits();processPendingShots(dt);updateVacuum(dt);processQueuedSoulCaptures();updateBattery(dt);updateCamera(dt);savePlayerContext(peer);}simulationPlayerId_=0;loadPlayerContext(local);}
+void Game::updateNetworkPeers(float dt){if(!state_.multiplayer.enabled||!state_.multiplayer.authoritativeHost)return;NetworkPeerState local;savePlayerContext(local);for(int id=1;id<NETWORK_PLAYER_COUNT;++id){auto& peer=state_.multiplayer.peers[id];if(!peer.active)continue;loadPlayerContext(peer);simulationPlayerId_=id;updateInputActions(dt);updatePlayer(dt);state_.phoneVisual=makePhoneVisualState(state_.vacuum.pose,state_.vacuum.power,0,state_.time,state_.camera.firstPerson);applyPhoneVisualHumor(state_.phoneVisual,state_.player,state_.time+id*0.31f,state_.meleeVisual.landingRecovery/std::max(0.001f,state_.meleeVisual.landingRecoveryDuration));updatePhoneTransform();if(state_.meleeVisual.airLungeLandingPending)applyMeleeHits();processPendingShots(dt);updateVacuum(dt);processQueuedSoulCaptures();updateBattery(dt);updateCamera(dt);savePlayerContext(peer);}simulationPlayerId_=0;loadPlayerContext(local);}
 void Game::updateTeamRevival(float dt){if(!state_.multiplayer.enabled||!state_.multiplayer.authoritativeHost)return;PlayerState* players[NETWORK_PLAYER_COUNT]={&state_.player};InputState* inputs[NETWORK_PLAYER_COUNT]={&state_.input};bool active[NETWORK_PLAYER_COUNT]={true};for(int id=1;id<NETWORK_PLAYER_COUNT;++id){players[id]=&state_.multiplayer.peers[id].player;inputs[id]=&state_.multiplayer.peers[id].input;active[id]=state_.multiplayer.peers[id].active;}for(int donor=0;donor<NETWORK_PLAYER_COUNT;++donor){PlayerState& source=*players[donor];if(!active[donor]||!source.alive||source.downed||source.battery<=10.0f||!(inputs[donor]->primaryHeld||inputs[donor]->touchPrimaryHeld))continue;int recipient=-1;float best=2.2f;const Vec3 forward{-std::sin(source.yaw),0,-std::cos(source.yaw)};for(int id=0;id<NETWORK_PLAYER_COUNT;++id){if(id==donor||!active[id]||!players[id]->alive||!players[id]->downed)continue;const Vec3 delta{players[id]->pos.x-source.pos.x,0,players[id]->pos.z-source.pos.z};const float distance=length(delta);if(distance<best&&distance>0.001f&&dot3(delta*(1.0f/distance),forward)>0.72f){best=distance;recipient=id;}}if(recipient<0)continue;const float spend=std::min(source.battery-10.0f,10.0f*dt);source.battery-=spend;PlayerState& target=*players[recipient];target.reviveCharge+=spend*0.8f;target.battery=target.reviveCharge;if(target.reviveCharge>=18.0f){target.battery=target.reviveCharge;target.downed=false;target.bleedoutTimer=0.0f;target.reviveCharge=0.0f;target.alive=true;target.pos.y=GROUND_Y+PHONE_BODY_HEIGHT*0.5f;target.grounded=true;if(recipient==0){setEnergyTicker("SIGNAL RESTORED",2);emitAudio(AudioCue::RewardWoah,0.42f);}}}}
 void Game::updateSecretTv(float dt) {
     auto& tv = state_.secretTv;
@@ -1752,6 +1786,8 @@ void Game::updateNetworkGuest(float dt){
          state_.energy.dischargePositionAmount)*std::min(1.0f,dt*12.0f);
     state_.phoneVisual=makePhoneVisualState(state_.vacuum.pose,state_.vacuum.power,
         0,state_.time,state_.camera.firstPerson);
+    applyPhoneVisualHumor(state_.phoneVisual,state_.player,state_.time,
+        state_.meleeVisual.landingRecovery/std::max(0.001f,state_.meleeVisual.landingRecoveryDuration));
     const float phoneActionAmount=std::max(state_.vacuum.pose,
         state_.energy.dischargePositionAmount);
     state_.phoneVisual.actionLift=phoneActionAmount*0.65f;
@@ -2076,6 +2112,12 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
     if (state_.roomClear && currentTile < previousTile) {
         state_.doorTransition.active=true; state_.doorTransition.progress=1.0f;
         state_.doorTransition.distanceTravelled=0.0f; state_.doorTransition.lastPlayerPos=state_.player.pos;
+        auto& permanent=state_.progression.permanent;
+        const std::uint64_t beforeLifetime=permanent.lifetimeRoomsCleared;const int beforeBest=permanent.bestRoomCleared;
+        if(permanent.lifetimeRoomsCleared<std::numeric_limits<std::uint64_t>::max())++permanent.lifetimeRoomsCleared;
+        permanent.bestRoomCleared=std::max(permanent.bestRoomCleared,state_.roomIndex);++permanent.revision;
+        const material_unlocks::Memory memories[]={material_unlocks::Memory::Festive,material_unlocks::Memory::Wireframe,material_unlocks::Memory::Gummy};
+        for(const auto memory:memories)if(material_unlocks::newlyUnlocked(memory,beforeLifetime,beforeBest,permanent.lifetimeRoomsCleared,permanent.bestRoomCleared)){setEnergyTicker(material_unlocks::requirement(memory).name,2);break;}
         if(state_.roomIndex<std::numeric_limits<int>::max())++state_.roomIndex;
         const std::uint32_t seedStep=9973u+static_cast<std::uint32_t>(seededRoomValue(991.0f)*1000000.0f);
         state_.roomSeed=static_cast<int>(static_cast<std::uint32_t>(state_.roomSeed)+seedStep); state_.topology.advancing = true;
@@ -2365,6 +2407,26 @@ void Game::updatePlayer(float dt) {
     Vec3 move = cameraForwardFlat() * forwardAxis + cameraRightFlat() * strafeAxis;
     if (lengthSq(move) > 0.0f) { move = normalized(move); p.vel += move * (accel * vacuumSlow * dt); }
     limitHorizontal(p.vel, maxSpeed * vacuumSlow);
+    const float skidSpeed=horizontalLength(p.vel);
+    const bool momentumSkid=p.grounded&&lunge.landingRecovery>0.0f&&skidSpeed>SKID_MIN_HORIZONTAL_SPEED;
+    if(momentumSkid&&lengthSq(move)>0.01f){
+        const Vec3 travel=p.vel*(1.0f/std::max(0.001f,skidSpeed));
+        const float alignment=dotXZ(travel,move);
+        const float steerRate=alignment<0.0f?SKID_REVERSE_STEER_RATE:SKID_STEER_RATE;
+        const float steer=1.0f-std::exp(-steerRate*dt);
+        Vec3 steered=travel*(1.0f-steer)+move*steer;
+        if(horizontalLength(steered)>0.001f)steered=steered*(1.0f/horizontalLength(steered));
+        const float brake=alignment<-0.35f?lerpf(1.0f,0.965f,steer):1.0f;
+        p.vel=steered*(skidSpeed*brake);
+    }
+    auto beginLandingSkid=[&](float impactSpeed){
+        const float speed=horizontalLength(p.vel);
+        if(impactSpeed<SKID_MIN_IMPACT_SPEED||speed<SKID_MIN_HORIZONTAL_SPEED)return;
+        lunge.landingRecoveryDuration=clampf(0.18f+(impactSpeed-SKID_MIN_IMPACT_SPEED)*0.036f+speed*0.008f,0.22f,0.78f);
+        lunge.landingRecovery=lunge.landingRecoveryDuration;
+        lunge.landingPosePitch=clampf(0.48f+impactSpeed*0.045f+speed*0.006f,0.58f,1.08f);
+        p.vel*=LANDING_MOMENTUM_BOOST+clampf((impactSpeed-SKID_MIN_IMPACT_SPEED)*0.008f,0.0f,0.10f);
+    };
     // Ground melee uses a short positional dash. Air melee is
     // a one-shot physical impulse, after ordinary air-speed limiting, so its
     // arc is subsequently governed by gravity, drag and collision response.
@@ -2390,7 +2452,7 @@ void Game::updatePlayer(float dt) {
             p.pos.y = support; p.jumpVel = 0; p.grounded = true; p.coyoteTimer = COYOTE_TIME; p.airJumpsRemaining = 1;adoptSupportIdentity(p,getPlayerSupport(p.pos.x,p.pos.z));
             state_.phonePose.doubleJumpTimer = 0.0f;
             if(lunge.airLungeLandingPending)finishAirLungeLanding(impactSpeed);
-            else if (horizontalLength(p.vel) > 1.2f) p.vel *= LANDING_MOMENTUM_BOOST;
+            else beginLandingSkid(impactSpeed);
         }
     }
     if (p.grounded && p.jumpBufferTimer > 0) startGroundJump();
@@ -2408,11 +2470,27 @@ void Game::updatePlayer(float dt) {
         p.pos.y = supportAfter; p.jumpVel = 0; p.grounded = true; p.coyoteTimer = COYOTE_TIME; p.airJumpsRemaining = 1;adoptSupportIdentity(p,getPlayerSupport(p.pos.x,p.pos.z));
         state_.phonePose.doubleJumpTimer = 0.0f;
         if(lunge.airLungeLandingPending)finishAirLungeLanding(impactSpeed);
+        else beginLandingSkid(impactSpeed);
     }
     const float minX = -ROOM_WIDTH * 0.5f + 1.1f, maxX = ROOM_WIDTH * 0.5f - 1.1f;
     if (p.pos.x < minX) { p.pos.x = minX; if (p.vel.x < 0) p.vel.x = 0; p.vel.z *= WALL_SLIDE_RETENTION; }
     else if (p.pos.x > maxX) { p.pos.x = maxX; if (p.vel.x > 0) p.vel.x = 0; p.vel.z *= WALL_SLIDE_RETENTION; }
-    const float friction = p.grounded ? GROUND_FRICTION : AIR_FRICTION;
+    const bool activeSkid=p.grounded&&lunge.landingRecovery>0.0f&&horizontalLength(p.vel)>SKID_MIN_HORIZONTAL_SPEED;
+    if(activeSkid&&(state_.frame%3)==0){
+        const Vec3 travel=p.vel*(1.0f/std::max(0.001f,horizontalLength(p.vel)));
+        const Vec3 right{travel.z,0.0f,-travel.x};
+        for(float side:{-1.0f,1.0f}){
+            ParticleState& scrape=state_.particles[state_.nextParticle];
+            state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+            scrape=ParticleState{};
+            scrape.material=ParticleMaterial::Environment;
+            scrape.pos=p.pos-travel*0.24f+right*(side*0.15f)+Vec3{0,0.025f,0};
+            scrape.vel=travel*(-1.25f-0.18f*side)+right*(0.24f*side)+Vec3{0,0.52f,0};
+            scrape.life=scrape.maxLife=0.32f;
+            scrape.size=0.055f;
+        }
+    }
+    const float friction = p.grounded ? (activeSkid?SKID_FRICTION:GROUND_FRICTION) : AIR_FRICTION;
     p.vel *= std::pow(friction, dt * 60.0f);
     if(!p.ledgeHanging){p.targetYaw = state_.camera.yaw;p.yaw = state_.camera.yaw;}
     updatePhoneGait(dt, running);
@@ -2647,9 +2725,16 @@ void Game::updatePhoneActionPose(float dt, bool running, float forwardAxis, floa
         if(!locomotionLunge&&melee.landingRecovery>0.0f){
             const float recovery=clampf(melee.landingRecovery/std::max(0.001f,melee.landingRecoveryDuration),0.0f,1.0f);
             const float compression=recovery*recovery;
-            pose.lift-=0.055f*compression;
-            pose.forward+=0.045f*compression;
-            q=quatAxisAngle({0,1,0},bodyYaw)*quatAxisAngle({1,0,0},-melee.landingPosePitch*recovery-0.22f*compression);
+            const float speed=horizontalLength(state_.player.vel);
+            const Vec3 travel=speed>0.01f?state_.player.vel*(1.0f/speed):cameraForwardFlat();
+            const float travelYaw=std::atan2(-travel.x,-travel.z);
+            const float diagonal=clampf(dotXZ(travel,cameraRightFlat()),-1.0f,1.0f);
+            pose.lift-=0.10f*compression;
+            pose.forward+=0.10f*compression;
+            pose.side+=diagonal*0.035f*recovery;
+            q=quatAxisAngle({0,1,0},travelYaw)
+                *quatAxisAngle({1,0,0},-melee.landingPosePitch*recovery-0.30f*compression)
+                *quatAxisAngle({0,0,1},-diagonal*0.32f*recovery);
             pose.actionState=7;
         }
     }
@@ -3376,10 +3461,11 @@ void Game::finishAirLungeLanding(float impactSpeed){
     visual.airLungeAngularVelocity=0.0f;
     visual.wallGripTimer=0.0f;
     visual.contactPositionValid=false;
-    visual.landingRecoveryDuration=clampf(0.06f+std::max(0.0f,impactSpeed-2.0f)*0.018f,0.06f,0.24f);
+    const float horizontalSpeed=horizontalLength(state_.player.vel);
+    visual.landingRecoveryDuration=clampf(0.30f+std::max(0.0f,impactSpeed-2.0f)*0.035f+horizontalSpeed*0.007f,0.34f,0.82f);
     visual.landingRecovery=visual.landingRecoveryDuration;
-    visual.landingPosePitch=clampf(visual.airLungeRotation,0.28f,1.15f);
-    state_.player.vel*=AIR_MELEE_LANDING_RETENTION;
+    visual.landingPosePitch=clampf(0.62f+visual.airLungeRotation*0.34f+impactSpeed*0.025f,0.68f,1.20f);
+    state_.player.vel*=lerpf(AIR_MELEE_LANDING_RETENTION,0.96f,clampf(horizontalSpeed/18.0f,0.0f,1.0f));
     if(pairSynergyTier(UpgradeTrack::Lunge,UpgradeTrack::Attack)>0)state_.progression.run.impactGuardTimer=std::max(state_.progression.run.impactGuardTimer,IMPACT_GUARD_SECONDS*0.65f);
 }
 void Game::shootStoredSoul() {
