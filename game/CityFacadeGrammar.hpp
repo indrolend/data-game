@@ -53,4 +53,17 @@ inline float storyCenter(const Grammar& grammar,int story,float bottom){
     return bottom+(static_cast<float>(story)+0.5f)*grammar.storyHeight;
 }
 
+// Occupancy is authored from the stable room/facade key rather than frame
+// time.  Sparse lit rooms give the street human scale without turning every
+// facade into a uniformly glowing grid or adding another simulation authority.
+inline bool windowOccupied(unsigned int facadeKey,int story,int bay){
+    const unsigned int offset=room_environment::mix(facadeKey+0x85ebca6bu)%5u;
+    return (static_cast<unsigned int>(story*3+bay)+offset)%5u==0u;
+}
+
+inline float occupiedWindowWarmth(unsigned int facadeKey,int story,int bay){
+    const unsigned int address=facadeKey+static_cast<unsigned int>((story+3)*131u+(bay+7)*977u);
+    return room_environment::unit(room_environment::mix(address));
+}
+
 } // namespace city_facade

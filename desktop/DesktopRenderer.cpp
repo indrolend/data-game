@@ -1348,6 +1348,11 @@ void DesktopRenderer::drawCityStreet(const GameState& state,int tileIndex,room_e
         drawBox({side*outer,0.44f,z0+localZ},{0.62f,0.88f,0.44f},0,0,0,0.18f,0.21f,0.21f);
         drawBox({side*(outer-side*0.32f),0.50f,z0+localZ},{0.018f,0.52f,0.25f},0,0,0,0.075f,0.09f,0.095f);
         for(int vent=0;vent<3;++vent)drawBox({side*(outer-side*0.335f),0.61f-vent*0.13f,z0+localZ},{0.012f,0.025f,0.19f},0,0,0,0.36f,0.38f,0.36f);
+        // A restrained service-status lamp makes the utility cluster readable
+        // as street infrastructure rather than another anonymous grey box.
+        glDisable(GL_LIGHTING);
+        drawBox({side*(outer-side*0.342f),0.76f,z0+localZ},{0.014f,0.075f,0.12f},0,0,0,0.42f,0.68f,0.64f);
+        glEnable(GL_LIGHTING);
     }
 
     for(int side:{-1,1})for(int index=0;index<street.skylineBands;++index){
@@ -1357,10 +1362,19 @@ void DesktopRenderer::drawCityStreet(const GameState& state,int tileIndex,room_e
         drawBox({block.x,block.height+0.10f,z0+block.z},{block.width*1.04f,0.20f,block.depth*1.04f},0,0,0,body.r*0.78f,body.g*0.80f,body.b*0.82f);
         const float faceX=block.x-static_cast<float>(side)*block.width*0.505f;
         const int rows=state.localSettings.graphicsPreset<=0?2:3;
+        const unsigned int facadeKey=key^static_cast<unsigned int>((side+2)*193+(index+1)*977);
+        const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f});
+        const float nightPresence=0.34f+(1.0f-render_contract::celestialDaylight(atmosphereInputs.time))*0.66f;
         for(int row=0;row<rows;++row)for(int bay=0;bay<2;++bay){
             const float y=1.4f+row*(block.height-2.0f)/static_cast<float>(std::max(1,rows-1));
             const float z=z0+block.z+(bay?0.22f:-0.22f)*block.depth;
-            drawBox({faceX,y,z},{0.025f,0.34f,block.depth*0.26f},0,0,0,0.025f,0.038f,0.045f);
+            const bool occupied=city_facade::windowOccupied(facadeKey,row,bay);
+            if(occupied){
+                const float warmth=city_facade::occupiedWindowWarmth(facadeKey,row,bay);
+                glDisable(GL_LIGHTING);
+                drawBox({faceX,y,z},{0.025f,0.34f,block.depth*0.26f},0,0,0,(0.58f+warmth*0.18f)*nightPresence,(0.34f+warmth*0.12f)*nightPresence,(0.13f+warmth*0.05f)*nightPresence);
+                glEnable(GL_LIGHTING);
+            }else drawBox({faceX,y,z},{0.025f,0.34f,block.depth*0.26f},0,0,0,0.025f,0.038f,0.045f);
         }
     }
 }
@@ -1605,6 +1619,8 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             const int authoredCadence=state.localSettings.graphicsPreset>=2?2:3;
             const bool authoredFacade=state.localSettings.graphicsPreset>0&&(i%authoredCadence)==0&&cityWindowBayModelList_&&cityWindowBaySmallModelList_&&cityDoorBayModelList_&&cityDoorWindowBayModelList_&&cityCorniceModelList_;
             const Quat facadeOrientation=quaternionFromEulerXYZ(0.0f,inward>0.0f?-PI*0.5f:PI*0.5f,0.0f);
+            const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f});
+            const float nightPresence=0.34f+(1.0f-render_contract::celestialDaylight(atmosphereInputs.time))*0.66f;
             // Base, corner piers, cornice and crown establish a readable
             // construction hierarchy before any windows are added.
             drawBox({faceX,c.bottomY+facade.baseHeight*0.5f,facadeZ},{0.055f,facade.baseHeight,c.depth*1.015f},0,0,0,frame.r*0.72f,frame.g*0.72f,frame.b*0.72f);
@@ -1640,6 +1656,16 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                             drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.035f,openingW*0.94f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
                             drawBox({faceX+inward*(facade.recessDepth+0.006f),openingY,z},{0.018f,openingH*0.94f,openingW*0.025f},0,0,0,frame.r*0.82f,frame.g*0.86f,frame.b*0.88f);
                         }
+                    }
+                    if(!entrance&&city_facade::windowOccupied(facadeKey,story,bay)){
+                        const float warmth=city_facade::occupiedWindowWarmth(facadeKey,story,bay);
+                        const VisualColor occupied{0.38f+warmth*0.12f,0.25f+warmth*0.08f,0.12f+warmth*0.035f};
+                        glDisable(GL_LIGHTING);
+                        // Sit just behind the visible frame but in front of the
+                        // imported glass batch, whose authored depth otherwise
+                        // masks the interior plane completely.
+                        drawBox({faceX+inward*0.078f,openingY,z},{0.012f,openingH*0.66f,openingW*0.68f},0,0,0,occupied.r*nightPresence,occupied.g*nightPresence,occupied.b*nightPresence);
+                        glEnable(GL_LIGHTING);
                     }
                     if(entrance)drawBox({faceX+inward*0.07f,c.bottomY+0.045f,z},{0.18f,0.09f,openingW*1.35f},0,0,0,0.18f,0.18f,0.17f);
                 }
