@@ -15,10 +15,10 @@ The practical history is: JavaScript gameplay concepts in May–June; native mig
 
 | Reported issue | Reproduction/evidence | Root cause | Candidate correction | Status |
 |---|---|---|---|---|
-| City building-to-road and general receiver shadows missing | Main/Mac artifact is `137d08e`; scene-wide map begins at `746f27e`. Matched Windows captures at `4f5e3a5` show off/Normal/Pretty and sunset/night behavior. | Main still uses selective planar/patch techniques; the fix is stranded 15 commits ahead. | Integrate structural stack and verify same SHA on Mac. | Windows structural **VERIFIED**; main/Mac **NOT FIXED**. |
+| City building-to-road and general receiver shadows missing | Historical main/Mac artifact was `137d08e`; scene-wide map began at `746f27e`. Matched Windows captures at `4f5e3a5` show off/Normal/Pretty and sunset/night behavior. | The fix was formerly stranded 15 commits ahead. | PR #149 integrated the structural stack at `6fd5a23`; verify that exact-or-descendant SHA on Mac. | Source on main **PRESENT**; Windows structural **VERIFIED**; integrated Mac runtime **UNVERIFIED**. |
 | Actor/tree/rock/building shadow participation | Structural renderer registers shared caster geometry and shades actual receivers; `4f5e3a5` removes legacy Field patches that ignored the toggle/doubled shadows. | Competing object-specific fallbacks plus missing general receiver pass. | Keep one mapped authority; retain bounded Low fallback only. | Windows **VERIFIED**; Mac **UNVERIFIED**. |
 | Shadow direction/time mismatch | `746f27e` resolves one sun state and assigns `lightRig.sunDirection`; capture fixtures cover fixed sunset/night. | Earlier renderer mixed `lightRig.sunDirection` with independent celestial calls. | Integrate shared resolved sun state and add override assertion. | Structural Windows **VERIFIED**. |
-| Authored City assets not visible | Windows structural log reports wall-window, wall-door, corner, crown modules loaded; PR #148 added initial bays and `746f27e` adds full-wall/corner/crown meshes. | Later assets and runtime composition are absent from main; executable mismatch masks them. | Integrate stack; require load manifest plus visual capture. | Windows structural **VERIFIED**; main/Mac **NOT FIXED/UNVERIFIED**. |
+| Authored City assets not visible | Windows structural log reports wall-window, wall-door, corner, crown modules loaded; PR #149 integrated PR #148 and the later composition. | Executable mismatch previously masked code that was not yet on main. | Require build identity, load manifest, and visual capture from current main. | Source on main **PRESENT**; Windows structural **VERIFIED**; integrated Mac runtime **UNVERIFIED**. |
 | macOS assets missing | CMake installs/copies the whole model tree and macOS resolves `Contents/Resources`; run 38506296494 packaged successfully. | No evidence yet of a packaging bug; downloaded package simply predates the work. | Build structural candidate on Mac and capture module-load output. | **UNVERIFIED**; packaging-bug hypothesis not confirmed. |
 | Settings changes/restarts music | Code shows in-game settings preserve stage ownership (`started && !attractMode && !dead`). Title submenus intentionally crossfade Title → Pensive. No playback-position runtime probe exists. | Possible confusion between intentional title submenu theme change and an actual restart; tests cover selection, not cursor continuity. | Add an audio ownership/cursor probe for title and in-game settings separately. | **UNVERIFIED**; source rejects a blanket in-game restart claim. |
 | Room transitions alter daylight | `state.time` advances continuously while simulation runs; no room-transition assignment was found. Fixed-time capture override is renderer-side. | No confirmed reset in current source. A stale executable or presentation discontinuity may explain reports. | Add a transition test asserting monotonic time and resolved sun continuity. | **UNVERIFIED**, no code-level reset found. |
@@ -28,7 +28,7 @@ The practical history is: JavaScript gameplay concepts in May–June; native mig
 
 ## Confirmed causes
 
-1. Valuable work is stranded on a linear 15-commit branch.
+1. Valuable work was stranded on a linear 15-commit branch and was integrated by PR #149.
 2. The running Windows executable did not match either current branch HEAD or main.
 3. The distributed Mac artifact was built from main before the stranded work.
 4. Object-specific legacy shadows coexisted with the new mapped pass until `4f5e3a5`.
@@ -58,11 +58,11 @@ The practical history is: JavaScript gameplay concepts in May–June; native mig
 ## Ordered implementation plan
 
 1. **Provenance gate.** Make launch/capture fail loudly on SHA mismatch. Acceptance: log and artifact manifest agree on SHA, config, backend, asset root, and loaded modules.
-2. **Candidate integration build.** Create a review candidate from the existing 15-commit linear stack without reimplementation. Acceptance: clean build and 54/54 tests on the candidate SHA.
+2. **Integrated baseline build.** Build current main (`24d1f4b` or a recorded descendant) without reimplementation. Acceptance: clean build and all registered tests on the exact candidate SHA.
 3. **Cross-platform shadow closure.** Produce matched Windows/macOS City captures for off, Normal, Pretty, sunset, and night. Acceptance: measurable receiver darkening, correct direction, no shadows when disabled, module-load confirmation, and no obvious acne/peter-panning.
 4. **Audio ownership probe.** Track selected bank, voice identity, and PCM cursor across title settings and in-game settings. Acceptance: in-game cursor continuity; title behavior explicitly approved or changed.
 5. **Daylight transition outcome test.** Cross a room boundary under a fixed seed while logging simulation time and resolved sun. Acceptance: monotonic intended clock with no unrequested reset.
 6. **Camera telemetry/video.** Exercise sprint, lunge, skid, ledges, room transitions, and perspective toggle. Acceptance: only declared cuts exceed the discontinuity bound; no geometry clipping in reviewed video.
 7. **Archive only after integration.** Once main contains a same-SHA cross-platform verified result, archive zero-unique and superseded branches. Do not archive divergent branches until their unique commits are classified individually.
 
-The smallest next task that removes a real player-visible defect is task 3 after tasks 1–2: ship the already implemented shadow/authored-City stack into a same-SHA Windows and Mac candidate and validate the actual frames. Rewriting shadows again would add risk without addressing the proven failure.
+The smallest remaining closure task is a same-SHA Windows and Mac validation of the integrated shadow/authored-City stack. Rewriting shadows again would add risk without addressing the remaining provenance and platform-evidence gap.

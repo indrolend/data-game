@@ -282,6 +282,18 @@ else()
 endif()
 
 add_executable(
+    HistoricalPursuitComparisonTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/historical_pursuit_comparison_test.cpp"
+)
+target_include_directories(HistoricalPursuitComparisonTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(HistoricalPursuitComparisonTest PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(HistoricalPursuitComparisonTest PRIVATE /UNDEBUG)
+else()
+    target_compile_options(HistoricalPursuitComparisonTest PRIVATE -UNDEBUG)
+endif()
+
+add_executable(
     GameplayGeometryAndConfigTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_geometry_and_config_test.cpp"
 )
@@ -505,6 +517,7 @@ add_test(NAME EnemyBehaviorStateTest COMMAND EnemyBehaviorStateTest)
 add_test(NAME EnemyLocomotionTest COMMAND EnemyLocomotionTest)
 add_test(NAME EnemyEmbodimentContractTest COMMAND EnemyEmbodimentContractTest)
 add_test(NAME EnemyMotorTest COMMAND EnemyMotorTest)
+add_test(NAME HistoricalPursuitComparisonTest COMMAND HistoricalPursuitComparisonTest)
 add_test(NAME MultiplayerProtocolTest COMMAND MultiplayerProtocolTest)
 add_test(NAME MultiplayerDeterminismTest COMMAND MultiplayerDeterminismTest)
 add_test(NAME HostRemotePeerSimulationIsolationTest COMMAND HostRemotePeerSimulationIsolationTest)
