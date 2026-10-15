@@ -352,7 +352,12 @@ inline EnvironmentPropSpec environmentProp(const RoomEnvironmentPlan& plan,int r
         const float landmarkSide=unit(roomKey(roomSeed,roomIndex)+331u)<0.5f?-1.0f:1.0f;
         if(plan.recovery())return {EnvironmentPrimitive::LawnFragment,EnvironmentRole::Detail,{landmarkSide*10.8f,0.035f,8.5f},{human*2.8f,0.07f,human*3.8f},landmarkSide*0.05f,0};
         if(plan.composition==0){
-            if(index==0)return {EnvironmentPrimitive::Tree,EnvironmentRole::Landmark,{landmarkSide*10.6f,0,4.0f+(unit(key+2u)-0.5f)*2.0f},{human*2.5f,human*4.2f,human*2.5f},0,0};
+            if(index==0){
+                const unsigned char treeFamily=static_cast<unsigned char>(mix(key+71u)%3u);
+                const Vec3 treeScale=treeFamily==0?Vec3{human*2.05f,human*4.85f,human*2.05f}:
+                    (treeFamily==1?Vec3{human*3.05f,human*3.95f,human*2.85f}:Vec3{human*2.45f,human*4.35f,human*2.15f});
+                return {EnvironmentPrimitive::Tree,EnvironmentRole::Landmark,{landmarkSide*10.6f,0,4.0f+(unit(key+2u)-0.5f)*2.0f},treeScale,landmarkSide*0.08f,treeFamily};
+            }
             if(index==1)return {EnvironmentPrimitive::Rock,EnvironmentRole::Mass,{-landmarkSide*9.4f,0,-8.0f+(unit(key+2u)-0.5f)*1.5f},{human*2.2f,gameplay::WORLD_SCALE.lowCoverHeight,human*1.8f},landmarkSide*0.18f,1};
         } else if(plan.composition==1){
             if(index==0)return {EnvironmentPrimitive::House,EnvironmentRole::Landmark,{landmarkSide*10.5f,0,-2.0f+(unit(key+2u)-0.5f)*2.0f},{human*2.6f,gameplay::WORLD_SCALE.storyHeight,human*3.2f},landmarkSide*1.5707963f,static_cast<unsigned char>(roomKey(roomSeed,roomIndex)%3u)};
@@ -501,7 +506,7 @@ inline GrassBlade grassBlade(int roomSeed,int roomIndex,int tileIndex,int index)
     } else {x=-13.2f+unit(key)*26.4f;z=-18.0f+unit(key+1u)*36.0f;}
     x=std::max(-13.2f,std::min(13.2f,x+(unit(key+37u)-0.5f)*0.45f));
     z=std::max(-18.0f,std::min(18.0f,z+(unit(key+41u)-0.5f)*0.45f));
-    return {{x,0.02f,z},0.225f+unit(key+2u)*0.56f,0.055f+unit(key+3u)*0.035f,unit(key+4u)*6.2831853f};
+    return {{x,0.02f,z},0.16f+unit(key+2u)*0.24f,0.060f+unit(key+3u)*0.035f,unit(key+4u)*6.2831853f};
 }
 
 inline float smooth01(float value){value=std::max(0.0f,std::min(1.0f,value));return value*value*(3.0f-2.0f*value);}

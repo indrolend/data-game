@@ -17,9 +17,12 @@ int main(){
     constexpr auto fx=unlit(VisualIdentity::ElectricCyan,0.5f);
     static_assert(!fx.fog&&fx.shading==ShadingModel::Unlit);
     static_assert(shadowQualityFor(0,false,true)==ShadowQuality::Off);
-    static_assert(shadowQualityFor(1,true,true)==ShadowQuality::Cheap);
-    static_assert(shadowQualityFor(2,true,true)==ShadowQuality::Directional);
+    static_assert(shadowQualityFor(0,true,true)==ShadowQuality::Cheap);
+    static_assert(shadowQualityFor(1,true,true)==ShadowQuality::MappedNormal);
+    static_assert(shadowQualityFor(2,true,true)==ShadowQuality::MappedPretty);
     static_assert(shadowQualityFor(2,true,false)==ShadowQuality::Cheap);
+    static_assert(shadowMapResolution(ShadowQuality::MappedNormal)==1024);
+    static_assert(shadowMapResolution(ShadowQuality::MappedPretty)==2048);
     const auto fieldRig=roomLightRig(room_environment::RoomSetting::Field,room_environment::RoomForm::Open);
     const auto cityRig=roomLightRig(room_environment::RoomSetting::City,room_environment::RoomForm::Corridor);
     const auto sterileCorridorRig=roomLightRig(room_environment::RoomSetting::Sterile,room_environment::RoomForm::Corridor);
@@ -54,6 +57,8 @@ int main(){
     const auto progressiveOpening=progressiveSceneAtmosphere(0.0f,1,0.0f);
     const auto progressiveDeep=progressiveSceneAtmosphere(10.0f,19,1.0f);
     const auto progressiveNight=progressiveSceneAtmosphere(DayCycleSeconds*0.55f,1,0.0f);
+    const auto fixedDaySun=resolveSunState(0.0f,true),fixedNightSun=resolveSunState(DayCycleSeconds*0.55f,true);
+    if(fixedDaySun.direction.x!=celestialSunDirection(0.0f).x||fixedDaySun.daylight!=celestialDaylight(0.0f)||fixedNightSun.castsDirectionalShadows){std::fputs("RENDER_CONTRACTS_FAIL resolved sun authority\n",stderr);return 1;}
     if(!(progressiveDeep.fogDensity>progressiveOpening.fogDensity&&progressiveDeep.fog.r>progressiveOpening.fog.r&&progressiveDeep.phone.b==1.32f)){
         std::fputs("RENDER_CONTRACTS_FAIL progressive candidate\n",stderr);return 1;
     }
