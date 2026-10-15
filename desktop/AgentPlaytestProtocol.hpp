@@ -7,7 +7,7 @@
 
 namespace agent_playtest {
 
-inline constexpr int SchemaVersion = 1;
+inline constexpr int SchemaVersion = 2;
 inline constexpr int MaximumStepFrames = 120;
 inline constexpr std::size_t MaximumCommandBytes = 1024;
 

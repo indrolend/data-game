@@ -41,6 +41,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <memory>
 #include <numeric>
@@ -1711,17 +1712,68 @@ int runLightingReplaySelfCheck(){
 }
 
 
+const char* agentEnemyBehaviorName(gameplay::EnemyBehaviorMode mode){
+    switch(mode){
+        case gameplay::EnemyBehaviorMode::Rest:return "rest";
+        case gameplay::EnemyBehaviorMode::Orient:return "orient";
+        case gameplay::EnemyBehaviorMode::Investigate:return "investigate";
+        case gameplay::EnemyBehaviorMode::Alert:return "alert";
+        case gameplay::EnemyBehaviorMode::Engage:return "engage";
+        case gameplay::EnemyBehaviorMode::Search:return "search";
+    }
+    return "unknown";
+}
+
 int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::path& framePath,int width,int height){
     std::uint64_t tick=0;
     const auto observe=[&](){
         host.renderer.draw(host.game.state());glFinish();
         const bool captured=captureFramebuffer(framePath,width,height);
+        auto observationFramePath=framePath;
+        if(captured){
+            char tickSuffix[40]{};
+            std::snprintf(tickSuffix,sizeof(tickSuffix),"-tick-%06llu",static_cast<unsigned long long>(tick));
+            observationFramePath=framePath.parent_path()/(framePath.stem().string()+tickSuffix+framePath.extension().string());
+            std::error_code copyError;
+            std::filesystem::copy_file(framePath,observationFramePath,std::filesystem::copy_options::overwrite_existing,copyError);
+            if(copyError)observationFramePath=framePath;
+        }
         glfwSwapBuffers(window);glfwPollEvents();
         const auto& state=host.game.state();
-        std::printf("AGENT_STATE schema=%d tick=%llu frame=%d room=%d pos=%.6f,%.6f,%.6f velocity=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d clear=%d dead=%d frame_capture=%d\n",
+        int enemyIndex=-1;
+        float nearestEnemyDistance=std::numeric_limits<float>::max();
+        for(int index=0;index<TARGET_COUNT;++index)if(gameplay::isActiveHuman(state.targets[index])){
+            const float distance=length(state.targets[index].pos-state.player.pos);
+            if(distance<nearestEnemyDistance){nearestEnemyDistance=distance;enemyIndex=index;}
+        }
+        const auto& identity=desktopBuildIdentity();
+        std::printf("AGENT_STATE schema=%d tick=%llu frame=%d room=%d pos=%.6f,%.6f,%.6f velocity=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d clear=%d dead=%d frame_capture=%d scenario=interactive build_commit=%s build_configuration=%s frame_file=\"%s\"\n",
             agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),state.frame,state.roomIndex,
             state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.vel.x,state.player.vel.y,state.player.vel.z,
-            state.camera.yaw,state.camera.pitch,state.player.battery,state.player.souls,state.roomClear?1:0,state.dead?1:0,captured?1:0);
+            state.camera.yaw,state.camera.pitch,state.player.battery,state.player.souls,state.roomClear?1:0,state.dead?1:0,captured?1:0,
+            identity.commit.c_str(),identity.buildConfiguration.c_str(),observationFramePath.generic_string().c_str());
+        if(enemyIndex<0){
+            std::printf("AGENT_ENEMY schema=%d tick=%llu valid=0 id=-1\n",agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick));
+        }else{
+            const auto& enemy=state.targets[enemyIndex];
+            const auto& perception=host.game.enemyPerceptions()[enemyIndex];
+            const auto& behavior=host.game.enemyBehaviors()[enemyIndex];
+            const auto& locomotion=host.game.enemyLocomotions()[enemyIndex];
+            const auto feet=gameplay::enemyLocomotionOutput(locomotion);
+            const auto& body=host.game.enemyBodies()[enemyIndex];
+            const auto& motor=host.game.enemyMotors()[enemyIndex];
+            const auto& motorOutput=host.game.enemyMotorOutputs()[enemyIndex];
+            std::printf("AGENT_ENEMY schema=%d tick=%llu valid=1 id=%d pos_m=%.6f,%.6f,%.6f velocity_mps=%.6f,%.6f,%.6f perception_confidence=%.6f perception_uncertainty=%.6f perception_confirmed=%d last_seen_m=%.6f,%.6f,%.6f behavior=%s behavior_time_s=%.6f steering=%.6f,%.6f,%.6f speed_scale=%.6f brace=%.6f pace_expression=%.6f arousal=%.6f caution=%.6f fixation=%.6f locomotion_initialized=%d left_contact=%.6f right_contact=%.6f left_load=%.6f right_load=%.6f recovery_urgency=%.6f disruption=%.6f support_contact=%.6f fallen=%d walk_target_m=%.6f,%.6f,%.6f\n",
+                agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),enemyIndex,
+                enemy.pos.x,enemy.pos.y,enemy.pos.z,enemy.vel.x,enemy.vel.y,enemy.vel.z,
+                perception.confidence,perception.uncertainty,perception.confirmed?1:0,
+                perception.lastSeenPosition.x,perception.lastSeenPosition.y,perception.lastSeenPosition.z,
+                agentEnemyBehaviorName(behavior.mode),behavior.modeTime,
+                motorOutput.steering.x,motorOutput.steering.y,motorOutput.steering.z,motorOutput.speedScale,motorOutput.brace,motorOutput.paceExpression,
+                motor.arousal,motor.caution,motor.fixation,locomotion.initialized?1:0,
+                feet.leftContact,feet.rightContact,feet.leftLoad,feet.rightLoad,feet.recoveryUrgency,
+                body.disruption,body.supportContact,body.fallen?1:0,enemy.walkTarget.x,enemy.walkTarget.y,enemy.walkTarget.z);
+        }
         std::fflush(stdout);return captured;
     };
     std::printf("AGENT_PLAYTEST_READY schema=%d fixed_dt=%.9f max_step_frames=%d persistent_save=DISABLED\n",
