@@ -49,7 +49,10 @@ inline constexpr bool PhoneMenuMultiplayerAvailable = false;
 
 inline void applyPhoneGraphicsPreset(LocalSettingsState& settings, int preset) {
     settings.graphicsPreset = std::max(0, std::min(2, preset));
-    settings.shadows = settings.graphicsPreset >= 2;
+    // Every preset has a shadow implementation. Low and Normal select the
+    // cheap contact path; Pretty selects directional projection. The separate
+    // toggle remains the player's explicit way to disable shadows entirely.
+    settings.shadows = true;
     settings.portalWindow = settings.graphicsPreset >= 1;
     settings.particles = settings.graphicsPreset >= 1;
 }
@@ -100,6 +103,41 @@ inline float phoneMenuCycleFloat(float value, int direction, float minimum, floa
     if (direction > 0 && value >= maximum - epsilon) return minimum;
     if (direction < 0 && value <= minimum + epsilon) return maximum;
     return clampf(value + (direction > 0 ? step : -step), minimum, maximum);
+}
+
+inline bool adjustPhoneMenuSetting(LocalSettingsState& settings, PhoneMenuAction action, int direction) {
+    switch (action) {
+        case PhoneMenuAction::AdjustMouse:
+            settings.mouseLookSensitivity=phoneMenuCycleFloat(settings.mouseLookSensitivity,direction,0.5f,1.75f,0.10f);break;
+        case PhoneMenuAction::AdjustController:
+            settings.controllerLookSensitivity=phoneMenuCycleFloat(settings.controllerLookSensitivity,direction,0.5f,1.75f,0.10f);break;
+        case PhoneMenuAction::AdjustTriggers:
+            settings.controllerTriggerSensitivity=phoneMenuCycleIndex(settings.controllerTriggerSensitivity,direction,3);break;
+        case PhoneMenuAction::AdjustVibration:
+            settings.controllerVibration=phoneMenuCycleIndex(settings.controllerVibration,direction,3);break;
+        case PhoneMenuAction::MusicVolume:
+            settings.musicMuted=false;
+            settings.musicVolume=phoneMenuCycleFloat(settings.musicVolume,direction,0.0f,1.0f,0.10f);break;
+        case PhoneMenuAction::SfxVolume:
+            settings.sfxMuted=false;
+            settings.sfxVolume=phoneMenuCycleFloat(settings.sfxVolume,direction,0.0f,1.0f,0.10f);break;
+        case PhoneMenuAction::GraphicsPreset:
+            applyPhoneGraphicsPreset(settings,phoneMenuCycleIndex(settings.graphicsPreset,direction,3));break;
+        default:return false;
+    }
+    return true;
+}
+
+inline bool togglePhoneMenuSetting(LocalSettingsState& settings, PhoneMenuAction action) {
+    switch (action) {
+        case PhoneMenuAction::MusicMute:settings.musicMuted=!settings.musicMuted;break;
+        case PhoneMenuAction::SfxMute:settings.sfxMuted=!settings.sfxMuted;break;
+        case PhoneMenuAction::ToggleShadows:settings.shadows=!settings.shadows;break;
+        case PhoneMenuAction::ToggleParticles:settings.particles=!settings.particles;break;
+        case PhoneMenuAction::ToggleFps:settings.fpsCounter=!settings.fpsCounter;break;
+        default:return false;
+    }
+    return true;
 }
 
 inline const char* phoneMenuTriggerSensitivityName(int value) {
@@ -279,6 +317,8 @@ inline PhoneMenuPageViewModel makePhoneMenuPageModel(const GameState& state) {
         page.title = "";
         page.tablePage = true;
         addPhoneMenuValue(page, "Quality", presets[std::max(0, std::min(2, state.localSettings.graphicsPreset))], PhoneMenuAction::GraphicsPreset);
+        addPhoneMenuToggle(page, "Shadows", state.localSettings.shadows, PhoneMenuAction::ToggleShadows);
+        addPhoneMenuToggle(page, "Particles", state.localSettings.particles, PhoneMenuAction::ToggleParticles);
         addPhoneMenuToggle(page, "Frame Rate", state.localSettings.fpsCounter, PhoneMenuAction::ToggleFps);
     }
     // Ordinary phone pages communicate through layout and direct response.

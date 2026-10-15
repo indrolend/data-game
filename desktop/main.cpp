@@ -592,32 +592,13 @@ PhoneMenuAction selectedPhoneAction(const GameState& state){return selectedPhone
 
 bool adjustMenuSetting(HostState& host,int direction){
     GameState& state=host.game.networkMutableState();
-    auto& settings=state.localSettings;
     const PhoneMenuAction action=selectedPhoneElement(state).action;
-    switch(action){
-        case PhoneMenuAction::AdjustMouse:
-            settings.mouseLookSensitivity=phoneMenuCycleFloat(settings.mouseLookSensitivity,direction,0.5f,1.75f,0.10f);break;
-        case PhoneMenuAction::AdjustController:
-            settings.controllerLookSensitivity=phoneMenuCycleFloat(settings.controllerLookSensitivity,direction,0.5f,1.75f,0.10f);break;
-        case PhoneMenuAction::AdjustTriggers:
-            settings.controllerTriggerSensitivity=phoneMenuCycleIndex(settings.controllerTriggerSensitivity,direction,3);break;
-        case PhoneMenuAction::AdjustVibration:
-            settings.controllerVibration=phoneMenuCycleIndex(settings.controllerVibration,direction,3);break;
-        case PhoneMenuAction::MusicVolume:
-            settings.musicMuted=false;
-            settings.musicVolume=phoneMenuCycleFloat(settings.musicVolume,direction,0.0f,1.0f,0.10f);break;
-        case PhoneMenuAction::SfxVolume:
-            settings.sfxMuted=false;
-            settings.sfxVolume=phoneMenuCycleFloat(settings.sfxVolume,direction,0.0f,1.0f,0.10f);break;
-        case PhoneMenuAction::GraphicsPreset:
-            applyPhoneGraphicsPreset(settings,phoneMenuCycleIndex(settings.graphicsPreset,direction,3));break;
-        default:return false;
-    }
+    if(!adjustPhoneMenuSetting(state.localSettings,action,direction))return false;
     state.cinematic.menuPaintGesture=direction<0?2:3;
     state.cinematic.textInteraction=0.65f;
     return true;
 }
-bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;switch(selectedPhoneAction(state)){case PhoneMenuAction::MusicMute:settings.musicMuted=!settings.musicMuted;break;case PhoneMenuAction::SfxMute:settings.sfxMuted=!settings.sfxMuted;break;case PhoneMenuAction::ToggleShadows:settings.shadows=!settings.shadows;break;case PhoneMenuAction::ToggleParticles:settings.particles=!settings.particles;break;case PhoneMenuAction::ToggleFps:settings.fpsCounter=!settings.fpsCounter;break;default:return false;}state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.65f;return true;}
+bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();if(!togglePhoneMenuSetting(state.localSettings,selectedPhoneAction(state)))return false;state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.65f;return true;}
 
 void setMenuSelection(HostState& host,int selection) {
     const int count=menuItemCount(host.game.state());
