@@ -1109,11 +1109,13 @@ void DesktopRenderer::drawEnemyReactionBillboard(const GameState& state,const Ta
     Vec3 right=normalized(cross3(state.camera.forward,{0,1,0}));if(lengthSq(right)<0.01f)right={1,0,0};
     const Vec3 up=normalized(cross3(right,state.camera.forward));
     const float beat=std::pow(std::max(0.0f,std::sin(state.time*18.0f+hash*0.17f)),4.0f);
-    const float pixel=0.032f*(1.0f+activity*0.28f),sx=1.0f+beat*0.34f,sy=1.0f-beat*0.24f;
+    const float cameraDepth=std::max(0.25f,dot3(target.pos-state.camera.pos,state.camera.forward));
+    const float depthScale=clampf(cameraDepth/4.0f,0.42f,1.0f);
+    const float pixel=0.024f*depthScale*(1.0f+activity*0.18f),sx=1.0f+beat*0.22f,sy=1.0f-beat*0.16f;
     const float width=(visibleChars*6.0f-1.0f)*pixel*sx,height=7.0f*pixel*sy;
     const Vec3 center=target.pos+Vec3{0,(1.56f+activity*0.18f)*target.scale,0};
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-    glColor4f(0.018f,0.022f,0.027f,0.72f*activity);glBegin(GL_QUADS);
+    glColor4f(0.018f,0.022f,0.027f,0.58f*activity);glBegin(GL_QUADS);
     const Vec3 padR=right*(width*0.56f),padU=up*(height*0.72f);
     for(const Vec3& p:{center-padR-padU,center+padR-padU,center+padR+padU,center-padR+padU})glVertex3f(p.x,p.y,p.z);
     glEnd();

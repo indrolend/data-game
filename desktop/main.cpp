@@ -1854,9 +1854,12 @@ int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::files
     GameState& encounter=host.game.networkMutableState();TargetState& target=encounter.targets[0];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1.0f;target.attackCooldown=999.0f;target.pos=encounter.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;
     const int soulsBefore=encounter.player.souls;step(0,false,false,true,false);step(0,false,false,false,false);
     const bool combatPassed=host.game.state().targets[0].slurpable;record("soul-exposed");
-    bool sawAttracted=false,sawIngesting=false;int captureTicks=0;
-    for(;captureTicks<360&&host.game.state().player.souls==soulsBefore;++captureTicks){step(0,false,false,false,true);const auto soul=host.game.state().targets[0].soulState;sawAttracted|=soul==SoulState::Attracted;sawIngesting|=soul==SoulState::Latched||soul==SoulState::Ingesting;if(captureTicks==35)record("soul-pull");}
-    const bool soulPassed=host.game.state().player.souls==soulsBefore+1&&sawIngesting;record("soul-stored");
+    for(int settleTick=0;settleTick<24;++settleTick)step(0,false,false,false,false);
+    host.game.networkMutableState().targets[0].pos=host.game.state().player.pos+Vec3{0,0,-3.2f};
+    bool sawAttracted=false,sawIngesting=false,capturedAttraction=false;int captureTicks=0;
+    for(;captureTicks<360&&host.game.state().player.souls==soulsBefore;++captureTicks){step(0,false,false,false,true);const auto soul=host.game.state().targets[0].soulState;sawAttracted|=soul==SoulState::Attracted;sawIngesting|=soul==SoulState::Latched||soul==SoulState::Ingesting;if(!capturedAttraction&&soul==SoulState::Attracted){record("soul-pull");capturedAttraction=true;}}
+    if(!capturedAttraction)record("soul-pull");
+    const bool soulPassed=host.game.state().player.souls==soulsBefore+1&&sawAttracted&&sawIngesting;record("soul-stored");
 
     for(int slot=0;slot<host.game.state().requiredSouls;++slot){GameState& state=host.game.networkMutableState();const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*42.0f;BulletState& bullet=state.bullets[0];bullet=BulletState{};bullet.alive=true;bullet.life=1.0f;bullet.pos=state.captures[slot].pos+Vec3{0,0,tileOrigin+1.9f};bullet.vel={0,0,-25.0f};step(0,false,false,false,false);}
     const bool objectivePassed=host.game.state().roomClear&&countFilled(host.game.state())==host.game.state().requiredSouls;record("objective-complete");
