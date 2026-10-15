@@ -1480,6 +1480,7 @@ void printUsage() {
     std::printf("  --perf-trace FILE   Record one-second runtime performance summaries as CSV.\n");
     std::printf("  --evidence-scenario NAME --evidence-output DIR  Run a deterministic visual/runtime evidence scenario.\n");
     std::printf("  --evidence-scenario lighting-replay  Fixed-dt scripted gameplay replay with per-frame lighting snapshots (honors --lighting-command).\n");
+    std::printf("  --evidence-scenario vertical-slice  Traversal, combat, soul capture, objective, transition, and next-room proof.\n");
     std::printf("  --lighting-replay-selfcheck  Run the lighting replay twice headlessly and compare state hashes.\n");
     std::printf("  --net-latency-ms N --net-jitter-ms N  Enable explicit deterministic network impairment.\n");
     std::printf("  --net-drop-snapshot-every N --net-drop-input-every N --net-seed N\n");
@@ -1807,6 +1808,70 @@ int runSoulLifecycleEvidence(GLFWwindow* window,HostState& host,const std::files
     std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"two_complete_cycles\": "<<(samples==20?"true":"false")<<",\n  \"shell_opacity_monotonic\": "<<(opacityOrder?"true":"false")<<",\n  \"phone_ingest_spring_repeats_and_settles\": "<<(phoneResponse?"true":"false")<<"\n}\n";
     const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"soul-lifecycle\",\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<host.game.state().frame<<",\n  \"subject\": \"soul-extraction\",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"frames\": [";for(std::size_t i=0;i<frames.size();++i)manifest<<(i?",\n    ":"\n    ")<<'"'<<frames[i]<<'"';manifest<<"\n  ],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"cycle*.ppm\", \"frame_rate\": 2, \"tick_stride\": 0}\n}\n";
     std::printf("EVIDENCE_RUN=%s scenario=soul-lifecycle manifest=%s samples=%d opacity_order=%s phone_response=%s peak=[%.3f,%.3f] settled=[%.3f,%.3f]\n",passed?"PASS":"FAIL",manifestPath.string().c_str(),samples,opacityOrder?"PASS":"FAIL",phoneResponse?"PASS":"FAIL",phonePeak[0],phonePeak[1],phoneSettled[0],phoneSettled[1]);return passed?0:5;
+}
+
+int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    const auto manifestPath=outputDirectory/"manifest.json";
+    if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"video",error);
+    if(error){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=create_vertical_slice_output path=%s\n",outputDirectory.string().c_str());return 4;}
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),events(outputDirectory/"events.ndjson",std::ios::trunc);
+    if(!timeline||!events){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=open_vertical_slice_files\n");return 4;}
+
+    constexpr float dt=1.0f/60.0f;
+    std::vector<std::string> frames;
+    bool captureFailed=false;
+    const auto countFilled=[](const GameState& state){int filled=0;for(int i=0;i<state.requiredSouls;++i)if(state.captures[i].filled)++filled;return filled;};
+    const auto record=[&](const char* phase){
+        const GameState& state=host.game.state();
+        char filename[96]{};std::snprintf(filename,sizeof(filename),"%02zu-%s.ppm",frames.size(),phase);
+        const auto relative=std::filesystem::path("frames")/"video"/filename;
+        host.renderer.draw(state);glFinish();
+        const bool saved=captureFramebuffer(outputDirectory/relative,width,height);captureFailed|=!saved;
+        glfwSwapBuffers(window);glfwPollEvents();frames.push_back(relative.generic_string());
+        timeline<<std::fixed<<std::setprecision(6)<<"{\"phase\":\""<<phase<<"\",\"frame\":"<<state.frame<<",\"room\":"<<state.roomIndex<<",\"seed\":"<<state.roomSeed<<",\"player\":["<<state.player.pos.x<<','<<state.player.pos.y<<','<<state.player.pos.z<<"],\"grounded\":"<<(state.player.grounded?"true":"false")<<",\"souls\":"<<state.player.souls<<",\"filled\":"<<countFilled(state)<<",\"required\":"<<state.requiredSouls<<",\"room_clear\":"<<(state.roomClear?"true":"false")<<",\"upgrade\":"<<(state.upgradeMenu.active?"true":"false")<<",\"transition\":"<<(state.doorTransition.active?"true":"false")<<",\"capture_ok\":"<<(saved?"true":"false")<<"}\n";
+        events<<"{\"frame\":"<<state.frame<<",\"event\":\""<<phase<<"\"}\n";
+        std::printf("VERTICAL_SLICE phase=%s frame=%d room=%d pos=(%.2f,%.2f,%.2f) souls=%d objective=%d/%d clear=%d upgrade=%d transition=%d capture=%s\n",phase,state.frame,state.roomIndex,state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.souls,countFilled(state),state.requiredSouls,state.roomClear?1:0,state.upgradeMenu.active?1:0,state.doorTransition.active?1:0,saved?"OK":"FAIL");
+    };
+    const auto step=[&](float moveZ,bool sprint,bool jump,bool melee,bool vacuum){host.game.setTouchControls(0.0f,moveZ,0.0f,0.0f,vacuum,sprint,jump,melee,false,false);host.game.update(dt);host.audio.update(host.game.state());};
+
+    host.game.debugStartGeneratedRoomFixture(2,2);
+    host.game.setPersistentProgression(0,0,0,0);
+    GameState& initial=host.game.networkMutableState();
+    initial.started=true;initial.uiPaused=false;initial.attractMode=false;initial.cinematic.introActive=false;initial.upgradeMenu.active=false;
+    initial.localSettings.graphicsPreset=2;initial.localSettings.shadows=true;initial.localSettings.particles=true;initial.localSettings.fpsCounter=false;
+    initial.player.pos={0.0f,0.08f,15.2f};initial.player.vel={};initial.player.jumpVel=0.0f;initial.player.grounded=true;initial.player.battery=100.0f;
+    initial.camera.yaw=0.0f;initial.camera.pitch=-0.08f;
+    for(auto& target:initial.targets)target=TargetState{};for(auto& request:initial.respawnQueue)request=HumanRespawnRequest{};
+    record("room-start");
+
+    const Vec3 traversalStart=host.game.state().player.pos;bool sawAirborne=false;
+    for(int frame=0;frame<72;++frame){step(1.0f,true,frame==8,false,false);sawAirborne|=!host.game.state().player.grounded;}
+    const float traversalDistance=horizontalLength(host.game.state().player.pos-traversalStart);
+    const bool traversalPassed=sawAirborne&&traversalDistance>2.0f;
+    record("traversal-landed");
+
+    GameState& encounter=host.game.networkMutableState();TargetState& target=encounter.targets[0];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1.0f;target.attackCooldown=999.0f;target.pos=encounter.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;
+    const int soulsBefore=encounter.player.souls;step(0,false,false,true,false);step(0,false,false,false,false);
+    const bool combatPassed=host.game.state().targets[0].slurpable;record("soul-exposed");
+    bool sawAttracted=false,sawIngesting=false;int captureTicks=0;
+    for(;captureTicks<360&&host.game.state().player.souls==soulsBefore;++captureTicks){step(0,false,false,false,true);const auto soul=host.game.state().targets[0].soulState;sawAttracted|=soul==SoulState::Attracted;sawIngesting|=soul==SoulState::Latched||soul==SoulState::Ingesting;if(captureTicks==35)record("soul-pull");}
+    const bool soulPassed=host.game.state().player.souls==soulsBefore+1&&sawIngesting;record("soul-stored");
+
+    for(int slot=0;slot<host.game.state().requiredSouls;++slot){GameState& state=host.game.networkMutableState();const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*42.0f;BulletState& bullet=state.bullets[0];bullet=BulletState{};bullet.alive=true;bullet.life=1.0f;bullet.pos=state.captures[slot].pos+Vec3{0,0,tileOrigin+1.9f};bullet.vel={0,0,-25.0f};step(0,false,false,false,false);}
+    const bool objectivePassed=host.game.state().roomClear&&countFilled(host.game.state())==host.game.state().requiredSouls;record("objective-complete");
+
+    const int roomBefore=host.game.state().roomIndex;GameState& crossing=host.game.networkMutableState();const float tileOrigin=static_cast<float>(crossing.topology.currentTileIndex)*42.0f;crossing.player.pos={0,PHONE_MODEL_HEIGHT*0.5f,tileOrigin-20.8f};crossing.player.vel={0,0,-20};crossing.player.grounded=true;step(0,false,false,false,false);step(0,false,false,false,false);
+    const bool transitionPassed=host.game.state().roomIndex==roomBefore+1&&host.game.state().upgradeMenu.active&&host.game.state().uiPaused&&host.game.state().doorTransition.active;
+    for(int presentationTick=0;presentationTick<24;++presentationTick)step(0,false,false,false,false);
+    record("next-room-upgrade");
+    const bool upgradeChosen=host.game.chooseTemporaryUpgrade(0);host.game.networkMutableState().player.pos.x+=3.1f;step(0,false,false,false,false);const bool resumed=upgradeChosen&&!host.game.state().upgradeMenu.active&&!host.game.state().uiPaused&&!host.game.state().doorTransition.active;record("next-room-ready");
+
+    const bool passed=!captureFailed&&traversalPassed&&combatPassed&&soulPassed&&objectivePassed&&transitionPassed&&resumed;
+    {std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"traversal_airborne_and_advanced\": "<<(traversalPassed?"true":"false")<<",\n  \"traversal_distance\": "<<traversalDistance<<",\n  \"combat_exposed_soul\": "<<(combatPassed?"true":"false")<<",\n  \"soul_ingestion_completed\": "<<(soulPassed?"true":"false")<<",\n  \"saw_attracted\": "<<(sawAttracted?"true":"false")<<",\n  \"capture_ticks\": "<<captureTicks<<",\n  \"objective_completed\": "<<(objectivePassed?"true":"false")<<",\n  \"room_transitioned\": "<<(transitionPassed?"true":"false")<<",\n  \"upgrade_selected_and_resumed\": "<<(resumed?"true":"false")<<",\n  \"frame_count\": "<<frames.size()<<"\n}\n";}
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"vertical-slice\",\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"tick_rate\": 60,\n  \"ticks\": "<<host.game.state().frame<<",\n  \"timeline\": \"timeline.ndjson\",\n  \"events\": \"events.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"frames\": [";for(std::size_t i=0;i<frames.size();++i)manifest<<(i?", ":"")<<'"'<<frames[i]<<'"';manifest<<"],\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"*.ppm\", \"frame_rate\": 2, \"tick_stride\": null}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=vertical-slice manifest=%s traversal=%.2f combat=%d soul=%d objective=%d transition=%d resume=%d frames=%zu\n",passed?"PASS":"FAIL",manifestPath.string().c_str(),traversalDistance,combatPassed?1:0,soulPassed?1:0,objectivePassed?1:0,transitionPassed?1:0,resumed?1:0,frames.size());
+    return passed?0:5;
 }
 
 int runModelTest(const std::filesystem::path& root) {
@@ -2469,6 +2534,7 @@ int main(int argc, char** argv) {
         else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
         else if(std::strcmp(evidenceScenario,"lighting-replay")==0)result=runLightingReplayEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"soul-lifecycle")==0)result=runSoulLifecycleEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"vertical-slice")==0)result=runVerticalSliceEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
         glfwDestroyWindow(window);host.audio.stopAll();host.multiplayer.disconnect();glfwTerminate();return result;
     }
