@@ -30,6 +30,26 @@ All counts were refreshed after fetching and pruning `origin`. The current integ
 - The zombie and physical-enemy branches are not additive feature bundles. They combine capabilities now present on main with obsolete runtime authority and developer interfaces. Recovery must be capability-by-capability.
 - The historical relentless policy demonstrably bypasses evidence: with no perception the modern behavior rests, while the historical policy pursues whenever given the authoritative player vector. It is incompatible with the default perception contract and remains viable only as an explicitly designed archetype or pressure mode.
 
+## Historical enemy capability disposition
+
+| Capability | Historical source | Current source/evidence | Status | Recommended action |
+|---|---|---|---|---|
+| Physical support region | `convergence/zombie-v1:native/game/gameplay/EnemySupport.hpp` | `game/gameplay/EnemySupport.hpp` has the same Git blob hash (`a8d62c3`) | **PRESENT** | Retain current tests; no recovery. |
+| Persistent foot locomotion | `convergence/zombie-v1:native/game/gameplay/EnemyLocomotion.hpp` | `game/gameplay/EnemyLocomotion.hpp` has the same Git blob hash (`4486f5e`) and is exercised by locomotion/evidence tests | **PRESENT** | No recovery; validate rendered stance through synchronized captures. |
+| Physical body, perception, behavior, motor memory | Both historical enemy branches | Modern files exist and have continued changes; 55-test baseline covers their contracts and the v2 agent schema exposes their runtime outputs | **PRESENT/CHANGED** | Treat modern implementations as authority; investigate named outcome regressions only. |
+| Relentless authoritative pursuit | `RelentlessZombieMotor.hpp` | Evaluation-only reconstruction plus `HistoricalPursuitComparisonTest` | **INCOMPATIBLE AS DEFAULT** | Consider only as an explicit archetype/pressure rule after navigation and visual evidence tests. |
+| Pause, bounded stepping, reset, scenarios | Zombie physics lab | Agent protocol commands, deterministic evidence scenarios, traversal/slope/room labs | **SUPERSEDED** | Keep the command-driven interface; do not restore the old lab shell. |
+| Live physics tuning | Zombie physics lab | No modern runtime tuning surface identified | **MISSING** | Recover only a small, versioned set of safe parameters with reset/default reporting and evidence provenance. |
+| Herd awareness and social steering | Zombie convergence commits | Ally activity contributes vague awareness in `Game.cpp`; nearest-ally direction/distance feeds `EnemyMotor` | **EQUIVALENT/PARTIAL** | Add a multi-enemy outcome scenario before considering old protection rules. |
+| Run pressure | `RunPressure.hpp` | `roomHeat` rises with time/captures and affects spawning, regeneration, and motor room pressure | **EQUIVALENT/PARTIAL** | Prefer extending the authoritative run model only when a concrete population/complexity/environment consumer is approved. |
+| Soul identity | `SoulIdentity.hpp` | `SoulRecord` preserves ID, brute type, and origin room through storage/projectiles/networking; deterministic names, age, occupation, and visual signature are absent | **PARTIALLY INTEGRATED** | Evaluate presentation value independently; identity metadata must not become new lifecycle authority. |
+| Rolling shopping cart | `RollingVehicle.hpp`, `ShoppingCartGeometry.hpp` | No modern vehicle implementation identified | **MISSING EXPERIMENT** | Keep separate from enemy reconciliation; require a playable room/use case and capture before recovery. |
+
+`git cherry` reports the historical commits as unique because the repository was
+reorganized from `native/game` and `native-desktop` to `game` and `desktop` and
+because later code evolved. It is not evidence that every commit still contains
+a missing capability. File equivalence and observable behavior take precedence.
+
 ## Recommended integration sequence
 
 1. Protect the dirty canonical checkout; do not use it for integration.
