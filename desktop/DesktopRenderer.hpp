@@ -47,6 +47,10 @@ private:
     unsigned int cityDoorBayModelList_ = 0;
     unsigned int cityDoorWindowBayModelList_ = 0;
     unsigned int cityCorniceModelList_ = 0;
+    unsigned int cityWallWindowBayModelList_ = 0;
+    unsigned int cityWallDoorBayModelList_ = 0;
+    unsigned int cityWallCornerModelList_ = 0;
+    unsigned int cityCrownModelList_ = 0;
     HumanModelData humanModel_;
     mutable std::vector<float> humanVertices_;
     mutable unsigned int datamoshTexture_ = 0;
@@ -71,6 +75,15 @@ private:
     bool hudVisible_ = true;
     render_contract::RuntimeLightingControl lightingControl_{};
     mutable lighting_evidence::RendererLightingObservation lightingObservation_{};
+    mutable unsigned int shadowFramebuffer_ = 0;
+    mutable unsigned int shadowDepthTexture_ = 0;
+    mutable int shadowMapSize_ = 0;
+    mutable bool shadowSupportChecked_ = false;
+    mutable bool shadowMapSupported_ = false;
+    mutable bool shadowGeometryPass_ = false;
+    mutable float shadowProjection_[16]{};
+    mutable float shadowView_[16]{};
+    mutable Vec3 frameSunDirection_{30.0f,60.0f,25.0f};
     mutable coastal_water::Simulation coastalWaterSimulation_{};
     mutable float coastalWaterTime_ = -1.0f;
     mutable int coastalWaterSeed_ = 0;
@@ -78,6 +91,10 @@ private:
     mutable Vec3 coastalWaterPreviousPlayer_{};
 
     void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
+    bool ensureShadowMap(int size) const;
+    bool renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
+    void drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
+    void applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
     void updateCoastalWater(const GameState& state) const;
     void drawFieldGrass(int tileIndex,const VisualColor& tint={1.0f,1.0f,1.0f}) const;
     void drawCityGround(int tileIndex) const;

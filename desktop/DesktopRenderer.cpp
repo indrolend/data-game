@@ -32,6 +32,7 @@
 #else
 #include <GL/gl.h>
 #endif
+#include <GLFW/glfw3.h>
 
 #include <algorithm>
 #include <array>
@@ -45,6 +46,58 @@
 #include <vector>
 
 namespace {
+#ifndef GL_FRAMEBUFFER
+#define GL_FRAMEBUFFER 0x8D40
+#define GL_DEPTH_ATTACHMENT 0x8D00
+#define GL_FRAMEBUFFER_COMPLETE 0x8CD5
+#define GL_TEXTURE_COMPARE_MODE 0x884C
+#define GL_COMPARE_R_TO_TEXTURE 0x884E
+#define GL_TEXTURE_COMPARE_FUNC 0x884D
+#define GL_DEPTH_TEXTURE_MODE 0x884B
+#define GL_TEXTURE1 0x84C1
+#define GL_TEXTURE0 0x84C0
+#define GL_COMBINE 0x8570
+#define GL_COMBINE_ALPHA 0x8572
+#define GL_SOURCE0_ALPHA 0x8588
+#define GL_OPERAND0_ALPHA 0x8598
+#define GL_PREVIOUS 0x8578
+#endif
+#ifndef GL_CLAMP_TO_BORDER
+#define GL_CLAMP_TO_BORDER 0x812D
+#endif
+#ifndef GL_DEPTH_COMPONENT24
+#define GL_DEPTH_COMPONENT24 0x81A6
+#endif
+
+using GenFramebuffersProc=void (APIENTRY*)(GLsizei,GLuint*);
+using BindFramebufferProc=void (APIENTRY*)(GLenum,GLuint);
+using FramebufferTexture2DProc=void (APIENTRY*)(GLenum,GLenum,GLenum,GLuint,GLint);
+using CheckFramebufferStatusProc=GLenum (APIENTRY*)(GLenum);
+using DeleteFramebuffersProc=void (APIENTRY*)(GLsizei,const GLuint*);
+using ActiveTextureProc=void (APIENTRY*)(GLenum);
+GenFramebuffersProc shadowGenFramebuffers=nullptr;
+BindFramebufferProc shadowBindFramebuffer=nullptr;
+FramebufferTexture2DProc shadowFramebufferTexture2D=nullptr;
+CheckFramebufferStatusProc shadowCheckFramebufferStatus=nullptr;
+DeleteFramebuffersProc shadowDeleteFramebuffers=nullptr;
+ActiveTextureProc shadowActiveTexture=nullptr;
+
+template<typename T>T loadGlProc(const char* core,const char* extension=nullptr){
+    auto address=glfwGetProcAddress(core);if(!address&&extension)address=glfwGetProcAddress(extension);return reinterpret_cast<T>(address);
+}
+
+void multiplyMatrix(const float* a,const float* b,float* out){
+    for(int column=0;column<4;++column)for(int row=0;row<4;++row){float value=0;for(int k=0;k<4;++k)value+=a[k*4+row]*b[column*4+k];out[column*4+row]=value;}
+}
+
+void invertRigidMatrix(const float* matrix,float* out){
+    out[0]=matrix[0];out[1]=matrix[4];out[2]=matrix[8];out[3]=0;
+    out[4]=matrix[1];out[5]=matrix[5];out[6]=matrix[9];out[7]=0;
+    out[8]=matrix[2];out[9]=matrix[6];out[10]=matrix[10];out[11]=0;
+    out[12]=-(out[0]*matrix[12]+out[4]*matrix[13]+out[8]*matrix[14]);
+    out[13]=-(out[1]*matrix[12]+out[5]*matrix[13]+out[9]*matrix[14]);
+    out[14]=-(out[2]*matrix[12]+out[6]*matrix[13]+out[10]*matrix[14]);out[15]=1;
+}
 float displayedFps=60.0f;
 int fpsFrames=0;
 auto fpsWindowStart=std::chrono::steady_clock::now();
@@ -175,9 +228,8 @@ float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,floa
     return height;
 }
 
-void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY=0.0f) {
+void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY,const Vec3& sunDirection) {
     constexpr int segments = 8;
-    const Vec3& sunDirection=render_contract::DesktopSceneLighting.sun.direction;
     const float sunXOverY=sunDirection.x/sunDirection.y;
     const float sunZOverY=sunDirection.z/sunDirection.y;
     const Vec3 center{
@@ -376,6 +428,7 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     const bool sterileTileLoaded=loadPhotoMaterial(materialRoot/"photo-sterile-tile.rgb",sterileTileTexture_);
     StaticModelData phone;
     StaticModelData commonTree,twistedTree,deadTree,pineTree,cityWindowBay,cityWindowBaySmall,cityDoorBay,cityDoorWindowBay,cityCornice;
+    StaticModelData cityWallWindowBay,cityWallDoorBay,cityWallCorner,cityCrown;
     const bool phoneLoaded=phone.load((root/"phone.dbmesh").string());
     const bool humanLoaded=humanModel_.load((root/"human.dbhuman").string());
     phoneModelList_=phoneLoaded?compileStaticModel(phone):0; phoneShadowList_=phoneLoaded?compileStaticModel(phone,true):0;
@@ -388,7 +441,11 @@ void DesktopRenderer::setAssetRoot(const std::filesystem::path& root) {
     cityDoorBayModelList_=cityDoorBay.load((root/"environment"/"city"/"door-bay.dbmesh").string())?compileStaticModel(cityDoorBay):0;
     cityDoorWindowBayModelList_=cityDoorWindowBay.load((root/"environment"/"city"/"door-window-bay.dbmesh").string())?compileStaticModel(cityDoorWindowBay):0;
     cityCorniceModelList_=cityCornice.load((root/"environment"/"city"/"cornice.dbmesh").string())?compileStaticModel(cityCornice,false,true):0;
-    std::printf("Models: phone=%s flower=prismatic human=%s trees=%s/%s/%s/%s cityModules=%s/%s/%s/%s/%s menuFont=%s/%s birds=%s foliage=%s photos=%s/%s/%s/%s/%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",commonTreeModelList_?"common":"off",twistedTreeModelList_?"twisted":"off",deadTreeModelList_?"dead":"off",pineTreeModelList_?"pine":"off",cityWindowBayModelList_?"window":"off",cityWindowBaySmallModelList_?"small-window":"off",cityDoorBayModelList_?"door":"off",cityDoorWindowBayModelList_?"door-window":"off",cityCorniceModelList_?"cornice":"off",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",birdSpriteLoaded?"v-atlas":"off",foliageLoaded?"cc0-fir":"fallback",grassPhotoLoaded?"grass":"procedural",barkPhotoLoaded?"bark":"off",stonePhotoLoaded?"stone":"off",metalPhotoLoaded?"metal":"off",sandPhotoLoaded?"sand":"off",sterileTileLoaded?"sterile":"off");
+    cityWallWindowBayModelList_=cityWallWindowBay.load((root/"environment"/"city"/"wall-window-bay.dbmesh").string())?compileStaticModel(cityWallWindowBay):0;
+    cityWallDoorBayModelList_=cityWallDoorBay.load((root/"environment"/"city"/"wall-door-bay.dbmesh").string())?compileStaticModel(cityWallDoorBay):0;
+    cityWallCornerModelList_=cityWallCorner.load((root/"environment"/"city"/"wall-corner.dbmesh").string())?compileStaticModel(cityWallCorner):0;
+    cityCrownModelList_=cityCrown.load((root/"environment"/"city"/"crown.dbmesh").string())?compileStaticModel(cityCrown,false,true):0;
+    std::printf("Models: phone=%s flower=prismatic human=%s trees=%s/%s/%s/%s cityModules=%s/%s/%s/%s/%s structural=%s/%s/%s/%s menuFont=%s/%s birds=%s foliage=%s photos=%s/%s/%s/%s/%s/%s\n",phoneModelList_?"loaded":"fallback",humanLoaded?"loaded":"fallback",commonTreeModelList_?"common":"off",twistedTreeModelList_?"twisted":"off",deadTreeModelList_?"dead":"off",pineTreeModelList_?"pine":"off",cityWindowBayModelList_?"window":"off",cityWindowBaySmallModelList_?"small-window":"off",cityDoorBayModelList_?"door":"off",cityDoorWindowBayModelList_?"door-window":"off",cityCorniceModelList_?"cornice":"off",cityWallWindowBayModelList_?"wall-window":"off",cityWallDoorBayModelList_?"wall-door":"off",cityWallCornerModelList_?"corner":"off",cityCrownModelList_?"crown":"off",menuRegularLoaded?"regular":"bitmap",menuSemiboldLoaded?"semibold":"bitmap",birdSpriteLoaded?"v-atlas":"off",foliageLoaded?"cc0-fir":"fallback",grassPhotoLoaded?"grass":"procedural",barkPhotoLoaded?"bark":"off",stonePhotoLoaded?"stone":"off",metalPhotoLoaded?"metal":"off",sandPhotoLoaded?"sand":"off",sterileTileLoaded?"sterile":"off");
 }
 
 void DesktopRenderer::resize(int width, int height) {
@@ -1161,6 +1218,7 @@ void DesktopRenderer::drawCityGround(int tileIndex) const{
 }
 
 void DesktopRenderer::drawBirdFlocks(const GameState& state,int tileIndex,room_environment::RoomSetting setting) const{
+    if(shadowGeometryPass_)return;
     if(!birdSpriteTexture_||(setting!=room_environment::RoomSetting::Field&&setting!=room_environment::RoomSetting::Coastal))return;
     // The public-domain atlas contains authored idle, peck, hop, takeoff,
     // flight and landing rows. Deterministic local schedules make the birds
@@ -1237,6 +1295,7 @@ void DesktopRenderer::drawFoliageCards(const Vec3& center,const Vec3& size,float
 }
 
 void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) const{
+    if(shadowGeometryPass_)return;
     if(!commonTreeModelList_||!twistedTreeModelList_||!deadTreeModelList_||!pineTreeModelList_)return;
     const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH;
     const unsigned int key=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<unsigned int>((tileIndex+5)*0x9e3779b9u);
@@ -1258,7 +1317,7 @@ void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) co
     };
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
     for(const auto& tree:group){
-        drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f);
+        if(!shadowGeometryPass_)drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f,frameSunDirection_);
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
     int treeIndex=0;
@@ -1417,6 +1476,75 @@ void DesktopRenderer::drawSlopeWedge(const SlopeSupport& slope,float zOffset,con
     for(int i=0;i<mesh.vertexCount;++i){glNormal3f(mesh.normals[i*3],mesh.normals[i*3+1],mesh.normals[i*3+2]);glVertex3f(mesh.positions[i*3],mesh.positions[i*3+1],mesh.positions[i*3+2]);}glEnd();
 }
 
+bool DesktopRenderer::ensureShadowMap(int size) const{
+    if(!shadowSupportChecked_){
+        shadowSupportChecked_=true;
+        shadowGenFramebuffers=loadGlProc<GenFramebuffersProc>("glGenFramebuffers","glGenFramebuffersEXT");
+        shadowBindFramebuffer=loadGlProc<BindFramebufferProc>("glBindFramebuffer","glBindFramebufferEXT");
+        shadowFramebufferTexture2D=loadGlProc<FramebufferTexture2DProc>("glFramebufferTexture2D","glFramebufferTexture2DEXT");
+        shadowCheckFramebufferStatus=loadGlProc<CheckFramebufferStatusProc>("glCheckFramebufferStatus","glCheckFramebufferStatusEXT");
+        shadowDeleteFramebuffers=loadGlProc<DeleteFramebuffersProc>("glDeleteFramebuffers","glDeleteFramebuffersEXT");
+        shadowActiveTexture=loadGlProc<ActiveTextureProc>("glActiveTexture","glActiveTextureARB");
+        shadowMapSupported_=shadowGenFramebuffers&&shadowBindFramebuffer&&shadowFramebufferTexture2D&&shadowCheckFramebufferStatus&&shadowActiveTexture;
+        std::printf("Directional shadow map: %s\n",shadowMapSupported_?"supported":"compatibility fallback");
+    }
+    if(!shadowMapSupported_||size<=0)return false;
+    if(shadowFramebuffer_&&shadowMapSize_==size)return true;
+    if(shadowDepthTexture_){glDeleteTextures(1,&shadowDepthTexture_);shadowDepthTexture_=0;}
+    if(shadowFramebuffer_&&shadowDeleteFramebuffers){shadowDeleteFramebuffers(1,&shadowFramebuffer_);shadowFramebuffer_=0;}
+    glGenTextures(1,&shadowDepthTexture_);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_BORDER);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER);
+    const GLfloat border[]{1,1,1,1};glTexParameterfv(GL_TEXTURE_2D,GL_TEXTURE_BORDER_COLOR,border);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_MODE,GL_COMPARE_R_TO_TEXTURE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_FUNC,GL_LEQUAL);glTexParameteri(GL_TEXTURE_2D,GL_DEPTH_TEXTURE_MODE,GL_ALPHA);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_DEPTH_COMPONENT24,size,size,0,GL_DEPTH_COMPONENT,GL_UNSIGNED_INT,nullptr);
+    shadowGenFramebuffers(1,&shadowFramebuffer_);shadowBindFramebuffer(GL_FRAMEBUFFER,shadowFramebuffer_);
+    shadowFramebufferTexture2D(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_2D,shadowDepthTexture_,0);glDrawBuffer(GL_NONE);glReadBuffer(GL_NONE);
+    shadowMapSupported_=shadowCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE;
+    shadowBindFramebuffer(GL_FRAMEBUFFER,0);glBindTexture(GL_TEXTURE_2D,0);shadowMapSize_=shadowMapSupported_?size:0;
+    return shadowMapSupported_;
+}
+
+void DesktopRenderer::drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const{
+    shadowGeometryPass_=true;
+    const int horizon=quality==render_contract::ShadowQuality::MappedPretty?2:1;
+    for(int tile=state.topology.currentTileIndex-horizon;tile<=state.topology.currentTileIndex+horizon;++tile)drawRoomTile(state,tile,response);
+    if(!state.camera.firstPerson&&state.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,state.phoneTransform.position,state.phoneVisual.bodyScale,state.phoneTransform.orientation);else drawBox(state.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},state.phoneTransform.orientation,0,0,0);}
+    if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,peer.phoneVisual.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0,0,0);}
+    const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;
+    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive&&!target.slurpable){target.pos.z=tileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(humanModel_.valid())drawHumanModel(target,state.time,setting,true);else drawProceduralHumanDesktop(target,state.time,0,0,0);}
+    shadowGeometryPass_=false;
+}
+
+bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
+    const int size=render_contract::shadowMapResolution(quality);if(!ensureShadowMap(size))return false;
+    const float coverage=render_contract::shadowCoverage(quality),texel=coverage*2.0f/static_cast<float>(size);
+    Vec3 center=state.player.pos;center.x=std::round(center.x/texel)*texel;center.z=std::round(center.z/texel)*texel;center.y=2.8f;
+    const Vec3 light=normalized(sunDirection),eye=center+light*52.0f;
+    shadowBindFramebuffer(GL_FRAMEBUFFER,shadowFramebuffer_);glViewport(0,0,size,size);glClear(GL_DEPTH_BUFFER_BIT);
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_LIGHTING);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(2.0f,4.0f);
+    glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(-coverage,coverage,-coverage,coverage,1.0f,110.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
+    glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(eye,center,{0,1,0});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
+    drawShadowGeometry(state,response,quality);
+    glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
+}
+
+void DesktopRenderer::applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const{
+    if(!shadowMapSupported_||!shadowDepthTexture_||strength<=0.001f)return;
+    float cameraView[16],inverseCamera[16],lightVp[16],worldToShadow[16];glGetFloatv(GL_MODELVIEW_MATRIX,cameraView);invertRigidMatrix(cameraView,inverseCamera);multiplyMatrix(shadowProjection_,shadowView_,lightVp);multiplyMatrix(lightVp,inverseCamera,worldToShadow);
+    const float bias[16]={0.5f,0,0,0, 0,0.5f,0,0, 0,0,0.5f,0, 0.5f,0.5f,0.5f,1};float textureMatrix[16];multiplyMatrix(bias,worldToShadow,textureMatrix);
+    glClearStencil(0);glClear(GL_STENCIL_BUFFER_BIT);glEnable(GL_STENCIL_TEST);glStencilMask(0xff);glStencilFunc(GL_ALWAYS,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_FALSE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_LESS,0.5f);glDisable(GL_BLEND);glDisable(GL_LIGHTING);
+    shadowActiveTexture(GL_TEXTURE1);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_COMBINE);glTexEnvi(GL_TEXTURE_ENV,GL_COMBINE_ALPHA,GL_REPLACE);glTexEnvi(GL_TEXTURE_ENV,GL_SOURCE0_ALPHA,GL_TEXTURE);glTexEnvi(GL_TEXTURE_ENV,GL_OPERAND0_ALPHA,GL_SRC_ALPHA);
+    glMatrixMode(GL_TEXTURE);glPushMatrix();glLoadMatrixf(textureMatrix);glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();glLoadIdentity();const GLfloat sPlane[]{1,0,0,0},tPlane[]{0,1,0,0},rPlane[]{0,0,1,0},qPlane[]{0,0,0,1};glTexGenfv(GL_S,GL_EYE_PLANE,sPlane);glTexGenfv(GL_T,GL_EYE_PLANE,tPlane);glTexGenfv(GL_R,GL_EYE_PLANE,rPlane);glTexGenfv(GL_Q,GL_EYE_PLANE,qPlane);glPopMatrix();glEnable(GL_TEXTURE_GEN_S);glEnable(GL_TEXTURE_GEN_T);glEnable(GL_TEXTURE_GEN_R);glEnable(GL_TEXTURE_GEN_Q);shadowActiveTexture(GL_TEXTURE0);
+    drawShadowGeometry(state,response,quality);
+    shadowActiveTexture(GL_TEXTURE1);glDisable(GL_TEXTURE_GEN_S);glDisable(GL_TEXTURE_GEN_T);glDisable(GL_TEXTURE_GEN_R);glDisable(GL_TEXTURE_GEN_Q);glMatrixMode(GL_TEXTURE);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_TEXTURE_2D);shadowActiveTexture(GL_TEXTURE0);
+    glDisable(GL_ALPHA_TEST);glDepthFunc(GL_LEQUAL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glStencilMask(0);glStencilFunc(GL_EQUAL,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);glDisable(GL_DEPTH_TEST);glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();glColor4f(0.015f,0.020f,0.028f,strength);glBegin(GL_QUADS);glVertex2f(0,0);glVertex2f(static_cast<float>(width_),0);glVertex2f(static_cast<float>(width_),static_cast<float>(height_));glVertex2f(0,static_cast<float>(height_));glEnd();glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);
+    glDisable(GL_BLEND);glDisable(GL_STENCIL_TEST);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);
+}
+
 void DesktopRenderer::updateCoastalWater(const GameState& state) const{
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     if(plan.setting!=room_environment::RoomSetting::Coastal){coastalWaterTime_=state.time;return;}
@@ -1517,7 +1645,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             }
             glDisable(GL_LIGHTING);drawBox({side*(ROOM_WIDTH*0.5f-0.215f),0.42f,z0},{0.028f,0.055f,ROOM_DEPTH-1.0f},0,0,0,0.30f,0.72f,0.78f);glEnable(GL_LIGHTING);
         }
-    }else if(coastal){
+    }else if(coastal&&!shadowGeometryPass_){
         const int strips=state.localSettings.graphicsPreset<=0?12:(state.localSettings.graphicsPreset==1?18:24);
         const int steps=state.localSettings.graphicsPreset<=0?24:(state.localSettings.graphicsPreset==1?36:48);
         const float x0=coastal_water::ShoreX,x1=coastal_water::FarX,zMin=z0+coastal_water::MinZ,zMax=z0+coastal_water::MaxZ;
@@ -1570,6 +1698,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             const room_environment::EnvironmentPropSpec rock{room_environment::EnvironmentPrimitive::Rock,role,{c.center.x,c.bottomY,c.center.z},{c.width,c.height/0.71f,c.depth},materialPhase*0.34f,static_cast<unsigned char>(i%3)};
             drawFacetedRock(rock,state.roomSeed,state.roomIndex,i,z0,photoTint,stoneTexture_,1.35f);
         }else drawTexturedBox(obstacleTexture,{c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,photoTint,1.8f,materialPhase);
+        if(shadowGeometryPass_&&plan.setting==room_environment::RoomSetting::City)continue;
         if(wireframeMutation){glDisable(GL_LIGHTING);glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width+0.018f,c.height+0.018f,c.depth+0.018f},0,0,0,(i&1)?0.92f:0.18f,0.24f,(i&1)?0.78f:0.94f);glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);glEnable(GL_LIGHTING);}
         if(gummyMutation){const float pulse=0.015f+0.012f*std::sin(state.time*2.2f+i);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width+pulse,c.height+pulse,c.depth+pulse},0,0,0,(i&1)?0.98f:0.28f,(i&1)?0.34f:0.92f,(i&1)?0.66f:0.78f,0.16f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);}
         // A shallow dark plinth provides contact and a worn cap catches the
@@ -1597,7 +1726,11 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             const VisualColor glass=facade.family==1?VisualColor{0.055f,0.075f,0.082f}:VisualColor{0.026f,0.046f,0.058f};
             const float facadeZ=z0+c.center.z;
             const int authoredCadence=state.localSettings.graphicsPreset>=2?2:3;
-            const bool authoredFacade=state.localSettings.graphicsPreset>0&&(i%authoredCadence)==0&&cityWindowBayModelList_&&cityWindowBaySmallModelList_&&cityDoorBayModelList_&&cityDoorWindowBayModelList_&&cityCorniceModelList_;
+            // Window mullions and wall tessellation affect the visible form,
+            // but not the building-scale shadow silhouette. Shadow passes use
+            // the gameplay-aligned structural mass and avoid submitting tens
+            // of thousands of invisible facade vertices two extra times.
+            const bool authoredFacade=!shadowGeometryPass_&&state.localSettings.graphicsPreset>0&&(i%authoredCadence)==0&&cityWindowBayModelList_&&cityWindowBaySmallModelList_&&cityDoorBayModelList_&&cityDoorWindowBayModelList_&&cityCorniceModelList_&&cityWallWindowBayModelList_&&cityWallDoorBayModelList_;
             const Quat facadeOrientation=quaternionFromEulerXYZ(0.0f,inward>0.0f?-PI*0.5f:PI*0.5f,0.0f);
             const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,state.vacuum.power*0.62f});
             const float nightPresence=0.34f+(1.0f-render_contract::celestialDaylight(atmosphereInputs.time))*0.66f;
@@ -1618,6 +1751,12 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                     const float openingY=entrance?c.bottomY+openingH*0.5f+facade.baseHeight*0.18f:y+facade.storyHeight*0.04f;
                     drawBox({faceX+inward*facade.recessDepth,openingY,z},{0.034f,openingH,openingW},0,0,0,glass.r,glass.g,glass.b);
                     if(authoredStory){
+                        // Retain the complete authored plaster wall course
+                        // from the CC0 kit, not merely its detached window.
+                        // The collider remains one stable building mass while
+                        // presentation gets real lintels, reveals and joints.
+                        const unsigned int wallModule=entrance?cityWallDoorBayModelList_:cityWallWindowBayModelList_;
+                        drawStaticModel(wallModule,{faceX,c.bottomY+story*facade.storyHeight,z},{facade.bayWidth,facade.storyHeight,0.12f},facadeOrientation);
                         const unsigned int module=entrance?(facade.family==2?cityDoorWindowBayModelList_:cityDoorBayModelList_):
                             (facade.family==2?cityWindowBaySmallModelList_:cityWindowBayModelList_);
                         // These are the kit's actual CC0 window and door
@@ -1649,8 +1788,21 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                     }
                     if(entrance)drawBox({faceX+inward*0.07f,c.bottomY+0.045f,z},{0.18f,0.09f,openingW*1.35f},0,0,0,0.18f,0.18f,0.17f);
                 }
+                if(authoredStory&&state.localSettings.graphicsPreset>=2&&cityWallCornerModelList_){
+                    // A real L-shaped termination from the source kit gives
+                    // the facade thickness at both ends instead of ending a
+                    // detailed wall against a decorative rectangular pier.
+                    for(float edge:{-1.0f,1.0f})
+                        drawStaticModel(cityWallCornerModelList_,{faceX,c.bottomY+story*facade.storyHeight,facadeZ+edge*(c.depth*0.5f-0.14f)},{0.28f,facade.storyHeight,0.28f},facadeOrientation);
+                }
             }
             drawBox({c.center.x,c.topY+facade.crownHeight*0.5f,z0+c.center.z},{c.width*1.035f,facade.crownHeight,c.depth*1.035f},0,0,0,frame.r*1.08f,frame.g*1.06f,frame.b*1.02f);
+            if(authoredFacade&&cityCrownModelList_){
+                for(int bay=0;bay<facade.bays;++bay){
+                    const float z=city_facade::bayCenter(facade,bay,facadeZ);
+                    drawStaticModel(cityCrownModelList_,{faceX+inward*0.035f,c.topY,z},{facade.bayWidth*0.25f,facade.crownHeight,0.18f},facadeOrientation);
+                }
+            }
             if(c.height>1.8f){drawBox({c.center.x-inward*c.width*0.20f,c.topY+facade.crownHeight+0.13f,z0+c.center.z+c.depth*0.18f},{c.width*0.24f,0.26f,c.depth*0.22f},0,0,0,0.23f,0.25f,0.25f);drawBox({c.center.x+inward*c.width*0.18f,c.topY+facade.crownHeight+0.10f,z0+c.center.z-c.depth*0.16f},{0.08f,0.20f,0.08f},0,0,0,0.16f,0.18f,0.18f);}
         }else if(field||coastal){
             const VisualColor growth=field?VisualColor{0.16f,0.34f,0.19f}:VisualColor{0.46f,0.48f,0.36f};
@@ -1711,7 +1863,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                 // Preserve their authored proportions, using prop height as the
                 // single source of truth for climbing and world scale.
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-                drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f);
+                if(!shadowGeometryPass_)drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f,frameSunDirection_);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
                 drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
                 const VisualColor bark{0.28f,0.205f,0.13f};
@@ -1768,7 +1920,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     }
     // Bird sprites are withheld until their atlas rows, schedules, and world
     // placement form a complete behavior instead of intermittent billboards.
-    if(plan.grass){const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:VisualIdentity::GrassRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:VisualIdentity::GrassTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
+    if(plan.grass&&!shadowGeometryPass_){const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:VisualIdentity::GrassRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:VisualIdentity::GrassTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
 }
 
 void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
@@ -2083,7 +2235,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
     const bool openSky=roomPlan.setting!=room_environment::RoomSetting::Sterile;
-    if(openSky)lightRig.sunDirection=render_contract::celestialSunDirection(atmosphereInputs.time);
+    const auto resolvedSun=render_contract::resolveSunState(atmosphereInputs.time,openSky,lightRig.sunDirection);
+    lightRig.sunDirection=resolvedSun.direction;frameSunDirection_=resolvedSun.direction;
     const float objectiveProgress=state.requiredSouls>0?static_cast<float>(state.depositedSouls)/static_cast<float>(state.requiredSouls):0.0f;
     float captureActivity=0.0f;Vec3 capturePosition=state.phoneTransform.screenCenter;
     for(const auto& target:state.targets)if(target.alive&&target.slurpable){const float activity=clampf(std::max({target.vacuumPullAmount,target.soulVisual.latchAmount*0.72f,target.ingestProgress}),0.0f,1.0f);if(activity>captureActivity){captureActivity=activity;capturePosition=target.pos+Vec3{0,0.57f+target.soulVisual.verticalOffset,0};}}
@@ -2095,6 +2248,11 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     }
     if(captureActivity<=0.001f&&completionWeight>0.001f)capturePosition=completionPosition*(1.0f/completionWeight);
     const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear,captureActivity,completionAfterglow});
+    const bool menuPresentation=(((!state.started&&!state.dead)||state.dead||state.cinematic.introActive)&&!state.multiplayer.enabled&&!state.upgradeMenu.active);
+    auto shadowQuality=render_contract::shadowQualityFor(state.localSettings.graphicsPreset,state.localSettings.shadows,true);
+    const bool mappedRequested=shadowQuality==render_contract::ShadowQuality::MappedNormal||shadowQuality==render_contract::ShadowQuality::MappedPretty;
+    const bool mappedReady=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,lightingResponse,resolvedSun.direction,shadowQuality);
+    if(mappedRequested&&!mappedReady)shadowQuality=state.localSettings.shadows?render_contract::ShadowQuality::Cheap:render_contract::ShadowQuality::Off;
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
@@ -2187,45 +2345,20 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
 
     // A pause menu overlays the live world, so its frozen actors still own their
     // shadows. Only presentations that replace gameplay suppress world shadows.
-    const bool menuPresentation=(((!state.started&&!state.dead)||state.dead||state.cinematic.introActive)&&!state.multiplayer.enabled&&!state.upgradeMenu.active);
-    const auto shadowQuality=render_contract::shadowQualityFor(state.localSettings.graphicsPreset,state.localSettings.shadows,true);
     if(shadowQuality==render_contract::ShadowQuality::Cheap){
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f));
-    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f));
+    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f),resolvedSun.direction);
+    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f),resolvedSun.direction);
     if(!menuPresentation){
     const float shadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver);}
-    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f));}
-    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f));}
+    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver,resolvedSun.direction);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver,resolvedSun.direction);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver,resolvedSun.direction);}
+    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f),resolvedSun.direction);}
+    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f),resolvedSun.direction);}
     // Static room geometry already provides the receiving floor and its own
     // lighting. Projecting every collider (including room-scale walls) onto the
     // floor created large overlapping black sheets unrelated to visible casters.
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
-    else if(shadowQuality==render_contract::ShadowQuality::Directional&&!menuPresentation){
-        Vec3 sun=lightRig.sunDirection;
-        if(sun.y<0.10f)sun={-sun.x,std::max(0.18f,-sun.y),-sun.z};
-        const float shadowMatrix[16]={1,0,0,0,-sun.x/sun.y,0,-sun.z/sun.y,0,0,0,1,0,0.006f,0.012f,0.005f,1};
-        glStencilMask(0xff);glClearStencil(0);glClear(GL_STENCIL_BUFFER_BIT);glEnable(GL_STENCIL_TEST);glStencilFunc(GL_ALWAYS,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
-        glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_FALSE);glDisable(GL_DEPTH_TEST);glPushMatrix();glMultMatrixf(shadowMatrix);
-        if(!state.camera.firstPerson&&state.player.alive){if(phoneShadowList_)drawStaticModel(phoneShadowList_,state.phoneTransform.position,state.phoneVisual.bodyScale,state.phoneTransform.orientation);else drawBox(state.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},state.phoneTransform.orientation,0,0,0);}
-        if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){if(phoneShadowList_)drawStaticModel(phoneShadowList_,peer.phoneTransform.position,peer.phoneVisual.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0,0,0);}
-        const float shadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-        const auto roomSetting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;
-        for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;if(!target.slurpable){if(humanModel_.valid())drawHumanModel(target,state.time,roomSetting,true);else drawProceduralHumanDesktop(target,state.time,0,0,0);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f){const auto& sv=target.soulVisual;const float cube=0.72f*0.78f*target.scale*sv.morphScale;drawBox(target.pos+Vec3{0,0.57f+sv.verticalOffset,0},{cube*sv.scale.x,cube*sv.scale.y,cube*sv.scale.z},0,sv.rotationY,0,0,0,0);}}
-        for(const auto& flower:state.flowers)if(flower.active)drawBox({flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin},{0.54f,0.22f,0.54f},0,flower.rotationY,0,0,0,0);
-        for(const auto& bullet:state.bullets)if(bullet.alive){const float size=0.72f*1.12f*(bullet.brute?1.7f:1.0f);drawBox(bullet.pos,{size,size,size},bullet.spin*1.2f,bullet.spin*1.7f,bullet.spin*0.9f,0,0,0);}
-        glPopMatrix();glEnable(GL_DEPTH_TEST);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glStencilMask(0);glStencilFunc(GL_EQUAL,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
-        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);drawBox({0,0.014f,shadowTileOrigin},{ROOM_WIDTH,0.008f,ROOM_DEPTH*3.0f},0,0,0,0.012f,0.018f,0.022f,0.24f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);glDisable(GL_STENCIL_TEST);
-        // Directional projection owns the broad silhouette. A quiet support-
-        // aware contact patch closes the gap on rocks, slopes and transition
-        // tiles that are not represented by the old floor-only receiver.
-        glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-        if(!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.18f,0.13f,0.10f,0.13f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f));
-        for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;drawGroundShadow(target.pos,0.18f*target.scale,0.12f*target.scale,0.08f,0.11f,shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f));}
-        glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
-    }
 
     if (state.phoneVisual.visible) {
         const Vec3 phonePos=state.phoneTransform.position;
@@ -2297,6 +2430,10 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         // Let the final startled utterance bridge the physical body and its
         // newly exposed data substrate instead of vanishing on the kill tick.
         drawEnemyReactionBillboard(state,target);
+    }
+    if(mappedReady){
+        const float qualityStrength=shadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f;
+        applyMappedShadow(state,lightingResponse,shadowQuality,qualityStrength*resolvedSun.daylight);
     }
     std::sort(translucentSouls.begin(),translucentSouls.begin()+translucentSoulCount,[](const auto& a,const auto& b){return a.distanceSquared>b.distanceSquared;});
     glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE);

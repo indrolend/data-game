@@ -1450,6 +1450,7 @@ void printUsage() {
     std::printf("  --capture-flower-frame PATH  Capture the flower/soul readability fixture.\n");
     std::printf("  --capture-room-seed N --capture-room-index N  Start a generated room fixture before capturing.\n");
     std::printf("  --capture-graphics-preset N  Override fixture quality (0 low, 1 normal, 2 pretty).\n");
+    std::printf("  --capture-shadows N  Override fixture shadows (0 disabled, 1 enabled).\n");
     std::printf("  --capture-lifetime-rooms N --capture-best-room N  Set cosmetic accomplishment state for fixture captures.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
@@ -2228,6 +2229,7 @@ int main(int argc, char** argv) {
     const int captureRoomSeed=argInt(argc,argv,"--capture-room-seed",-1);
     const int captureRoomIndex=argInt(argc,argv,"--capture-room-index",-1);
     const int captureGraphicsPreset=argInt(argc,argv,"--capture-graphics-preset",-1);
+    const int captureShadows=argInt(argc,argv,"--capture-shadows",-1);
     const int captureLifetimeRooms=argInt(argc,argv,"--capture-lifetime-rooms",0);
     const int captureBestRoom=argInt(argc,argv,"--capture-best-room",0);
     const float capturePlayerX=argFloat(argc,argv,"--capture-player-x",std::numeric_limits<float>::quiet_NaN());
@@ -2380,7 +2382,7 @@ int main(int argc, char** argv) {
         std::printf("RALLY_LAB_READY souls=1 enemies=0 controls=Q/F/Space+F/vacuum\n");
     }
     if(roomInspector){host.game.debugStartRoomInspector();for(int premise=0;premise<roomInspectorPremise;++premise)host.game.debugStepRoomInspector(1,false);std::printf("ROOM_INSPECTOR_READY previous=[ next=] regenerate=R enemies=E review=5/6/7/8\n");}
-    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);auto& generated=host.game.networkMutableState();generated.progression.permanent.lifetimeRoomsCleared=static_cast<std::uint64_t>(std::max(0,captureLifetimeRooms));generated.progression.permanent.bestRoomCleared=std::max(0,captureBestRoom);if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(generated.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));if(std::isfinite(capturePlayerX))generated.player.pos.x=capturePlayerX;if(std::isfinite(capturePlayerZ))generated.player.pos.z=static_cast<float>(generated.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s quality=%d lifetime=%llu best=%d player=(%.2f,%.2f)\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form),generated.localSettings.graphicsPreset,static_cast<unsigned long long>(generated.progression.permanent.lifetimeRoomsCleared),generated.progression.permanent.bestRoomCleared,generated.player.pos.x,generated.player.pos.z);}
+    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);auto& generated=host.game.networkMutableState();generated.progression.permanent.lifetimeRoomsCleared=static_cast<std::uint64_t>(std::max(0,captureLifetimeRooms));generated.progression.permanent.bestRoomCleared=std::max(0,captureBestRoom);if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(generated.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));if(captureShadows>=0)generated.localSettings.shadows=captureShadows!=0;if(std::isfinite(capturePlayerX))generated.player.pos.x=capturePlayerX;if(std::isfinite(capturePlayerZ))generated.player.pos.z=static_cast<float>(generated.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s quality=%d shadows=%d lifetime=%llu best=%d player=(%.2f,%.2f)\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form),generated.localSettings.graphicsPreset,generated.localSettings.shadows?1:0,static_cast<unsigned long long>(generated.progression.permanent.lifetimeRoomsCleared),generated.progression.permanent.bestRoomCleared,generated.player.pos.x,generated.player.pos.z);}
     if(automationPlaytest)std::printf("AUTOMATION_PLAYTEST_READY local_only=YES focus_pause=OFF input_clearing=ON\n");
     host.savedProgressionRevision=host.game.state().progression.permanent.revision;
     host.savedSettings=host.game.state().localSettings;
@@ -2463,6 +2465,7 @@ int main(int argc, char** argv) {
         if(captureRoomSeed>=0&&captureRoomIndex>=1)host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);
         GameState& fixture=host.game.networkMutableState();
         if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(fixture.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));
+        if(captureShadows>=0)fixture.localSettings.shadows=captureShadows!=0;
         if(std::isfinite(capturePlayerX))fixture.player.pos.x=capturePlayerX;
         if(std::isfinite(capturePlayerZ))fixture.player.pos.z=static_cast<float>(fixture.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;
         fixture.camera.firstPerson=false;

@@ -350,7 +350,12 @@ target_compile_features(MaterialResponseTest PRIVATE cxx_std_17)
 add_executable(ModelDataTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/model_data_test.cpp")
 target_include_directories(ModelDataTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(ModelDataTest PRIVATE cxx_std_17)
-target_compile_definitions(ModelDataTest PRIVATE DB_PHONE_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/models/phone.dbmesh")
+target_compile_definitions(ModelDataTest PRIVATE
+    DB_PHONE_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/models/phone.dbmesh"
+    DB_CITY_WALL_WINDOW_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/models/environment/city/wall-window-bay.dbmesh"
+    DB_CITY_WALL_DOOR_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/models/environment/city/wall-door-bay.dbmesh"
+    DB_CITY_WALL_CORNER_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/models/environment/city/wall-corner.dbmesh"
+    DB_CITY_CROWN_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/models/environment/city/crown.dbmesh")
 
 add_executable(FacetedRockTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/faceted_rock_test.cpp")
 target_include_directories(FacetedRockTest PRIVATE "${DB_GAME_ROOT}")
