@@ -1251,6 +1251,10 @@ void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) co
         { 14.20f,  4.8f-driftA,6.7f, 0.36f,twistedTreeModelList_,0.82f,2},
         { 13.80f, 13.6f-driftB,8.4f,-0.12f,pineTreeModelList_,0.76f,0},
         {-13.95f, 15.7f+driftA,4.1f, 0.58f,deadTreeModelList_,0.88f,2},
+        {-8.60f,-20.2f+driftB,3.8f, 0.28f,pineTreeModelList_,0.72f,0},
+        {-2.40f,-21.6f-driftA,3.1f,-0.36f,commonTreeModelList_,0.82f,1},
+        { 4.80f,-20.7f+driftA,4.4f, 0.12f,pineTreeModelList_,0.70f,0},
+        {10.40f,-21.9f-driftB,3.5f,-0.46f,twistedTreeModelList_,0.74f,2},
     };
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
     for(const auto& tree:group){
