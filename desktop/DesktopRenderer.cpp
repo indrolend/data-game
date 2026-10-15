@@ -2110,6 +2110,30 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
     const bool cheapVisuals=state.localSettings.graphicsPreset<=0;
     const auto actorVisible=[&](const Vec3& position){const Vec3 delta=position-state.camera.pos;const float maxDist=cheapVisuals?38.0f:55.0f;return lengthSq(delta)<maxDist*maxDist&&dot3(delta,state.camera.forward)>-8.0f;};
+    if(openSky){
+        const Vec3 forward=state.camera.forward;
+        Vec3 right=normalized(cross3(forward,{0,1,0}));if(lengthSq(right)<0.01f)right={1,0,0};
+        const Vec3 up=normalized(cross3(right,forward));
+        const float distance=VisualIdentity::CameraFarPlane*0.88f;
+        const float halfHeight=distance*0.70f,halfWidth=halfHeight*static_cast<float>(width_)/static_cast<float>(height_);
+        const Vec3 center=state.camera.pos+forward*distance;
+        const VisualColor zenith{
+            clampf(atmosphere.background.r*0.44f+atmosphere.sun.r*0.10f,0.0f,1.0f),
+            clampf(atmosphere.background.g*0.54f+atmosphere.sun.g*0.10f,0.0f,1.0f),
+            clampf(atmosphere.background.b*0.72f+atmosphere.sun.b*0.10f,0.0f,1.0f)};
+        const VisualColor horizon{
+            clampf(atmosphere.background.r*0.74f+atmosphere.fog.r*0.26f+0.08f,0.0f,1.0f),
+            clampf(atmosphere.background.g*0.78f+atmosphere.fog.g*0.22f+0.07f,0.0f,1.0f),
+            clampf(atmosphere.background.b*0.86f+atmosphere.fog.b*0.14f+0.03f,0.0f,1.0f)};
+        glDisable(GL_LIGHTING);glDisable(GL_FOG);glDisable(GL_DEPTH_TEST);glDepthMask(GL_FALSE);
+        glBegin(GL_QUADS);
+        glColor3f(zenith.r,zenith.g,zenith.b);glVertex3f((center-right*halfWidth+up*halfHeight).x,(center-right*halfWidth+up*halfHeight).y,(center-right*halfWidth+up*halfHeight).z);
+        glColor3f(zenith.r,zenith.g,zenith.b);glVertex3f((center+right*halfWidth+up*halfHeight).x,(center+right*halfWidth+up*halfHeight).y,(center+right*halfWidth+up*halfHeight).z);
+        glColor3f(horizon.r,horizon.g,horizon.b);glVertex3f((center+right*halfWidth-up*halfHeight).x,(center+right*halfWidth-up*halfHeight).y,(center+right*halfWidth-up*halfHeight).z);
+        glColor3f(horizon.r,horizon.g,horizon.b);glVertex3f((center-right*halfWidth-up*halfHeight).x,(center-right*halfWidth-up*halfHeight).y,(center-right*halfWidth-up*halfHeight).z);
+        glEnd();
+        glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glEnable(GL_FOG);glEnable(GL_LIGHTING);
+    }
     // A restrained physical disc anchors the outdoor lighting. It is drawn as
     // part of the distant sky and is then naturally occluded by world geometry.
     if(openSky){
