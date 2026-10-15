@@ -1317,7 +1317,8 @@ void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) co
     };
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
     for(const auto& tree:group){
-        if(!shadowGeometryPass_)drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f,frameSunDirection_);
+        if(!shadowGeometryPass_&&state.localSettings.shadows&&state.localSettings.graphicsPreset<=0)
+            drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f,frameSunDirection_);
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
     int treeIndex=0;
@@ -1863,7 +1864,8 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                 // Preserve their authored proportions, using prop height as the
                 // single source of truth for climbing and world scale.
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-                if(!shadowGeometryPass_)drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f,frameSunDirection_);
+                if(!shadowGeometryPass_&&state.localSettings.shadows&&state.localSettings.graphicsPreset<=0)
+                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f,frameSunDirection_);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
                 drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
                 const VisualColor bark{0.28f,0.205f,0.13f};
