@@ -2,6 +2,7 @@
 #include "DesktopAudio.hpp"
 #include "DesktopMultiplayer.hpp"
 #include "DesktopPlaytestPolicy.hpp"
+#include "DesktopPersistencePolicy.hpp"
 #include "DeveloperCodec.hpp"
 #include "AgentPlaytestProtocol.hpp"
 #include "LightingControlCommand.hpp"
@@ -2183,7 +2184,18 @@ int main(int argc, char** argv) {
     const float capturePlayerX=argFloat(argc,argv,"--capture-player-x",std::numeric_limits<float>::quiet_NaN());
     const float capturePlayerZ=argFloat(argc,argv,"--capture-player-z",std::numeric_limits<float>::quiet_NaN());
     const bool captureGeneratedRoom=capturePath&&captureRoomSeed>=0&&captureRoomIndex>=1;
-    const bool isolatedPersistence=evidenceScenario||agentPlaytest||capturePath||captureDemo||soulLifecycleDirectory||enemyMotionDirectory;
+    const bool isolatedPersistence=isolatesPersistentSave({
+        evidenceScenario!=nullptr,
+        agentPlaytest,
+        capturePath!=nullptr,
+        captureDemo,
+        soulLifecycleDirectory!=nullptr,
+        enemyMotionDirectory!=nullptr,
+        roomInspectorSmoke,
+        multiplayerTest,
+        combatRenderStress,
+        combatCrowdStress
+    });
     std::string automaticPerfTracePath;
     const bool ordinaryDevelopmentGameplay=!isolatedPersistence&&!tvRoomTest&&!tvRoomEnter&&!traversalLab&&!slopeLab&&!rallyLab&&!roomInspector&&!multiplayerTest&&!combatRenderStress&&!combatCrowdStress;
     if(!perfTracePath&&ordinaryDevelopmentGameplay){
