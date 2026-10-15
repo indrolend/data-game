@@ -37,10 +37,14 @@ Selected authored vocabulary:
 - `door_centered_large_01`
 - `door_window_small_01`
 - `cornice_standard_standard_01`
+- `wall_window_centered_large_01`
+- `wall_door_centered_large_01`
+- `wall_standard_corner_large_01`
+- `crown_standard_standard_01`
 
 The converter now accepts GLB or external-buffer glTF and can extract one exact named node with `--include`. It writes the same compact DBM1 runtime format plus optional inspectable structural metadata. Runtime derivatives live in `models/environment/city/`; provenance, source bounds, triangle counts, selected node names, and normalized bounds live in `models/environment/structure/`.
 
-The source textures and mesh hierarchy were inspected rather than blindly copied. The plaster bitmap is a generic surface, while the separate window and door nodes contain the useful authored frames, mullions, glass, and proportions. The current renderer has no UV channel in DBM1, so this slice keeps those assembly meshes and their semantic object/glass batches while retaining Digital Breakdown's existing facade colors. Copying the generic plaster bitmap onto every building would have reduced material variation rather than improved it.
+The source textures and mesh hierarchy were inspected rather than blindly copied. The plaster bitmap is a generic surface, while the separate wall, window, door, corner, cornice, and crown nodes contain the useful authored construction. The current renderer has no UV channel in DBM1, so this slice keeps those meshes and semantic material colors while retaining Digital Breakdown's existing facade palette. Copying one generic plaster bitmap onto every building would have reduced material variation rather than improved it.
 
 ## Implemented slice
 
