@@ -12,6 +12,7 @@ int main() {
     const bool controls = parseCommand("observe").kind == CommandKind::Observe
         && parseCommand("reset").kind == CommandKind::Reset
         && parseCommand("quit").kind == CommandKind::Quit;
+    const bool schema = SchemaVersion == 2;
     const bool rejected = parseCommand("step frames=0").kind == CommandKind::Invalid
         && parseCommand("step frames=121").kind == CommandKind::Invalid
         && parseCommand("step moveX=nan").kind == CommandKind::Invalid
@@ -21,7 +22,7 @@ int main() {
         && parseCommand("step shell=whoami").kind == CommandKind::Invalid
         && parseCommand(std::string(MaximumCommandBytes + 1, 'x')).kind == CommandKind::Invalid
         && parseCommand("observe now").kind == CommandKind::Invalid;
-    if (!accepted || !controls || !rejected) {
+    if (!accepted || !controls || !rejected || !schema) {
         std::fprintf(stderr, "AGENT_PLAYTEST_PROTOCOL_FAIL\n");
         return 1;
     }
