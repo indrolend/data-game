@@ -9,12 +9,22 @@ namespace render_contract {
 
 enum class ShadingModel : unsigned char { Unlit, ColorGraded, NormalLit };
 enum class TextureId : unsigned char { None, FieldGrass, CityAsphalt };
-enum class ShadowQuality : unsigned char { Off, Cheap, Directional };
+enum class ShadowQuality : unsigned char { Off, Cheap, MappedNormal, MappedPretty };
 
 constexpr ShadowQuality shadowQualityFor(int graphicsPreset,bool shadowsEnabled,bool directionalSupported){
     if(!shadowsEnabled)return ShadowQuality::Off;
-    return graphicsPreset>=2&&directionalSupported?ShadowQuality::Directional:ShadowQuality::Cheap;
+    if(!directionalSupported||graphicsPreset<=0)return ShadowQuality::Cheap;
+    return graphicsPreset>=2?ShadowQuality::MappedPretty:ShadowQuality::MappedNormal;
 }
+
+constexpr int shadowMapResolution(ShadowQuality quality){
+    return quality==ShadowQuality::MappedPretty?2048:(quality==ShadowQuality::MappedNormal?1024:0);
+}
+constexpr float shadowCoverage(ShadowQuality quality){
+    return quality==ShadowQuality::MappedPretty?34.0f:(quality==ShadowQuality::MappedNormal?24.0f:0.0f);
+}
+
+struct ResolvedSunState { Vec3 direction{};float daylight=0.0f;bool castsDirectionalShadows=false; };
 
 struct MaterialDefinition {
     VisualColor baseColor{1.0f,1.0f,1.0f};
@@ -80,6 +90,11 @@ inline float celestialDaylight(float time){
 inline Vec3 celestialSunDirection(float time){
     const float angle=celestialPhase(time)*6.28318530717958647692f;
     return {std::cos(angle)*54.0f,std::sin(angle)*62.0f,28.0f};
+}
+inline ResolvedSunState resolveSunState(float time,bool openSky,const Vec3& sealedDirection=DesktopSceneLighting.sun.direction){
+    const float daylight=openSky?celestialDaylight(time):0.0f;
+    const Vec3 direction=openSky?celestialSunDirection(time):sealedDirection;
+    return {direction,daylight,openSky&&daylight>0.055f&&direction.y>0.035f};
 }
 inline VisualColor atmosphereMix(VisualColor a,VisualColor b,float amount){
     const float t=clampf(amount,0.0f,1.0f);

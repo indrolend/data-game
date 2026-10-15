@@ -7,6 +7,7 @@
 #include "RenderContracts.hpp"
 #include "SceneLightingResponse.hpp"
 #include "LightingStateSnapshot.hpp"
+#include "CoastalWaterSimulation.hpp"
 
 #include <filesystem>
 #include <vector>
@@ -28,13 +29,28 @@ public:
     const lighting_evidence::RendererLightingObservation& lastLightingObservation() const { return lightingObservation_; }
 
 private:
-    static void drawFacetedRock(const room_environment::EnvironmentPropSpec& prop, int roomSeed, int roomIndex, int propIndex, float zOffset, const VisualColor& color);
+    static void drawFacetedRock(const room_environment::EnvironmentPropSpec& prop, int roomSeed, int roomIndex, int propIndex, float zOffset, const VisualColor& color, unsigned int texture=0, float textureWorldScale=1.0f);
     static void drawSlopeWedge(const SlopeSupport& slope, float zOffset, const VisualColor& color);
+    static void drawTaperedSegment(const Vec3& start,const Vec3& end,float startRadius,float endRadius,const VisualColor& color,int sides=8);
+    static void drawFacetedCanopy(const Vec3& center,const Vec3& size,float yaw,const VisualColor& color,unsigned int seed);
     TvGifWall tvGifWall_;
     mutable int width_ = 1280;
     mutable int height_ = 720;
     unsigned int phoneModelList_ = 0;
     unsigned int phoneShadowList_ = 0;
+    unsigned int commonTreeModelList_ = 0;
+    unsigned int twistedTreeModelList_ = 0;
+    unsigned int deadTreeModelList_ = 0;
+    unsigned int pineTreeModelList_ = 0;
+    unsigned int cityWindowBayModelList_ = 0;
+    unsigned int cityWindowBaySmallModelList_ = 0;
+    unsigned int cityDoorBayModelList_ = 0;
+    unsigned int cityDoorWindowBayModelList_ = 0;
+    unsigned int cityCorniceModelList_ = 0;
+    unsigned int cityWallWindowBayModelList_ = 0;
+    unsigned int cityWallDoorBayModelList_ = 0;
+    unsigned int cityWallCornerModelList_ = 0;
+    unsigned int cityCrownModelList_ = 0;
     HumanModelData humanModel_;
     mutable std::vector<float> humanVertices_;
     mutable unsigned int datamoshTexture_ = 0;
@@ -48,6 +64,7 @@ private:
     mutable unsigned int sandTexture_ = 0;
     mutable unsigned int sterileTileTexture_ = 0;
     mutable unsigned int birdSpriteTexture_ = 0;
+    mutable unsigned int foliageTexture_ = 0;
     mutable std::vector<unsigned char> phoneDisplayPixels_;
     mutable unsigned long long phoneDisplayCacheKey_ = 0;
     mutable bool phoneDisplayCacheValid_ = false;
@@ -58,12 +75,34 @@ private:
     bool hudVisible_ = true;
     render_contract::RuntimeLightingControl lightingControl_{};
     mutable lighting_evidence::RendererLightingObservation lightingObservation_{};
+    mutable unsigned int shadowFramebuffer_ = 0;
+    mutable unsigned int shadowDepthTexture_ = 0;
+    mutable int shadowMapSize_ = 0;
+    mutable bool shadowSupportChecked_ = false;
+    mutable bool shadowMapSupported_ = false;
+    mutable bool shadowGeometryPass_ = false;
+    mutable float shadowProjection_[16]{};
+    mutable float shadowView_[16]{};
+    mutable Vec3 frameSunDirection_{30.0f,60.0f,25.0f};
+    mutable coastal_water::Simulation coastalWaterSimulation_{};
+    mutable float coastalWaterTime_ = -1.0f;
+    mutable int coastalWaterSeed_ = 0;
+    mutable int coastalWaterRoom_ = -1;
+    mutable Vec3 coastalWaterPreviousPlayer_{};
 
     void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
+    bool ensureShadowMap(int size) const;
+    bool renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
+    void drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
+    void applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
+    void updateCoastalWater(const GameState& state) const;
     void drawFieldGrass(int tileIndex,const VisualColor& tint={1.0f,1.0f,1.0f}) const;
     void drawCityGround(int tileIndex) const;
     static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);
     void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;
+    void drawFoliageCards(const Vec3& center,const Vec3& size,float yaw,const VisualColor& tint,unsigned int seed) const;
+    void drawFieldBackdrop(const GameState& state,int tileIndex) const;
+    void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
     void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;

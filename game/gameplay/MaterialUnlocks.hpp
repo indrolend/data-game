@@ -26,4 +26,11 @@ constexpr bool newlyUnlocked(Memory memory,std::uint64_t beforeLifetime,int befo
     return !unlocked(memory,beforeLifetime,beforeBest)&&unlocked(memory,afterLifetime,afterBest);
 }
 
+static_assert(!unlocked(Memory::Gummy,11,7));
+static_assert(unlocked(Memory::Gummy,12,0)&&unlocked(Memory::Gummy,0,8));
+static_assert(!unlocked(Memory::Wireframe,34,17));
+static_assert(unlocked(Memory::Wireframe,35,0)&&unlocked(Memory::Wireframe,0,18));
+static_assert(!unlocked(Memory::Festive,74,29));
+static_assert(unlocked(Memory::Festive,75,0)&&unlocked(Memory::Festive,0,30));
+
 } // namespace material_unlocks

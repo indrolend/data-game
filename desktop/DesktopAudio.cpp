@@ -5,6 +5,7 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include "MusicDirector.hpp"
 #include "miniaudio.h"
 
 namespace {
@@ -29,8 +30,10 @@ struct DesktopAudio::Impl {
     bool initialized=false;
     std::array<Voice,16> voices{};
     Voice slurp;
-    Voice music;
-    Voice menuMusic;
+    std::array<Voice,static_cast<std::size_t>(music_director::MenuTheme::Count)> menuMusic{};
+    std::array<Voice,static_cast<std::size_t>(music_director::StageTheme::Count)> stageMusic{};
+    std::array<float,static_cast<std::size_t>(music_director::MenuTheme::Count)> menuMix{};
+    std::array<float,static_cast<std::size_t>(music_director::StageTheme::Count)> stageMix{};
     Voice tvRoomPad;
     Voice secretKnock;
     Voice gameOver;
@@ -79,8 +82,12 @@ void DesktopAudio::setAssetRoot(const std::filesystem::path& root) {
     impl_->registeredCueFiles.clear();
     for(int index=0;index<22;++index){const char* filename=cueFile(static_cast<AudioCue>(index));if(!filename)continue;const std::string path=(root_/filename).u8string();if(!std::filesystem::exists(path)||std::find(impl_->registeredCueFiles.begin(),impl_->registeredCueFiles.end(),path)!=impl_->registeredCueFiles.end())continue;if(ma_resource_manager_register_file(resources,path.c_str(),MA_RESOURCE_MANAGER_DATA_SOURCE_FLAG_DECODE)==MA_SUCCESS)impl_->registeredCueFiles.push_back(path);}
     const auto loadPersistent=[&](Impl::Voice& voice,const char* filename,ma_uint32 flags){if(voice.initialized){ma_sound_stop(&voice.sound);ma_sound_uninit(&voice.sound);voice.initialized=false;}const std::string path=(root_/filename).u8string();if(std::filesystem::exists(path)&&ma_sound_init_from_file(&impl_->engine,path.c_str(),flags,nullptr,nullptr,&voice.sound)==MA_SUCCESS)voice.initialized=true;};
-    loadPersistent(impl_->menuMusic,"menu_music.mp3",LONG_LOOP_FLAGS);
-    loadPersistent(impl_->music,"game_music.mp3",LONG_LOOP_FLAGS);
+    loadPersistent(impl_->menuMusic[static_cast<std::size_t>(music_director::MenuTheme::Title)],"title_gen.mp3",LONG_LOOP_FLAGS);
+    loadPersistent(impl_->menuMusic[static_cast<std::size_t>(music_director::MenuTheme::Pensive)],"menu_pensive.mp3",LONG_LOOP_FLAGS);
+    loadPersistent(impl_->stageMusic[static_cast<std::size_t>(music_director::StageTheme::Original)],"game_music.mp3",LONG_LOOP_FLAGS);
+    loadPersistent(impl_->stageMusic[static_cast<std::size_t>(music_director::StageTheme::Turnt)],"stage_turnt.mp3",LONG_LOOP_FLAGS);
+    loadPersistent(impl_->stageMusic[static_cast<std::size_t>(music_director::StageTheme::Wacky)],"stage_wacky.mp3",LONG_LOOP_FLAGS);
+    loadPersistent(impl_->stageMusic[static_cast<std::size_t>(music_director::StageTheme::Boss)],"boss_theme.mp3",LONG_LOOP_FLAGS);
     loadPersistent(impl_->tvRoomPad,"tv_room_pad.mp3",LONG_LOOP_FLAGS);
     loadPersistent(impl_->secretKnock,"door_knock.mp3",LONG_ONESHOT_FLAGS);
     loadPersistent(impl_->gameOver,"game_over.mp3",LONG_ONESHOT_FLAGS);
@@ -91,6 +98,10 @@ namespace {
 void stopVoice(DesktopAudio::Impl::Voice& voice){if(!voice.initialized)return;ma_sound_stop(&voice.sound);ma_sound_uninit(&voice.sound);voice.initialized=false;}
 void pauseVoice(DesktopAudio::Impl::Voice& voice){if(voice.initialized)ma_sound_stop(&voice.sound);}
 void playLoadedVoice(DesktopAudio::Impl::Voice& voice,float volume,bool loop){if(!voice.initialized)return;ma_sound_stop(&voice.sound);ma_sound_seek_to_pcm_frame(&voice.sound,0);ma_sound_set_volume(&voice.sound,volume);ma_sound_set_looping(&voice.sound,loop?MA_TRUE:MA_FALSE);ma_sound_start(&voice.sound);}
+template<std::size_t N>
+void crossfadeMusicBank(std::array<DesktopAudio::Impl::Voice,N>& voices,std::array<float,N>& mixes,const std::array<float,N>& gains,int selected,float volume,float response){
+    for(std::size_t i=0;i<N;++i){const float target=selected==static_cast<int>(i)?1.0f:0.0f;auto& voice=voices[i];if(target>0.0f&&voice.initialized&&!ma_sound_is_playing(&voice.sound))playLoadedVoice(voice,0.0f,true);mixes[i]+=(target-mixes[i])*response;if(!voice.initialized)continue;ma_sound_set_volume(&voice.sound,volume*mixes[i]*gains[i]);if(target==0.0f&&mixes[i]<0.001f&&ma_sound_is_playing(&voice.sound))pauseVoice(voice);}
+}
 bool startVoice(DesktopAudio::Impl& impl,DesktopAudio::Impl::Voice& voice,const std::filesystem::path& path,float volume,bool loop,ma_uint32 flags=0){
     stopVoice(voice);
     if(!impl.initialized||!std::filesystem::exists(path))return false;
@@ -121,14 +132,21 @@ void DesktopAudio::update(const GameState& state) {
         // one continuous title presentation.  Its music belongs to the title,
         // not to the disposable demo session.
         const bool shouldPlayMenuMusic=!state.started||state.attractMode;
-        if(shouldPlayMenuMusic&&!impl_->menuMusicActive){playLoadedVoice(impl_->menuMusic,0.0f,true);impl_->menuMusicActive=true;}
-        else if(!shouldPlayMenuMusic&&impl_->menuMusicActive){pauseVoice(impl_->menuMusic);impl_->menuMusicActive=false;impl_->menuCuePulse=0.0f;impl_->menuCueBend=0.0f;}
-        if(impl_->menuMusicActive&&impl_->menuMusic.initialized){impl_->menuCuePulse=std::max(0.0f,impl_->menuCuePulse-0.018f);impl_->menuCueBend*=0.92f;const float pulse=impl_->menuCuePulse,breath=0.5f+0.5f*std::sin(state.time*0.42f);ma_sound_set_volume(&impl_->menuMusic.sound,(0.34f+breath*0.045f+pulse*0.075f)*musicLevel);ma_sound_set_pitch(&impl_->menuMusic.sound,1.0f+std::sin(state.time*0.17f)*0.0025f+impl_->menuCueBend+pulse*0.0035f);}
+        const bool submenuOpen=state.localSettings.menuPage!=LocalMenuPage::Main;
+        const int menuTheme=shouldPlayMenuMusic?static_cast<int>(music_director::menuTheme(submenuOpen)):-1;
+        impl_->menuCuePulse=std::max(0.0f,impl_->menuCuePulse-0.018f);impl_->menuCueBend*=0.92f;
+        const float pulse=impl_->menuCuePulse,breath=0.5f+0.5f*std::sin(state.time*0.42f);
+        constexpr std::array<float,2> menuGains{{0.82f,1.75f}};
+        crossfadeMusicBank(impl_->menuMusic,impl_->menuMix,menuGains,menuTheme,(0.34f+breath*0.045f+pulse*0.075f)*musicLevel,0.026f);
+        for(auto& voice:impl_->menuMusic)if(voice.initialized)ma_sound_set_pitch(&voice.sound,1.0f+std::sin(state.time*0.17f)*0.0025f+impl_->menuCueBend+pulse*0.0035f);
+        impl_->menuMusicActive=shouldPlayMenuMusic;
         const bool shouldPlayMusic=state.started&&!state.attractMode&&!state.dead;
-        if(shouldPlayMusic&&!impl_->musicActive){pauseVoice(impl_->gameOver);playLoadedVoice(impl_->music,0.52f,true);playLoadedVoice(impl_->tvRoomPad,0.0f,true);impl_->musicActive=true;}
-        else if(!shouldPlayMusic&&impl_->musicActive){pauseVoice(impl_->music);pauseVoice(impl_->tvRoomPad);pauseVoice(impl_->secretKnock);impl_->musicActive=false;impl_->secretKnockActive=false;impl_->tvRoomMix=0.0f;}
+        const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+        const int stageTheme=shouldPlayMusic?static_cast<int>(music_director::stageTheme(roomPlan,state.roomIndex)):-1;
+        if(shouldPlayMusic&&!impl_->musicActive){pauseVoice(impl_->gameOver);playLoadedVoice(impl_->tvRoomPad,0.0f,true);impl_->musicActive=true;}
+        else if(!shouldPlayMusic&&impl_->musicActive){pauseVoice(impl_->secretKnock);impl_->musicActive=false;impl_->secretKnockActive=false;}
         const bool humanGameOver=state.dead&&!state.attractMode;
-        if(humanGameOver&&!impl_->deadPrevious){pauseVoice(impl_->music);pauseVoice(impl_->secretKnock);impl_->musicActive=false;impl_->secretKnockActive=false;playLoadedVoice(impl_->gameOver,0.62f*musicLevel,false);}
+        if(humanGameOver&&!impl_->deadPrevious){pauseVoice(impl_->secretKnock);impl_->musicActive=false;impl_->secretKnockActive=false;playLoadedVoice(impl_->gameOver,0.62f*musicLevel,false);}
         else if(!humanGameOver&&impl_->deadPrevious)pauseVoice(impl_->gameOver);
         impl_->deadPrevious=humanGameOver;
         const float flowerTarget=shouldPlayMusic&&state.energy.supplementalActive?1.0f:0.0f;
@@ -136,7 +154,7 @@ void DesktopAudio::update(const GameState& state) {
         impl_->flowerMix+=(flowerTarget-impl_->flowerMix)*0.025f;
         if(impl_->flowerTheme.initialized){ma_sound_set_volume(&impl_->flowerTheme.sound,0.72f*musicLevel*impl_->flowerMix);if(flowerTarget==0.0f&&impl_->flowerMix<0.001f)pauseVoice(impl_->flowerTheme);}
         impl_->rewardDuck=std::max(impl_->rewardDuck,impl_->flowerMix*0.82f);
-        if(impl_->musicActive){impl_->rewardDuck=std::max(0.0f,impl_->rewardDuck-0.006f);const float duck=1.0f-impl_->rewardDuck,tvTarget=state.player.inSecretRoom?1.0f:0.0f;impl_->tvRoomMix+=(tvTarget-impl_->tvRoomMix)*0.035f;impl_->tvRoomMix=clampf(impl_->tvRoomMix,0.0f,1.0f);const float crush=clampf(state.hud.headshotPulse+state.hud.perfectPulse*0.22f,0.0f,1.0f),step=(state.frame%3)==0?1.0f:0.0f;if(impl_->music.initialized){ma_sound_set_volume(&impl_->music.sound,(0.52f-crush*(0.010f+step*0.018f))*musicLevel*(1.0f-impl_->tvRoomMix)*duck);ma_sound_set_pitch(&impl_->music.sound,1.0f-crush*step*0.006f);}if(impl_->tvRoomPad.initialized){const Vec3 tv{41.82f,0.78f,0};float proximity=state.player.inSecretRoom?1.0f-clampf(length(state.player.pos-tv)/6.0f,0.0f,1.0f):0.0f;if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.player.inSecretRoom)proximity=std::max(proximity,1.0f-clampf(length(peer.player.pos-tv)/6.0f,0.0f,1.0f));const float warble=proximity*(-0.012f+std::sin(state.time*2.7f)*0.018f+std::sin(state.time*0.61f)*0.010f);ma_sound_set_volume(&impl_->tvRoomPad.sound,0.48f*musicLevel*impl_->tvRoomMix*duck);ma_sound_set_pitch(&impl_->tvRoomPad.sound,1.0f+std::sin(state.time*0.19f)*0.0025f+warble);}const bool knockReady=state.secretTv.available&&!state.player.inSecretRoom&&state.secretTv.knockVolume>0.0001f;if(knockReady&&!impl_->secretKnockActive){playLoadedVoice(impl_->secretKnock,0.0f,false);impl_->secretKnockActive=true;}else if(!knockReady&&impl_->secretKnockActive){pauseVoice(impl_->secretKnock);impl_->secretKnockActive=false;}if(impl_->secretKnock.initialized){const float knockVolume=state.secretTv.knockVolume*sfxLevel_*0.74f;ma_sound_set_volume(&impl_->secretKnock.sound,knockVolume);ma_sound_set_pan(&impl_->secretKnock.sound,state.secretTv.knockPan);ma_sound_set_pitch(&impl_->secretKnock.sound,0.985f+std::sin(state.time*0.37f)*0.010f+state.secretTv.knockPulse*0.006f);}}
+        impl_->rewardDuck=std::max(0.0f,impl_->rewardDuck-0.006f);const float duck=1.0f-impl_->rewardDuck,tvTarget=shouldPlayMusic&&state.player.inSecretRoom?1.0f:0.0f;impl_->tvRoomMix+=(tvTarget-impl_->tvRoomMix)*0.035f;impl_->tvRoomMix=clampf(impl_->tvRoomMix,0.0f,1.0f);const float crush=clampf(state.hud.headshotPulse+state.hud.perfectPulse*0.22f,0.0f,1.0f),step=(state.frame%3)==0?1.0f:0.0f;constexpr std::array<float,4> stageGains{{1.0f,0.80f,0.75f,0.99f}};crossfadeMusicBank(impl_->stageMusic,impl_->stageMix,stageGains,stageTheme,(0.52f-crush*(0.010f+step*0.018f))*musicLevel*(1.0f-impl_->tvRoomMix)*duck,0.020f);for(auto& voice:impl_->stageMusic)if(voice.initialized)ma_sound_set_pitch(&voice.sound,1.0f-crush*step*0.006f);if(impl_->tvRoomPad.initialized){const Vec3 tv{41.82f,0.78f,0};float proximity=state.player.inSecretRoom?1.0f-clampf(length(state.player.pos-tv)/6.0f,0.0f,1.0f):0.0f;if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.player.inSecretRoom)proximity=std::max(proximity,1.0f-clampf(length(peer.player.pos-tv)/6.0f,0.0f,1.0f));const float warble=proximity*(-0.012f+std::sin(state.time*2.7f)*0.018f+std::sin(state.time*0.61f)*0.010f);ma_sound_set_volume(&impl_->tvRoomPad.sound,0.48f*musicLevel*impl_->tvRoomMix*duck);ma_sound_set_pitch(&impl_->tvRoomPad.sound,1.0f+std::sin(state.time*0.19f)*0.0025f+warble);if(!shouldPlayMusic&&impl_->tvRoomMix<0.001f)pauseVoice(impl_->tvRoomPad);}if(shouldPlayMusic){const bool knockReady=state.secretTv.available&&!state.player.inSecretRoom&&state.secretTv.knockVolume>0.0001f;if(knockReady&&!impl_->secretKnockActive){playLoadedVoice(impl_->secretKnock,0.0f,false);impl_->secretKnockActive=true;}else if(!knockReady&&impl_->secretKnockActive){pauseVoice(impl_->secretKnock);impl_->secretKnockActive=false;}if(impl_->secretKnock.initialized){const float knockVolume=state.secretTv.knockVolume*sfxLevel_*0.74f;ma_sound_set_volume(&impl_->secretKnock.sound,knockVolume);ma_sound_set_pan(&impl_->secretKnock.sound,state.secretTv.knockPan);ma_sound_set_pitch(&impl_->secretKnock.sound,0.985f+std::sin(state.time*0.37f)*0.010f+state.secretTv.knockPulse*0.006f);}}
     }
     const unsigned int newest=state.audio.nextSerial>0?state.audio.nextSerial-1:0;
     const unsigned int first=std::max(lastSerial_+1,newest>=AUDIO_EVENT_COUNT?newest-AUDIO_EVENT_COUNT+1:1u);
@@ -147,7 +165,7 @@ void DesktopAudio::update(const GameState& state) {
 void DesktopAudio::stopAll() {
     if(!impl_)return;
     for(auto& voice:impl_->voices)stopVoice(voice);
-    stopVoice(impl_->slurp);stopVoice(impl_->music);stopVoice(impl_->menuMusic);stopVoice(impl_->tvRoomPad);stopVoice(impl_->secretKnock);stopVoice(impl_->gameOver);stopVoice(impl_->flowerTheme);
+    stopVoice(impl_->slurp);for(auto& voice:impl_->stageMusic)stopVoice(voice);for(auto& voice:impl_->menuMusic)stopVoice(voice);stopVoice(impl_->tvRoomPad);stopVoice(impl_->secretKnock);stopVoice(impl_->gameOver);stopVoice(impl_->flowerTheme);
     for(auto& voice:impl_->uiVoices)stopVoice(voice);
-    impl_->musicActive=false;impl_->menuMusicActive=false;impl_->secretKnockActive=false;impl_->menuCuePulse=0.0f;impl_->menuCueBend=0.0f;impl_->tvRoomMix=0.0f;impl_->flowerMix=0.0f;slurpPlaying_=false;
+    impl_->musicActive=false;impl_->menuMusicActive=false;impl_->secretKnockActive=false;impl_->menuMix.fill(0.0f);impl_->stageMix.fill(0.0f);impl_->menuCuePulse=0.0f;impl_->menuCueBend=0.0f;impl_->tvRoomMix=0.0f;impl_->flowerMix=0.0f;slurpPlaying_=false;
 }
