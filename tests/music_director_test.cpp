@@ -7,9 +7,8 @@ int main() {
     using namespace music_director;
     using namespace room_environment;
 
-    assert(menuTheme(false, false) == MenuTheme::Title);
-    assert(menuTheme(false, true) == MenuTheme::Pensive);
-    assert(menuTheme(true, false) == MenuTheme::Pensive);
+    assert(menuTheme(false) == MenuTheme::Title);
+    assert(menuTheme(true) == MenuTheme::Pensive);
 
     RoomEnvironmentPlan field{};
     field.setting = RoomSetting::Field;

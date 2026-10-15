@@ -7,8 +7,8 @@ namespace music_director {
 enum class MenuTheme : unsigned char { Title, Pensive, Count };
 enum class StageTheme : unsigned char { Original, Turnt, Wacky, Boss, Count };
 
-constexpr MenuTheme menuTheme(bool attractMode, bool submenuOpen) noexcept {
-    return attractMode || submenuOpen ? MenuTheme::Pensive : MenuTheme::Title;
+constexpr MenuTheme menuTheme(bool submenuOpen) noexcept {
+    return submenuOpen ? MenuTheme::Pensive : MenuTheme::Title;
 }
 
 constexpr StageTheme stageTheme(

@@ -26,8 +26,8 @@ constexpr VisualColor Background{0x8e / 255.0f, 0xca / 255.0f, 0xe6 / 255.0f};
 // Recovered Field material family. Keep floor and blade colors together so
 // desktop fixed-function rendering and the GLES shader do not drift apart.
 constexpr VisualColor FieldGround{0x3f / 255.0f, 0x74 / 255.0f, 0x48 / 255.0f};
-constexpr VisualColor GrassRoot{0x29 / 255.0f, 0x47 / 255.0f, 0x24 / 255.0f};
-constexpr VisualColor GrassTip{0x49 / 255.0f, 0x70 / 255.0f, 0x3f / 255.0f};
+constexpr VisualColor GrassRoot{0x38 / 255.0f, 0x68 / 255.0f, 0x40 / 255.0f};
+constexpr VisualColor GrassTip{0x4d / 255.0f, 0x7d / 255.0f, 0x4e / 255.0f};
 constexpr VisualColor Floor{0x7f / 255.0f, 0xa9 / 255.0f, 0xae / 255.0f};
 constexpr VisualColor Wall{0x86 / 255.0f, 0x8b / 255.0f, 0xb2 / 255.0f};
 constexpr VisualColor RoomFloor{0.50f, 0.55f, 0.57f};

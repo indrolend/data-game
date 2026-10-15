@@ -133,7 +133,7 @@ void DesktopAudio::update(const GameState& state) {
         // not to the disposable demo session.
         const bool shouldPlayMenuMusic=!state.started||state.attractMode;
         const bool submenuOpen=state.localSettings.menuPage!=LocalMenuPage::Main;
-        const int menuTheme=shouldPlayMenuMusic?static_cast<int>(music_director::menuTheme(state.attractMode,submenuOpen)):-1;
+        const int menuTheme=shouldPlayMenuMusic?static_cast<int>(music_director::menuTheme(submenuOpen)):-1;
         impl_->menuCuePulse=std::max(0.0f,impl_->menuCuePulse-0.018f);impl_->menuCueBend*=0.92f;
         const float pulse=impl_->menuCuePulse,breath=0.5f+0.5f*std::sin(state.time*0.42f);
         constexpr std::array<float,2> menuGains{{0.82f,1.75f}};
