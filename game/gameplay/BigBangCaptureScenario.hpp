@@ -21,6 +21,10 @@ struct Input {
     bool melee = false;
 };
 
+struct Rules {
+    float movementScale = 1.0f;
+};
+
 inline void prepare(Game& game) {
     game.reset();
     GameState& state = game.networkMutableState();
@@ -56,8 +60,8 @@ inline std::vector<Input> inputs() {
     return result;
 }
 
-inline void apply(Game& game, const Input& input) {
-    game.setTouchControls(input.moveX, input.moveZ, 0.0f, 0.0f,
+inline void apply(Game& game, const Input& input, const Rules& rules = {}) {
+    game.setTouchControls(input.moveX * rules.movementScale, input.moveZ * rules.movementScale, 0.0f, 0.0f,
                           input.vacuum, false, false, input.melee, false, false);
     game.update(FixedDt);
 }
