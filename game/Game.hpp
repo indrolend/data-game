@@ -790,11 +790,26 @@ struct SoulProjectileLifecycleAccess;
 
 class Game {
 public:
+    struct Snapshot {
+        GameState state{};
+        int simulationPlayerId = 0;
+        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> enemyPerceptions{};
+        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> enemyBehaviors{};
+        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> enemyLocomotions{};
+        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> enemyBodies{};
+        std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> enemyMotors{};
+        std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> enemyMotorOutputs{};
+        int enemyPerceptionCursor = 0;
+        bool enemyMotorExpressionEnabled = true;
+    };
+
     void reset();
     void restart();
     void prepareStartScreen();
     void prepareAttractScreen();
     void dismissAttractMode();
+    Snapshot snapshot() const;
+    void restore(const Snapshot& snapshot);
     // Local lab/exploit hook for desktop testing; not serialized into online snapshots.
     void debugStartSecretTvTest(bool enterRoom);
     void debugStartRallyLab();
