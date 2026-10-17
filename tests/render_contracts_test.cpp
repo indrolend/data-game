@@ -92,7 +92,7 @@ int main(){
         sterileLighting.sun.enabled||sterileLighting.fill.enabled||!sterileLighting.localLights[0].enabled||!sterileLighting.localLights[1].enabled||
         sterileLighting.localLights[2].enabled||!sterileLighting.shot.enabled||!sterileLighting.exit.enabled||
         sterileLighting.localLights[0].position.z!=34.0f||sterileLighting.localLights[0].constantAttenuation!=0.48f||
-        sterileLighting.localLights[0].linearAttenuation!=0.035f||sterileLighting.localLights[0].quadraticAttenuation!=1.25f/(12.5f*12.5f)||
+        sterileLighting.localLights[0].linearAttenuation!=0.035f||sterileLighting.localLights[0].quadraticAttenuation!=1.25f/(sterileCorridorRig.localLights[0].radius*sterileCorridorRig.localLights[0].radius)||
         sterileLighting.phone.position.x!=1.0f||sterileLighting.fog.density!=sterileAtmosphere.fogDensity){
         std::fputs("RENDER_CONTRACTS_FAIL resolved scene lighting\n",stderr);return 1;
     }
