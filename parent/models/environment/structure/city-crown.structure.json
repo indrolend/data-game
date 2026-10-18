@@ -1,0 +1,68 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "modular_urban_apartments_facade_1k.gltf",
+  "runtime": "crown.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.1.62",
+  "sourceCopyright": null,
+  "selectedNode": "crown_standard_standard_01",
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      -3.000001907348633,
+      4,
+      -0.09999996423721313
+    ],
+    "maximum": [
+      -2.384185791015625e-7,
+      4.75,
+      0.33000001311302185
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -2.0000011126200357,
+      0,
+      -0.2866666515668233
+    ],
+    "maximum": [
+      2.0000011126200357,
+      1,
+      0.2866666515668233
+    ]
+  },
+  "runtimeVertexCount": 2052,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 2052,
+      "color": [
+        0.42,
+        0.39,
+        0.345,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/crown_standard_standard_01",
+      "mesh": "Cube.029",
+      "primitive": 0,
+      "material": "modular_urban_apartments_facade_trim_02",
+      "sourceVertexCount": 1003,
+      "triangleCount": 684,
+      "bounds": {
+        "minimum": [
+          -3.000001907348633,
+          4,
+          -0.09999996423721313
+        ],
+        "maximum": [
+          -2.384185791015625e-7,
+          4.75,
+          0.33000001311302185
+        ]
+      }
+    }
+  ]
+}

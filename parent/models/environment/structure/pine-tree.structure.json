@@ -1,0 +1,97 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "pine_2.glb",
+  "runtime": "pine-tree.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.0.44",
+  "sourceCopyright": null,
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      -2.891958236694336,
+      -0.23508860170841217,
+      -2.6936988830566406
+    ],
+    "maximum": [
+      2.8361265659332275,
+      7.141149520874023,
+      2.527508020401001
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -0.388279547611876,
+      0,
+      -0.35392071247489004
+    ],
+    "maximum": [
+      0.388279547611876,
+      1,
+      0.35392071247489004
+    ]
+  },
+  "runtimeVertexCount": 10944,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 8634,
+      "color": [
+        0.285,
+        0.205,
+        0.125,
+        1
+      ]
+    },
+    {
+      "index": 1,
+      "vertexCount": 2310,
+      "color": [
+        0.115,
+        0.255,
+        0.12,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/Pine_2",
+      "mesh": "tree.029",
+      "primitive": 0,
+      "material": "Bark_NormalTree",
+      "sourceVertexCount": 3616,
+      "triangleCount": 2878,
+      "bounds": {
+        "minimum": [
+          -0.8798791170120239,
+          -0.23508860170841217,
+          -1.9060800075531006
+        ],
+        "maximum": [
+          1.3288283348083496,
+          6.861804008483887,
+          1.4154813289642334
+        ]
+      }
+    },
+    {
+      "nodePath": "/Pine_2",
+      "mesh": "tree.029",
+      "primitive": 1,
+      "material": "Leaves_Pine",
+      "sourceVertexCount": 1310,
+      "triangleCount": 770,
+      "bounds": {
+        "minimum": [
+          -2.891958236694336,
+          1.1175905466079712,
+          -2.6936988830566406
+        ],
+        "maximum": [
+          2.8361265659332275,
+          7.141149520874023,
+          2.527508020401001
+        ]
+      }
+    }
+  ]
+}

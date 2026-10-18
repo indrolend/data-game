@@ -1,0 +1,5 @@
+# Known-good short gameplay pass: move, turn camera, then stop.
+step frames=60 moveZ=1
+step frames=1 camera=on
+step frames=30
+quit

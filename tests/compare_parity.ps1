@@ -1,0 +1,25 @@
+param([string]$ReferenceExe = "$PSScriptRoot/../build-godot47/Release/parent_reference.exe", [string]$GodotExe = "godot_console.exe", [double]$Tolerance = 0.00001)
+$ErrorActionPreference = "Stop"
+$root = (Resolve-Path "$PSScriptRoot/..").Path
+$evidence = Join-Path $root "evidence"
+New-Item -ItemType Directory -Force $evidence | Out-Null
+$referenceLog = Join-Path $evidence "parent-reference.csv"
+$godotLog = Join-Path $evidence "godot-parity.log"
+& $ReferenceExe | Set-Content $referenceLog
+if ($LASTEXITCODE -ne 0) { throw "Reference harness failed with exit code $LASTEXITCODE" }
+& $GodotExe --headless --path (Join-Path $root "godot") --script "res://tests/parent_parity.gd" 2>&1 | Set-Content $godotLog
+if ($LASTEXITCODE -ne 0) { throw "Godot parity harness failed with exit code $LASTEXITCODE" }
+$reference = @(Get-Content $referenceLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
+$migrated = @(Get-Content $godotLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
+if ($reference.Count -ne $migrated.Count) { throw "Snapshot count mismatch: parent=$($reference.Count), Godot=$($migrated.Count)" }
+for ($row = 0; $row -lt $reference.Count; ++$row) {
+    $left = $reference[$row].Split(',')
+    $right = $migrated[$row].Split(',')
+    if ($left.Count -ne $right.Count) { throw "Column count mismatch at row $row" }
+    $firstNumericColumn = if ($left[0] -eq "ACTION") { 2 } else { 1 }
+    for ($column = $firstNumericColumn; $column -lt $left.Count; ++$column) {
+        $delta = [Math]::Abs([double]$left[$column] - [double]$right[$column])
+        if ($delta -gt $Tolerance) { throw "Parity mismatch row=$row column=$column parent=$($left[$column]) Godot=$($right[$column]) delta=$delta tolerance=$Tolerance" }
+    }
+}
+Write-Output "PASS: $($reference.Count) parent-vs-Godot snapshots match within tolerance $Tolerance"

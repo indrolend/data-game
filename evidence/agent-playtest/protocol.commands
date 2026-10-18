@@ -1,0 +1,5 @@
+step frames=121
+step shell=whoami
+observe now
+step frames=2 moveZ=1 jump=on
+quit

@@ -1,0 +1,3 @@
+# Intentional invalid key; runner must stop and return nonzero.
+step shell=whoami
+quit

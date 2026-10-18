@@ -1,0 +1,68 @@
+{
+  "schema": "digital-breakdown.asset-structure.v1",
+  "source": "modular_urban_apartments_facade_1k.gltf",
+  "runtime": "wall-corner.dbmesh",
+  "sourceGenerator": "Khronos glTF Blender I/O v4.1.62",
+  "sourceCopyright": null,
+  "selectedNode": "wall_standard_corner_large_01",
+  "normalizedBy": "height",
+  "sourceBounds": {
+    "minimum": [
+      -7.000000476837158,
+      0,
+      -3.000000476837158
+    ],
+    "maximum": [
+      -4.000000000000005,
+      3.000000476837158,
+      1.3113418617649586e-7
+    ]
+  },
+  "normalizedBounds": {
+    "minimum": [
+      -0.4999999999999991,
+      0,
+      -0.5000000218556943
+    ],
+    "maximum": [
+      0.4999999999999991,
+      1,
+      0.5000000218556943
+    ]
+  },
+  "runtimeVertexCount": 27648,
+  "batches": [
+    {
+      "index": 0,
+      "vertexCount": 27648,
+      "color": [
+        0.49,
+        0.475,
+        0.435,
+        1
+      ]
+    }
+  ],
+  "structure": [
+    {
+      "nodePath": "/wall_standard_corner_large_01",
+      "mesh": "Mesh",
+      "primitive": 0,
+      "material": "modular_urban_apartments_facade_plaster",
+      "sourceVertexCount": 4802,
+      "triangleCount": 9216,
+      "bounds": {
+        "minimum": [
+          -7.000000476837158,
+          0,
+          -3.000000476837158
+        ],
+        "maximum": [
+          -4.000000000000005,
+          3.000000476837158,
+          1.3113418617649586e-7
+        ]
+      }
+    }
+  ]
+}

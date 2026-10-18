@@ -1,0 +1,10 @@
+# Reproducible rendered-runtime exploration using the recovered bounded protocol.
+step frames=120 moveZ=1
+step frames=60 moveZ=1 sprint=on
+step frames=1 jump=on
+step frames=30 moveZ=1
+step frames=1 camera=on
+step frames=30 lookX=120
+step frames=1 melee=on
+step frames=30
+quit

@@ -1,0 +1,21 @@
+# Continuous parent-owned pursuit, melee shell defeat, and vacuum capture experiment.
+reset
+step frames=120
+step frames=120
+step frames=110
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=10 melee=on
+step frames=1 lookX=120
+step frames=89 vacuum=on
+quit

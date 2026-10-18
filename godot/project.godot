@@ -1,0 +1,13 @@
+config_version=5
+[application]
+config/name="Digital Breakdown - Parent Migration Spike"
+run/main_scene="res://scenes/main.tscn"
+[migration]
+parent_source_revision="dcf49a2045ecd32445a2f77eb515a21b57a61f5c"
+verified_godot_version="4.7.2.stable.official.ed1daf0bf"
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

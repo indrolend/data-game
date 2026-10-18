@@ -1,0 +1,10 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Failed to request display timeout override.
+OpenGL API 3.3.0 NVIDIA 591.86 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+AGENT_PLAYTEST_READY schema=2 fixed_dt=0.016666667 max_step_frames=120 persistent_save=DISABLED
+ERROR: Can't save PNG at path: 'C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\evidence\agent-playtest\runner-invalid.commands/frame-000-tick-000000.png'.
+   at: save_image (drivers/png/resource_saver_png.cpp:56)
+   GDScript backtrace (most recent call first):
+       [0] _observe (res://scripts/agent_playtest.gd:93)
+AGENT_PLAYTEST_ERROR reason=frame_capture_failed code=7 frame_file="C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\evidence\agent-playtest\runner-invalid.commands/frame-000-tick-000000.png"

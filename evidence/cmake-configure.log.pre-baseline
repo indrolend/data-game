@@ -1,0 +1,12 @@
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26200.
+-- Auto-detected 24 CPU cores available for build parallelism.
+-- If not already cached, setting CMAKE_MSVC_RUNTIME_LIBRARY.
+	For more information please read godot-cpp/cmake/windows.cmake
+-- Using 23 cores for multi-threaded compilation.
+-- GODOTCPP_GDEXTENSION_API_FILE = 'gdextension/extension_api-4-7.json'
+-- GODOTCPP_GDEXTENSION_INTERFACE_FILE = 'gdextension/gdextension_interface.json'
+-- There are 2135 Files to generate
+=> Default build type is Debug. For other build types add --config <type> to build command
+-- Configuring done (0.8s)
+-- Generating done (0.5s)
+-- Build files have been written to: C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/build-godot47
