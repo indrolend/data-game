@@ -1,0 +1,5 @@
+# Let the parent refresh its frame-zero presentation transform, then capture
+# the native-driven phone in third person and after switching to first person.
+step frames=1
+step frames=1 camera=on
+quit

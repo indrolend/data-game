@@ -1,8 +1,9 @@
 extends Node3D
 # Godot owns presentation. The parent C++ Game owns simulation and collision.
 # Temporary primitive meshes deliberately avoid claiming original visual parity.
+const PhonePresentationAdapter = preload("res://scripts/phone_presentation_adapter.gd")
 var runtime: Node
-var phone: MeshInstance3D
+var phone_adapter: Node
 var camera: Camera3D
 var targets: Array[MeshInstance3D] = []
 var label: Label
@@ -33,11 +34,9 @@ func _ready() -> void:
     floor_mesh.size = Vector2(90, 90)
     floor.mesh = floor_mesh
     add_child(floor)
-    phone = MeshInstance3D.new()
-    var phone_mesh := BoxMesh.new()
-    phone_mesh.size = Vector3(0.08, 0.16, 0.018)
-    phone.mesh = phone_mesh
-    add_child(phone)
+    phone_adapter = PhonePresentationAdapter.new()
+    phone_adapter.name = "PhonePresentationAdapter"
+    add_child(phone_adapter)
     for i in range(runtime.target_count()):
         var enemy := MeshInstance3D.new()
         var shape := CapsuleMesh.new()
@@ -107,9 +106,9 @@ func agent_reset() -> void:
     pending_look = Vector2.ZERO
     _sync()
 func _sync() -> void:
-    phone.position = runtime.player_position()
     camera.position = runtime.camera_position()
     camera.look_at(runtime.camera_target(), Vector3.UP)
+    phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera)
     for i in range(targets.size()):
         targets[i].visible = runtime.target_alive(i)
         if targets[i].visible:

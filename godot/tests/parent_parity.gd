@@ -12,6 +12,28 @@ func snapshot(game: Object) -> void:
     var c: Vector3 = game.camera_position()
     var t: Vector3 = game.camera_target()
     print("PARITY,%.0f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.0f,%.0f,%.0f,%.0f,%.7f,%.7f,%.0f,%.0f" % [game.frame(), p.x, p.y, p.z, c.x, c.y, c.z, t.x, t.y, t.z, game.battery(), game.souls(), int(game.first_person()), int(game.grounded()), int(game.vacuum_active()), game.vacuum_power(), game.melee_pose(), game.live_bullets(), live_targets(game)])
+    phone_snapshot(game)
+
+func phone_snapshot(game: Object) -> void:
+    var p: Dictionary = game.phone_presentation_snapshot()
+    var position: Vector3 = p.position
+    var orientation: Quaternion = p.orientation
+    var body_size: Vector3 = p.body_size
+    var body_scale: Vector3 = p.body_scale
+    var screen_offset: Vector3 = p.screen_center_offset
+    var screen_size: Vector3 = p.screen_size
+    var tint: Color = p.screen_tint
+    print("PHONE,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%d,%d,%d,%.7f,%.7f" % [
+        game.frame(), position.x, position.y, position.z,
+        orientation.x, orientation.y, orientation.z, orientation.w,
+        body_size.x, body_size.y, body_size.z,
+        body_scale.x, body_scale.y, body_scale.z,
+        screen_offset.x, screen_offset.y, screen_offset.z,
+        screen_size.x, screen_size.y, screen_size.z,
+        int(p.screen_mode), int(p.body_visible), int(p.screen_visible), int(p.first_person),
+        p.screen_brightness, p.content_opacity, tint.r, tint.g, tint.b,
+        p.screen_glow, p.emission_strength, int(p.interactive), p.battery,
+        p.souls, int(p.low_battery), int(p.vacuum_active), p.vacuum_power, p.capture_pulse])
 
 func target_fixture(game: Object) -> void:
     game.start_target_fixture()

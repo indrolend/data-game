@@ -9,8 +9,8 @@ $godotLog = Join-Path $evidence "godot-parity.log"
 if ($LASTEXITCODE -ne 0) { throw "Reference harness failed with exit code $LASTEXITCODE" }
 & $GodotExe --headless --path (Join-Path $root "godot") --script "res://tests/parent_parity.gd" 2>&1 | Set-Content $godotLog
 if ($LASTEXITCODE -ne 0) { throw "Godot parity harness failed with exit code $LASTEXITCODE" }
-$reference = @(Get-Content $referenceLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
-$migrated = @(Get-Content $godotLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
+$reference = @(Get-Content $referenceLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "PHONE,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
+$migrated = @(Get-Content $godotLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "PHONE,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
 if ($reference.Count -ne $migrated.Count) { throw "Snapshot count mismatch: parent=$($reference.Count), Godot=$($migrated.Count)" }
 for ($row = 0; $row -lt $reference.Count; ++$row) {
     $left = $reference[$row].Split(',')

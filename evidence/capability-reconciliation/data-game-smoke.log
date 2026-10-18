@@ -1,0 +1,6 @@
+Data source: C:\Users\indro\Projects\data-game
+Revision:    18b19807333be6b1c83f0a39ae08084978285aeb
+Dirty:       False
+Source key:  80c91579
+Artifacts:   C:\Users\indro\Projects\data-game-tools\artifacts
+SMOKE_TEST_OK frame=8 room=1 battery=100.00 targets=32

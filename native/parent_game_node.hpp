@@ -1,5 +1,6 @@
 #pragma once
 #include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include "parent_bridge.hpp"
 namespace godot {
@@ -18,6 +19,7 @@ public:
     void start_target_interaction_fixture();
     void refill_target_interaction_battery();
     Vector3 player_position() const;
+    Dictionary phone_presentation_snapshot() const;
     Vector3 camera_position() const;
     Vector3 camera_target() const;
     Vector3 target_position(int index) const;

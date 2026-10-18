@@ -1,0 +1,4408 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-18T16:33:00.369Z",
+  "authority": {
+    "root": "C:\\Users\\indro\\Projects\\data-game",
+    "head": "18b19807333be6b1c83f0a39ae08084978285aeb",
+    "branch": "main",
+    "upstream": "origin/main",
+    "dirty": false,
+    "status": []
+  },
+  "comparison": {
+    "ref": "origin/main",
+    "sha": "18b19807333be6b1c83f0a39ae08084978285aeb",
+    "ahead": 0,
+    "behind": 0,
+    "droppedTests": []
+  },
+  "inventory": {
+    "fileCount": 384,
+    "bytes": 89844909,
+    "byKind": {
+      "asset": 61,
+      "desktop": 59,
+      "game": 59,
+      "network": 3,
+      "repository": 133,
+      "server": 10,
+      "test": 52,
+      "tooling": 7
+    },
+    "files": [
+      {
+        "path": ".gitattributes",
+        "kind": "repository",
+        "bytes": 138,
+        "lines": null,
+        "sha256": "c32f0f234c054660d3b403ea4ed6e7550b67200e44bebe5c7502aedc48171617"
+      },
+      {
+        "path": ".github/dependabot.yml",
+        "kind": "repository",
+        "bytes": 276,
+        "lines": null,
+        "sha256": "d469d9999efb0cf7131cbd93cf287a2c772d81c409bb7e5b998b97951a2f4f47"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "repository",
+        "bytes": 1338,
+        "lines": null,
+        "sha256": "7ab898e683a8d1d610b2d4f4dddbc32cbe4b7f214a0bc138f384467691067fad"
+      },
+      {
+        "path": ".github/workflows/release.yml",
+        "kind": "repository",
+        "bytes": 11672,
+        "lines": null,
+        "sha256": "7b619d48ecbfa2071c14656cdcc1b77926d022f609d77e62473f5d41a207395a"
+      },
+      {
+        "path": ".gitignore",
+        "kind": "repository",
+        "bytes": 120,
+        "lines": null,
+        "sha256": "c28802b8ab4865768c8fa1a53eb6c0df0588e68963eb3b212c7e71f372aa560d"
+      },
+      {
+        "path": "CMakeLists.txt",
+        "kind": "repository",
+        "bytes": 27545,
+        "lines": 607,
+        "sha256": "b26a1c4753ee49a365db94152fcf9feb3506694abdc029fef0fccd0a4f391628"
+      },
+      {
+        "path": "Invoke-DataGame.ps1",
+        "kind": "repository",
+        "bytes": 7317,
+        "lines": null,
+        "sha256": "efb51e1a003b1774bb1f37f59fc5d60656d37938687b271b45fc76bfedbfbbb2"
+      },
+      {
+        "path": "LICENSE",
+        "kind": "repository",
+        "bytes": 33194,
+        "lines": null,
+        "sha256": "a37b17e4247a61d87ce36c3558c2c362438ce26e602955836b0dad3e3c9a0aeb"
+      },
+      {
+        "path": "STRUCTURAL_POLISH.md",
+        "kind": "repository",
+        "bytes": 6905,
+        "lines": 86,
+        "sha256": "889a96a15bfe6e26ba2261c473b025e7ec09d3b042adf3c298e88d1d455baae8"
+      },
+      {
+        "path": "desktop/AgentPlaytestProtocol.hpp",
+        "kind": "desktop",
+        "bytes": 4174,
+        "lines": 104,
+        "sha256": "d445967355eb3b36b8c6db991694d5e04d38b48e63ed97eecbf3556322031e66"
+      },
+      {
+        "path": "desktop/BuildIdentity.cpp.in",
+        "kind": "desktop",
+        "bytes": 1421,
+        "lines": null,
+        "sha256": "6994e9ee1d12683274b7302cbd7b88c18442480190eb055fb65772d87b26b353"
+      },
+      {
+        "path": "desktop/BuildIdentity.hpp",
+        "kind": "desktop",
+        "bytes": 571,
+        "lines": 24,
+        "sha256": "88898e468f886fbfcb5a56a1b856979d75a63647b685bb1ea7768024bb1bf789"
+      },
+      {
+        "path": "desktop/ControllerInput.hpp",
+        "kind": "desktop",
+        "bytes": 625,
+        "lines": 28,
+        "sha256": "bcc79c84a55691492c0b1e5ac5f5379eccf04468c15366307344aeab0f0ae707"
+      },
+      {
+        "path": "desktop/ControllerInputWin.cpp",
+        "kind": "desktop",
+        "bytes": 2182,
+        "lines": 51,
+        "sha256": "c2b52c14736f21515fe69af285ab3ad0aa4a7c25f217c65bf943712833a13c4a"
+      },
+      {
+        "path": "desktop/ControllerRumble.hpp",
+        "kind": "desktop",
+        "bytes": 430,
+        "lines": 20,
+        "sha256": "2ff1dea98197ab81304976494caf960343617d3276d1b7c4e5ed7d6979bc341d"
+      },
+      {
+        "path": "desktop/ControllerRumbleMac.m",
+        "kind": "desktop",
+        "bytes": 3163,
+        "lines": 74,
+        "sha256": "664adfedaea5b2b2efd38bff7c29c4e687b6f0906684f6d38e9ff31d6ec358f4"
+      },
+      {
+        "path": "desktop/ControllerRumbleStub.cpp",
+        "kind": "desktop",
+        "bytes": 201,
+        "lines": 7,
+        "sha256": "28b8e86616198a61f012c85d1258d7647af32adeacd16f68b0c49474adba271b"
+      },
+      {
+        "path": "desktop/ControllerRumbleWin.cpp",
+        "kind": "desktop",
+        "bytes": 1645,
+        "lines": 50,
+        "sha256": "cec0fa57a0e0b9b73038da60b9c3087eb8fda8e245d082c7b06a9348c3266033"
+      },
+      {
+        "path": "desktop/DesktopAudio.cpp",
+        "kind": "desktop",
+        "bytes": 16775,
+        "lines": 172,
+        "sha256": "0986174023fd19ceee21bdead271f972b7031ce8f887fc632d05eb00eca11ced"
+      },
+      {
+        "path": "desktop/DesktopAudio.hpp",
+        "kind": "desktop",
+        "bytes": 663,
+        "lines": 27,
+        "sha256": "9a086e199ebd4d74f59bf400112262b07d4a04e70f7059ce0b91db41658544fd"
+      },
+      {
+        "path": "desktop/DesktopMultiplayer.cpp",
+        "kind": "desktop",
+        "bytes": 49508,
+        "lines": 647,
+        "sha256": "e9ad268e251dae04dea81bb5a56675ce1b5147896eac4d52a8008a6f48a1b121"
+      },
+      {
+        "path": "desktop/DesktopMultiplayer.hpp",
+        "kind": "desktop",
+        "bytes": 5067,
+        "lines": 110,
+        "sha256": "2c7637d31adef8a2ee012fe0434236179d49c8aede8351c393f9f428f5fdbd3c"
+      },
+      {
+        "path": "desktop/DesktopPersistencePolicy.hpp",
+        "kind": "desktop",
+        "bytes": 955,
+        "lines": 24,
+        "sha256": "6eac5804b6f6355f351d85bc697e5d1e999d28c85f38aa172d73a5d14841df58"
+      },
+      {
+        "path": "desktop/DesktopPlaytestPolicy.hpp",
+        "kind": "desktop",
+        "bytes": 695,
+        "lines": 18,
+        "sha256": "704c66f5e4cd1a9e8180ea453b93e8ac7a736479669ef3bffa50471ea01a7df6"
+      },
+      {
+        "path": "desktop/DesktopRenderer.cpp",
+        "kind": "desktop",
+        "bytes": 223008,
+        "lines": 2558,
+        "sha256": "decb52334415f2319bf91f7a33e3f8be1fad763a374efd7f7e71101635964490"
+      },
+      {
+        "path": "desktop/DesktopRenderer.hpp",
+        "kind": "desktop",
+        "bytes": 6799,
+        "lines": 117,
+        "sha256": "291cb8ed6e7d3e0fae7b18d7c3e69d792edf92b7dc131aa10e3e501f6fc47765"
+      },
+      {
+        "path": "desktop/DeveloperCodec.hpp",
+        "kind": "desktop",
+        "bytes": 3253,
+        "lines": 70,
+        "sha256": "d950661d55899d700e30c24df42b6cd60d82801813dce89ccb9c8b87ebfd2bce"
+      },
+      {
+        "path": "desktop/Info.plist.in",
+        "kind": "desktop",
+        "bytes": 1032,
+        "lines": null,
+        "sha256": "d9119bf72a4de651621c26b975d70a2f8306d8529a105e3222045a9ab15f99a8"
+      },
+      {
+        "path": "desktop/LightingControlCommand.hpp",
+        "kind": "desktop",
+        "bytes": 6991,
+        "lines": 44,
+        "sha256": "e76120b8a8725dbcfec3563e88b71f17dcecc679769dc1a8432c1ae1b6fe2751"
+      },
+      {
+        "path": "desktop/LightingStateSnapshot.hpp",
+        "kind": "desktop",
+        "bytes": 11736,
+        "lines": 248,
+        "sha256": "e27d3a8b354425cc116c5c1062443996e320bedfddafe1a0a82cea48b00049d7"
+      },
+      {
+        "path": "desktop/MenuNavigation.hpp",
+        "kind": "desktop",
+        "bytes": 2382,
+        "lines": 89,
+        "sha256": "4490f0256af9de3ea91631804b1a7c84196b9ab1ce5640931ac5aed169b6430a"
+      },
+      {
+        "path": "desktop/MultiplayerConnectionState.hpp",
+        "kind": "desktop",
+        "bytes": 2792,
+        "lines": 90,
+        "sha256": "46659572c5a927d3e26da661cbc375703ee2c8128bd3b16e4d39bb08d605d4cf"
+      },
+      {
+        "path": "desktop/audio/boss_theme.mp3",
+        "kind": "desktop",
+        "bytes": 4486867,
+        "lines": null,
+        "sha256": "35c251ceb3e3228ee68568ade49b19fb70b2be708e1e828608efa33d58eb840f"
+      },
+      {
+        "path": "desktop/audio/capture_1.mp3",
+        "kind": "desktop",
+        "bytes": 5223,
+        "lines": null,
+        "sha256": "5926ea737687d578dfe6f27493b49af3332af05462f83a780e696eccaa0d039a"
+      },
+      {
+        "path": "desktop/audio/capture_2.mp3",
+        "kind": "desktop",
+        "bytes": 10656,
+        "lines": null,
+        "sha256": "6e97ffba3ad183289f50263b07c15023a3e8cd7f401ce40861580419198949f7"
+      },
+      {
+        "path": "desktop/audio/capture_3.mp3",
+        "kind": "desktop",
+        "bytes": 12537,
+        "lines": null,
+        "sha256": "05d032575011841fdc1b51ce06750c4a0ff586b91fc9f8960276e57bba23c404"
+      },
+      {
+        "path": "desktop/audio/capture_4.mp3",
+        "kind": "desktop",
+        "bytes": 8358,
+        "lines": null,
+        "sha256": "4e48026def7d87bef7c6dcd8c402e590ccc4082a602e05e387f1d3aa97a58428"
+      },
+      {
+        "path": "desktop/audio/capture_5.mp3",
+        "kind": "desktop",
+        "bytes": 15463,
+        "lines": null,
+        "sha256": "a35486a3c2089ce474adf42ef0579165afd3ad29232d2a843816f2534b15bca8"
+      },
+      {
+        "path": "desktop/audio/connect_power.mp3",
+        "kind": "desktop",
+        "bytes": 8149,
+        "lines": null,
+        "sha256": "a08c43bab859f1a405aa2e923418f5a3da35b27dae1ba68219ccdc3306124c16"
+      },
+      {
+        "path": "desktop/audio/door_knock.mp3",
+        "kind": "desktop",
+        "bytes": 229546,
+        "lines": null,
+        "sha256": "87265d732731d6d058844786bf01f8ed2fa0fdb9cd1a94aa7c8eac6cd54a8cdd"
+      },
+      {
+        "path": "desktop/audio/end_call_tone.mp3",
+        "kind": "desktop",
+        "bytes": 10785,
+        "lines": null,
+        "sha256": "2ee4cc68533a1d935ea621bab6e39967b29bf5cd1140f72f1f964654eecadd36"
+      },
+      {
+        "path": "desktop/audio/flowertheme.wav",
+        "kind": "desktop",
+        "bytes": 2652968,
+        "lines": null,
+        "sha256": "eb2cd90236eebc06a766ae3cf9219f5895a3d2c5dc01ae8de8cbcffdf3ec21cb"
+      },
+      {
+        "path": "desktop/audio/game_music.mp3",
+        "kind": "desktop",
+        "bytes": 1972348,
+        "lines": null,
+        "sha256": "fd0a5ff599292196c4112b45722d9862a35d37218fc88fae7afe3fdc43ce52da"
+      },
+      {
+        "path": "desktop/audio/game_over.mp3",
+        "kind": "desktop",
+        "bytes": 185572,
+        "lines": null,
+        "sha256": "95daf52982eee2114024ea1b0b35067104611504e52e33b271dfc64c96fcd440"
+      },
+      {
+        "path": "desktop/audio/headshot.mp3",
+        "kind": "desktop",
+        "bytes": 7053,
+        "lines": null,
+        "sha256": "b9f7476de5095cc5866076956a9b0df5d798be14c61daaa3073f488031f91f3c"
+      },
+      {
+        "path": "desktop/audio/headshot_critical.mp3",
+        "kind": "desktop",
+        "bytes": 10269,
+        "lines": null,
+        "sha256": "11d6d16224da85c8b504c35b339220488340058d6f180f121c1173eedf0dc213"
+      },
+      {
+        "path": "desktop/audio/low_power.mp3",
+        "kind": "desktop",
+        "bytes": 6477,
+        "lines": null,
+        "sha256": "b31ce0e388afa60796511deed2e43aea57c4b0176ce14ffce7573f677eb2f39c"
+      },
+      {
+        "path": "desktop/audio/menu_pensive.mp3",
+        "kind": "desktop",
+        "bytes": 4211832,
+        "lines": null,
+        "sha256": "e4415acb05fc3cd7a8d5c366cbfc19f74652d346bb7b4a6c938d5b3331eb8c6c"
+      },
+      {
+        "path": "desktop/audio/negative_ack.mp3",
+        "kind": "desktop",
+        "bytes": 2715,
+        "lines": null,
+        "sha256": "c89147b8359f981880d9ffe0fac417776b633ff73feabeda33c203240520da9c"
+      },
+      {
+        "path": "desktop/audio/payment_failure.mp3",
+        "kind": "desktop",
+        "bytes": 18598,
+        "lines": null,
+        "sha256": "932e64ca98c1f5fc30ec0df208144085bbcf155b58eaedc512c6e1bb0911081b"
+      },
+      {
+        "path": "desktop/audio/payment_success.mp3",
+        "kind": "desktop",
+        "bytes": 12119,
+        "lines": null,
+        "sha256": "294325e66c88faaef4878c005067c40ca42518cf1e8bcf533402c1ecdf4ac733"
+      },
+      {
+        "path": "desktop/audio/phone_attack.mp3",
+        "kind": "desktop",
+        "bytes": 1043,
+        "lines": null,
+        "sha256": "7253c7badac2c00d9be4e06701e308388eefd2562e84f7d5c8a071865e7d703a"
+      },
+      {
+        "path": "desktop/audio/received_message.mp3",
+        "kind": "desktop",
+        "bytes": 5223,
+        "lines": null,
+        "sha256": "884cee30ac4e3a7fb0fd6d9a5fa7cfb328c1fbb5285d207b27157313cbeeb770"
+      },
+      {
+        "path": "desktop/audio/reward_nice.mp3",
+        "kind": "desktop",
+        "bytes": 2239,
+        "lines": null,
+        "sha256": "ccc330301a1f69e2d5f78f9f87d1753be812ca0c5cc2b3f75c65195e458217df"
+      },
+      {
+        "path": "desktop/audio/reward_woah.mp3",
+        "kind": "desktop",
+        "bytes": 1402,
+        "lines": null,
+        "sha256": "58ceae842cc86aab05e1eec7278417c35f66ce25611bfe52c78b5a561493365f"
+      },
+      {
+        "path": "desktop/audio/sent_message.mp3",
+        "kind": "desktop",
+        "bytes": 5014,
+        "lines": null,
+        "sha256": "6f2907c39d20b0d74d8a27fa34c2cf3c1f5ffd0bad7276ed33ad90932170a733"
+      },
+      {
+        "path": "desktop/audio/slurp_ringtone.mp3",
+        "kind": "desktop",
+        "bytes": 66142,
+        "lines": null,
+        "sha256": "3010d33cda28e3aa7708e1b62d63ea319bd72f0c6045dc0a015302959594acbe"
+      },
+      {
+        "path": "desktop/audio/stage_turnt.mp3",
+        "kind": "desktop",
+        "bytes": 2839463,
+        "lines": null,
+        "sha256": "1dc4eea5fe50d1a7dd3d2b83a39531a31be0d72e8ae9d55b1e3eeed3cf4cbea3"
+      },
+      {
+        "path": "desktop/audio/stage_wacky.mp3",
+        "kind": "desktop",
+        "bytes": 4117987,
+        "lines": null,
+        "sha256": "b11155ebc55a7e3c87cfb3eed65ab523e4deca3c459106129d6a25706e1dd53a"
+      },
+      {
+        "path": "desktop/audio/title_gen.mp3",
+        "kind": "desktop",
+        "bytes": 2898396,
+        "lines": null,
+        "sha256": "3bad305e2061a45b1548d32f60415a28817835efe06388a52b3d8f695fbdfc89"
+      },
+      {
+        "path": "desktop/audio/tv_room_pad.mp3",
+        "kind": "desktop",
+        "bytes": 1041211,
+        "lines": null,
+        "sha256": "507900dd61c8bd264f1513489d2117070ac1f3dd8dcc1a0ca8369c277053887c"
+      },
+      {
+        "path": "desktop/audio/vc_ended.mp3",
+        "kind": "desktop",
+        "bytes": 8149,
+        "lines": null,
+        "sha256": "098a34ab4bdb1efe60365ef17fd09e1083a0f09b28cbff5c2b36272f07282ef7"
+      },
+      {
+        "path": "desktop/audio/vc_invitation.mp3",
+        "kind": "desktop",
+        "bytes": 11074,
+        "lines": null,
+        "sha256": "ae9c3fab4b8b99e586e0f6a576b7666e453f892b8883b20f2504751fabdfe35b"
+      },
+      {
+        "path": "desktop/fonts/LICENSE.txt",
+        "kind": "desktop",
+        "bytes": 4486,
+        "lines": 94,
+        "sha256": "56af9b9c6715597e458284a474dc118a50a4150e9d547c70f7b4a33c3e6a9328"
+      },
+      {
+        "path": "desktop/fonts/SourceSans3-Regular.ttf",
+        "kind": "desktop",
+        "bytes": 431196,
+        "lines": null,
+        "sha256": "4644c81b86ec9caaa76b634889968ed3c4f4f52f054855933acc7c2b21e53b0f"
+      },
+      {
+        "path": "desktop/fonts/SourceSans3-Semibold.ttf",
+        "kind": "desktop",
+        "bytes": 425904,
+        "lines": null,
+        "sha256": "a3f4f8dcf343a8f24dc61951de93f3ba1558b15cd250ba24af8a40e957081b7d"
+      },
+      {
+        "path": "desktop/main.cpp",
+        "kind": "desktop",
+        "bytes": 243071,
+        "lines": 3044,
+        "sha256": "b363f934b038ec26756b44673386f5b26c9e6903eef0367ddaf20f959cc3c64a"
+      },
+      {
+        "path": "desktop/third_party/stb/stb_truetype.h",
+        "kind": "desktop",
+        "bytes": 199192,
+        "lines": 5080,
+        "sha256": "ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab"
+      },
+      {
+        "path": "docs/AGENT_PLAYTEST_OBSERVATION_SCHEMA.md",
+        "kind": "repository",
+        "bytes": 2214,
+        "lines": 46,
+        "sha256": "7c28a77f19eb827b1ad01ff3508f66c75648fac03b10c1255e9ae39d487590c6"
+      },
+      {
+        "path": "docs/HANDOFF_VISUAL_SOUL_PASS.md",
+        "kind": "repository",
+        "bytes": 7345,
+        "lines": 130,
+        "sha256": "63436060b37607af1921d53a3e82cd1005dc4e4fae086a79052b1fe3220ecfa2"
+      },
+      {
+        "path": "docs/LIVING_WORLDS_CITY_SLICE.md",
+        "kind": "repository",
+        "bytes": 9465,
+        "lines": 91,
+        "sha256": "3f3145fca4d5af733e2e9cfe01a29985c0d4da45681c6a390f2f01375bf87506"
+      },
+      {
+        "path": "docs/assets/CC0_REFERENCE_VOCABULARY.md",
+        "kind": "repository",
+        "bytes": 4553,
+        "lines": 92,
+        "sha256": "4ab80c7057fbfad008b917ac3ee5961971954a6cc255d2b25e689e20eb0725ef"
+      },
+      {
+        "path": "docs/audits/2026-10-15-branch-reconciliation.md",
+        "kind": "repository",
+        "bytes": 9370,
+        "lines": 63,
+        "sha256": "aed10a07301987759fea592e325219d803956bac2c9975315aed67bc2cf40e8f"
+      },
+      {
+        "path": "docs/audits/2026-10-15-regression-lineage.md",
+        "kind": "repository",
+        "bytes": 8882,
+        "lines": 69,
+        "sha256": "232c75130e87d26cef553a44aa1a2984267e4ab3e34d20a214e9c36b838ef002"
+      },
+      {
+        "path": "docs/audits/2026-10-15-runtime-provenance.md",
+        "kind": "repository",
+        "bytes": 4561,
+        "lines": 46,
+        "sha256": "39607193f0e5934f34e2c9077228dc521cccea02ebff9ef4af84feaf072ab634"
+      },
+      {
+        "path": "docs/convergence/MAIN_MATURITY_LEDGER.md",
+        "kind": "repository",
+        "bytes": 17277,
+        "lines": 57,
+        "sha256": "44b876efdc54d8287481d28ffa9557b0b4bc45898411083288be47efffd1dd50"
+      },
+      {
+        "path": "docs/evidence/environment-identity-pass/README.md",
+        "kind": "repository",
+        "bytes": 1532,
+        "lines": 16,
+        "sha256": "837bcef68248a5d60736bb9a01ba7b8660fb0cd3a9a831e171d0155f35cbeef6"
+      },
+      {
+        "path": "docs/evidence/environment-identity-pass/coastal.png",
+        "kind": "repository",
+        "bytes": 791656,
+        "lines": null,
+        "sha256": "8165c308567fe1a0561136e40e191a8f697181b36b0acfebff0d912e9103b018"
+      },
+      {
+        "path": "docs/evidence/environment-identity-pass/festive.png",
+        "kind": "repository",
+        "bytes": 791790,
+        "lines": null,
+        "sha256": "d67952b7e6f17c0ce2b5e7163daeaefd69609550a31e61f64ee850c5a4a22f1c"
+      },
+      {
+        "path": "docs/evidence/environment-identity-pass/gummy.png",
+        "kind": "repository",
+        "bytes": 760325,
+        "lines": null,
+        "sha256": "18fbe6d4d5b78dc9a67cff9a444fbe25cbd58265642583810c43727727d9dc1d"
+      },
+      {
+        "path": "docs/evidence/environment-identity-pass/sterile.png",
+        "kind": "repository",
+        "bytes": 794741,
+        "lines": null,
+        "sha256": "dbc300b65d5c12a4dadc0e42495985b704ef035013c8231f926b013c4bec381f"
+      },
+      {
+        "path": "docs/evidence/environment-identity-pass/wireframe.png",
+        "kind": "repository",
+        "bytes": 549483,
+        "lines": null,
+        "sha256": "5cf8a09fab659ff5b6436fead832687fe8bff7fb00b17a864e41ea80380f4446"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/README.md",
+        "kind": "repository",
+        "bytes": 11627,
+        "lines": 77,
+        "sha256": "1deb48869070ff844589407fd8291fcadbc498e7ac937e93a0969920e88504bd"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/birds/field-billboard-flock.png",
+        "kind": "repository",
+        "bytes": 110184,
+        "lines": null,
+        "sha256": "0eecef168361ff553b8fa94e544e20736d3a0306b432b942131f999b985c459e"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/camera-after-attracted.png",
+        "kind": "repository",
+        "bytes": 141892,
+        "lines": null,
+        "sha256": "2db8280742c483972f2210da6ba287516bf0a9cc7c657ad8c9ecdb9813c08e59"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/camera-after-ingest.png",
+        "kind": "repository",
+        "bytes": 142216,
+        "lines": null,
+        "sha256": "3e6ecf5c127bf0b80fe0b8a89b33181a2be0340a62afd2d881d93c8888df204b"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/camera-before-attracted.png",
+        "kind": "repository",
+        "bytes": 139305,
+        "lines": null,
+        "sha256": "5a627f52fc6cc2ce9ad60b922ea7ad6bbef9e30d6daad7de9103d9ef2d40f3c5"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/camera-before-ingest.png",
+        "kind": "repository",
+        "bytes": 139977,
+        "lines": null,
+        "sha256": "6aaec3a7197ee0c7ab768954d5f5f8fff872c5cb63f80385afe075fee8b38b91"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/cohesion-cone-after-attracted.png",
+        "kind": "repository",
+        "bytes": 115109,
+        "lines": null,
+        "sha256": "b8593e324b213d0d77c8cfde5b0073396fd10f3fc939ac25cdf3d6763dea6724"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/cohesion-cone-after-latched.png",
+        "kind": "repository",
+        "bytes": 140197,
+        "lines": null,
+        "sha256": "01d3654204713666d5b43a68b25dc17c176aa96975f8918368a43df6c39fbf3f"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/cohesion-cone-after.png",
+        "kind": "repository",
+        "bytes": 138567,
+        "lines": null,
+        "sha256": "9f373ec2697b78457f573a4f5a7d2ef2e98f875850fdc8ac85b9729d14bdafe9"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/cohesion-cone-before.png",
+        "kind": "repository",
+        "bytes": 141892,
+        "lines": null,
+        "sha256": "2db8280742c483972f2210da6ba287516bf0a9cc7c657ad8c9ecdb9813c08e59"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/cohesion-menu-after.png",
+        "kind": "repository",
+        "bytes": 43086,
+        "lines": null,
+        "sha256": "e13a878a6a2e1528a0ebab03bcad947a5a55bdf251eb443add6f3c6a038ff683"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/cohesion-menu-before.png",
+        "kind": "repository",
+        "bytes": 43063,
+        "lines": null,
+        "sha256": "8180e6807720dab9ec7906c61a8ed6b4826d303deacaaf2a6c510cc13a5cf311"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/completion-after.mp4",
+        "kind": "repository",
+        "bytes": 298245,
+        "lines": null,
+        "sha256": "c0096503f842f1bdccb622af026b279423eb6fe953feae31ba4d3a6517de31c8"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/completion-after.png",
+        "kind": "repository",
+        "bytes": 136942,
+        "lines": null,
+        "sha256": "57eb898de3c9041e52de4f26016d7840d2f411a3e374a72a3f7687633d915af8"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/completion-before.mp4",
+        "kind": "repository",
+        "bytes": 291696,
+        "lines": null,
+        "sha256": "2ce35aab3d4253bbfb0024fdd3d003779e21c638740db8fcac80c6a6d26d1057"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/completion-before.png",
+        "kind": "repository",
+        "bytes": 134130,
+        "lines": null,
+        "sha256": "425367336abfdda559707108d277886b1359e22a0be2f93e52e97f07b9e606f1"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/composition-after-sterile.png",
+        "kind": "repository",
+        "bytes": 65207,
+        "lines": null,
+        "sha256": "78de9414573f169e0ce6ed52ec4dc50ef1be04de1abfd8b0d7196f051c368367"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/composition-before-sterile.png",
+        "kind": "repository",
+        "bytes": 61486,
+        "lines": null,
+        "sha256": "cc9a2685ab013d3fee126ba6a54553ba2c029f70c25283177235566cc95945c7"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion-after-contact.png",
+        "kind": "repository",
+        "bytes": 538064,
+        "lines": null,
+        "sha256": "3754f32e908eec2cb809fc3fa83f36dafc31bd55e96491aa634caa84a0d650b9"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion-after.mp4",
+        "kind": "repository",
+        "bytes": 1233436,
+        "lines": null,
+        "sha256": "f9e7663fdb1bd7554bac327c732c9d7e2b38c47afe0f3a40368ea2eac64cfacf"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion-baseline-contact.png",
+        "kind": "repository",
+        "bytes": 538238,
+        "lines": null,
+        "sha256": "59bef3cea15eef733119bdb25873ab6e26af3c7f73e99d141601e91b23bdd2b0"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion-close-contact.png",
+        "kind": "repository",
+        "bytes": 270943,
+        "lines": null,
+        "sha256": "57edacfe914e213e56f39b7fafe10b95380154c27420f301fe83758df0db017c"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion-close-reel.mp4",
+        "kind": "repository",
+        "bytes": 1041229,
+        "lines": null,
+        "sha256": "60b2f5319ac5fc3d27ff0263513f497d66e7ce9ec429fdccc89b5b03111b9720"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion/after-human.png",
+        "kind": "repository",
+        "bytes": 109801,
+        "lines": null,
+        "sha256": "c78fe312385235817cce344b39e13e30904ebad9e9dac8212d1f22f50d8f46fe"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion/baseline-human.png",
+        "kind": "repository",
+        "bytes": 109801,
+        "lines": null,
+        "sha256": "c78fe312385235817cce344b39e13e30904ebad9e9dac8212d1f22f50d8f46fe"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-motion/baseline-soul.png",
+        "kind": "repository",
+        "bytes": 123498,
+        "lines": null,
+        "sha256": "f620b160374940b4685e45b782b2bab31a77126511777a48212633f9a339f6e8"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/enemy-obstruction-after.mp4",
+        "kind": "repository",
+        "bytes": 1059754,
+        "lines": null,
+        "sha256": "2258411b1b172e396336f064d50eb7869bdbcf72229896757c7e69661586f17e"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/hud-battery-top-center.png",
+        "kind": "repository",
+        "bytes": 109836,
+        "lines": null,
+        "sha256": "9c56e5272cf0ba8cff72649f4221f4397a8f4e75a35a676ff56c616482165af1"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/lighting-after-sterile.png",
+        "kind": "repository",
+        "bytes": 61486,
+        "lines": null,
+        "sha256": "cc9a2685ab013d3fee126ba6a54553ba2c029f70c25283177235566cc95945c7"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/lighting-before-sterile.png",
+        "kind": "repository",
+        "bytes": 63229,
+        "lines": null,
+        "sha256": "56827a3e941c7136b83931bfb2e4bb3947bab4096a043e8f6205b043f144b007"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/materials-after-sterile.png",
+        "kind": "repository",
+        "bytes": 71304,
+        "lines": null,
+        "sha256": "2760619899c149cce20e133c08ffaef642d1d1e56d057c9da6a4fe172a1f9e97"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/materials-before-sterile.png",
+        "kind": "repository",
+        "bytes": 65207,
+        "lines": null,
+        "sha256": "78de9414573f169e0ce6ed52ec4dc50ef1be04de1abfd8b0d7196f051c368367"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/menu-paint/graphics-confirm.png",
+        "kind": "repository",
+        "bytes": 48606,
+        "lines": null,
+        "sha256": "caedbcdde5c0411f4cfd85131a8e63a426655e503501ca34e75abce470a860cc"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/menu-paint/graphics-left.png",
+        "kind": "repository",
+        "bytes": 48196,
+        "lines": null,
+        "sha256": "26e9b3a0028d2177636177b37bbf42c5efd76a15166bdbde46b781e345558439"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/menu-paint/graphics-right.png",
+        "kind": "repository",
+        "bytes": 47999,
+        "lines": null,
+        "sha256": "889874f9e8cc7699a28f8239e0c35f7af9a48e1f80f008c35d0ee50a20839694"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/menu-paint/graphics-select.png",
+        "kind": "repository",
+        "bytes": 47603,
+        "lines": null,
+        "sha256": "c284ef0ccb86f0f8e292c2de745bef17aed7d432390e73f9b37a34a12f76afc1"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/palette-upgrade-menu.png",
+        "kind": "repository",
+        "bytes": 147611,
+        "lines": null,
+        "sha256": "c853af37fc5c5f2ce6e575ccb271a0bc4f1598815bb1548cbb0f8829822f2438"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/soul-after-attracted.png",
+        "kind": "repository",
+        "bytes": 141892,
+        "lines": null,
+        "sha256": "2db8280742c483972f2210da6ba287516bf0a9cc7c657ad8c9ecdb9813c08e59"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/soul-after-ingest.png",
+        "kind": "repository",
+        "bytes": 142216,
+        "lines": null,
+        "sha256": "3e6ecf5c127bf0b80fe0b8a89b33181a2be0340a62afd2d881d93c8888df204b"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/soul-after.mp4",
+        "kind": "repository",
+        "bytes": 297868,
+        "lines": null,
+        "sha256": "35b820ea634d99378a6090a8cca3daecb506573d7a3ee8cff55935713f98692b"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/soul-before-attracted.png",
+        "kind": "repository",
+        "bytes": 135770,
+        "lines": null,
+        "sha256": "165d9615087ddee6dc9d1e685d08354cf7aa8801c02f4acac1ba4430d3728c3a"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/soul-before-ingest.png",
+        "kind": "repository",
+        "bytes": 138078,
+        "lines": null,
+        "sha256": "c59996661dff7aa4774881381ad2837692f68b6f6ed719a692aa3f6dc520380d"
+      },
+      {
+        "path": "docs/evidence/masterpiece-vertical-slice/soul-before.mp4",
+        "kind": "repository",
+        "bytes": 244095,
+        "lines": null,
+        "sha256": "910f9044db882b60b1fba7c4dd1105634153406801177d344139d15c5c555a3c"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/README.md",
+        "kind": "repository",
+        "bytes": 2895,
+        "lines": 21,
+        "sha256": "65a2769fb5d01fd819075f5548ce8609c54954a85954ec192ec41e177c473acb"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/flower-readability-final.png",
+        "kind": "repository",
+        "bytes": 842849,
+        "lines": null,
+        "sha256": "214a29909a297b041eb4cc909e43c2cfa70c4fb9d15b4555da1d34021b79294c"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/gummy-unlocked.png",
+        "kind": "repository",
+        "bytes": 760325,
+        "lines": null,
+        "sha256": "18fbe6d4d5b78dc9a67cff9a444fbe25cbd58265642583810c43727727d9dc1d"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/main.png",
+        "kind": "repository",
+        "bytes": 270439,
+        "lines": null,
+        "sha256": "78559a160521f0f4fbf6addca6a619a75567cc0eb7e326ca03a5b8453e5a7ba9"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/menu-confirm.png",
+        "kind": "repository",
+        "bytes": 270210,
+        "lines": null,
+        "sha256": "907953050485c26e0134009a4f4340383a25b11de377b70e1468ecf417ae89bb"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/menu-left-detail.png",
+        "kind": "repository",
+        "bytes": 21020,
+        "lines": null,
+        "sha256": "111dcc13c47a567e39d680ba86defe67d61833521af96d34000a1d666d04f4c3"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/menu-left.png",
+        "kind": "repository",
+        "bytes": 270323,
+        "lines": null,
+        "sha256": "ebc0d0eecc73bd93cf8664b5768e13a9dcb28299af3ba55c02694c5a0ede3062"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/menu-right-detail.png",
+        "kind": "repository",
+        "bytes": 20861,
+        "lines": null,
+        "sha256": "2c6acc8d7b2f43c956e9325d0eb1f16e7a3a5ea626e7036ea4a8842ee7ed9b60"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/menu-right.png",
+        "kind": "repository",
+        "bytes": 270193,
+        "lines": null,
+        "sha256": "84e54084eec785266c7dc3a3dce5bbcb56d2768614f2ba26cb1ab09bfb96e41c"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/menu-select.png",
+        "kind": "repository",
+        "bytes": 270281,
+        "lines": null,
+        "sha256": "d16ba40d75f3119814817c295da4a2195d9b8bd34157095f8cb71292fa8853d6"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/pause-final.png",
+        "kind": "repository",
+        "bytes": 270735,
+        "lines": null,
+        "sha256": "c2f0fd4d93ae1ff37dbe68002b4e96a6c759895210ccd0cb0804507173de82d5"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/phone-final.png",
+        "kind": "repository",
+        "bytes": 106669,
+        "lines": null,
+        "sha256": "cfb649df9a23778f216534f90e82ecd6e4847e87bbe85138c5e14a7f7a158b02"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/phone-idle-night-final.png",
+        "kind": "repository",
+        "bytes": 72915,
+        "lines": null,
+        "sha256": "a44cbc5f40847c98cb699f5bfaa4b3f82620b90582604e74b3b1460b0f260e27"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/upgrade.png",
+        "kind": "repository",
+        "bytes": 176883,
+        "lines": null,
+        "sha256": "3a58dcd41bdb072e8a15fc38c5f110c6e35961acf5d9f896cff3a8761d93c89a"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/wireframe-locked.png",
+        "kind": "repository",
+        "bytes": 893868,
+        "lines": null,
+        "sha256": "0d9c4ee507d24910a46f3361772503457033b9eefcb0aee8377220e38b25cfc6"
+      },
+      {
+        "path": "docs/evidence/neatness-pass/wireframe-unlocked.png",
+        "kind": "repository",
+        "bytes": 549483,
+        "lines": null,
+        "sha256": "5cf8a09fab659ff5b6436fead832687fe8bff7fb00b17a864e41ea80380f4446"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/README.md",
+        "kind": "repository",
+        "bytes": 1288,
+        "lines": 20,
+        "sha256": "ee2febedf7af3d48e5ff0ab8d51e9d052fede275244917d38d96deb606b98a8b"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/field-lineup.png",
+        "kind": "repository",
+        "bytes": 803710,
+        "lines": null,
+        "sha256": "3812a61dd826fa6b9170b2dce4e61efca9d71bb2971c9deaef7ad4ee43e3927c"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/field-open-final.png",
+        "kind": "repository",
+        "bytes": 807274,
+        "lines": null,
+        "sha256": "7eec6a0aa4cba77924f83f0340fd2b33a49698e2aeac75fe5e01d580be57a1a5"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/final-room-14.png",
+        "kind": "repository",
+        "bytes": 814369,
+        "lines": null,
+        "sha256": "29db2345878688ecaa101e55ac946c5509cc1a4926b539d769ab5f855760b714"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/final-room-4.png",
+        "kind": "repository",
+        "bytes": 890861,
+        "lines": null,
+        "sha256": "a1ae491dfb67653f751d5310dbc3673bc699b12bb5fe7453a96e1f8b0611b676"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/final-room-8.png",
+        "kind": "repository",
+        "bytes": 993991,
+        "lines": null,
+        "sha256": "d1bddb933a5f0c6f552dd0629e5b833a91b0c5be1d27e4c40fa2720fe56900f9"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/room-14.png",
+        "kind": "repository",
+        "bytes": 799709,
+        "lines": null,
+        "sha256": "3c4f7b5e346a00109a529c551a1ad4a5d636c34abb3a52235d8f497938411e41"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/room-4.png",
+        "kind": "repository",
+        "bytes": 890856,
+        "lines": null,
+        "sha256": "ee32764a811f1efbeb54b9021ff4cc21c8862433af34d98b7251b9f3e425b339"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/room-8.png",
+        "kind": "repository",
+        "bytes": 993991,
+        "lines": null,
+        "sha256": "d1bddb933a5f0c6f552dd0629e5b833a91b0c5be1d27e4c40fa2720fe56900f9"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/seed-1.png",
+        "kind": "repository",
+        "bytes": 789478,
+        "lines": null,
+        "sha256": "2469f5124c0e089ab4fe2a14274ce47d4a9e8c7c3013989a987be2e8d2071dea"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/seed-2.png",
+        "kind": "repository",
+        "bytes": 790447,
+        "lines": null,
+        "sha256": "2c5a6a91d20054f9dcc04d6d6908b1161bccbd5caa148497ecc9a0595f8ea4fc"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/seed-3.png",
+        "kind": "repository",
+        "bytes": 798378,
+        "lines": null,
+        "sha256": "f684922b001b0b9bd80db156825cb44a21a96ead56b79f50e6da7055fd6b36bf"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/seed-4.png",
+        "kind": "repository",
+        "bytes": 801014,
+        "lines": null,
+        "sha256": "41bf9e4e08a96da2c8f42863908127b3960efae8aadbcbdf95641f24d4054546"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/seed-5.png",
+        "kind": "repository",
+        "bytes": 788522,
+        "lines": null,
+        "sha256": "cf0a9b0bdcaabdc59cb412f85ed0d313f2c889dc1ff029cef1f76e54d38ca4a4"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/seed-6.png",
+        "kind": "repository",
+        "bytes": 790894,
+        "lines": null,
+        "sha256": "1d34f881f5d82fb07c156cb56d5900a639377997b430e8f0d6818d3fd836c260"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/settings-final.png",
+        "kind": "repository",
+        "bytes": 691479,
+        "lines": null,
+        "sha256": "8f51d7f57eb066a44b6830365c2a86f66e965cd06bf1bcbd693823a2168ca754"
+      },
+      {
+        "path": "docs/evidence/object-language-pass/settings-lineup.png",
+        "kind": "repository",
+        "bytes": 685421,
+        "lines": null,
+        "sha256": "c1a3417c51e2253e152bc421deaeb0e2eb6c8eb5056cb5a5e4e579c7fea6c5df"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/README.md",
+        "kind": "repository",
+        "bytes": 1522,
+        "lines": 15,
+        "sha256": "78399eaf463310669f8c80da49298b210ba9c5bfd97bf9b76c0a6f8b55ea27b5"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/cinematic-gameplay.mp4",
+        "kind": "repository",
+        "bytes": 3229286,
+        "lines": null,
+        "sha256": "183f3a32666ad6f39319097f865bd07bbb044ad4009c864d951da5e7bcaac71c"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/city.png",
+        "kind": "repository",
+        "bytes": 968921,
+        "lines": null,
+        "sha256": "2faa6102514280ae7c8591c7147448a6c3b64e779d04a7230248973a63f4244b"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/coastal.png",
+        "kind": "repository",
+        "bytes": 58640,
+        "lines": null,
+        "sha256": "53f089f4cb0ce81f4d6162a27f85ad26462556035c53b9385e42710c480d5032"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/frame-end.png",
+        "kind": "repository",
+        "bytes": 815635,
+        "lines": null,
+        "sha256": "fd9d14197301495333b1da52b6923547335b065ed86fd73a6e951dc233404ba3"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/frame-mid.png",
+        "kind": "repository",
+        "bytes": 979466,
+        "lines": null,
+        "sha256": "34de79a3d706e445a8b98bb4e69e57f2ada56eb724163beed3464f835eb3a150"
+      },
+      {
+        "path": "docs/evidence/photographic-material-pass/frame-start.png",
+        "kind": "repository",
+        "bytes": 896042,
+        "lines": null,
+        "sha256": "502bdd0efc07999209269170fe9187cbca80d8db6dbf15e2466b676a45811099"
+      },
+      {
+        "path": "docs/evidence/pr-140-phone-signal-identity/audio.png",
+        "kind": "repository",
+        "bytes": 107065,
+        "lines": null,
+        "sha256": "a453cb1e44058b755bb29ed018c6d4d3f1fc17c33c1f30a5763ff5a29fa1b1b4"
+      },
+      {
+        "path": "docs/evidence/pr-140-phone-signal-identity/controls.png",
+        "kind": "repository",
+        "bytes": 107173,
+        "lines": null,
+        "sha256": "1ade9f170a68317ac8532b00db0a34cb8c2012c432b4337b93075969b00d2a16"
+      },
+      {
+        "path": "docs/evidence/pr-140-phone-signal-identity/graphics.png",
+        "kind": "repository",
+        "bytes": 106292,
+        "lines": null,
+        "sha256": "e81c5e0fa69b098c75700637fca12bdc26d4f4b3245c8219eb94782fc3b23841"
+      },
+      {
+        "path": "docs/evidence/pr-140-preference-correction/README.md",
+        "kind": "repository",
+        "bytes": 1249,
+        "lines": 35,
+        "sha256": "47e7cb048f279fe39e763b01a39fe31f3e15dbdf69203425a67802e186c72d2b"
+      },
+      {
+        "path": "docs/evidence/pr-140-preference-correction/audio.png",
+        "kind": "repository",
+        "bytes": 102591,
+        "lines": null,
+        "sha256": "471bae32904a69fed5e79ddd4d1c74ed4b243e39c68cd0aabbb181ff24e7f028"
+      },
+      {
+        "path": "docs/evidence/pr-140-preference-correction/controls.png",
+        "kind": "repository",
+        "bytes": 106095,
+        "lines": null,
+        "sha256": "b719e116698fb05aa7b505dfde4cc05e09f3e2b99f51614f56a2250f8c001942"
+      },
+      {
+        "path": "docs/evidence/pr-140-preference-correction/gameplay.png",
+        "kind": "repository",
+        "bytes": 308835,
+        "lines": null,
+        "sha256": "54ad3b4e85db52094d55df632106d9b9fc31306d2bdcb8be19bb56b0c5710f75"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-a/README.md",
+        "kind": "repository",
+        "bytes": 1082,
+        "lines": 28,
+        "sha256": "1096c8c2193d87cdd2ccb314365c613ebeb7ba8ac3c2f03a3d6e6ef5d41c3a90"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-a/audio-after.png",
+        "kind": "repository",
+        "bytes": 104597,
+        "lines": null,
+        "sha256": "b74fb556c3733f443e7cc167a22f8c61e72916bf35f3dafa4dcc08c5705edf04"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-a/audio-before.png",
+        "kind": "repository",
+        "bytes": 107065,
+        "lines": null,
+        "sha256": "a453cb1e44058b755bb29ed018c6d4d3f1fc17c33c1f30a5763ff5a29fa1b1b4"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-a/graphics-after.png",
+        "kind": "repository",
+        "bytes": 104626,
+        "lines": null,
+        "sha256": "af87b503a8666bf822a7b4d75c4413a8151f5ff03757824b142b2250d87cb2f1"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-b/README.md",
+        "kind": "repository",
+        "bytes": 1139,
+        "lines": 25,
+        "sha256": "ca6a592cabbcc64d1af0e0b7286a51674fb842f979ab3b94f3c510e85e0850f8"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-b/upgrade-after.png",
+        "kind": "repository",
+        "bytes": 169921,
+        "lines": null,
+        "sha256": "1b5e371eab29dc35dcb9a118e8d24e814d4bbb85a0dd97c2c8615bdf80298c6b"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-c/README.md",
+        "kind": "repository",
+        "bytes": 1151,
+        "lines": 30,
+        "sha256": "26e3f7821f2ec6d6bbef650e1b7eb19821354caa4611d7a0a91c0cc7d8a63cd2"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-c/phone-after.png",
+        "kind": "repository",
+        "bytes": 65093,
+        "lines": null,
+        "sha256": "c9ab483c4dcaf003330592d6a52c3df40968077bc2e9dc52de267c5ead4ad872"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-c/phone-before.png",
+        "kind": "repository",
+        "bytes": 122980,
+        "lines": null,
+        "sha256": "98d08d2565d4bd3e52d6c69ce9baabb0673772ad8d31617cb0a752afe7b7e9ad"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-d/README.md",
+        "kind": "repository",
+        "bytes": 1210,
+        "lines": 23,
+        "sha256": "6783ca1cc3e72201fc95ec86efed0e04b6197d5b7594558755a49f15b304078a"
+      },
+      {
+        "path": "docs/evidence/pr-140-visual-cohesion-phase-d/signal-residue.png",
+        "kind": "repository",
+        "bytes": 627690,
+        "lines": null,
+        "sha256": "1a913b7f9228818d8b5547aea205d383e79f2a0cae448a852a89124e729d16b2"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/README.md",
+        "kind": "repository",
+        "bytes": 3046,
+        "lines": 34,
+        "sha256": "149f7f76a237ec80c83507f659f992cc5e91073b11c8d173bdcfc99c9d5f543c"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/cinematic-contact.png",
+        "kind": "repository",
+        "bytes": 946063,
+        "lines": null,
+        "sha256": "5a89e9e5c78e256eb20bc290aa0d52703c5d9119153441e40f7cc621f008da83"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/cinematic.mp4",
+        "kind": "repository",
+        "bytes": 777238,
+        "lines": null,
+        "sha256": "ba6e4527cf723b174d00351e1e8082c12d73cf2730b2158f2510bbe2d755cd12"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/enemy-action-contact.png",
+        "kind": "repository",
+        "bytes": 438580,
+        "lines": null,
+        "sha256": "fea22b05a783b8f5c5d4421aa59ee80c88de655e7ddf36cb0d4a879268307382"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/enemy-motion-contact.png",
+        "kind": "repository",
+        "bytes": 1816312,
+        "lines": null,
+        "sha256": "e8109cf2df49fd50be68428462b9c5d752152c03af7e512551affbcc70bce704"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/enemy-motion.mp4",
+        "kind": "repository",
+        "bytes": 741379,
+        "lines": null,
+        "sha256": "f896ebe5b1a1130816ca4c6ee38a8625ad2a31869bc87ab00a35906264dcf2bc"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/momentum-skid-contact.png",
+        "kind": "repository",
+        "bytes": 1214974,
+        "lines": null,
+        "sha256": "a53855f704ded42d4bd6049aa93bb5c16eb4c8c2968b4905a3722a742c33a2b8"
+      },
+      {
+        "path": "docs/evidence/visual-humor-pass/momentum-skid.mp4",
+        "kind": "repository",
+        "bytes": 818560,
+        "lines": null,
+        "sha256": "517cb49f5d8e8514554c4a40c4b5dcb18a554975b7f21f6f4e9ed582788b25c6"
+      },
+      {
+        "path": "docs/visual-cohesion-srs.md",
+        "kind": "repository",
+        "bytes": 25939,
+        "lines": 542,
+        "sha256": "0c4e4bd6c90218343d39ae1cabaf895f22f60563d342167ee136bd9e19cbf331"
+      },
+      {
+        "path": "game/BitmapFont.hpp",
+        "kind": "game",
+        "bytes": 1946,
+        "lines": 34,
+        "sha256": "3ae99231f06cd41e6e9e7aa9a7ea7abe7b6315ae7cbbbd141145c4841fd6b5a3"
+      },
+      {
+        "path": "game/CityFacadeGrammar.hpp",
+        "kind": "game",
+        "bytes": 2977,
+        "lines": 70,
+        "sha256": "e5cf113c5219c5b8e7e11a17e3e51a8ba94b6308c49f3844a64e89e2579075e7"
+      },
+      {
+        "path": "game/CityStreetGrammar.hpp",
+        "kind": "game",
+        "bytes": 2847,
+        "lines": 70,
+        "sha256": "6106d172f7ad49fdd778a2b96629e6aba62433e4aabf285225b37eab3e84dec5"
+      },
+      {
+        "path": "game/CitySurfaceTexture.hpp",
+        "kind": "game",
+        "bytes": 724,
+        "lines": 18,
+        "sha256": "a098da78ca79d3b39686b696dcab4c083c0bb155a4c540e4b88aee91f4cc7038"
+      },
+      {
+        "path": "game/CoastalWater.hpp",
+        "kind": "game",
+        "bytes": 2689,
+        "lines": 66,
+        "sha256": "07ab8329df675545f0c3752f1a2ab93d5fd71019d1cb83236dd79219b9318e03"
+      },
+      {
+        "path": "game/CoastalWaterSimulation.hpp",
+        "kind": "game",
+        "bytes": 3541,
+        "lines": 82,
+        "sha256": "9b6474d081d44cb10b7f89463fb615d422fc4b9b2746583d7516e35d6fb53a25"
+      },
+      {
+        "path": "game/ComputedSceneObjects.hpp",
+        "kind": "game",
+        "bytes": 4806,
+        "lines": 75,
+        "sha256": "925ecae0b2b47b5a5c4250c6264c471284ac065547eb1a831146599697f86905"
+      },
+      {
+        "path": "game/FacetedRock.hpp",
+        "kind": "game",
+        "bytes": 10174,
+        "lines": 174,
+        "sha256": "e934fa23a0039e2e0f149558969025f8db8afb9004e4e42d9acf3c7cf6497f84"
+      },
+      {
+        "path": "game/FieldGrassTexture.hpp",
+        "kind": "game",
+        "bytes": 2465,
+        "lines": 61,
+        "sha256": "4fc0cd6afce98d32f361310f5291e1cce166bb64052b4011de1a8d5b738f7b14"
+      },
+      {
+        "path": "game/Game.cpp",
+        "kind": "game",
+        "bytes": 290165,
+        "lines": 4548,
+        "sha256": "bcf843fa4e961c0aa2dd5b2c8716cebe982fdbe559c687834792c0f8d481a018"
+      },
+      {
+        "path": "game/Game.hpp",
+        "kind": "game",
+        "bytes": 34921,
+        "lines": 999,
+        "sha256": "30afec559958e1209f9de5971c7771d55e47363689d07d1f96cd49a14c3261a3"
+      },
+      {
+        "path": "game/GameplayPhoneModel.hpp",
+        "kind": "game",
+        "bytes": 2069,
+        "lines": 48,
+        "sha256": "6a2f272c1f4e30cd2b759efa0ab92f39c28372c548feb80e67a71975ca541230"
+      },
+      {
+        "path": "game/HouseGeometry.hpp",
+        "kind": "game",
+        "bytes": 1150,
+        "lines": 32,
+        "sha256": "6bc306c431a50bff290459845d046672ec4a1f1a0ffb042a6bac1fb1d1ddd62c"
+      },
+      {
+        "path": "game/HumanModelData.hpp",
+        "kind": "game",
+        "bytes": 21117,
+        "lines": 537,
+        "sha256": "0e19a807d7e378deea2115501cfada5bdf67eb729c6937bbf96dbdce288c6942"
+      },
+      {
+        "path": "game/HumanVisual.hpp",
+        "kind": "game",
+        "bytes": 16531,
+        "lines": 348,
+        "sha256": "8642a157d9858b65475fc7978357aa919d4e009ee714f7cc22ec1f82794f6a84"
+      },
+      {
+        "path": "game/MarkerPillarGeometry.hpp",
+        "kind": "game",
+        "bytes": 895,
+        "lines": 27,
+        "sha256": "34364d95c97cf426a6cfd3c42ecb160662c54a5fcbdcac55651c6e97dd9ea0af"
+      },
+      {
+        "path": "game/MaterialResponse.hpp",
+        "kind": "game",
+        "bytes": 5169,
+        "lines": 86,
+        "sha256": "92a92ce304653d3851950f6989e1c84da0ca88bfb33355b8274cadc9d2f03f34"
+      },
+      {
+        "path": "game/Math.hpp",
+        "kind": "game",
+        "bytes": 3746,
+        "lines": 128,
+        "sha256": "3bb4cb111b0fcb8bdf7eddc1c9076057332e6be7864706e3819ee02b077c890a"
+      },
+      {
+        "path": "game/ModelData.hpp",
+        "kind": "game",
+        "bytes": 2160,
+        "lines": 39,
+        "sha256": "f8cdd3da4eb4eaeb2c5d1525e99602205967fda9afa781f8b51ec0bc85347fbd"
+      },
+      {
+        "path": "game/MusicDirector.hpp",
+        "kind": "game",
+        "bytes": 760,
+        "lines": 25,
+        "sha256": "ea63fa8d3dcc985090c0d9b56b4da145d1bede1b71e40cd09d9e9e14369d1192"
+      },
+      {
+        "path": "game/PhoneDisplay.hpp",
+        "kind": "game",
+        "bytes": 3867,
+        "lines": 115,
+        "sha256": "60d3b2e3ae606dc311a47869bee68e1fcad1b75447c5658cceff2316aed8a344"
+      },
+      {
+        "path": "game/PhoneDisplayLayout.hpp",
+        "kind": "game",
+        "bytes": 10716,
+        "lines": 231,
+        "sha256": "f7cb21869fd9331c3b2a90b9f987c235cadbaa0d1154ce87697d1b6a000a23c6"
+      },
+      {
+        "path": "game/PhoneMenuModel.hpp",
+        "kind": "game",
+        "bytes": 16374,
+        "lines": 341,
+        "sha256": "639066f3c4b7d2489ab313ddeb3c579b89c9746d915cd8220fcf6fc9686f94c8"
+      },
+      {
+        "path": "game/PhoneStencilReveal.hpp",
+        "kind": "game",
+        "bytes": 1160,
+        "lines": 35,
+        "sha256": "2ef3cfbfdf462d0fc6e118fa501cdc13d41151dd5623eb327a61a00c653b403f"
+      },
+      {
+        "path": "game/RenderContracts.hpp",
+        "kind": "game",
+        "bytes": 9896,
+        "lines": 165,
+        "sha256": "830ff06eb8b3ed3003a1849a819e89ea7fe70c656e1292d76196165d7a11b76a"
+      },
+      {
+        "path": "game/RoomEnvironment.hpp",
+        "kind": "game",
+        "bytes": 39368,
+        "lines": 525,
+        "sha256": "f6c01fb4394a58050a920b920ff9510efa147e05dbff3c9d93450396dd5085a9"
+      },
+      {
+        "path": "game/RoomLighting.hpp",
+        "kind": "game",
+        "bytes": 7712,
+        "lines": 167,
+        "sha256": "2bbeb1d643c0a8f9f0868392e609f5214d27ff8eb9a1d6d6d40ba460ed1b8ac4"
+      },
+      {
+        "path": "game/RuinGeometry.hpp",
+        "kind": "game",
+        "bytes": 932,
+        "lines": 32,
+        "sha256": "f3ef7ac60cee66453873e1e2e9b6f2039562b477e6b716cf16f1026ce12fd23f"
+      },
+      {
+        "path": "game/SceneLightingResponse.hpp",
+        "kind": "game",
+        "bytes": 1506,
+        "lines": 45,
+        "sha256": "5885011d41d9d3716fed3ebe25affd5eaf3efb95db8a05fae3c44689452d5962"
+      },
+      {
+        "path": "game/SignalResidue.hpp",
+        "kind": "game",
+        "bytes": 588,
+        "lines": 18,
+        "sha256": "9ba1d212538ecddf95ecf04abd12c58df72969c01903c8b4701003d73e631a95"
+      },
+      {
+        "path": "game/SlopeSupport.hpp",
+        "kind": "game",
+        "bytes": 4963,
+        "lines": 102,
+        "sha256": "63efc5ae8d24d31a23fb67e23c9c13a67cc1e5bea0d8d23cc49f2e1e8492989f"
+      },
+      {
+        "path": "game/SoulEconomy.hpp",
+        "kind": "game",
+        "bytes": 1881,
+        "lines": 60,
+        "sha256": "a55811e5ad0fee27d6de7005b7100573b1f2ededa85b7d93bdf86f8ba755bf77"
+      },
+      {
+        "path": "game/SurfaceGeometry.hpp",
+        "kind": "game",
+        "bytes": 7270,
+        "lines": 102,
+        "sha256": "fc180763695d1047f8cd2fc8cbfdaa0d2e772d5f5b69ecd57e10f61bd469946e"
+      },
+      {
+        "path": "game/TreeGeometry.hpp",
+        "kind": "game",
+        "bytes": 3530,
+        "lines": 81,
+        "sha256": "f5fcbf8ab61b355e1fd56e6ee93fbc3455f573208b904c567752f5a69e1cc8d7"
+      },
+      {
+        "path": "game/TriangleNormal.hpp",
+        "kind": "game",
+        "bytes": 1457,
+        "lines": 35,
+        "sha256": "852086dc5a333143084b543ffc38a6b7f1324bf8332496c770b8d744462bdb3e"
+      },
+      {
+        "path": "game/TvGifWall.hpp",
+        "kind": "game",
+        "bytes": 2581,
+        "lines": 45,
+        "sha256": "7a5278c332c28db0058a7f8af95f0eef718e457ce82e7b3b963007b78309787e"
+      },
+      {
+        "path": "game/VisualIdentity.hpp",
+        "kind": "game",
+        "bytes": 11477,
+        "lines": 220,
+        "sha256": "909c6f8a1c820980167be210287d7f7123c2a32ff930ffa457ddf69e747600ce"
+      },
+      {
+        "path": "game/diagnostics/EnemyEvidenceScenario.hpp",
+        "kind": "game",
+        "bytes": 9242,
+        "lines": 228,
+        "sha256": "1937370e384ccac43b1e86d64d39f1733225a447fa5226d470ac728441be3dee"
+      },
+      {
+        "path": "game/diagnostics/HistoricalPursuitComparison.hpp",
+        "kind": "game",
+        "bytes": 1380,
+        "lines": 49,
+        "sha256": "50bcfdfd7a9f15f74a7d2324f706eb917a75a9f670d8e886e6cb470c76e400c2"
+      },
+      {
+        "path": "game/gameplay/EnemyBehaviorState.hpp",
+        "kind": "game",
+        "bytes": 4580,
+        "lines": 117,
+        "sha256": "bac541659de8c5edc5d661b00dfaf91d3918b3b1e9c49d0400984e483dfcab58"
+      },
+      {
+        "path": "game/gameplay/EnemyLocomotion.hpp",
+        "kind": "game",
+        "bytes": 25826,
+        "lines": 532,
+        "sha256": "dc442e816dd4095eb4f38d1ced87eb9c0c1973725ff2ecb883f17082259befbc"
+      },
+      {
+        "path": "game/gameplay/EnemyMotor.hpp",
+        "kind": "game",
+        "bytes": 12996,
+        "lines": 226,
+        "sha256": "92d192e166259822e2382e9a42c1e0c745a655c92d83bfee0c07b1cb289969ed"
+      },
+      {
+        "path": "game/gameplay/EnemyPerception.hpp",
+        "kind": "game",
+        "bytes": 7466,
+        "lines": 146,
+        "sha256": "c4613203ff9fc756d3fca2f05982411f0acfb263095529aefafda5de93bcbf86"
+      },
+      {
+        "path": "game/gameplay/EnemySupport.hpp",
+        "kind": "game",
+        "bytes": 2862,
+        "lines": 90,
+        "sha256": "0cc82a0453319bb623900407c0efc2544a1aedb87a2a65888cdda00a4229d431"
+      },
+      {
+        "path": "game/gameplay/MaterialUnlocks.hpp",
+        "kind": "game",
+        "bytes": 1354,
+        "lines": 37,
+        "sha256": "b24cf79ac6f0cf0acc93f3d2b8e48c7a08a5fa494fd126653094d9e56c35500d"
+      },
+      {
+        "path": "game/gameplay/MeleeConfig.hpp",
+        "kind": "game",
+        "bytes": 1512,
+        "lines": 42,
+        "sha256": "518084496f19c59cc4cbebffb7a340048604f730d7d47a477de3fd9ce324f3ad"
+      },
+      {
+        "path": "game/gameplay/PhoneBody.hpp",
+        "kind": "game",
+        "bytes": 1841,
+        "lines": 51,
+        "sha256": "21f9818199b0966009fdae376b9b433fa1c756d4de9bbc76e1616b5d0a735c90"
+      },
+      {
+        "path": "game/gameplay/PhysicalEnemyBody.hpp",
+        "kind": "game",
+        "bytes": 9927,
+        "lines": 209,
+        "sha256": "f73001c138ea24983cdf1bd61778cb428bccc9bd106b4a39f6502ca9390d022d"
+      },
+      {
+        "path": "game/gameplay/RunProgression.hpp",
+        "kind": "game",
+        "bytes": 1220,
+        "lines": 30,
+        "sha256": "6dd7d21192b95fdc4a1ecbe2a27562d8ab664cd885b5cfc873dcf6e9feda3468"
+      },
+      {
+        "path": "game/gameplay/SoulMotion.hpp",
+        "kind": "game",
+        "bytes": 1765,
+        "lines": 59,
+        "sha256": "3fc4a5c1f05b57087e9611fc83173d647614942442cfa27508abe7ad44d7a30e"
+      },
+      {
+        "path": "game/gameplay/StateContracts.hpp",
+        "kind": "game",
+        "bytes": 684,
+        "lines": 17,
+        "sha256": "e9dadcbbbdebf4296238eaa4c5f8bdf4118e977e0a0d397f7f8217e6d0c9b983"
+      },
+      {
+        "path": "game/gameplay/TargetLifecycle.hpp",
+        "kind": "game",
+        "bytes": 2116,
+        "lines": 73,
+        "sha256": "e2c1fc3e43b4ac70825455b8dadeab38e2423864c0d22ffdc67271331cf20262"
+      },
+      {
+        "path": "game/gameplay/TargetRoles.hpp",
+        "kind": "game",
+        "bytes": 1164,
+        "lines": 40,
+        "sha256": "440a1a3d3308daa6f731cc1cdddcc92d3fd4b2a127f99743e07e907a221da2da"
+      },
+      {
+        "path": "game/gameplay/TraversalCapabilities.hpp",
+        "kind": "game",
+        "bytes": 1207,
+        "lines": 36,
+        "sha256": "441e925ae61914fc5f82ac629e13a4c39a28ab9fab195cd6ace2a2e6db543169"
+      },
+      {
+        "path": "game/gameplay/TraversalGraph.hpp",
+        "kind": "game",
+        "bytes": 3326,
+        "lines": 82,
+        "sha256": "7f3f395b6ccffb2d3edb2d229331fd37916cc3588eafb26ccecc686263d25a18"
+      },
+      {
+        "path": "game/gameplay/VacuumGeometry.hpp",
+        "kind": "game",
+        "bytes": 2068,
+        "lines": 65,
+        "sha256": "a03940faad1039bbe680e09703f893aef1026b8e0971dab6e82c06a2f4daccaf"
+      },
+      {
+        "path": "game/gameplay/WorldScale.hpp",
+        "kind": "game",
+        "bytes": 1029,
+        "lines": 29,
+        "sha256": "531a1761332a1b027351b3d93c7e0dff06043ca7606bb887d08e6f69ddaf8bb9"
+      },
+      {
+        "path": "game/world/RoomCoordinates.hpp",
+        "kind": "game",
+        "bytes": 1508,
+        "lines": 51,
+        "sha256": "42d827877e58fc5f6fe7218292b8de47e3686cf9f80973af095570677f62878a"
+      },
+      {
+        "path": "game/world/RoomGeometry.hpp",
+        "kind": "game",
+        "bytes": 225,
+        "lines": 11,
+        "sha256": "ae2488595bfe3b53dfabf18afe3164cffa0dec1a33b32b862df39329d4d52359"
+      },
+      {
+        "path": "models/environment/city/cornice.dbmesh",
+        "kind": "asset",
+        "bytes": 684,
+        "lines": null,
+        "sha256": "5c2fc434a66a449500c2bef24a4b67bbb1309081a4d9a410f106668a0f455218"
+      },
+      {
+        "path": "models/environment/city/crown.dbmesh",
+        "kind": "asset",
+        "bytes": 24660,
+        "lines": null,
+        "sha256": "e9be7316a8429c1c7f27c64af23197a5faecf596c3d54a827ea1c004d5eaf20e"
+      },
+      {
+        "path": "models/environment/city/door-bay.dbmesh",
+        "kind": "asset",
+        "bytes": 61656,
+        "lines": null,
+        "sha256": "d27184857853a23ff46a247211d783b0d456c4d7e96abc7709ccfab0b1ffdeac"
+      },
+      {
+        "path": "models/environment/city/door-window-bay.dbmesh",
+        "kind": "asset",
+        "bytes": 58992,
+        "lines": null,
+        "sha256": "e461510a78ab718924bf5bdddab3bc9654929ce9fb84d376b66417e04ca6f1c4"
+      },
+      {
+        "path": "models/environment/city/wall-corner.dbmesh",
+        "kind": "asset",
+        "bytes": 331812,
+        "lines": null,
+        "sha256": "7aaa664ad7e2b30b50e2ae34545934008ad9424b1eef826ff123bacdc67f0dfa"
+      },
+      {
+        "path": "models/environment/city/wall-door-bay.dbmesh",
+        "kind": "asset",
+        "bytes": 81252,
+        "lines": null,
+        "sha256": "43f0ed33df81e7a0f593d290b9c7ab7b46a9059a947fcccd1c249e0b8ff90902"
+      },
+      {
+        "path": "models/environment/city/wall-window-bay.dbmesh",
+        "kind": "asset",
+        "bytes": 106020,
+        "lines": null,
+        "sha256": "e7621a68e62204e6e0efd593dc39018c85080044c3f444f1beaad64de8d0a3c4"
+      },
+      {
+        "path": "models/environment/city/window-bay-small.dbmesh",
+        "kind": "asset",
+        "bytes": 30552,
+        "lines": null,
+        "sha256": "260b796e416480923735d4ed55b1bac01f8ae5585fa40b8d1eb8fcb24201a2e7"
+      },
+      {
+        "path": "models/environment/city/window-bay.dbmesh",
+        "kind": "asset",
+        "bytes": 50748,
+        "lines": null,
+        "sha256": "75446ce650b8520ef3f93a0f2f3f76359d06b0d2e6fd0b89607ce7df7a167478"
+      },
+      {
+        "path": "models/environment/common-tree.dbmesh",
+        "kind": "asset",
+        "bytes": 225600,
+        "lines": null,
+        "sha256": "ff6bbfecd7c9ba6a7cab5e0550bdb52e5d691451465d486a93ca94a1a54715ab"
+      },
+      {
+        "path": "models/environment/dead-tree.dbmesh",
+        "kind": "asset",
+        "bytes": 236088,
+        "lines": null,
+        "sha256": "751a78f8436021c620daeb40c96068c4097b0d31eea9a1715bc687b09ce0e10b"
+      },
+      {
+        "path": "models/environment/pine-tree.dbmesh",
+        "kind": "asset",
+        "bytes": 131388,
+        "lines": null,
+        "sha256": "6ba5fa15f3f56c80628048eefd0efd72da3c6991eabded07b7096f3730f12171"
+      },
+      {
+        "path": "models/environment/structure/city-cornice.structure.json",
+        "kind": "asset",
+        "bytes": 1328,
+        "lines": 69,
+        "sha256": "c306b4d256e3292317a3ca5d6e814ffeacd5c4eba1694785edec28a58b757430"
+      },
+      {
+        "path": "models/environment/structure/city-crown.structure.json",
+        "kind": "asset",
+        "bytes": 1378,
+        "lines": 69,
+        "sha256": "7be5105005d7bf3ed858de39f8969655482b9940592ea8637e58d7e0c6608e5d"
+      },
+      {
+        "path": "models/environment/structure/city-door-bay.structure.json",
+        "kind": "asset",
+        "bytes": 2023,
+        "lines": 99,
+        "sha256": "f1c40214be0b309da6a2d1e29a36b354510737ae7662e85e98aa9872598f01b1"
+      },
+      {
+        "path": "models/environment/structure/city-door-window-bay.structure.json",
+        "kind": "asset",
+        "bytes": 2056,
+        "lines": 99,
+        "sha256": "66650d62fc28f0a152af4696b1935c214df0c37cd8d07936b17582bbbf2af6ea"
+      },
+      {
+        "path": "models/environment/structure/city-wall-corner.structure.json",
+        "kind": "asset",
+        "bytes": 1410,
+        "lines": 69,
+        "sha256": "7ad21b62faaee006dfde74e795741b55a9c838cb2bace38e127163d34b5c0bf6"
+      },
+      {
+        "path": "models/environment/structure/city-wall-door-bay.structure.json",
+        "kind": "asset",
+        "bytes": 1412,
+        "lines": 69,
+        "sha256": "e0dbe1f1abe739d32b8e93d11d85e3d6adce2a28c1a581a59ce6c78a1ac467d6"
+      },
+      {
+        "path": "models/environment/structure/city-wall-window-bay.structure.json",
+        "kind": "asset",
+        "bytes": 1239,
+        "lines": 69,
+        "sha256": "d9960b9ddf39a6709214f56e18222a98a3210592376fff938345a01fd11fbc68"
+      },
+      {
+        "path": "models/environment/structure/city-window-bay-small.structure.json",
+        "kind": "asset",
+        "bytes": 2070,
+        "lines": 99,
+        "sha256": "94a21cec2fe4593aead390bdf355eb7f706c11e96c0138cc4233a026093dd91b"
+      },
+      {
+        "path": "models/environment/structure/city-window-bay.structure.json",
+        "kind": "asset",
+        "bytes": 2059,
+        "lines": 99,
+        "sha256": "381f7d1a6b3f00d7d3be2eec1799f05b06054ee08af2f624cf0cec872dc0479b"
+      },
+      {
+        "path": "models/environment/structure/common-tree.structure.json",
+        "kind": "asset",
+        "bytes": 1934,
+        "lines": 98,
+        "sha256": "c048d636b3ce20a16125e03ff49e52f98c14b2773b9405eb4aecf9f48b513cb1"
+      },
+      {
+        "path": "models/environment/structure/dead-tree.structure.json",
+        "kind": "asset",
+        "bytes": 1322,
+        "lines": 68,
+        "sha256": "633be8b6490a41a889986cfe454e597062eb4bdffeb6b36ab076590290095752"
+      },
+      {
+        "path": "models/environment/structure/pine-tree.structure.json",
+        "kind": "asset",
+        "bytes": 1906,
+        "lines": 98,
+        "sha256": "d23589e44c78eca92b8b76e3993fda628f22a1213850744834c7fb5d9656bd39"
+      },
+      {
+        "path": "models/environment/structure/twisted-tree.structure.json",
+        "kind": "asset",
+        "bytes": 1936,
+        "lines": 98,
+        "sha256": "20cd08e57a61117bbfed77be4cff34719f3cc3d5a3b44eb45d1f5d8bf4be29fd"
+      },
+      {
+        "path": "models/environment/twisted-tree.dbmesh",
+        "kind": "asset",
+        "bytes": 344364,
+        "lines": null,
+        "sha256": "d77e8f0d07a3c6aa52d7c09e56519b5969e836db26434d3bc6fa679362b99cac"
+      },
+      {
+        "path": "models/flower.dbmesh",
+        "kind": "asset",
+        "bytes": 139596,
+        "lines": null,
+        "sha256": "6f7edb72874674e43b9ce7e522857dfdcd7b7a34aebe44e5f99ae73c334e2218"
+      },
+      {
+        "path": "models/human.dbhuman",
+        "kind": "asset",
+        "bytes": 231716,
+        "lines": null,
+        "sha256": "21c2f5f65a5ecc549083448351764da75a252e00e4deddcbd4fc69f9046535a8"
+      },
+      {
+        "path": "models/materials/README.md",
+        "kind": "asset",
+        "bytes": 1087,
+        "lines": 22,
+        "sha256": "f3c22dc192b1181b6f716bfec8952326db11581dbcb3a4fe9e1e931dcff632f6"
+      },
+      {
+        "path": "models/materials/cc0-fir-foliage.rgba",
+        "kind": "asset",
+        "bytes": 1048576,
+        "lines": null,
+        "sha256": "773fe3da394336df24ef153ba88aa9cd816597d36cd5ea08b9ce1a9ad73c0022"
+      },
+      {
+        "path": "models/materials/photo-bark.png",
+        "kind": "asset",
+        "bytes": 559456,
+        "lines": null,
+        "sha256": "af8bb999b75c40ea0f832194447387acab1361930c3e15c12c7444535910f316"
+      },
+      {
+        "path": "models/materials/photo-bark.rgb",
+        "kind": "asset",
+        "bytes": 786432,
+        "lines": null,
+        "sha256": "c078801249ca4f3926a05bc3701c3fc1a8295885f5f2d2e45af88c87a7ca9874"
+      },
+      {
+        "path": "models/materials/photo-grass.png",
+        "kind": "asset",
+        "bytes": 543684,
+        "lines": null,
+        "sha256": "4539be1757585de5b484b33f5c356a53c137c9389189298b34872f8d9e081690"
+      },
+      {
+        "path": "models/materials/photo-grass.rgb",
+        "kind": "asset",
+        "bytes": 786432,
+        "lines": null,
+        "sha256": "a131bd152a417778ea2fca53636defe679b41cd254292ad397ee76cbb9bdce3e"
+      },
+      {
+        "path": "models/materials/photo-metal-runtime.rgb",
+        "kind": "asset",
+        "bytes": 786432,
+        "lines": null,
+        "sha256": "95e2b351f7b639f8d3c23845870afc21b81c7c9f8bc27b6f66fa0a0a3dd8c87c"
+      },
+      {
+        "path": "models/materials/photo-metal.png",
+        "kind": "asset",
+        "bytes": 527239,
+        "lines": null,
+        "sha256": "718fcf26e75cc3f1788f13f0b5ff358f272a1dac85cad61f82253725ff0edf76"
+      },
+      {
+        "path": "models/materials/photo-sand.png",
+        "kind": "asset",
+        "bytes": 487456,
+        "lines": null,
+        "sha256": "85230f39c5b694090093b47595158ec9f32a78a9421405c1a99c504c7f968a60"
+      },
+      {
+        "path": "models/materials/photo-sand.rgb",
+        "kind": "asset",
+        "bytes": 786432,
+        "lines": null,
+        "sha256": "6d4612a5ca0f77a9f1753868399c3a53b5762f9fa326ce47e0012404eed6bdd5"
+      },
+      {
+        "path": "models/materials/photo-sterile-tile.png",
+        "kind": "asset",
+        "bytes": 424562,
+        "lines": null,
+        "sha256": "06478ec9cae266f6741ca78327f193f11f2112115dd9e1fc578e26c0a7c84636"
+      },
+      {
+        "path": "models/materials/photo-sterile-tile.rgb",
+        "kind": "asset",
+        "bytes": 786432,
+        "lines": null,
+        "sha256": "ac4aa253dfe94e0dbeee51279f497c0fa83ee7691421b32617e3fff3dc046fa1"
+      },
+      {
+        "path": "models/materials/photo-stone-runtime.rgb",
+        "kind": "asset",
+        "bytes": 786432,
+        "lines": null,
+        "sha256": "25a68db019fbd87127bbb55a63d6bdbf1334c1b9b3bae6f5000ebeb2fb34c08c"
+      },
+      {
+        "path": "models/materials/photo-stone.png",
+        "kind": "asset",
+        "bytes": 573129,
+        "lines": null,
+        "sha256": "bfea43aa8e766fbf36ccdb190f4400c29e48dc9e0601e5d43723dfb4ef19e5ca"
+      },
+      {
+        "path": "models/menu-direction-paint-atlas.png",
+        "kind": "asset",
+        "bytes": 1095568,
+        "lines": null,
+        "sha256": "78280226c7acd2930f7267bcb6597bbcfb086859ad077a9e04ca61d8920715cd"
+      },
+      {
+        "path": "models/menu-direction-paint-atlas.rgba",
+        "kind": "asset",
+        "bytes": 1048576,
+        "lines": null,
+        "sha256": "b3868c2f9a994dcc52d5528116669de34e2d225e3e2ad7924773d7e21d374ae5"
+      },
+      {
+        "path": "models/phone.dbmesh",
+        "kind": "asset",
+        "bytes": 142020,
+        "lines": null,
+        "sha256": "43fb795bf2a4997d2361f3259468ef54114cff25c40cda0cabd0f10cfe09592c"
+      },
+      {
+        "path": "models/visual-humor-v-birds.png",
+        "kind": "asset",
+        "bytes": 140846,
+        "lines": null,
+        "sha256": "f3c3c21f449f96b92185822617ca049424283a918373a4682558586fd040ba75"
+      },
+      {
+        "path": "models/visual-humor-v-birds.rgba",
+        "kind": "asset",
+        "bytes": 1048576,
+        "lines": null,
+        "sha256": "481a3db883e74c6dc6d3382f51099a85af3b644c4c0f713cbe1b3004b1163c5a"
+      },
+      {
+        "path": "multiplayer-server/package-lock.json",
+        "kind": "server",
+        "bytes": 92673,
+        "lines": 2891,
+        "sha256": "e7acef9b5a6b0015c381edd32ba9b44d4d7c718149eb037595513c73f5c2771a"
+      },
+      {
+        "path": "multiplayer-server/package.json",
+        "kind": "server",
+        "bytes": 685,
+        "lines": 23,
+        "sha256": "04fdb89d6782e314ca69f1e8eca4cd01cb59fbc552a883e737160c4feb597ce9"
+      },
+      {
+        "path": "multiplayer-server/src/index.ts",
+        "kind": "server",
+        "bytes": 18234,
+        "lines": 427,
+        "sha256": "ae4e2c6a45075096a4ad66e2cd88bff61bd2cacb8396bdd17c9c481d74bff3ea"
+      },
+      {
+        "path": "multiplayer-server/src/protocol.ts",
+        "kind": "server",
+        "bytes": 2810,
+        "lines": 69,
+        "sha256": "dd9ea22845b93c6a9ef848bc954685ef5c8e1cb3f35c2185a2e98d1758889712"
+      },
+      {
+        "path": "multiplayer-server/test/protocol.test.ts",
+        "kind": "server",
+        "bytes": 3159,
+        "lines": 69,
+        "sha256": "1fb2e8e6bc74a5f4cd98c7942a7494fc099c0e9183ea2950fe6b40bfae150274"
+      },
+      {
+        "path": "multiplayer-server/test/room.integration.test.ts",
+        "kind": "server",
+        "bytes": 17012,
+        "lines": 354,
+        "sha256": "4b4497e777bf9c0d2796977a05506521a84447991f1e6b3e00551ad9e7146ffc"
+      },
+      {
+        "path": "multiplayer-server/tsconfig.json",
+        "kind": "server",
+        "bytes": 353,
+        "lines": 16,
+        "sha256": "9b9c15afe73db9b5ae29957ff6c61d2e0fcb4745620c548153fb37a4143f8867"
+      },
+      {
+        "path": "multiplayer-server/vitest.config.ts",
+        "kind": "server",
+        "bytes": 226,
+        "lines": 7,
+        "sha256": "af47b58b68e76e3734d16e6bea4caf699d03a7d213a2af2be75cf482b1afcaff"
+      },
+      {
+        "path": "multiplayer-server/worker-configuration.d.ts",
+        "kind": "server",
+        "bytes": 556805,
+        "lines": 14841,
+        "sha256": "35e8c8ad1b08bb7ab0cc8b13c28f9bb0083bbea31433b7aec3b061f24250e12f"
+      },
+      {
+        "path": "multiplayer-server/wrangler.jsonc",
+        "kind": "server",
+        "bytes": 1648,
+        "lines": null,
+        "sha256": "e90c82595bd8b31b6a80e9c019a37ad8be75d9e17d9879097ace08df247f40cd"
+      },
+      {
+        "path": "network/BoundedEventQueue.hpp",
+        "kind": "network",
+        "bytes": 449,
+        "lines": 18,
+        "sha256": "a5419e87d5e11b02597980d985f0ad687c33089f3a8b4c11f7ad846a46d8eab4"
+      },
+      {
+        "path": "network/MultiplayerProtocol.cpp",
+        "kind": "network",
+        "bytes": 63581,
+        "lines": 1064,
+        "sha256": "1583229f366e1b7f238f69d785e80eccbcecba65b362b4cf5590df30ae55cc0f"
+      },
+      {
+        "path": "network/MultiplayerProtocol.hpp",
+        "kind": "network",
+        "bytes": 12229,
+        "lines": 348,
+        "sha256": "e4e27ee9491b40dbc9ebb4ae9e5af95fc6fe463fd213035e666b42fbe26645aa"
+      },
+      {
+        "path": "tests/agent_playtest_protocol_test.cpp",
+        "kind": "test",
+        "bytes": 1683,
+        "lines": 33,
+        "sha256": "31821188020c206c326c6d71c7dc5e2fbf6199ba4a15f388d108698a76cdc24f"
+      },
+      {
+        "path": "tests/city_street_grammar_test.cpp",
+        "kind": "test",
+        "bytes": 1350,
+        "lines": 32,
+        "sha256": "f7bac6de6229ce8dba53e90529dc074950341ba93e17333465e9ec5197d94635"
+      },
+      {
+        "path": "tests/coastal_water_test.cpp",
+        "kind": "test",
+        "bytes": 1377,
+        "lines": 39,
+        "sha256": "5379811349f4dc1a6ceebc11bfc351bb54d5cfd0ce15cce03609ee18524f648d"
+      },
+      {
+        "path": "tests/computed_scene_objects_test.cpp",
+        "kind": "test",
+        "bytes": 2335,
+        "lines": 42,
+        "sha256": "d309df0cfb7a59755f1b1f9f41ff5784bd77bedee673c23d2102efc6ca499657"
+      },
+      {
+        "path": "tests/desktop_playtest_policy_test.cpp",
+        "kind": "test",
+        "bytes": 1776,
+        "lines": 25,
+        "sha256": "af3175bebb85bf501df80f1bc552351b4e2b917551c099cf08279c0bfcaca40a"
+      },
+      {
+        "path": "tests/deterministic_input_soak.cpp",
+        "kind": "test",
+        "bytes": 6959,
+        "lines": 160,
+        "sha256": "47f87b96226bbda77537b49c789561e5bc73bff3b257d9d43ebc181ff11c4ab9"
+      },
+      {
+        "path": "tests/developer_codec_test.cpp",
+        "kind": "test",
+        "bytes": 2306,
+        "lines": 21,
+        "sha256": "fea38d99e70403595f01684a25dbc9dfa2a451010807a87acb8d9ec00fdb0f70"
+      },
+      {
+        "path": "tests/enemy_behavior_state_test.cpp",
+        "kind": "test",
+        "bytes": 3205,
+        "lines": 92,
+        "sha256": "e8951f666ca3c5be08e2c104f75e2c8633ea413d89f18e270fc1720a9db7f2e9"
+      },
+      {
+        "path": "tests/enemy_embodiment_contract_test.cpp",
+        "kind": "test",
+        "bytes": 5022,
+        "lines": 128,
+        "sha256": "47e4bb27715a3a4dce47d89b5e67cf2fd8df98d77efec071ed409a0b6b97eaa3"
+      },
+      {
+        "path": "tests/enemy_evidence_scenario_test.cpp",
+        "kind": "test",
+        "bytes": 6898,
+        "lines": 74,
+        "sha256": "8b4c057ca8e225120686a557097a9aa50e669179f9ac75b155c2f11aff881c59"
+      },
+      {
+        "path": "tests/enemy_locomotion_test.cpp",
+        "kind": "test",
+        "bytes": 5785,
+        "lines": 129,
+        "sha256": "61c8732451900ec6afe6865b9919ad82576a24acd2a685385c8b0161cad48e17"
+      },
+      {
+        "path": "tests/enemy_motor_test.cpp",
+        "kind": "test",
+        "bytes": 3383,
+        "lines": 82,
+        "sha256": "21c618391a6a314d54facf1ffb3be60472ac6e28518dcf2990378e3be178f8af"
+      },
+      {
+        "path": "tests/enemy_perception_test.cpp",
+        "kind": "test",
+        "bytes": 4124,
+        "lines": 58,
+        "sha256": "638379d5738f833a7389a0a164c9e3be38498256f3bd0df995d5228ee034f046"
+      },
+      {
+        "path": "tests/expressive_visual_test.cpp",
+        "kind": "test",
+        "bytes": 6457,
+        "lines": 116,
+        "sha256": "d84cfb67f7629c1190374492f9ae15f2ab32bd2364c87d337a81bee045e68781"
+      },
+      {
+        "path": "tests/faceted_rock_test.cpp",
+        "kind": "test",
+        "bytes": 3590,
+        "lines": 54,
+        "sha256": "0bd81958a3ea22ad1a277a6ab46af8022afa0e2a9d30569425920ea40e75ff6c"
+      },
+      {
+        "path": "tests/gameplay_flow_probe.cpp",
+        "kind": "test",
+        "bytes": 7361,
+        "lines": 196,
+        "sha256": "3c6e3c375c84e6c84b00d8eb9f647fe61ff7b560624c873238fa16b0daf6ed44"
+      },
+      {
+        "path": "tests/gameplay_geometry_and_config_test.cpp",
+        "kind": "test",
+        "bytes": 2469,
+        "lines": 63,
+        "sha256": "1d467a0150bb4f323ddf3f97f7a01b42b89057c9fcefd215ecaf6d05a9f4c7ff"
+      },
+      {
+        "path": "tests/gameplay_role_and_soul_motion_test.cpp",
+        "kind": "test",
+        "bytes": 4432,
+        "lines": 137,
+        "sha256": "87ab66d2e3616d99fdcaa4b602067be1d550f452b986944bafb94526d55535b9"
+      },
+      {
+        "path": "tests/historical_pursuit_comparison_test.cpp",
+        "kind": "test",
+        "bytes": 1437,
+        "lines": 41,
+        "sha256": "943559398fc690a79e51fc564627f36bf04b014e8587ded892f2baec584e4160"
+      },
+      {
+        "path": "tests/host_remote_peer_simulation_isolation_test.cpp",
+        "kind": "test",
+        "bytes": 14984,
+        "lines": 375,
+        "sha256": "cd886ca5944539329e685682604a15f67b843bb81536f332e535570563340c41"
+      },
+      {
+        "path": "tests/house_geometry_test.cpp",
+        "kind": "test",
+        "bytes": 3494,
+        "lines": 47,
+        "sha256": "c1f77944da5a07ac3cad2a8114eaadd9e493dfc84412a435d5607cf9bf4d9ec5"
+      },
+      {
+        "path": "tests/lighting_state_snapshot_test.cpp",
+        "kind": "test",
+        "bytes": 5417,
+        "lines": 83,
+        "sha256": "3a13327bd08c732de774d54cef4cd55aecb7dee2ec460b2aa142b300ae54206b"
+      },
+      {
+        "path": "tests/marker_pillar_geometry_test.cpp",
+        "kind": "test",
+        "bytes": 1978,
+        "lines": 32,
+        "sha256": "191293a556d6dab8ace3f6752a1a913e83bb2ff37008a8393c231176478282a2"
+      },
+      {
+        "path": "tests/material_response_test.cpp",
+        "kind": "test",
+        "bytes": 3233,
+        "lines": 59,
+        "sha256": "9f5871a208592cec6501b80327cc0d93324fc64bb31116a2d1be2e9c0447491f"
+      },
+      {
+        "path": "tests/menu_navigation_test.cpp",
+        "kind": "test",
+        "bytes": 2534,
+        "lines": 52,
+        "sha256": "1dabea8d379edf8efb8cac7b0adab7f4d3ee4e4e02efbf101a9448593a6738fc"
+      },
+      {
+        "path": "tests/model_data_test.cpp",
+        "kind": "test",
+        "bytes": 3223,
+        "lines": 59,
+        "sha256": "c4957aacde85a43b4c3e2ec6f78876981ff4e90fc1496d6304485cb1ee75a2c4"
+      },
+      {
+        "path": "tests/multiplayer_connection_state_test.cpp",
+        "kind": "test",
+        "bytes": 2035,
+        "lines": 47,
+        "sha256": "285186ab7014c122ca3809495feccc8fca940b6ded69aced6f3c428423d0484b"
+      },
+      {
+        "path": "tests/multiplayer_determinism_test.cpp",
+        "kind": "test",
+        "bytes": 69307,
+        "lines": 1557,
+        "sha256": "f17629548fd972c779782bcb469e920a121d6aacb9c24b2fc36da6e2c6285f6f"
+      },
+      {
+        "path": "tests/multiplayer_protocol_test.cpp",
+        "kind": "test",
+        "bytes": 28115,
+        "lines": 563,
+        "sha256": "88ec74f1a1b208bef9ec6d2da46280b3d4df75e5334ac2ebbe90b2405867247d"
+      },
+      {
+        "path": "tests/music_director_test.cpp",
+        "kind": "test",
+        "bytes": 781,
+        "lines": 25,
+        "sha256": "cde63ab0fc0b18077664d99c2b87d3fd8325ee80d16ef1e2665f784f0b24794a"
+      },
+      {
+        "path": "tests/phone_body_contract_test.cpp",
+        "kind": "test",
+        "bytes": 1132,
+        "lines": 36,
+        "sha256": "e055c25892478ad0310d98a191936e3bd55f2e4c5421b1df57d7b0033b4e15aa"
+      },
+      {
+        "path": "tests/phone_display_state_test.cpp",
+        "kind": "test",
+        "bytes": 10194,
+        "lines": 221,
+        "sha256": "fd77cfea9b4b64ec974d3d469e908fef000d8e8af359ea3857e3ed258439027e"
+      },
+      {
+        "path": "tests/phone_menu_layout_test.cpp",
+        "kind": "test",
+        "bytes": 11757,
+        "lines": 227,
+        "sha256": "c5840f31303d2ab4a116f2f78e7d97787438c3bdbf2b871ebd46295bc01a4b4e"
+      },
+      {
+        "path": "tests/phone_stencil_reveal_test.cpp",
+        "kind": "test",
+        "bytes": 927,
+        "lines": 21,
+        "sha256": "0e8ef0774fad1de081f4d082bbf7d6434f8a1788649f9c15cd4502d5f293c99e"
+      },
+      {
+        "path": "tests/physical_enemy_body_test.cpp",
+        "kind": "test",
+        "bytes": 6464,
+        "lines": 153,
+        "sha256": "9aad7c139204b91b87ac8bd4bcd31499868a0803430570e214821b596bd3ce5a"
+      },
+      {
+        "path": "tests/render_contracts_test.cpp",
+        "kind": "test",
+        "bytes": 9655,
+        "lines": 109,
+        "sha256": "2aa9879f414721d89acf6a72bc689e8f6cfc0a3c1ac540e8a9bac6419f86a00c"
+      },
+      {
+        "path": "tests/room_environment_test.cpp",
+        "kind": "test",
+        "bytes": 14076,
+        "lines": 167,
+        "sha256": "1f46350c9c75a6ddd9e975eb5db83aee6f7c380460a678f5f703d515302a8a0f"
+      },
+      {
+        "path": "tests/room_progression_probe.cpp",
+        "kind": "test",
+        "bytes": 9210,
+        "lines": 187,
+        "sha256": "2a2a503206649d7fd036eb01f927a044b68a36cf4231421e9841e2ccb6c55fa4"
+      },
+      {
+        "path": "tests/ruin_geometry_test.cpp",
+        "kind": "test",
+        "bytes": 3474,
+        "lines": 73,
+        "sha256": "36a4cadd8b13896ffe692428cc8e2e1ee2e65740551c8c02c25206387202c7d8"
+      },
+      {
+        "path": "tests/run_progression_test.cpp",
+        "kind": "test",
+        "bytes": 1452,
+        "lines": 41,
+        "sha256": "7c75b1a0915c30e5c14707fa49f184b17e50ceb8000dda872ff0d5bcb8259896"
+      },
+      {
+        "path": "tests/scene_lighting_response_test.cpp",
+        "kind": "test",
+        "bytes": 1705,
+        "lines": 27,
+        "sha256": "7852381f508ba829717b19e2c33174c622d0ae0b81b358336bfb1306777a5c4d"
+      },
+      {
+        "path": "tests/secret_tv_policy_test.cpp",
+        "kind": "test",
+        "bytes": 6838,
+        "lines": 180,
+        "sha256": "32b8b8ad4e070e76590c66c329c3045cf69b5e0b36f088555022b19f0dc50dcc"
+      },
+      {
+        "path": "tests/signal_residue_lifecycle_test.cpp",
+        "kind": "test",
+        "bytes": 3966,
+        "lines": 90,
+        "sha256": "1920b217bd3b4505cf9718f6bd95489274c8da0c21745738a372de74770552b2"
+      },
+      {
+        "path": "tests/slope_support_test.cpp",
+        "kind": "test",
+        "bytes": 1672,
+        "lines": 32,
+        "sha256": "28adc7af278338ccde62fd2cffd0b3846ccfc534a6e3d49c0c476a96c31fee8a"
+      },
+      {
+        "path": "tests/slope_traversal_fixture_test.cpp",
+        "kind": "test",
+        "bytes": 37462,
+        "lines": 182,
+        "sha256": "0e051c828f2eb88bf7b4e1650bb129c963978ac1d58e8367bf9faf99162c0f7e"
+      },
+      {
+        "path": "tests/soul_economy_test.cpp",
+        "kind": "test",
+        "bytes": 4978,
+        "lines": 116,
+        "sha256": "3c913cdbb9ef516946fd6fc0b959b655df45d15fc01346645e08c90598c73fb5"
+      },
+      {
+        "path": "tests/soul_projectile_lifecycle_test.cpp",
+        "kind": "test",
+        "bytes": 8081,
+        "lines": 119,
+        "sha256": "acccfe23b99ee50c1b3fcc8d6380c52deb619a572c017f86cc1b7367bc333f03"
+      },
+      {
+        "path": "tests/state_layout_contracts_test.cpp",
+        "kind": "test",
+        "bytes": 212,
+        "lines": 8,
+        "sha256": "5174c8e479095e5be956429959b422bf06f2964f9ca4d503d93a7074bfd9ff8a"
+      },
+      {
+        "path": "tests/surface_geometry_test.cpp",
+        "kind": "test",
+        "bytes": 2029,
+        "lines": 40,
+        "sha256": "66526e02c5c100b90263c7921832ae8aa49853c76ce56c2202b287012a235e70"
+      },
+      {
+        "path": "tests/target_lifecycle_test.cpp",
+        "kind": "test",
+        "bytes": 1266,
+        "lines": 43,
+        "sha256": "fdcf9b593026eab33bed97c1851a121e62fc737cf3319c65fe36d48d10343ab4"
+      },
+      {
+        "path": "tests/traversal_calibration_test.cpp",
+        "kind": "test",
+        "bytes": 27954,
+        "lines": 364,
+        "sha256": "f635841bd321ef2f320bb469360cd42ba9b4fde1c74042ba3179a46bf2781e73"
+      },
+      {
+        "path": "tests/tree_geometry_test.cpp",
+        "kind": "test",
+        "bytes": 2457,
+        "lines": 31,
+        "sha256": "915a13ac25466c807db68872e7e92b95fb056a113233328eff21331cceae8883"
+      },
+      {
+        "path": "tools/codebase-truth.mjs",
+        "kind": "tooling",
+        "bytes": 7823,
+        "lines": 161,
+        "sha256": "e7504d5dabe301e4c41ccb2ba1ac4983165f2533f91c7208f0571c6d3169b176"
+      },
+      {
+        "path": "tools/codebase-truth.test.mjs",
+        "kind": "tooling",
+        "bytes": 3192,
+        "lines": 59,
+        "sha256": "62b23cd85d7848c19caf6c5780fc722f5f13483799c9f69d4c826693f3d44a4a"
+      },
+      {
+        "path": "tools/convert-glb-to-dbmesh.mjs",
+        "kind": "tooling",
+        "bytes": 10107,
+        "lines": 220,
+        "sha256": "bc2624dc6101c14c2171b61545eec8d59fcf67fcc5d7f1e28ec4742c8b3b7236"
+      },
+      {
+        "path": "tools/release/protocol-consistency.mjs",
+        "kind": "tooling",
+        "bytes": 1108,
+        "lines": 28,
+        "sha256": "68f9a6ee36e1afc6895ccc890f750c316638590d725c9937eb97c37311fdb1b1"
+      },
+      {
+        "path": "tools/release/verify-manifest.mjs",
+        "kind": "tooling",
+        "bytes": 2557,
+        "lines": 57,
+        "sha256": "af98989b323499913768f2bd751556d93d1ac4c990fa12d20f41b9a5320d8a75"
+      },
+      {
+        "path": "tools/release/write-desktop-build-info.mjs",
+        "kind": "tooling",
+        "bytes": 1947,
+        "lines": 51,
+        "sha256": "9c6b525a0fa93fc07e5eefbb839eb951c17b4f9256f05f64c2c24a140886f0a4"
+      },
+      {
+        "path": "tools/release/write-manifest.mjs",
+        "kind": "tooling",
+        "bytes": 3141,
+        "lines": 90,
+        "sha256": "c7b8436910e5e64f8491811998c83fca57db69166421b11dfe044687020e5377"
+      },
+      {
+        "path": "tv/tv01.dbgif",
+        "kind": "asset",
+        "bytes": 1174,
+        "lines": null,
+        "sha256": "5f5e0c5519e94aa8e54546b9bf10450ee8cdf874a38ec33d6c27c1ee2b9e1efe"
+      },
+      {
+        "path": "tv/tv02.dbgif",
+        "kind": "asset",
+        "bytes": 2338,
+        "lines": null,
+        "sha256": "b103c9baa59c668ef625f2db9600901e4a4c938e74141466cd869e80808aab86"
+      },
+      {
+        "path": "tv/tv03.dbgif",
+        "kind": "asset",
+        "bytes": 4666,
+        "lines": null,
+        "sha256": "4a9f988319f2da70a8cb888f8666668e8c3d107041755cf87ca25cfef966e2ae"
+      },
+      {
+        "path": "tv/tv04.dbgif",
+        "kind": "asset",
+        "bytes": 6024,
+        "lines": null,
+        "sha256": "880c6d84c75ff4c60dbb4a553dc4ae0b362302952df1a1cf1dea9841881d2c99"
+      },
+      {
+        "path": "tv/tv05.dbgif",
+        "kind": "asset",
+        "bytes": 3308,
+        "lines": null,
+        "sha256": "30d9b479b10c63c0be1cc8ae9642f77ed1024eb494684a1682cdffa7adb956ab"
+      },
+      {
+        "path": "tv/tv06.dbgif",
+        "kind": "asset",
+        "bytes": 3502,
+        "lines": null,
+        "sha256": "5e34132b37b7eee39421ea04e31a9a815f258f9fb40e03c8400c95aba36051f4"
+      },
+      {
+        "path": "tv/tv07.dbgif",
+        "kind": "asset",
+        "bytes": 980,
+        "lines": null,
+        "sha256": "a9477497b497594915f9db04f190fba7e0b7a7b4c431e27129282a201abd7696"
+      },
+      {
+        "path": "tv/tv09.dbgif",
+        "kind": "asset",
+        "bytes": 2338,
+        "lines": null,
+        "sha256": "3330aad068d1d7454f2e166e21d4a9a0eea0b3c36fdaf1ea1699b3bc76579f48"
+      },
+      {
+        "path": "tv/tv10.dbgif",
+        "kind": "asset",
+        "bytes": 4666,
+        "lines": null,
+        "sha256": "a7e1993c040491ca70adbe9ab70e6fe69e83013d9e4878134af3fb8a5f6496bb"
+      },
+      {
+        "path": "tv/tv11.dbgif",
+        "kind": "asset",
+        "bytes": 786,
+        "lines": null,
+        "sha256": "a17736e5ffb3794b12c20e811b9841ba8d8d3edb3d93719964b05ff46a71fbc8"
+      },
+      {
+        "path": "tv/tv12.dbgif",
+        "kind": "asset",
+        "bytes": 786,
+        "lines": null,
+        "sha256": "eea5ca2886855dd7fe66a416f6f4b2fa3271b379f5a31c48dac006dafeec5c7b"
+      },
+      {
+        "path": "tv/tv13.dbgif",
+        "kind": "asset",
+        "bytes": 980,
+        "lines": null,
+        "sha256": "d63e1c48d5132e1b7961c2361f1ef37e224328bec4395128ece671752cbdf3f7"
+      },
+      {
+        "path": "tv/tv14.dbgif",
+        "kind": "asset",
+        "bytes": 1562,
+        "lines": null,
+        "sha256": "5785d89dcb1636c0760a5a9b491d74ab3741dcae719b95bdd8002d6e6eec83a2"
+      },
+      {
+        "path": "tv/tv15.dbgif",
+        "kind": "asset",
+        "bytes": 3890,
+        "lines": null,
+        "sha256": "12d5956cbd3fb6f3fe03cbc8f0fedca001bbe1f6c978889a971cd1c747e98916"
+      }
+    ]
+  },
+  "build": {
+    "executableTargets": [
+      {
+        "name": "DigitalBreakdown",
+        "sources": [
+          "desktop/main.cpp",
+          "desktop/DesktopRenderer.cpp",
+          "desktop/DesktopAudio.cpp",
+          "desktop/DesktopMultiplayer.cpp",
+          "${CMAKE_CURRENT_BINARY_DIR}/generated/BuildIdentity.cpp",
+          "${miniaudio_SOURCE_DIR}/miniaudio.c",
+          "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "MultiplayerProtocolTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_protocol_test.cpp",
+          "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "MultiplayerDeterminismTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_determinism_test.cpp",
+          "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "HostRemotePeerSimulationIsolationTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/host_remote_peer_simulation_isolation_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "MultiplayerConnectionStateTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_connection_state_test.cpp"
+        ]
+      },
+      {
+        "name": "GameplayRoleAndSoulMotionTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_role_and_soul_motion_test.cpp"
+        ]
+      },
+      {
+        "name": "RunProgressionTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_progression_test.cpp"
+        ]
+      },
+      {
+        "name": "EnemyPerceptionTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_perception_test.cpp"
+        ]
+      },
+      {
+        "name": "CoastalWaterTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/coastal_water_test.cpp"
+        ]
+      },
+      {
+        "name": "PhysicalEnemyBodyTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/physical_enemy_body_test.cpp"
+        ]
+      },
+      {
+        "name": "EnemyBehaviorStateTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_behavior_state_test.cpp"
+        ]
+      },
+      {
+        "name": "EnemyLocomotionTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_locomotion_test.cpp"
+        ]
+      },
+      {
+        "name": "EnemyEmbodimentContractTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_embodiment_contract_test.cpp"
+        ]
+      },
+      {
+        "name": "EnemyMotorTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_motor_test.cpp"
+        ]
+      },
+      {
+        "name": "HistoricalPursuitComparisonTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/historical_pursuit_comparison_test.cpp"
+        ]
+      },
+      {
+        "name": "GameplayGeometryAndConfigTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_geometry_and_config_test.cpp"
+        ]
+      },
+      {
+        "name": "TargetLifecycleTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/target_lifecycle_test.cpp"
+        ]
+      },
+      {
+        "name": "StateLayoutContractsTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/state_layout_contracts_test.cpp"
+        ]
+      },
+      {
+        "name": "PhoneBodyContractTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_body_contract_test.cpp"
+        ]
+      },
+      {
+        "name": "PhoneMenuLayoutTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_menu_layout_test.cpp"
+        ]
+      },
+      {
+        "name": "PhoneStencilRevealTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_stencil_reveal_test.cpp"
+        ]
+      },
+      {
+        "name": "MenuNavigationTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/menu_navigation_test.cpp"
+        ]
+      },
+      {
+        "name": "PhoneDisplayStateTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/phone_display_state_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "RoomEnvironmentTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_environment_test.cpp"
+        ]
+      },
+      {
+        "name": "ComputedSceneObjectsTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/computed_scene_objects_test.cpp"
+        ]
+      },
+      {
+        "name": "MaterialResponseTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/material_response_test.cpp"
+        ]
+      },
+      {
+        "name": "ModelDataTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/model_data_test.cpp"
+        ]
+      },
+      {
+        "name": "FacetedRockTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/faceted_rock_test.cpp"
+        ]
+      },
+      {
+        "name": "SlopeSupportTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/slope_support_test.cpp"
+        ]
+      },
+      {
+        "name": "SurfaceGeometryTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/surface_geometry_test.cpp"
+        ]
+      },
+      {
+        "name": "RuinGeometryTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/ruin_geometry_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "HouseGeometryTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/house_geometry_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "TreeGeometryTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/tree_geometry_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "CityStreetGrammarTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/city_street_grammar_test.cpp"
+        ]
+      },
+      {
+        "name": "MarkerPillarGeometryTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/marker_pillar_geometry_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "SlopeTraversalFixtureTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/slope_traversal_fixture_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "RenderContractsTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/render_contracts_test.cpp"
+        ]
+      },
+      {
+        "name": "SceneLightingResponseTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/scene_lighting_response_test.cpp"
+        ]
+      },
+      {
+        "name": "ExpressiveVisualTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/expressive_visual_test.cpp"
+        ]
+      },
+      {
+        "name": "MusicDirectorTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/music_director_test.cpp"
+        ]
+      },
+      {
+        "name": "LightingStateSnapshotTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/lighting_state_snapshot_test.cpp"
+        ]
+      },
+      {
+        "name": "EnemyEvidenceScenarioTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/enemy_evidence_scenario_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "DesktopPlaytestPolicyTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/desktop_playtest_policy_test.cpp"
+        ]
+      },
+      {
+        "name": "DeveloperCodecTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_codec_test.cpp"
+        ]
+      },
+      {
+        "name": "AgentPlaytestProtocolTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/agent_playtest_protocol_test.cpp"
+        ]
+      },
+      {
+        "name": "SoulEconomyTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/soul_economy_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "SoulProjectileLifecycleTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/soul_projectile_lifecycle_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "TraversalCalibrationTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/traversal_calibration_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "GameplayFlowProbe",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/gameplay_flow_probe.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "RoomProgressionProbe",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_progression_probe.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "DeterministicInputSoak",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/deterministic_input_soak.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "SecretTvPolicyTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/secret_tv_policy_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      },
+      {
+        "name": "SignalResidueLifecycleTest",
+        "sources": [
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/signal_residue_lifecycle_test.cpp",
+          "${DB_GAME_ROOT}/Game.cpp"
+        ]
+      }
+    ],
+    "registeredTests": [
+      {
+        "name": "GameplayRoleAndSoulMotionTest",
+        "command": "GameplayRoleAndSoulMotionTest"
+      },
+      {
+        "name": "RunProgressionTest",
+        "command": "RunProgressionTest"
+      },
+      {
+        "name": "EnemyPerceptionTest",
+        "command": "EnemyPerceptionTest"
+      },
+      {
+        "name": "CoastalWaterTest",
+        "command": "CoastalWaterTest"
+      },
+      {
+        "name": "PhysicalEnemyBodyTest",
+        "command": "PhysicalEnemyBodyTest"
+      },
+      {
+        "name": "EnemyBehaviorStateTest",
+        "command": "EnemyBehaviorStateTest"
+      },
+      {
+        "name": "EnemyLocomotionTest",
+        "command": "EnemyLocomotionTest"
+      },
+      {
+        "name": "EnemyEmbodimentContractTest",
+        "command": "EnemyEmbodimentContractTest"
+      },
+      {
+        "name": "EnemyMotorTest",
+        "command": "EnemyMotorTest"
+      },
+      {
+        "name": "HistoricalPursuitComparisonTest",
+        "command": "HistoricalPursuitComparisonTest"
+      },
+      {
+        "name": "MultiplayerProtocolTest",
+        "command": "MultiplayerProtocolTest"
+      },
+      {
+        "name": "MultiplayerDeterminismTest",
+        "command": "MultiplayerDeterminismTest"
+      },
+      {
+        "name": "HostRemotePeerSimulationIsolationTest",
+        "command": "HostRemotePeerSimulationIsolationTest"
+      },
+      {
+        "name": "MultiplayerConnectionStateTest",
+        "command": "MultiplayerConnectionStateTest"
+      },
+      {
+        "name": "GameplayGeometryAndConfigTest",
+        "command": "GameplayGeometryAndConfigTest"
+      },
+      {
+        "name": "TargetLifecycleTest",
+        "command": "TargetLifecycleTest"
+      },
+      {
+        "name": "StateLayoutContractsTest",
+        "command": "StateLayoutContractsTest"
+      },
+      {
+        "name": "PhoneBodyContractTest",
+        "command": "PhoneBodyContractTest"
+      },
+      {
+        "name": "PhoneMenuLayoutTest",
+        "command": "PhoneMenuLayoutTest"
+      },
+      {
+        "name": "PhoneStencilRevealTest",
+        "command": "PhoneStencilRevealTest"
+      },
+      {
+        "name": "MenuNavigationTest",
+        "command": "MenuNavigationTest"
+      },
+      {
+        "name": "PhoneDisplayStateTest",
+        "command": "PhoneDisplayStateTest"
+      },
+      {
+        "name": "RoomEnvironmentTest",
+        "command": "RoomEnvironmentTest"
+      },
+      {
+        "name": "ComputedSceneObjectsTest",
+        "command": "ComputedSceneObjectsTest"
+      },
+      {
+        "name": "MaterialResponseTest",
+        "command": "MaterialResponseTest"
+      },
+      {
+        "name": "ModelDataTest",
+        "command": "ModelDataTest"
+      },
+      {
+        "name": "FacetedRockTest",
+        "command": "FacetedRockTest"
+      },
+      {
+        "name": "SlopeSupportTest",
+        "command": "SlopeSupportTest"
+      },
+      {
+        "name": "SurfaceGeometryTest",
+        "command": "SurfaceGeometryTest"
+      },
+      {
+        "name": "RuinGeometryTest",
+        "command": "RuinGeometryTest"
+      },
+      {
+        "name": "HouseGeometryTest",
+        "command": "HouseGeometryTest"
+      },
+      {
+        "name": "TreeGeometryTest",
+        "command": "TreeGeometryTest"
+      },
+      {
+        "name": "CityStreetGrammarTest",
+        "command": "CityStreetGrammarTest"
+      },
+      {
+        "name": "MarkerPillarGeometryTest",
+        "command": "MarkerPillarGeometryTest"
+      },
+      {
+        "name": "SlopeTraversalFixtureTest",
+        "command": "SlopeTraversalFixtureTest"
+      },
+      {
+        "name": "SlopeTraversalCheck",
+        "command": "SlopeTraversalFixtureTest"
+      },
+      {
+        "name": "RenderContractsTest",
+        "command": "RenderContractsTest"
+      },
+      {
+        "name": "SceneLightingResponseTest",
+        "command": "SceneLightingResponseTest"
+      },
+      {
+        "name": "ExpressiveVisualTest",
+        "command": "ExpressiveVisualTest"
+      },
+      {
+        "name": "MusicDirectorTest",
+        "command": "MusicDirectorTest"
+      },
+      {
+        "name": "LightingStateSnapshotTest",
+        "command": "LightingStateSnapshotTest"
+      },
+      {
+        "name": "LightingReplayDeterminismTest",
+        "command": "DigitalBreakdown"
+      },
+      {
+        "name": "EnemyEvidenceScenarioTest",
+        "command": "EnemyEvidenceScenarioTest"
+      },
+      {
+        "name": "DesktopPlaytestPolicyTest",
+        "command": "DesktopPlaytestPolicyTest"
+      },
+      {
+        "name": "DeveloperCodecTest",
+        "command": "DeveloperCodecTest"
+      },
+      {
+        "name": "AgentPlaytestProtocolTest",
+        "command": "AgentPlaytestProtocolTest"
+      },
+      {
+        "name": "SoulEconomyTest",
+        "command": "SoulEconomyTest"
+      },
+      {
+        "name": "SoulProjectileLifecycleTest",
+        "command": "SoulProjectileLifecycleTest"
+      },
+      {
+        "name": "TraversalCalibrationTest",
+        "command": "TraversalCalibrationTest"
+      },
+      {
+        "name": "DesktopSaveRecoveryTest",
+        "command": "DigitalBreakdown"
+      },
+      {
+        "name": "GameplayFlowProbe",
+        "command": "GameplayFlowProbe"
+      },
+      {
+        "name": "RoomProgressionProbe",
+        "command": "RoomProgressionProbe"
+      },
+      {
+        "name": "DeterministicInputSoak",
+        "command": "DeterministicInputSoak"
+      },
+      {
+        "name": "SecretTvPolicyTest",
+        "command": "SecretTvPolicyTest"
+      },
+      {
+        "name": "SignalResidueLifecycleTest",
+        "command": "SignalResidueLifecycleTest"
+      }
+    ],
+    "cppTestSources": [
+      "tests/agent_playtest_protocol_test.cpp",
+      "tests/city_street_grammar_test.cpp",
+      "tests/coastal_water_test.cpp",
+      "tests/computed_scene_objects_test.cpp",
+      "tests/desktop_playtest_policy_test.cpp",
+      "tests/deterministic_input_soak.cpp",
+      "tests/developer_codec_test.cpp",
+      "tests/enemy_behavior_state_test.cpp",
+      "tests/enemy_embodiment_contract_test.cpp",
+      "tests/enemy_evidence_scenario_test.cpp",
+      "tests/enemy_locomotion_test.cpp",
+      "tests/enemy_motor_test.cpp",
+      "tests/enemy_perception_test.cpp",
+      "tests/expressive_visual_test.cpp",
+      "tests/faceted_rock_test.cpp",
+      "tests/gameplay_flow_probe.cpp",
+      "tests/gameplay_geometry_and_config_test.cpp",
+      "tests/gameplay_role_and_soul_motion_test.cpp",
+      "tests/historical_pursuit_comparison_test.cpp",
+      "tests/host_remote_peer_simulation_isolation_test.cpp",
+      "tests/house_geometry_test.cpp",
+      "tests/lighting_state_snapshot_test.cpp",
+      "tests/marker_pillar_geometry_test.cpp",
+      "tests/material_response_test.cpp",
+      "tests/menu_navigation_test.cpp",
+      "tests/model_data_test.cpp",
+      "tests/multiplayer_connection_state_test.cpp",
+      "tests/multiplayer_determinism_test.cpp",
+      "tests/multiplayer_protocol_test.cpp",
+      "tests/music_director_test.cpp",
+      "tests/phone_body_contract_test.cpp",
+      "tests/phone_display_state_test.cpp",
+      "tests/phone_menu_layout_test.cpp",
+      "tests/phone_stencil_reveal_test.cpp",
+      "tests/physical_enemy_body_test.cpp",
+      "tests/render_contracts_test.cpp",
+      "tests/room_environment_test.cpp",
+      "tests/room_progression_probe.cpp",
+      "tests/ruin_geometry_test.cpp",
+      "tests/run_progression_test.cpp",
+      "tests/scene_lighting_response_test.cpp",
+      "tests/secret_tv_policy_test.cpp",
+      "tests/signal_residue_lifecycle_test.cpp",
+      "tests/slope_support_test.cpp",
+      "tests/slope_traversal_fixture_test.cpp",
+      "tests/soul_economy_test.cpp",
+      "tests/soul_projectile_lifecycle_test.cpp",
+      "tests/state_layout_contracts_test.cpp",
+      "tests/surface_geometry_test.cpp",
+      "tests/target_lifecycle_test.cpp",
+      "tests/traversal_calibration_test.cpp",
+      "tests/tree_geometry_test.cpp"
+    ]
+  },
+  "dependencies": {
+    "edgeCount": 262,
+    "edges": [
+      {
+        "from": "desktop/ControllerInputWin.cpp",
+        "to": "desktop/ControllerInput.hpp"
+      },
+      {
+        "from": "desktop/ControllerRumbleMac.m",
+        "to": "desktop/ControllerRumble.hpp"
+      },
+      {
+        "from": "desktop/ControllerRumbleStub.cpp",
+        "to": "desktop/ControllerRumble.hpp"
+      },
+      {
+        "from": "desktop/ControllerRumbleWin.cpp",
+        "to": "desktop/ControllerRumble.hpp"
+      },
+      {
+        "from": "desktop/DesktopAudio.cpp",
+        "to": "desktop/DesktopAudio.hpp"
+      },
+      {
+        "from": "desktop/DesktopAudio.cpp",
+        "to": "game/MusicDirector.hpp"
+      },
+      {
+        "from": "desktop/DesktopAudio.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "desktop/DesktopMultiplayer.cpp",
+        "to": "desktop/DesktopMultiplayer.hpp"
+      },
+      {
+        "from": "desktop/DesktopMultiplayer.cpp",
+        "to": "network/BoundedEventQueue.hpp"
+      },
+      {
+        "from": "desktop/DesktopMultiplayer.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "desktop/DesktopMultiplayer.hpp",
+        "to": "network/MultiplayerProtocol.hpp"
+      },
+      {
+        "from": "desktop/DesktopMultiplayer.hpp",
+        "to": "desktop/MultiplayerConnectionState.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "desktop/DesktopRenderer.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/HumanVisual.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/BitmapFont.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/RoomLighting.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/PhoneDisplayLayout.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/PhoneStencilReveal.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/GameplayPhoneModel.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/CityFacadeGrammar.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/CityStreetGrammar.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/MaterialResponse.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/FieldGrassTexture.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/CitySurfaceTexture.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/FacetedRock.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/CoastalWater.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/CoastalWaterSimulation.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/MarkerPillarGeometry.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "game/gameplay/MaterialUnlocks.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.cpp",
+        "to": "desktop/third_party/stb/stb_truetype.h"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/ModelData.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/HumanModelData.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "desktop/DeveloperCodec.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/SceneLightingResponse.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "desktop/LightingStateSnapshot.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/CoastalWaterSimulation.hpp"
+      },
+      {
+        "from": "desktop/DesktopRenderer.hpp",
+        "to": "game/TvGifWall.hpp"
+      },
+      {
+        "from": "desktop/LightingControlCommand.hpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "desktop/LightingStateSnapshot.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "desktop/LightingStateSnapshot.hpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "desktop/LightingStateSnapshot.hpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "desktop/LightingStateSnapshot.hpp",
+        "to": "game/RoomLighting.hpp"
+      },
+      {
+        "from": "desktop/LightingStateSnapshot.hpp",
+        "to": "game/SceneLightingResponse.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/DesktopRenderer.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/DesktopAudio.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/DesktopMultiplayer.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/DesktopPlaytestPolicy.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/DesktopPersistencePolicy.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/DeveloperCodec.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/AgentPlaytestProtocol.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/LightingControlCommand.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/BuildIdentity.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/MenuNavigation.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/ControllerRumble.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "desktop/ControllerInput.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "game/SignalResidue.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "game/diagnostics/EnemyEvidenceScenario.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "game/PhoneDisplayLayout.hpp"
+      },
+      {
+        "from": "desktop/main.cpp",
+        "to": "game/RoomLighting.hpp"
+      },
+      {
+        "from": "desktop/third_party/stb/stb_truetype.h",
+        "to": "desktop/third_party/stb/stb_truetype.h"
+      },
+      {
+        "from": "desktop/third_party/stb/stb_truetype.h",
+        "to": "desktop/third_party/stb/stb_truetype.h"
+      },
+      {
+        "from": "game/CityFacadeGrammar.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/CityStreetGrammar.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/CoastalWater.hpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "game/CoastalWaterSimulation.hpp",
+        "to": "game/CoastalWater.hpp"
+      },
+      {
+        "from": "game/ComputedSceneObjects.hpp",
+        "to": "game/HouseGeometry.hpp"
+      },
+      {
+        "from": "game/ComputedSceneObjects.hpp",
+        "to": "game/MarkerPillarGeometry.hpp"
+      },
+      {
+        "from": "game/ComputedSceneObjects.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/ComputedSceneObjects.hpp",
+        "to": "game/RuinGeometry.hpp"
+      },
+      {
+        "from": "game/ComputedSceneObjects.hpp",
+        "to": "game/TreeGeometry.hpp"
+      },
+      {
+        "from": "game/ComputedSceneObjects.hpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "game/FacetedRock.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/FacetedRock.hpp",
+        "to": "game/SurfaceGeometry.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/SoulEconomy.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/SignalResidue.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/PhoneBody.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/SoulMotion.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/MeleeConfig.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/MaterialUnlocks.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/RunProgression.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/TraversalCapabilities.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/gameplay/VacuumGeometry.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/CoastalWater.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "game/Game.cpp",
+        "to": "game/world/RoomCoordinates.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/HumanVisual.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/PhoneDisplay.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/MaterialResponse.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/SlopeSupport.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/FacetedRock.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/RuinGeometry.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/HouseGeometry.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/TreeGeometry.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/MarkerPillarGeometry.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/gameplay/EnemyPerception.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/gameplay/EnemyMotor.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/gameplay/EnemyBehaviorState.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/gameplay/EnemyLocomotion.hpp"
+      },
+      {
+        "from": "game/Game.hpp",
+        "to": "game/gameplay/PhysicalEnemyBody.hpp"
+      },
+      {
+        "from": "game/GameplayPhoneModel.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/GameplayPhoneModel.hpp",
+        "to": "game/gameplay/MaterialUnlocks.hpp"
+      },
+      {
+        "from": "game/HouseGeometry.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/HumanVisual.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/MarkerPillarGeometry.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/MaterialResponse.hpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "game/MaterialResponse.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/MaterialResponse.hpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "game/ModelData.hpp",
+        "to": "game/TriangleNormal.hpp"
+      },
+      {
+        "from": "game/MusicDirector.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/PhoneDisplay.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/PhoneDisplayLayout.hpp",
+        "to": "game/PhoneDisplay.hpp"
+      },
+      {
+        "from": "game/PhoneDisplayLayout.hpp",
+        "to": "game/PhoneMenuModel.hpp"
+      },
+      {
+        "from": "game/PhoneMenuModel.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/RenderContracts.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/RenderContracts.hpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "game/RoomEnvironment.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/RoomEnvironment.hpp",
+        "to": "game/gameplay/TraversalCapabilities.hpp"
+      },
+      {
+        "from": "game/RoomEnvironment.hpp",
+        "to": "game/gameplay/TraversalGraph.hpp"
+      },
+      {
+        "from": "game/RoomEnvironment.hpp",
+        "to": "game/gameplay/WorldScale.hpp"
+      },
+      {
+        "from": "game/RoomLighting.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/RoomLighting.hpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "game/RoomLighting.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/RoomLighting.hpp",
+        "to": "game/SceneLightingResponse.hpp"
+      },
+      {
+        "from": "game/RoomLighting.hpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "game/RoomLighting.hpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "game/RuinGeometry.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/SceneLightingResponse.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/SlopeSupport.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/SlopeSupport.hpp",
+        "to": "game/SurfaceGeometry.hpp"
+      },
+      {
+        "from": "game/SurfaceGeometry.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/SurfaceGeometry.hpp",
+        "to": "game/TriangleNormal.hpp"
+      },
+      {
+        "from": "game/TreeGeometry.hpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "game/TriangleNormal.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/VisualIdentity.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/diagnostics/EnemyEvidenceScenario.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/diagnostics/HistoricalPursuitComparison.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/EnemyLocomotion.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/EnemyLocomotion.hpp",
+        "to": "game/gameplay/EnemySupport.hpp"
+      },
+      {
+        "from": "game/gameplay/EnemyMotor.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/EnemyPerception.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/EnemySupport.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/PhysicalEnemyBody.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/RunProgression.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/gameplay/SoulMotion.hpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "game/gameplay/StateContracts.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/gameplay/TargetLifecycle.hpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "game/gameplay/TargetRoles.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "game/gameplay/TraversalGraph.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/VacuumGeometry.hpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "game/gameplay/VacuumGeometry.hpp",
+        "to": "game/world/RoomCoordinates.hpp"
+      },
+      {
+        "from": "game/gameplay/WorldScale.hpp",
+        "to": "game/HumanVisual.hpp"
+      },
+      {
+        "from": "game/gameplay/WorldScale.hpp",
+        "to": "game/gameplay/TraversalCapabilities.hpp"
+      },
+      {
+        "from": "game/world/RoomCoordinates.hpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "network/MultiplayerProtocol.cpp",
+        "to": "network/MultiplayerProtocol.hpp"
+      },
+      {
+        "from": "network/MultiplayerProtocol.hpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/agent_playtest_protocol_test.cpp",
+        "to": "desktop/AgentPlaytestProtocol.hpp"
+      },
+      {
+        "from": "tests/city_street_grammar_test.cpp",
+        "to": "game/CityStreetGrammar.hpp"
+      },
+      {
+        "from": "tests/city_street_grammar_test.cpp",
+        "to": "game/CityFacadeGrammar.hpp"
+      },
+      {
+        "from": "tests/coastal_water_test.cpp",
+        "to": "game/CoastalWater.hpp"
+      },
+      {
+        "from": "tests/coastal_water_test.cpp",
+        "to": "game/CoastalWaterSimulation.hpp"
+      },
+      {
+        "from": "tests/computed_scene_objects_test.cpp",
+        "to": "game/ComputedSceneObjects.hpp"
+      },
+      {
+        "from": "tests/computed_scene_objects_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/desktop_playtest_policy_test.cpp",
+        "to": "desktop/DesktopPlaytestPolicy.hpp"
+      },
+      {
+        "from": "tests/desktop_playtest_policy_test.cpp",
+        "to": "desktop/DesktopPersistencePolicy.hpp"
+      },
+      {
+        "from": "tests/deterministic_input_soak.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/developer_codec_test.cpp",
+        "to": "desktop/DeveloperCodec.hpp"
+      },
+      {
+        "from": "tests/developer_codec_test.cpp",
+        "to": "desktop/LightingControlCommand.hpp"
+      },
+      {
+        "from": "tests/enemy_behavior_state_test.cpp",
+        "to": "game/gameplay/EnemyBehaviorState.hpp"
+      },
+      {
+        "from": "tests/enemy_embodiment_contract_test.cpp",
+        "to": "game/gameplay/EnemyBehaviorState.hpp"
+      },
+      {
+        "from": "tests/enemy_embodiment_contract_test.cpp",
+        "to": "game/gameplay/EnemyLocomotion.hpp"
+      },
+      {
+        "from": "tests/enemy_embodiment_contract_test.cpp",
+        "to": "game/gameplay/PhysicalEnemyBody.hpp"
+      },
+      {
+        "from": "tests/enemy_evidence_scenario_test.cpp",
+        "to": "game/diagnostics/EnemyEvidenceScenario.hpp"
+      },
+      {
+        "from": "tests/enemy_locomotion_test.cpp",
+        "to": "game/gameplay/EnemyLocomotion.hpp"
+      },
+      {
+        "from": "tests/enemy_motor_test.cpp",
+        "to": "game/gameplay/EnemyMotor.hpp"
+      },
+      {
+        "from": "tests/enemy_perception_test.cpp",
+        "to": "game/gameplay/EnemyPerception.hpp"
+      },
+      {
+        "from": "tests/enemy_perception_test.cpp",
+        "to": "game/FacetedRock.hpp"
+      },
+      {
+        "from": "tests/expressive_visual_test.cpp",
+        "to": "game/HumanVisual.hpp"
+      },
+      {
+        "from": "tests/expressive_visual_test.cpp",
+        "to": "game/HumanModelData.hpp"
+      },
+      {
+        "from": "tests/expressive_visual_test.cpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "tests/faceted_rock_test.cpp",
+        "to": "game/FacetedRock.hpp"
+      },
+      {
+        "from": "tests/gameplay_flow_probe.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/gameplay_flow_probe.cpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "tests/gameplay_geometry_and_config_test.cpp",
+        "to": "game/gameplay/MeleeConfig.hpp"
+      },
+      {
+        "from": "tests/gameplay_geometry_and_config_test.cpp",
+        "to": "game/gameplay/VacuumGeometry.hpp"
+      },
+      {
+        "from": "tests/gameplay_geometry_and_config_test.cpp",
+        "to": "game/world/RoomCoordinates.hpp"
+      },
+      {
+        "from": "tests/gameplay_geometry_and_config_test.cpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "tests/gameplay_role_and_soul_motion_test.cpp",
+        "to": "game/gameplay/SoulMotion.hpp"
+      },
+      {
+        "from": "tests/gameplay_role_and_soul_motion_test.cpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "tests/gameplay_role_and_soul_motion_test.cpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "tests/historical_pursuit_comparison_test.cpp",
+        "to": "game/diagnostics/HistoricalPursuitComparison.hpp"
+      },
+      {
+        "from": "tests/historical_pursuit_comparison_test.cpp",
+        "to": "game/gameplay/EnemyBehaviorState.hpp"
+      },
+      {
+        "from": "tests/host_remote_peer_simulation_isolation_test.cpp",
+        "to": "game/HumanVisual.hpp"
+      },
+      {
+        "from": "tests/host_remote_peer_simulation_isolation_test.cpp",
+        "to": "game/VisualIdentity.hpp"
+      },
+      {
+        "from": "tests/host_remote_peer_simulation_isolation_test.cpp",
+        "to": "game/Math.hpp"
+      },
+      {
+        "from": "tests/host_remote_peer_simulation_isolation_test.cpp",
+        "to": "game/PhoneDisplay.hpp"
+      },
+      {
+        "from": "tests/host_remote_peer_simulation_isolation_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/house_geometry_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/house_geometry_test.cpp",
+        "to": "game/gameplay/PhoneBody.hpp"
+      },
+      {
+        "from": "tests/lighting_state_snapshot_test.cpp",
+        "to": "desktop/LightingStateSnapshot.hpp"
+      },
+      {
+        "from": "tests/marker_pillar_geometry_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/material_response_test.cpp",
+        "to": "game/MaterialResponse.hpp"
+      },
+      {
+        "from": "tests/menu_navigation_test.cpp",
+        "to": "desktop/MenuNavigation.hpp"
+      },
+      {
+        "from": "tests/model_data_test.cpp",
+        "to": "game/ModelData.hpp"
+      },
+      {
+        "from": "tests/multiplayer_connection_state_test.cpp",
+        "to": "desktop/MultiplayerConnectionState.hpp"
+      },
+      {
+        "from": "tests/multiplayer_determinism_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/multiplayer_determinism_test.cpp",
+        "to": "desktop/MultiplayerConnectionState.hpp"
+      },
+      {
+        "from": "tests/multiplayer_determinism_test.cpp",
+        "to": "network/MultiplayerProtocol.hpp"
+      },
+      {
+        "from": "tests/multiplayer_protocol_test.cpp",
+        "to": "network/MultiplayerProtocol.hpp"
+      },
+      {
+        "from": "tests/multiplayer_protocol_test.cpp",
+        "to": "network/BoundedEventQueue.hpp"
+      },
+      {
+        "from": "tests/music_director_test.cpp",
+        "to": "game/MusicDirector.hpp"
+      },
+      {
+        "from": "tests/phone_body_contract_test.cpp",
+        "to": "game/gameplay/PhoneBody.hpp"
+      },
+      {
+        "from": "tests/phone_display_state_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/phone_display_state_test.cpp",
+        "to": "game/GameplayPhoneModel.hpp"
+      },
+      {
+        "from": "tests/phone_display_state_test.cpp",
+        "to": "game/PhoneDisplayLayout.hpp"
+      },
+      {
+        "from": "tests/phone_menu_layout_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/phone_menu_layout_test.cpp",
+        "to": "game/PhoneDisplayLayout.hpp"
+      },
+      {
+        "from": "tests/phone_stencil_reveal_test.cpp",
+        "to": "game/PhoneStencilReveal.hpp"
+      },
+      {
+        "from": "tests/physical_enemy_body_test.cpp",
+        "to": "game/gameplay/PhysicalEnemyBody.hpp"
+      },
+      {
+        "from": "tests/render_contracts_test.cpp",
+        "to": "game/RenderContracts.hpp"
+      },
+      {
+        "from": "tests/render_contracts_test.cpp",
+        "to": "game/RoomLighting.hpp"
+      },
+      {
+        "from": "tests/render_contracts_test.cpp",
+        "to": "game/FieldGrassTexture.hpp"
+      },
+      {
+        "from": "tests/room_environment_test.cpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "tests/room_progression_probe.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/room_progression_probe.cpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "tests/room_progression_probe.cpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "tests/ruin_geometry_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/ruin_geometry_test.cpp",
+        "to": "game/gameplay/PhoneBody.hpp"
+      },
+      {
+        "from": "tests/ruin_geometry_test.cpp",
+        "to": "game/world/RoomGeometry.hpp"
+      },
+      {
+        "from": "tests/run_progression_test.cpp",
+        "to": "game/gameplay/RunProgression.hpp"
+      },
+      {
+        "from": "tests/scene_lighting_response_test.cpp",
+        "to": "game/SceneLightingResponse.hpp"
+      },
+      {
+        "from": "tests/secret_tv_policy_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/signal_residue_lifecycle_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/signal_residue_lifecycle_test.cpp",
+        "to": "game/SignalResidue.hpp"
+      },
+      {
+        "from": "tests/slope_support_test.cpp",
+        "to": "game/SlopeSupport.hpp"
+      },
+      {
+        "from": "tests/slope_traversal_fixture_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/slope_traversal_fixture_test.cpp",
+        "to": "game/gameplay/PhoneBody.hpp"
+      },
+      {
+        "from": "tests/soul_economy_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/soul_economy_test.cpp",
+        "to": "game/SoulEconomy.hpp"
+      },
+      {
+        "from": "tests/soul_projectile_lifecycle_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/state_layout_contracts_test.cpp",
+        "to": "game/gameplay/StateContracts.hpp"
+      },
+      {
+        "from": "tests/surface_geometry_test.cpp",
+        "to": "game/SurfaceGeometry.hpp"
+      },
+      {
+        "from": "tests/surface_geometry_test.cpp",
+        "to": "game/SlopeSupport.hpp"
+      },
+      {
+        "from": "tests/target_lifecycle_test.cpp",
+        "to": "game/gameplay/TargetLifecycle.hpp"
+      },
+      {
+        "from": "tests/traversal_calibration_test.cpp",
+        "to": "game/Game.hpp"
+      },
+      {
+        "from": "tests/traversal_calibration_test.cpp",
+        "to": "game/RoomEnvironment.hpp"
+      },
+      {
+        "from": "tests/traversal_calibration_test.cpp",
+        "to": "game/gameplay/TraversalGraph.hpp"
+      },
+      {
+        "from": "tests/traversal_calibration_test.cpp",
+        "to": "game/gameplay/TargetRoles.hpp"
+      },
+      {
+        "from": "tests/traversal_calibration_test.cpp",
+        "to": "game/gameplay/PhoneBody.hpp"
+      },
+      {
+        "from": "tests/tree_geometry_test.cpp",
+        "to": "game/Game.hpp"
+      }
+    ],
+    "externalQuoted": [
+      {
+        "from": "desktop/DesktopAudio.cpp",
+        "include": "miniaudio.h"
+      }
+    ]
+  },
+  "issues": []
+}

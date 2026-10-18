@@ -1,5 +1,8 @@
 #include "Game.hpp"
+#include "../native/phone_presentation_snapshot.hpp"
 
+#include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 
@@ -15,6 +18,49 @@ int liveBullets(const GameState& state) {
     return count;
 }
 
+bool validPhoneSnapshot(const GameState& state, const PhonePresentationSnapshot& p) {
+    const auto finite3=[](const Vec3& v){return std::isfinite(v.x)&&std::isfinite(v.y)&&std::isfinite(v.z);};
+    const auto finite4=[](const Quat& q){return std::isfinite(q.x)&&std::isfinite(q.y)&&std::isfinite(q.z)&&std::isfinite(q.w);};
+    const float qLengthSq=p.orientation.x*p.orientation.x+p.orientation.y*p.orientation.y+
+        p.orientation.z*p.orientation.z+p.orientation.w*p.orientation.w;
+    return finite3(p.position)&&finite4(p.orientation)&&std::abs(qLengthSq-1.0f)<=0.0001f&&
+        p.bodySize.x>0.0f&&p.bodySize.y>0.0f&&p.bodySize.z>0.0f&&
+        p.screenSize.x>0.0f&&p.screenSize.y>0.0f&&p.screenSize.x<=p.bodySize.x&&p.screenSize.y<=p.bodySize.y&&
+        finite3(p.bodyScale)&&p.bodyScale.x>0.0f&&p.bodyScale.y>0.0f&&p.bodyScale.z>0.0f&&
+        finite3(p.screenCenterOffset)&&finite3(p.screenTint)&&
+        std::isfinite(p.screenBrightness)&&p.screenBrightness>=0.0f&&p.screenBrightness<=1.0f&&
+        std::isfinite(p.contentOpacity)&&p.contentOpacity>=0.0f&&p.contentOpacity<=1.0f&&
+        std::isfinite(p.screenGlow)&&std::isfinite(p.emissionStrength)&&
+        std::isfinite(p.battery)&&p.battery>=0.0f&&p.battery<=100.0f&&
+        p.souls>=0&&p.souls<=PHONE_CAPACITY&&std::isfinite(p.vacuumPower)&&
+        std::isfinite(p.capturePulse)&&p.position.x==state.phoneTransform.position.x&&
+        p.position.y==state.phoneTransform.position.y&&p.position.z==state.phoneTransform.position.z&&
+        p.screenMode==static_cast<int>(state.phoneDisplay.mode)&&p.battery==state.player.battery&&
+        p.souls==state.player.souls&&p.firstPerson==state.camera.firstPerson;
+}
+
+void phoneSnapshot(const Game& game) {
+    const auto& state=game.state();
+    const auto p=PhonePresentationSnapshot::from(state);
+    if(!validPhoneSnapshot(state,p)){
+        std::cerr<<"FAIL: invalid native phone presentation snapshot at frame "<<state.frame<<'\n';
+        std::exit(2);
+    }
+    std::cout<<"PHONE,"<<state.frame<<','
+        <<p.position.x<<','<<p.position.y<<','<<p.position.z<<','
+        <<p.orientation.x<<','<<p.orientation.y<<','<<p.orientation.z<<','<<p.orientation.w<<','
+        <<p.bodySize.x<<','<<p.bodySize.y<<','<<p.bodySize.z<<','
+        <<p.bodyScale.x<<','<<p.bodyScale.y<<','<<p.bodyScale.z<<','
+        <<p.screenCenterOffset.x<<','<<p.screenCenterOffset.y<<','<<p.screenCenterOffset.z<<','
+        <<p.screenSize.x<<','<<p.screenSize.y<<','<<p.screenSize.z<<','
+        <<p.screenMode<<','<<p.bodyVisible<<','<<p.screenVisible<<','<<p.firstPerson<<','
+        <<p.screenBrightness<<','<<p.contentOpacity<<','
+        <<p.screenTint.x<<','<<p.screenTint.y<<','<<p.screenTint.z<<','
+        <<p.screenGlow<<','<<p.emissionStrength<<','<<p.interactive<<','
+        <<p.battery<<','<<p.souls<<','<<p.lowBattery<<','<<p.vacuumActive<<','
+        <<p.vacuumPower<<','<<p.capturePulse<<'\n';
+}
+
 void snapshot(const Game& game) {
     const auto& s = game.state();
     int alive = 0;
@@ -26,6 +72,7 @@ void snapshot(const Game& game) {
               << s.player.battery << ',' << s.player.souls << ',' << (s.camera.firstPerson ? 1 : 0) << ','
               << (s.player.grounded ? 1 : 0) << ',' << (s.vacuum.active ? 1 : 0) << ','
               << s.vacuum.power << ',' << s.meleePose << ',' << liveBullets(s) << ',' << alive << '\n';
+    phoneSnapshot(game);
 }
 
 int nearestLiveTarget(const GameState& state) {

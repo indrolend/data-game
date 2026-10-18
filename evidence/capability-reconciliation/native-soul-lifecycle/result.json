@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "classification": "pass",
+  "scenario": "soul-lifecycle",
+  "game_commit": "18b19807333be6b1c83f0a39ae08084978285aeb",
+  "game_dirty": false,
+  "configuration": "Release",
+  "tick_rate": 60,
+  "ticks": 383,
+  "video_frame_rate": 2,
+  "video_frame_count": 20,
+  "manifest": "manifest.json",
+  "timeline": "timeline.ndjson",
+  "events": "events.ndjson",
+  "assertions": "assertions.json",
+  "video": "evidence.mp4",
+  "video_sha256": "4e43ff09ddcd2c6ee0816ff0d33421b7f0a07239babed8e97b1f03690ef686a7",
+  "executable_sha256": "a5aa6529aeabc8432f9ff36b13d42eff017653f80fa1cb88e359885250aac093",
+  "executable_size": 2249728,
+  "executable_modified": "2026-10-18T16:31:40.0096621Z"
+}

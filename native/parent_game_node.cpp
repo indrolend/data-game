@@ -1,5 +1,8 @@
 #include "parent_game_node.hpp"
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/variant/quaternion.hpp>
+#include "phone_presentation_snapshot.hpp"
 using namespace godot;
 void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("submit_input","x","z","look_x","look_y","vacuum","sprint","jump","melee","shoot","camera"),&ParentGameNode::submit_input);
@@ -9,6 +12,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
     ClassDB::bind_method(D_METHOD("refill_target_interaction_battery"),&ParentGameNode::refill_target_interaction_battery);
     ClassDB::bind_method(D_METHOD("player_position"),&ParentGameNode::player_position);
+    ClassDB::bind_method(D_METHOD("phone_presentation_snapshot"),&ParentGameNode::phone_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("camera_position"),&ParentGameNode::camera_position);
     ClassDB::bind_method(D_METHOD("camera_target"),&ParentGameNode::camera_target);
     ClassDB::bind_method(D_METHOD("target_position","index"),&ParentGameNode::target_position);
@@ -37,6 +41,33 @@ void ParentGameNode::start_target_fixture(){bridge.startTargetFixture();jump_las
 void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();jump_last=melee_last=shoot_last=camera_last=false;}
 void ParentGameNode::refill_target_interaction_battery(){bridge.refillTargetInteractionBattery();}
 static Vector3 v(const Vec3& p){return Vector3(p.x,p.y,p.z);}
+Dictionary ParentGameNode::phone_presentation_snapshot() const {
+    const PhonePresentationSnapshot snapshot = PhonePresentationSnapshot::from(bridge.state());
+    Dictionary result;
+    result["position"] = v(snapshot.position);
+    result["orientation"] = Quaternion(snapshot.orientation.x,snapshot.orientation.y,snapshot.orientation.z,snapshot.orientation.w);
+    result["body_size"] = v(snapshot.bodySize);
+    result["body_scale"] = v(snapshot.bodyScale);
+    result["screen_center_offset"] = v(snapshot.screenCenterOffset);
+    result["screen_size"] = v(snapshot.screenSize);
+    result["screen_mode"] = snapshot.screenMode;
+    result["body_visible"] = snapshot.bodyVisible;
+    result["screen_visible"] = snapshot.screenVisible;
+    result["first_person"] = snapshot.firstPerson;
+    result["screen_brightness"] = snapshot.screenBrightness;
+    result["content_opacity"] = snapshot.contentOpacity;
+    result["screen_tint"] = Color(snapshot.screenTint.x,snapshot.screenTint.y,snapshot.screenTint.z,1.0f);
+    result["screen_glow"] = snapshot.screenGlow;
+    result["emission_strength"] = snapshot.emissionStrength;
+    result["interactive"] = snapshot.interactive;
+    result["battery"] = snapshot.battery;
+    result["souls"] = snapshot.souls;
+    result["low_battery"] = snapshot.lowBattery;
+    result["vacuum_active"] = snapshot.vacuumActive;
+    result["vacuum_power"] = snapshot.vacuumPower;
+    result["capture_pulse"] = snapshot.capturePulse;
+    return result;
+}
 Vector3 ParentGameNode::player_position()const{return v(bridge.state().player.pos);}
 Vector3 ParentGameNode::camera_position()const{return v(bridge.state().camera.pos);}
 Vector3 ParentGameNode::camera_target()const{return v(bridge.state().camera.lookTarget);}

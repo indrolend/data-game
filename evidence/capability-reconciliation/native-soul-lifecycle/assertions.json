@@ -1,0 +1,6 @@
+{
+  "classification": "pass",
+  "two_complete_cycles": true,
+  "shell_opacity_monotonic": true,
+  "phone_ingest_spring_repeats_and_settles": true
+}

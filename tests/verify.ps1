@@ -11,6 +11,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Native build failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/parent_smoke.gd 2>&1 | Set-Content (Join-Path $evidence "headless-smoke.log")
     if ($LASTEXITCODE -ne 0) { throw "Headless smoke failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/phone_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "phone-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Phone presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --quit-after 2 2>&1 | Set-Content (Join-Path $evidence "godot-startup.log")
     if ($LASTEXITCODE -ne 0) { throw "Godot startup failed with exit code $LASTEXITCODE" }
     & "$PSScriptRoot/compare_parity.ps1" -GodotExe $GodotExe 2>&1 | Set-Content (Join-Path $evidence "parity-result.log")
