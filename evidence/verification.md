@@ -317,3 +317,25 @@ the native paused upgrade choice through `Game::updateRoomTopology()`.
   souls 0.
 - This is headless gameplay-path evidence only. No graphical multi-room
   transition capture was made, and visual parity remains unestablished.
+
+## 2026-10-19 — native room lighting crossover
+
+Replaced the fixed Godot ambient/background/directional-light values with a
+read-only `LightingPresentationSnapshot` resolved from the mature static
+`RenderContracts`, `RoomLighting`, and `SceneLightingResponse` APIs. Godot maps
+the native atmosphere to `Environment`, global sun/fill to directional lights,
+and native ceiling/phone/shot/exit lights to render-only omni lights. No new
+Godot time cycle, shadow map, or gameplay response was added.
+
+- `godot/tests/lighting_presentation.gd`: PASS for native environment values,
+  City sun direction, Sterile global-light disablement, and ceiling fixtures.
+- `tests/compare_parity.ps1`: PASS; the new `LIGHTING` record matches direct
+  C++ for room, colors, fog, sun/fill directions and colors, and local-light
+  count within `1e-5`.
+- GPU runner `evidence/native-lighting-playtest.commands`: exit code 0 on
+  OpenGL 3.3 / NVIDIA RTX 3060. Inspected
+  `evidence/native-lighting-playtest/frame-000-tick-000000.png`,
+  `frame-002-tick-000000.png`, and `frame-003-tick-000000.png`. The Sterile
+  fixture visibly presents a more enclosed cool-lit scene; this is a Godot
+  presentation check, not a matched-state desktop comparison or visual-parity
+  claim. Original shadow maps and material texture pixels remain unsupported.

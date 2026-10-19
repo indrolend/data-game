@@ -7,6 +7,7 @@
 #include "phone_presentation_snapshot.hpp"
 #include "PhoneDisplayLayout.hpp"
 #include "room_presentation_snapshot.hpp"
+#include "lighting_presentation_snapshot.hpp"
 #include "combat_presentation_snapshot.hpp"
 #include "MaterialResponse.hpp"
 using namespace godot;
@@ -42,6 +43,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("upgrade_presentation_snapshot"),&ParentGameNode::upgrade_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("lighting_presentation_snapshot"),&ParentGameNode::lighting_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("player_action_snapshot"),&ParentGameNode::player_action_snapshot);
     ClassDB::bind_method(D_METHOD("target_presentation_snapshot","index"),&ParentGameNode::target_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("target_soul_presentation_snapshot","index"),&ParentGameNode::target_soul_presentation_snapshot);
@@ -114,6 +116,18 @@ bool ParentGameNode::developer_show_colliders() const {
     return bridge.developerShowColliders();
 }
 static Vector3 v(const Vec3& p){return Vector3(p.x,p.y,p.z);}
+static Dictionary resolved_light_dictionary(const room_lighting::ResolvedLight& light){
+    Dictionary result;
+    result["enabled"] = light.enabled;
+    result["directional"] = light.directional;
+    if (light.directional) result["direction"] = v(light.position);
+    else result["position"] = v(light.position);
+    result["color"] = Color(light.diffuse.r, light.diffuse.g, light.diffuse.b);
+    result["constant_attenuation"] = light.constantAttenuation;
+    result["linear_attenuation"] = light.linearAttenuation;
+    result["quadratic_attenuation"] = light.quadraticAttenuation;
+    return result;
+}
 static Dictionary material_dictionary(const render_contract::MaterialDefinition& material){
     Dictionary result;
     result["base_color"] = Color(material.baseColor.r,material.baseColor.g,material.baseColor.b,material.opacity);
@@ -399,6 +413,29 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         objects.push_back(item);
     }
     result["objects"] = objects;
+    return result;
+}
+Dictionary ParentGameNode::lighting_presentation_snapshot() const {
+    const auto snapshot = LightingPresentationSnapshot::from(bridge.state());
+    const auto& lighting = snapshot.lighting;
+    Dictionary result;
+    result["room_index"] = snapshot.roomIndex;
+    result["setting"] = snapshot.setting;
+    result["time"] = snapshot.time;
+    result["background"] = Color(snapshot.background.r, snapshot.background.g, snapshot.background.b);
+    result["ambient"] = Color(lighting.ambient.r, lighting.ambient.g, lighting.ambient.b);
+    result["fog_color"] = Color(lighting.fog.color.r, lighting.fog.color.g, lighting.fog.color.b);
+    result["fog_density"] = lighting.fog.density;
+    result["sun"] = resolved_light_dictionary(lighting.sun);
+    result["fill"] = resolved_light_dictionary(lighting.fill);
+    result["phone"] = resolved_light_dictionary(lighting.phone);
+    result["shot"] = resolved_light_dictionary(lighting.shot);
+    result["exit"] = resolved_light_dictionary(lighting.exit);
+    Array local_lights;
+    for (const auto& light : lighting.localLights) {
+        if (light.enabled) local_lights.push_back(resolved_light_dictionary(light));
+    }
+    result["local_lights"] = local_lights;
     return result;
 }
 Dictionary ParentGameNode::player_action_snapshot() const {

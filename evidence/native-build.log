@@ -1,7 +1,6 @@
 MSBuild version 18.7.8+1ac568fee for .NET Framework
 
   Checking File Globs
-  parent_reference.cpp
+  parent_reference.vcxproj -> C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\build-godot47\Release\parent_reference.exe
   godot-cpp.vcxproj -> C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\build-godot47\bin\libgodot-cpp.windows.template_debug.x86_64.lib
   digital_breakdown_parent.vcxproj -> C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\godot\bin\digital_breakdown_parent.dll
-  parent_reference.vcxproj -> C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\build-godot47\Release\parent_reference.exe

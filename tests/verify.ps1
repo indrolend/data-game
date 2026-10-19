@@ -19,6 +19,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Human model presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/hud_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "hud-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "HUD presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/lighting_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "lighting-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Lighting presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/upgrade_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "upgrade-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Upgrade presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/room_transition.gd 2>&1 | Set-Content (Join-Path $evidence "room-transition.log")

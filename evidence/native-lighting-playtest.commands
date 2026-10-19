@@ -1,0 +1,5 @@
+# Observe source-default room lighting, then native City and Sterile room lighting.
+observe
+city_fixture
+sterile_fixture
+quit

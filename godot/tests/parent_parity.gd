@@ -62,6 +62,26 @@ func upgrade_snapshot(game: Object, stage: String) -> void:
         int(state.temporary_levels[2]), int(state.permanent_levels[0]),
         int(state.permanent_levels[1]), int(state.permanent_levels[2])])
 
+func lighting_snapshot(game: Object, stage: String) -> void:
+    var state: Dictionary = game.lighting_presentation_snapshot()
+    var background: Color = state.background
+    var ambient: Color = state.ambient
+    var fog: Color = state.fog_color
+    var sun: Dictionary = state.sun
+    var sun_direction: Vector3 = sun.direction
+    var sun_color: Color = sun.color
+    var fill: Dictionary = state.fill
+    var fill_direction: Vector3 = fill.direction
+    var fill_color: Color = fill.color
+    var fields: Array[String] = ["LIGHTING", stage, str(state.room_index), str(state.setting), str(state.time),
+        str(background.r), str(background.g), str(background.b), str(ambient.r), str(ambient.g), str(ambient.b),
+        str(fog.r), str(fog.g), str(fog.b), str(state.fog_density), str(int(sun.enabled)),
+        str(sun_direction.x), str(sun_direction.y), str(sun_direction.z),
+        str(sun_color.r), str(sun_color.g), str(sun_color.b), str(int(fill.enabled)),
+        str(fill_direction.x), str(fill_direction.y), str(fill_direction.z),
+        str(fill_color.r), str(fill_color.g), str(fill_color.b), str(state.local_lights.size())]
+    print(",".join(fields))
+
 func target_fixture(game: Object) -> void:
     game.start_target_fixture()
     var count := 0
@@ -367,4 +387,7 @@ func _initialize() -> void:
         crossing.frame(), crossed.room_index, crossed_position.x, crossed_position.y,
         crossed_position.z, int(crossed.active), int(crossing.paused()), crossing.battery(), crossing.souls()])
     crossing.free()
+    var lighting_game = ClassDB.instantiate("ParentGameNode")
+    lighting_snapshot(lighting_game, "initial")
+    lighting_game.free()
     quit(0)

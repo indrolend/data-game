@@ -4,11 +4,13 @@
 #include "room_presentation_snapshot.hpp"
 #include "combat_presentation_snapshot.hpp"
 #include "../native/phone_presentation_snapshot.hpp"
+#include "../native/lighting_presentation_snapshot.hpp"
 
 #include <cmath>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 
 namespace {
 void submit(Game& game, float x, float z, float lookX, float lookY,
@@ -28,6 +30,24 @@ void emitUpgradeSnapshot(const char* stage, const GameState& state) {
     for (const int level : state.progression.run.temporaryLevels) std::cout << ',' << level;
     for (const int level : state.progression.permanent.levels) std::cout << ',' << level;
     std::cout << '\n';
+}
+
+void emitLightingSnapshot(const char* stage, const GameState& state) {
+    const auto snapshot = LightingPresentationSnapshot::from(state);
+    const auto& lighting = snapshot.lighting;
+    std::cout << "LIGHTING," << stage << ',' << snapshot.roomIndex << ',' << snapshot.setting << ','
+        << snapshot.time << ',' << snapshot.background.r << ',' << snapshot.background.g << ','
+        << snapshot.background.b << ',' << lighting.ambient.r << ',' << lighting.ambient.g << ','
+        << lighting.ambient.b << ',' << lighting.fog.color.r << ',' << lighting.fog.color.g << ','
+        << lighting.fog.color.b << ',' << lighting.fog.density << ',' << lighting.sun.enabled << ','
+        << lighting.sun.position.x << ',' << lighting.sun.position.y << ',' << lighting.sun.position.z << ','
+        << lighting.sun.diffuse.r << ',' << lighting.sun.diffuse.g << ',' << lighting.sun.diffuse.b << ','
+        << lighting.fill.enabled << ',' << lighting.fill.position.x << ',' << lighting.fill.position.y << ','
+        << lighting.fill.position.z << ',' << lighting.fill.diffuse.r << ',' << lighting.fill.diffuse.g << ','
+        << lighting.fill.diffuse.b << ',';
+    int localCount = 0;
+    for (const auto& light : lighting.localLights) if (light.enabled) ++localCount;
+    std::cout << localCount << '\n';
 }
 
 bool validPhoneSnapshot(const GameState& state, const PhonePresentationSnapshot& p) {
@@ -465,5 +485,8 @@ int main() {
         << crossed.player.pos.x << ',' << crossed.player.pos.y << ',' << crossed.player.pos.z << ','
         << crossed.upgradeMenu.active << ',' << crossed.uiPaused << ',' << crossed.player.battery << ','
         << crossed.player.souls << '\n';
+    auto lightingGame = std::make_unique<Game>();
+    lightingGame->reset();
+    emitLightingSnapshot("initial", lightingGame->state());
     return 0;
 }

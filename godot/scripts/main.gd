@@ -13,6 +13,11 @@ var hud_adapter: Control
 var phone_adapter: Node
 var room_adapter: Node
 var camera: Camera3D
+var world_environment: WorldEnvironment
+var scene_environment: Environment
+var sun_light: DirectionalLight3D
+var fill_light: DirectionalLight3D
+var native_point_lights: Array[OmniLight3D] = []
 var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
 var pending_look := Vector2.ZERO
@@ -26,18 +31,25 @@ func _ready() -> void:
     agent_playtest = "--agent-playtest" in OS.get_cmdline_user_args()
     runtime = ClassDB.instantiate("ParentGameNode")
     add_child(runtime)
-    var env := WorldEnvironment.new()
-    var environment := Environment.new()
-    environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color(0.12, 0.16, 0.23)
-    environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color(0.7, 0.75, 0.85)
-    environment.ambient_light_energy = 0.8
-    env.environment = environment
-    add_child(env)
-    var sun := DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-55, 35, 0)
-    add_child(sun)
+    world_environment = WorldEnvironment.new()
+    scene_environment = Environment.new()
+    scene_environment.background_mode = Environment.BG_COLOR
+    scene_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    scene_environment.ambient_light_energy = 1.0
+    scene_environment.fog_enabled = true
+    world_environment.environment = scene_environment
+    add_child(world_environment)
+    sun_light = DirectionalLight3D.new()
+    sun_light.name = "NativeSun"
+    add_child(sun_light)
+    fill_light = DirectionalLight3D.new()
+    fill_light.name = "NativeSkyFill"
+    add_child(fill_light)
+    for light_index in range(6):
+        var point_light := OmniLight3D.new()
+        point_light.name = "NativeResolvedLight_%d" % light_index
+        add_child(point_light)
+        native_point_lights.append(point_light)
     room_adapter = RoomPresentationAdapter.new()
     room_adapter.name = "RoomPresentationAdapter"
     add_child(room_adapter)
@@ -223,6 +235,7 @@ func agent_reset() -> void:
     pending_comm_signal = 0
     _sync()
 func _sync() -> void:
+    _sync_lighting(runtime.lighting_presentation_snapshot())
     room_adapter.call("sync_snapshot", runtime.room_presentation_snapshot(-1))
     camera.position = runtime.camera_position()
     camera.look_at(runtime.camera_target(), Vector3.UP)
@@ -239,6 +252,48 @@ func _sync() -> void:
     hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(), hud_targets,
         camera, runtime.player_position(), runtime.comm_signal(),
         runtime.comm_signal_timer(), runtime.simulation_time())
+
+func _sync_lighting(snapshot: Dictionary) -> void:
+    scene_environment.background_color = snapshot.background
+    scene_environment.ambient_light_color = snapshot.ambient
+    scene_environment.fog_light_color = snapshot.fog_color
+    scene_environment.fog_density = float(snapshot.fog_density)
+    _sync_directional_light(sun_light, snapshot.sun)
+    _sync_directional_light(fill_light, snapshot.fill)
+    var sources: Array = snapshot.local_lights
+    sources.append(snapshot.phone)
+    sources.append(snapshot.shot)
+    sources.append(snapshot.exit)
+    for index in range(native_point_lights.size()):
+        var point: OmniLight3D = native_point_lights[index]
+        if index >= sources.size():
+            point.visible = false
+            continue
+        var source: Dictionary = sources[index]
+        point.visible = bool(source.enabled)
+        if not point.visible:
+            continue
+        point.position = source.position
+        var source_color: Color = source.color
+        var energy := maxf(source_color.r, maxf(source_color.g, source_color.b))
+        if energy <= 0.0001:
+            point.visible = false
+            continue
+        point.light_color = source_color / energy
+        point.light_energy = energy
+        var quadratic := float(source.quadratic_attenuation)
+        point.omni_range = clampf(1.0 / sqrt(quadratic), 1.5, 30.0) if quadratic > 0.0001 else 4.5
+
+func _sync_directional_light(light: DirectionalLight3D, source: Dictionary) -> void:
+    light.visible = bool(source.enabled)
+    if not light.visible:
+        return
+    var direction: Vector3 = source.direction.normalized()
+    light.look_at(direction, Vector3.UP)
+    var source_color: Color = source.color
+    var energy := maxf(source_color.r, maxf(source_color.g, source_color.b))
+    light.light_color = source_color / maxf(energy, 0.0001)
+    light.light_energy = energy
 
 func _phone_menu_active() -> bool:
     return runtime != null and bool(runtime.phone_menu_layout_snapshot().get("active", false))

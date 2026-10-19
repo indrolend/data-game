@@ -47,6 +47,7 @@ public:
     Dictionary hud_presentation_snapshot() const;
     Dictionary upgrade_presentation_snapshot() const;
     Dictionary room_presentation_snapshot(int tile_index) const;
+    Dictionary lighting_presentation_snapshot() const;
     Dictionary player_action_snapshot() const;
     Dictionary target_presentation_snapshot(int index) const;
     Dictionary target_soul_presentation_snapshot(int index) const;
