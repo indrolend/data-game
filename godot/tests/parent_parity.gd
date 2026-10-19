@@ -194,6 +194,36 @@ func _initialize() -> void:
         quit(1)
         return
     snapshot(game)
+    var initial_grass_pixels: PackedByteArray = game.field_grass_texture_pixels()
+    var initial_grass_sum := 0
+    for pixel in initial_grass_pixels:
+        initial_grass_sum += int(pixel)
+    print("GRASSTEX,64,64,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [
+        initial_grass_pixels.size(), initial_grass_pixels[0], initial_grass_pixels[1], initial_grass_pixels[2],
+        initial_grass_pixels[3072], initial_grass_pixels[3073], initial_grass_pixels[3074],
+        initial_grass_pixels[initial_grass_pixels.size() - 3], initial_grass_pixels[initial_grass_pixels.size() - 2],
+        initial_grass_pixels[initial_grass_pixels.size() - 1], initial_grass_sum])
+    var initial_room_snapshot: Dictionary = game.room_presentation_snapshot(-1)
+    var initial_blades: Array = game.grass_blade_presentation_snapshot(
+        int(initial_room_snapshot.tile_index))
+    var first_blade: Dictionary = initial_blades[0]
+    var last_blade: Dictionary = initial_blades[initial_blades.size() - 1]
+    var first_root: Vector3 = first_blade.root
+    var last_root: Vector3 = last_blade.root
+    print("GRASSBLADES,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+        initial_blades.size(), first_root.x, first_root.y, first_root.z,
+        first_blade.height, first_blade.width, first_blade.phase,
+        last_root.x, last_root.y, last_root.z,
+        last_blade.height, last_blade.width, last_blade.phase])
+    var asphalt_pixels: PackedByteArray = game.city_asphalt_texture_pixels()
+    var asphalt_sum := 0
+    for pixel in asphalt_pixels:
+        asphalt_sum += int(pixel)
+    print("CITYTEX,32,32,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [
+        asphalt_pixels.size(), asphalt_pixels[0], asphalt_pixels[1], asphalt_pixels[2],
+        asphalt_pixels[1584], asphalt_pixels[1585], asphalt_pixels[1586],
+        asphalt_pixels[asphalt_pixels.size() - 3], asphalt_pixels[asphalt_pixels.size() - 2],
+        asphalt_pixels[asphalt_pixels.size() - 1], asphalt_sum])
     for step in range(240):
         var forward := step < 120
         var sprint := step >= 60 and step < 90
@@ -316,6 +346,23 @@ func _initialize() -> void:
     var city_room = ClassDB.instantiate("ParentGameNode")
     city_room.start_city_room_fixture()
     var city_snapshot: Dictionary = city_room.room_presentation_snapshot(-1)
+    for structure in city_snapshot.structures as Array:
+        if int(structure.kind) != 5:
+            continue
+        var structure_center: Vector3 = structure.center
+        var structure_size: Vector3 = structure.size
+        var structure_material: Dictionary = structure.material
+        var structure_color: Color = structure_material.base_color
+        print("CITYSTRUCT,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+            structure.id, structure_center.x, structure_center.y, structure_center.z,
+            structure_size.x, structure_size.y, structure_size.z,
+            structure_color.r, structure_color.g, structure_color.b])
+    for module in city_snapshot.city_facade_modules as Array:
+        var module_origin: Vector3 = module.origin
+        var module_scale: Vector3 = module.scale
+        print("CITYFACADE,%s,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+            module.id, module.model, module_origin.x, module_origin.y, module_origin.z,
+            module_scale.x, module_scale.y, module_scale.z, module.yaw])
     for object in city_snapshot.objects as Array:
         if int(object.primitive) != 0:
             continue

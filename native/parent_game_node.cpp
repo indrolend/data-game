@@ -10,6 +10,8 @@
 #include "lighting_presentation_snapshot.hpp"
 #include "combat_presentation_snapshot.hpp"
 #include "MaterialResponse.hpp"
+#include "FieldGrassTexture.hpp"
+#include "CitySurfaceTexture.hpp"
 using namespace godot;
 void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("submit_input","x","z","look_x","look_y","vacuum","sprint","jump","melee","shoot","camera"),&ParentGameNode::submit_input);
@@ -43,6 +45,9 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("upgrade_presentation_snapshot"),&ParentGameNode::upgrade_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
+    ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
+    ClassDB::bind_method(D_METHOD("grass_blade_presentation_snapshot","tile_index"),&ParentGameNode::grass_blade_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("lighting_presentation_snapshot"),&ParentGameNode::lighting_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("player_action_snapshot"),&ParentGameNode::player_action_snapshot);
     ClassDB::bind_method(D_METHOD("target_presentation_snapshot","index"),&ParentGameNode::target_presentation_snapshot);
@@ -325,6 +330,17 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         structures.push_back(item);
     }
     result["structures"] = structures;
+    Array city_facade_modules;
+    for (const auto& module : snapshot.cityFacadeModules) {
+        Dictionary item;
+        item["id"] = module.id.c_str();
+        item["model"] = module.model.c_str();
+        item["origin"] = v(module.origin);
+        item["scale"] = v(module.scale);
+        item["yaw"] = module.yaw;
+        city_facade_modules.push_back(item);
+    }
+    result["city_facade_modules"] = city_facade_modules;
     Array objects;
     const auto roomPlan = room_environment::roomPlan(snapshot.roomSeed, snapshot.roomIndex);
     for (const auto& object : snapshot.objects) {
@@ -413,6 +429,44 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         objects.push_back(item);
     }
     result["objects"] = objects;
+    return result;
+}
+PackedByteArray ParentGameNode::field_grass_texture_pixels() const {
+    static const auto pixels = field_grass_texture::pixels();
+    PackedByteArray result;
+    result.resize(static_cast<int64_t>(pixels.size()));
+    for (int64_t index = 0; index < static_cast<int64_t>(pixels.size()); ++index) {
+        result.set(index, pixels[static_cast<size_t>(index)]);
+    }
+    return result;
+}
+PackedByteArray ParentGameNode::city_asphalt_texture_pixels() const {
+    static const auto pixels = city_surface_texture::pixels();
+    PackedByteArray result;
+    result.resize(static_cast<int64_t>(pixels.size()));
+    for (int64_t index = 0; index < static_cast<int64_t>(pixels.size()); ++index) {
+        result.set(index, pixels[static_cast<size_t>(index)]);
+    }
+    return result;
+}
+Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
+    const auto& state = bridge.state();
+    if (tile_index < 0) tile_index = state.topology.currentTileIndex;
+    const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+    Array result;
+    if (!plan.grass) return result;
+    result.resize(room_environment::GrassBladeCountLow);
+    const float tileOffset = static_cast<float>(tile_index) * world::RoomDepth;
+    for (int index = 0; index < room_environment::GrassBladeCountLow; ++index) {
+        const auto blade = room_environment::grassBlade(
+            state.roomSeed, state.roomIndex, tile_index, index);
+        Dictionary item;
+        item["root"] = v({blade.root.x, blade.root.y, blade.root.z + tileOffset});
+        item["height"] = blade.height;
+        item["width"] = blade.width;
+        item["phase"] = blade.phase;
+        result[index] = item;
+    }
     return result;
 }
 Dictionary ParentGameNode::lighting_presentation_snapshot() const {

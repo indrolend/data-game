@@ -1,0 +1,1 @@
+godot_console.exe --path godot --script res://scripts/agent_playtest.gd -- --commands=evidence/native-city-facade.commands --capture-dir=res://../evidence/native-city-facade

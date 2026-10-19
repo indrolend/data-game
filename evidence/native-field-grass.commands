@@ -1,0 +1,4 @@
+# Capture the default native FieldGrass room in both native camera modes.
+observe
+step frames=1 camera=on
+quit

@@ -1,0 +1,4 @@
+# Show the source-generated CityCourtyard and capture the facade modules.
+city_fixture
+observe
+quit

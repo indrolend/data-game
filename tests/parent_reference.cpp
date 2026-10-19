@@ -5,6 +5,8 @@
 #include "combat_presentation_snapshot.hpp"
 #include "../native/phone_presentation_snapshot.hpp"
 #include "../native/lighting_presentation_snapshot.hpp"
+#include "FieldGrassTexture.hpp"
+#include "CitySurfaceTexture.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -206,6 +208,46 @@ int main() {
     game.reset();
     std::cout << std::fixed << std::setprecision(7);
     snapshot(game);
+    const auto grassPixels = field_grass_texture::pixels();
+    unsigned int grassSum = 0;
+    for (const auto pixel : grassPixels) grassSum += pixel;
+    std::cout << "GRASSTEX,64,64," << grassPixels.size() << ','
+              << static_cast<int>(grassPixels[0]) << ','
+              << static_cast<int>(grassPixels[1]) << ','
+              << static_cast<int>(grassPixels[2]) << ','
+              << static_cast<int>(grassPixels[3072 + 0]) << ','
+              << static_cast<int>(grassPixels[3072 + 1]) << ','
+              << static_cast<int>(grassPixels[3072 + 2]) << ','
+              << static_cast<int>(grassPixels[grassPixels.size() - 3]) << ','
+              << static_cast<int>(grassPixels[grassPixels.size() - 2]) << ','
+              << static_cast<int>(grassPixels[grassPixels.size() - 1]) << ','
+              << grassSum << '\n';
+    const int grassTile = game.state().topology.currentTileIndex;
+    const float grassTileOffset = static_cast<float>(grassTile) * world::RoomDepth;
+    const auto firstBlade = room_environment::grassBlade(
+        game.state().roomSeed, game.state().roomIndex, grassTile, 0);
+    const auto lastBlade = room_environment::grassBlade(
+        game.state().roomSeed, game.state().roomIndex, grassTile,
+        room_environment::GrassBladeCountLow - 1);
+    std::cout << "GRASSBLADES," << room_environment::GrassBladeCountLow << ','
+              << firstBlade.root.x << ',' << firstBlade.root.y << ',' << firstBlade.root.z + grassTileOffset << ','
+              << firstBlade.height << ',' << firstBlade.width << ',' << firstBlade.phase << ','
+              << lastBlade.root.x << ',' << lastBlade.root.y << ',' << lastBlade.root.z + grassTileOffset << ','
+              << lastBlade.height << ',' << lastBlade.width << ',' << lastBlade.phase << '\n';
+    const auto asphaltPixels = city_surface_texture::pixels();
+    unsigned int asphaltSum = 0;
+    for (const auto pixel : asphaltPixels) asphaltSum += pixel;
+    std::cout << "CITYTEX,32,32," << asphaltPixels.size() << ','
+              << static_cast<int>(asphaltPixels[0]) << ','
+              << static_cast<int>(asphaltPixels[1]) << ','
+              << static_cast<int>(asphaltPixels[2]) << ','
+              << static_cast<int>(asphaltPixels[1584]) << ','
+              << static_cast<int>(asphaltPixels[1585]) << ','
+              << static_cast<int>(asphaltPixels[1586]) << ','
+              << static_cast<int>(asphaltPixels[asphaltPixels.size() - 3]) << ','
+              << static_cast<int>(asphaltPixels[asphaltPixels.size() - 2]) << ','
+              << static_cast<int>(asphaltPixels[asphaltPixels.size() - 1]) << ','
+              << asphaltSum << '\n';
     for (int tick = 0; tick < 240; ++tick) {
         const bool forward = tick < 120;
         const bool sprint = tick >= 60 && tick < 90;
@@ -379,6 +421,20 @@ int main() {
         room_environment::representativeInspectorSeed(room_environment::RoomPremise::CityCourtyard), 12);
     const auto citySnapshot = RoomPresentationSnapshot::from(
         cityRoom.state(), cityRoom.state().topology.currentTileIndex);
+    for (const auto& structure : citySnapshot.structures) {
+        if (structure.kind != RoomStructureKind::CityStreet) continue;
+        std::cout << "CITYSTRUCT," << structure.id << ',' << structure.center.x << ','
+                  << structure.center.y << ',' << structure.center.z << ','
+                  << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
+                  << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
+                  << structure.material.baseColor.b << '\n';
+    }
+    for (const auto& module : citySnapshot.cityFacadeModules) {
+        std::cout << "CITYFACADE," << module.id << ',' << module.model << ','
+                  << module.origin.x << ',' << module.origin.y << ',' << module.origin.z << ','
+                  << module.scale.x << ',' << module.scale.y << ',' << module.scale.z << ','
+                  << module.yaw << '\n';
+    }
     const auto cityPlan = room_environment::roomPlan(citySnapshot.roomSeed, citySnapshot.roomIndex);
     for (const auto& object : citySnapshot.objects) {
         if (object.primitive != room_environment::EnvironmentPrimitive::House) continue;

@@ -18,6 +18,7 @@ var scene_environment: Environment
 var sun_light: DirectionalLight3D
 var fill_light: DirectionalLight3D
 var native_point_lights: Array[OmniLight3D] = []
+var _grass_snapshot_key := ""
 var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
 var pending_look := Vector2.ZERO
@@ -53,6 +54,8 @@ func _ready() -> void:
     room_adapter = RoomPresentationAdapter.new()
     room_adapter.name = "RoomPresentationAdapter"
     add_child(room_adapter)
+    room_adapter.call("set_native_field_grass_pixels", runtime.field_grass_texture_pixels())
+    room_adapter.call("set_native_city_asphalt_pixels", runtime.city_asphalt_texture_pixels())
     phone_adapter = PhonePresentationAdapter.new()
     phone_adapter.name = "PhonePresentationAdapter"
     add_child(phone_adapter)
@@ -236,7 +239,14 @@ func agent_reset() -> void:
     _sync()
 func _sync() -> void:
     _sync_lighting(runtime.lighting_presentation_snapshot())
-    room_adapter.call("sync_snapshot", runtime.room_presentation_snapshot(-1))
+    var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
+    var grass_key := "%d:%d:%d:%d" % [int(room_snapshot.room_seed), int(room_snapshot.room_index),
+        int(room_snapshot.tile_index), int(room_snapshot.grass)]
+    if grass_key != _grass_snapshot_key:
+        room_snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(
+            int(room_snapshot.tile_index))
+        _grass_snapshot_key = grass_key
+    room_adapter.call("sync_snapshot", room_snapshot)
     camera.position = runtime.camera_position()
     camera.look_at(runtime.camera_target(), Vector3.UP)
     camera.fov = runtime.camera_fov_degrees()

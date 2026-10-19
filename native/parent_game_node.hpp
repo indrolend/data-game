@@ -2,8 +2,10 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/packed_vector3_array.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
 #include "parent_bridge.hpp"
 #include "HumanModelData.hpp"
 namespace godot {
@@ -47,6 +49,9 @@ public:
     Dictionary hud_presentation_snapshot() const;
     Dictionary upgrade_presentation_snapshot() const;
     Dictionary room_presentation_snapshot(int tile_index) const;
+    PackedByteArray field_grass_texture_pixels() const;
+    PackedByteArray city_asphalt_texture_pixels() const;
+    Array grass_blade_presentation_snapshot(int tile_index) const;
     Dictionary lighting_presentation_snapshot() const;
     Dictionary player_action_snapshot() const;
     Dictionary target_presentation_snapshot(int index) const;

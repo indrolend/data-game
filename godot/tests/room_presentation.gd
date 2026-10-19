@@ -11,7 +11,12 @@ func _initialize() -> void:
     var runtime = ClassDB.instantiate("ParentGameNode")
     var adapter = preload("res://scripts/room_presentation_adapter.gd").new()
     root.add_child(adapter)
+    var grass_pixels: PackedByteArray = runtime.field_grass_texture_pixels()
+    adapter.set_native_field_grass_pixels(grass_pixels)
+    var asphalt_pixels: PackedByteArray = runtime.city_asphalt_texture_pixels()
+    adapter.set_native_city_asphalt_pixels(asphalt_pixels)
     var snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
+    snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(int(snapshot.tile_index))
     adapter.sync_snapshot(snapshot)
     var lawn_records: Array = []
     var rock_records: Array = []
@@ -24,6 +29,24 @@ func _initialize() -> void:
         "adapter creates one render node per native structure")
     check(not lawn_records.is_empty(),
         "native current-room snapshot contains the selected box-geometry lawn family")
+    var grass_blades: Array = snapshot.grass_blades
+    check(bool(snapshot.grass) and grass_blades.size() == 160,
+        "native field generator supplies the established low-detail grass blade set")
+    check(adapter.grass_blade_count() == grass_blades.size(),
+        "Godot materializes every native grass blade as render-only geometry")
+    if adapter.grass_blade_count() > 0 and not grass_blades.is_empty():
+        var first_blade: Dictionary = grass_blades[0]
+        var first_node: MeshInstance3D = adapter.grass_blade(0)
+        var native_root: Vector3 = first_blade.root
+        var native_height := float(first_blade.height)
+        check(first_node != null and first_node.position == native_root and
+            absf(first_node.scale.y - native_height) <= 0.000001 and
+            absf(float(first_node.get_meta("native_width")) - float(first_blade.width)) <= 0.000001,
+            "first Godot grass blade preserves native root, width, and height")
+        if first_node != null:
+            check(first_node.rotation.y == float(first_blade.phase) and
+                first_node.get_class() == "MeshInstance3D",
+                "first grass phase maps to a render-only Godot blade with no collision")
     check(adapter.lawn_object_count() == lawn_records.size(),
         "adapter renders every native lawn fragment and no other computed-object family")
     check(not rock_records.is_empty(),
@@ -108,9 +131,81 @@ func _initialize() -> void:
             "adapter uses native field-ground color")
         check(int(material.get_meta("native_texture")) == 1,
             "adapter retains native generated-texture identity")
+        var grass_texture := material.albedo_texture as ImageTexture
+        check(grass_texture != null,
+            "native FieldGrass identity resolves to a rendered Godot texture")
+        if grass_texture != null:
+            var grass_image := grass_texture.get_image()
+            check(grass_image.get_width() == 64 and grass_image.get_height() == 64 and
+                grass_image.get_data() == grass_pixels,
+                "Godot floor texture pixels are the native generated RGB texture")
+            check(material.uv1_triplanar and
+                absf(material.uv1_scale.x - 1.0 / 6.4) <= 0.000001,
+                "native 6.4 world-scale texture is projected at the native scale")
     runtime.start_city_room_fixture()
     var city_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     adapter.sync_snapshot(city_snapshot)
+    var facade_modules: Array = city_snapshot.city_facade_modules
+    check(not facade_modules.is_empty(),
+        "native City obstacle grammar selects mature authored facade modules")
+    check(adapter.city_facade_module_count() == facade_modules.size(),
+        "Godot materializes every native City facade module")
+    for module_record in facade_modules:
+        var facade_node: MeshInstance3D = adapter.city_facade_module(str(module_record.id))
+        check(facade_node != null and facade_node.get_class() == "MeshInstance3D",
+            "authored City module remains render-only under its native stable ID")
+        if facade_node != null:
+            var expected_origin: Vector3 = module_record.origin
+            var expected_scale: Vector3 = module_record.scale
+            var facade_mesh := facade_node.mesh as ArrayMesh
+            check(str(facade_node.get_meta("native_model")) == str(module_record.model) and
+                facade_node.position.distance_to(expected_origin) <= 0.000001 and
+                facade_node.scale.distance_to(expected_scale) <= 0.000001 and
+                absf(facade_node.rotation.y - float(module_record.yaw)) <= 0.000001,
+                "Godot preserves native authored-module selection and transform")
+            check(facade_mesh != null and facade_mesh.get_surface_count() > 0,
+                "native DBM1 facade asset becomes a batched Godot ArrayMesh")
+            if facade_mesh != null and facade_mesh.get_surface_count() > 0:
+                var first_surface: Array = facade_mesh.surface_get_arrays(0)
+                check((first_surface[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() > 0 and
+                    facade_mesh.surface_get_material(0) is StandardMaterial3D,
+                    "authored facade triangle batch and source material are retained")
+    var city_street_records: Array = []
+    for structure_record in city_snapshot.structures as Array:
+        if int(structure_record.kind) == 5:
+            city_street_records.append(structure_record)
+    check(not city_street_records.is_empty(),
+        "native City street grammar supplies deterministic road and frontage surfaces")
+    for structure_record in city_street_records:
+        var street_node: MeshInstance3D = adapter.structure(str(structure_record.id))
+        check(street_node != null and street_node.get_class() == "MeshInstance3D",
+            "Godot materializes each native City street record as render-only geometry")
+        if street_node != null:
+            var expected_center: Vector3 = structure_record.center
+            var expected_size: Vector3 = structure_record.size
+            var street_mesh := street_node.mesh as BoxMesh
+            check(street_node.position.distance_to(expected_center) <= 0.000001 and
+                street_mesh != null and street_mesh.size.distance_to(expected_size) <= 0.000001,
+                "City street mesh preserves native position and dimensions")
+    check(adapter.find_children("", "CollisionObject3D", true, false).is_empty(),
+        "City street and facade presentation add no Godot collision; native support remains authoritative")
+    var city_floor := adapter.structure("room/%d/structure/floor" % int(city_snapshot.tile_index))
+    check(city_floor != null, "city adapter preserves native stable floor ID")
+    if city_floor != null:
+        var asphalt_material := city_floor.material_override as StandardMaterial3D
+        check(int(asphalt_material.get_meta("native_texture")) == 2,
+            "native CityAsphalt texture identity is retained on the generated city floor")
+        var asphalt_texture := asphalt_material.albedo_texture as ImageTexture
+        check(asphalt_texture != null,
+            "native CityAsphalt identity resolves to a rendered Godot texture")
+        if asphalt_texture != null:
+            var asphalt_image := asphalt_texture.get_image()
+            check(asphalt_image.get_width() == 32 and asphalt_image.get_height() == 32 and
+                asphalt_image.get_data() == asphalt_pixels,
+                "Godot city floor texture pixels are the native generated RGB texture")
+            check(asphalt_material.uv1_triplanar and
+                absf(asphalt_material.uv1_scale.x - 1.0 / 3.2) <= 0.000001,
+                "native 3.2 world-scale asphalt texture is projected at the native scale")
     var house_records: Array = []
     for object in city_snapshot.objects as Array:
         if int(object.primitive) == 0:
@@ -209,5 +304,5 @@ func _initialize() -> void:
         print("RESULT: FAIL count=", failures.size())
         quit(2)
         return
-    print("RESULT: PASS native room structures, lawn, rocks, HouseGeometry, MarkerPillarGeometry, and RuinGeometry drive render-only Godot nodes")
+    print("RESULT: PASS native room structures, City street and authored facades, lawn, FieldGrass, CityAsphalt, rocks, HouseGeometry, MarkerPillarGeometry, and RuinGeometry drive render-only Godot nodes")
     quit(0)

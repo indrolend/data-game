@@ -1,0 +1,1 @@
+frame-001-tick-000005.png inspected; RTX 3060 OpenGL 3.3 capture; native City fixture; authored facade modules visible. Not a desktop-vs-Godot parity claim.

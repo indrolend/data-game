@@ -1,0 +1,4 @@
+# Enter the source-generated CityCourtyard fixture and capture its native street surfaces.
+city_fixture
+observe
+quit
