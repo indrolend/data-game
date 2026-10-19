@@ -62,6 +62,13 @@ func _run() -> void:
                 if not await _observe():
                     commands.close()
                     return
+            "coastal_fixture":
+                world.runtime.start_coastal_room_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
             "sterile_fixture":
                 world.runtime.start_sterile_room_fixture()
                 world._sync()
@@ -204,7 +211,7 @@ func _parse_command(line: String) -> Dictionary:
     if tokens.is_empty():
         return {"error": "empty_command"}
     var verb := tokens[0]
-    if verb in ["observe", "reset", "city_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
+    if verb in ["observe", "reset", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
         return {"kind": verb} if tokens.size() == 1 else {"error": "unexpected_argument"}
     if verb == "upgrade_select":
         if tokens.size() != 2 or not tokens[1].begins_with("index="):

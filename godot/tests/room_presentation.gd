@@ -15,8 +15,28 @@ func _initialize() -> void:
     adapter.set_native_field_grass_pixels(grass_pixels)
     var asphalt_pixels: PackedByteArray = runtime.city_asphalt_texture_pixels()
     adapter.set_native_city_asphalt_pixels(asphalt_pixels)
+    for material_name in ["stone", "metal"]:
+        var native_texture: ImageTexture = adapter.native_material_texture(material_name)
+        check(native_texture != null,
+            "native %s runtime RGB material loads as a Godot texture" % material_name)
+        if native_texture != null:
+            var texture_image := native_texture.get_image()
+            check(texture_image.get_width() == 512 and texture_image.get_height() == 512,
+                "native %s runtime map retains its 512x512 dimensions" % material_name)
+            var source_path := ProjectSettings.globalize_path(
+                "res://../parent/models/materials/photo-%s-runtime.rgb" % material_name)
+            var source_file := FileAccess.open(source_path, FileAccess.READ)
+            check(source_file != null, "native %s runtime RGB source remains available" % material_name)
+            if source_file != null:
+                var source_pixels := source_file.get_buffer(source_file.get_length())
+                source_file.close()
+                check(texture_image.get_data() == source_pixels,
+                    "Godot %s image bytes exactly match the source runtime RGB map" % material_name)
+            check(adapter.native_material_texture(material_name) == native_texture,
+                "native %s texture is cached and reused" % material_name)
     var snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(int(snapshot.tile_index))
+    snapshot["grass_tips"] = runtime.grass_blade_tip_presentation_snapshot(int(snapshot.tile_index))
     adapter.sync_snapshot(snapshot)
     var lawn_records: Array = []
     var rock_records: Array = []
@@ -30,23 +50,26 @@ func _initialize() -> void:
     check(not lawn_records.is_empty(),
         "native current-room snapshot contains the selected box-geometry lawn family")
     var grass_blades: Array = snapshot.grass_blades
+    var grass_tips: Array = snapshot.grass_tips
     check(bool(snapshot.grass) and grass_blades.size() == 160,
         "native field generator supplies the established low-detail grass blade set")
+    check(grass_tips.size() == grass_blades.size(),
+        "native grass reaction contract supplies a state-driven tip for each blade")
     check(adapter.grass_blade_count() == grass_blades.size(),
         "Godot materializes every native grass blade as render-only geometry")
     if adapter.grass_blade_count() > 0 and not grass_blades.is_empty():
         var first_blade: Dictionary = grass_blades[0]
         var first_node: MeshInstance3D = adapter.grass_blade(0)
         var native_root: Vector3 = first_blade.root
-        var native_height := float(first_blade.height)
+        var native_tip: Vector3 = grass_tips[0] if not grass_tips.is_empty() else native_root + Vector3.UP * float(first_blade.height)
         check(first_node != null and first_node.position == native_root and
-            absf(first_node.scale.y - native_height) <= 0.000001 and
+            absf(first_node.scale.y - native_tip.distance_to(native_root)) <= 0.000001 and
             absf(float(first_node.get_meta("native_width")) - float(first_blade.width)) <= 0.000001,
-            "first Godot grass blade preserves native root, width, and height")
+            "first Godot grass blade preserves native root/width and reaction tip length")
         if first_node != null:
-            check(first_node.rotation.y == float(first_blade.phase) and
+            check(first_node.get_meta("native_tip") == native_tip and
                 first_node.get_class() == "MeshInstance3D",
-                "first grass phase maps to a render-only Godot blade with no collision")
+                "native bent tip drives a render-only Godot blade with no collision")
     check(adapter.lawn_object_count() == lawn_records.size(),
         "adapter renders every native lawn fragment and no other computed-object family")
     check(not rock_records.is_empty(),
@@ -106,6 +129,11 @@ func _initialize() -> void:
                 check(rock_node.get_class() == "MeshInstance3D" and
                     bool(rock_node.get_meta("native_physical")),
                     "rock presentation adds no Godot collision or gameplay authority")
+                var rock_material := rock_node.material_override as StandardMaterial3D
+                check(rock_material.albedo_texture == adapter.native_material_texture("stone") and
+                    rock_material.uv1_triplanar and
+                    absf(rock_material.uv1_scale.x - 1.0 / 1.35) <= 0.000001,
+                    "native rock uses tiled source stone pixels at the native world scale")
     if not lawn_records.is_empty():
         var lawn_record: Dictionary = lawn_records[0]
         var lawn_node: MeshInstance3D = adapter.lawn_object(str(lawn_record.id))
@@ -122,11 +150,20 @@ func _initialize() -> void:
             check(lawn_node.get_class() == "MeshInstance3D",
                 "render-only lawn node introduces no Godot collision")
     var floor: MeshInstance3D = adapter.structure("room/0/structure/floor")
+    var field_floor_definition: Dictionary = {}
+    for structure_record in snapshot.structures as Array:
+        if str(structure_record.id).ends_with("/floor"):
+            field_floor_definition = structure_record.material
     check(floor != null, "adapter preserves native stable floor ID")
     if floor != null:
         check((floor.mesh as BoxMesh).size == Vector3(84.0, 0.08, 42.0),
             "adapter uses native floor dimensions")
         var material := floor.material_override as StandardMaterial3D
+        var field_shininess := float(field_floor_definition.shininess)
+        var field_specular: Color = field_floor_definition.specular
+        check(absf(material.roughness - sqrt(2.0 / (field_shininess + 2.0))) <= 0.000001 and
+            material.get_meta("native_specular") == field_specular,
+            "Field floor PBR response is mapped from the native specular/shininess contract")
         check(absf(material.albedo_color.r - 63.0 / 255.0) <= 0.000001,
             "adapter uses native field-ground color")
         check(int(material.get_meta("native_texture")) == 1,
@@ -171,9 +208,24 @@ func _initialize() -> void:
                     facade_mesh.surface_get_material(0) is StandardMaterial3D,
                     "authored facade triangle batch and source material are retained")
     var city_street_records: Array = []
+    var city_mass_records: Array = []
+    var city_skyline_records: Array = []
+    var city_window_records: Array = []
+    var city_lamp_records: Array = []
+    var city_service_records: Array = []
     for structure_record in city_snapshot.structures as Array:
         if int(structure_record.kind) == 5:
             city_street_records.append(structure_record)
+        elif int(structure_record.kind) == 6:
+            city_mass_records.append(structure_record)
+        elif int(structure_record.kind) == 7:
+            city_skyline_records.append(structure_record)
+        elif int(structure_record.kind) == 8:
+            city_window_records.append(structure_record)
+        elif int(structure_record.kind) == 9:
+            city_lamp_records.append(structure_record)
+        elif int(structure_record.kind) == 10:
+            city_service_records.append(structure_record)
     check(not city_street_records.is_empty(),
         "native City street grammar supplies deterministic road and frontage surfaces")
     for structure_record in city_street_records:
@@ -187,6 +239,94 @@ func _initialize() -> void:
             check(street_node.position.distance_to(expected_center) <= 0.000001 and
                 street_mesh != null and street_mesh.size.distance_to(expected_size) <= 0.000001,
                 "City street mesh preserves native position and dimensions")
+    check(city_mass_records.size() == 10,
+        "City fixture presents all ten authoritative native obstacle masses")
+    for mass_record in city_mass_records:
+        var mass_node: MeshInstance3D = adapter.structure(str(mass_record.id))
+        var mass_center: Vector3 = mass_record.center
+        var mass_size: Vector3 = mass_record.size
+        var mass_color: Color = mass_record.material.base_color
+        var mass_mesh := mass_node.mesh as BoxMesh if mass_node != null else null
+        check(mass_node != null and mass_node.get_class() == "MeshInstance3D" and
+            mass_node.position.distance_to(mass_center) <= 0.000001 and
+            mass_mesh != null and mass_mesh.size.distance_to(mass_size) <= 0.000001,
+            "native City obstacle mass dimensions and center become render-only geometry")
+        if mass_node != null:
+            var mass_material := mass_node.material_override as StandardMaterial3D
+            check(mass_material != null and mass_material.albedo_color == mass_color and
+                int(mass_node.get_meta("native_kind")) == 6,
+                "native City building mass retains the desktop plaster color mapping")
+    check(not city_skyline_records.is_empty(),
+        "native City street grammar supplies deterministic skyline bands and caps")
+    for skyline_record in city_skyline_records:
+        var skyline_node: MeshInstance3D = adapter.structure(str(skyline_record.id))
+        var skyline_center: Vector3 = skyline_record.center
+        var skyline_size: Vector3 = skyline_record.size
+        var skyline_mesh := skyline_node.mesh as BoxMesh if skyline_node != null else null
+        check(skyline_node != null and skyline_node.get_class() == "MeshInstance3D" and
+            skyline_node.position.distance_to(skyline_center) <= 0.000001 and
+            skyline_mesh != null and skyline_mesh.size.distance_to(skyline_size) <= 0.000001,
+            "native skyline body/cap dimensions and placement are rendered without gameplay collision")
+        if skyline_node != null:
+            var skyline_material := skyline_node.material_override as StandardMaterial3D
+            check(skyline_material != null and
+                skyline_material.albedo_color == skyline_record.material.base_color and
+                int(skyline_node.get_meta("native_kind")) == 7,
+                "native skyline family selects the desktop's corresponding source color")
+    check(not city_window_records.is_empty(),
+        "native City fixture generates deterministic occupied and dark skyline windows")
+    for window_record in city_window_records:
+        var window_node: MeshInstance3D = adapter.structure(str(window_record.id))
+        var window_center: Vector3 = window_record.center
+        var window_size: Vector3 = window_record.size
+        var window_mesh := window_node.mesh as BoxMesh if window_node != null else null
+        check(window_node != null and window_node.get_class() == "MeshInstance3D" and
+            window_node.position.distance_to(window_center) <= 0.000001 and
+            window_mesh != null and window_mesh.size.distance_to(window_size) <= 0.000001,
+            "native skyline window dimensions and positions remain render-only")
+        if window_node != null:
+            var window_material := window_node.material_override as StandardMaterial3D
+            check(window_material != null and
+                window_material.albedo_color == window_record.material.base_color and
+                window_material.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED and
+                window_material.disable_fog and not bool(window_record.material.fog),
+                "native occupied-window warmth and unlit visibility map to Godot material state")
+    check(not city_lamp_records.is_empty(),
+        "native City street plan supplies quality-scaled lamps")
+    for lamp_record in city_lamp_records:
+        var lamp_node: MeshInstance3D = adapter.structure(str(lamp_record.id))
+        var lamp_center: Vector3 = lamp_record.center
+        var lamp_size: Vector3 = lamp_record.size
+        var lamp_mesh := lamp_node.mesh as BoxMesh if lamp_node != null else null
+        check(lamp_node != null and lamp_node.get_class() == "MeshInstance3D" and
+            lamp_node.position.distance_to(lamp_center) <= 0.000001 and
+            lamp_mesh != null and lamp_mesh.size.distance_to(lamp_size) <= 0.000001,
+            "native lamp component transforms remain render-only")
+        if lamp_node != null:
+            var lamp_material := lamp_node.material_override as StandardMaterial3D
+            check(lamp_material != null and
+                lamp_material.albedo_color == lamp_record.material.base_color and
+                lamp_material.disable_fog == (not bool(lamp_record.material.fog)) and
+                int(lamp_node.get_meta("native_kind")) == 9,
+                "native lamp component colors and fog state are preserved")
+    check(not city_service_records.is_empty(),
+        "native City street plan supplies deterministic service clusters")
+    for service_record in city_service_records:
+        var service_node: MeshInstance3D = adapter.structure(str(service_record.id))
+        var service_center: Vector3 = service_record.center
+        var service_size: Vector3 = service_record.size
+        var service_mesh := service_node.mesh as BoxMesh if service_node != null else null
+        check(service_node != null and service_node.get_class() == "MeshInstance3D" and
+            service_node.position.distance_to(service_center) <= 0.000001 and
+            service_mesh != null and service_mesh.size.distance_to(service_size) <= 0.000001,
+            "native service cluster component transforms remain render-only")
+        if service_node != null:
+            var service_material := service_node.material_override as StandardMaterial3D
+            check(service_material != null and
+                service_material.albedo_color == service_record.material.base_color and
+                service_material.disable_fog == (not bool(service_record.material.fog)) and
+                int(service_node.get_meta("native_kind")) == 10,
+                "native service cluster panel/vent/lamp colors remain source-aligned")
     check(adapter.find_children("", "CollisionObject3D", true, false).is_empty(),
         "City street and facade presentation add no Godot collision; native support remains authoritative")
     var city_floor := adapter.structure("room/%d/structure/floor" % int(city_snapshot.tile_index))
@@ -218,6 +358,22 @@ func _initialize() -> void:
             (city_snapshot.objects as Array).size(), house_records.size()])
     check(adapter.house_object_count() == house_records.size(),
         "adapter renders every native house part record")
+    var textured_house_record: Dictionary = {}
+    for record in house_records:
+        if str(record.visual_texture) in ["stone", "metal"]:
+            textured_house_record = record
+            break
+    check(not textured_house_record.is_empty(),
+        "native City house fixture includes a textured structural surface")
+    if not textured_house_record.is_empty():
+        var textured_house_node: MeshInstance3D = adapter.house_object(str(textured_house_record.id))
+        var textured_house_material := textured_house_node.material_override as StandardMaterial3D
+        check(textured_house_material.albedo_texture ==
+            adapter.native_material_texture(str(textured_house_record.visual_texture)) and
+            textured_house_material.uv1_triplanar and
+            absf(textured_house_material.uv1_scale.x -
+                1.0 / float(textured_house_record.visual_texture_world_scale)) <= 0.000001,
+            "native City house surface uses its source metal map at the native world scale")
     if not house_records.is_empty():
         var house_record: Dictionary = house_records[0]
         var house_node: MeshInstance3D = adapter.house_object(str(house_record.id))
@@ -249,6 +405,31 @@ func _initialize() -> void:
             sterile_snapshot.form, (sterile_snapshot.objects as Array).size(), marker_records.size()])
     check(int(sterile_snapshot.setting) == 2 and marker_records.size() == 8,
         "native sterile-chamber fixture supplies four two-part MarkerPillarGeometry props")
+    var sterile_floor: MeshInstance3D = adapter.structure(
+        "room/%d/structure/floor" % int(sterile_snapshot.tile_index))
+    var sterile_ceiling: MeshInstance3D = adapter.structure(
+        "room/%d/structure/ceiling" % int(sterile_snapshot.tile_index))
+    var sterile_floor_record: Dictionary = {}
+    var sterile_ceiling_record: Dictionary = {}
+    for structure_record in sterile_snapshot.structures as Array:
+        if str(structure_record.id).ends_with("/floor"):
+            sterile_floor_record = structure_record
+        elif str(structure_record.id).ends_with("/ceiling"):
+            sterile_ceiling_record = structure_record
+    check(sterile_floor != null and sterile_ceiling != null and
+        sterile_floor.material_override is StandardMaterial3D and
+        sterile_ceiling.material_override is StandardMaterial3D and
+        (sterile_floor.material_override as StandardMaterial3D).albedo_color ==
+            sterile_floor_record.material.base_color and
+        (sterile_ceiling.material_override as StandardMaterial3D).albedo_color ==
+            sterile_ceiling_record.material.base_color,
+        "Sterile chamber floor and ceiling preserve their native panel color contracts")
+    if sterile_floor != null:
+        var sterile_material := sterile_floor.material_override as StandardMaterial3D
+        var sterile_shininess := float(sterile_floor_record.material.shininess)
+        check(absf(sterile_material.roughness - sqrt(2.0 / (sterile_shininess + 2.0))) <= 0.000001 and
+            sterile_material.get_meta("native_specular") == sterile_floor_record.material.specular,
+            "Sterile panel roughness/specular strength derive from the native material response")
     check(adapter.marker_object_count() == marker_records.size(),
         "adapter renders each native marker pillar part")
     if not marker_records.is_empty():
@@ -291,6 +472,9 @@ func _initialize() -> void:
                 absf(float(ruin_material.get_meta("native_texture_phase")) -
                     float(ruin_record.visual_texture_phase)) <= 0.000001,
                 "ruin preserves source-renderer weather tint, texture identity, and phase")
+            check(ruin_material.albedo_texture == adapter.native_material_texture("stone") and
+                ruin_material.uv1_triplanar,
+                "native ruin stone texture pixels are rendered with triplanar projection")
             if bool(ruin_record.visual_has_scar):
                 var scar := ruin_node.get_node_or_null("NativeScar") as MeshInstance3D
                 check(scar != null and (scar.mesh as BoxMesh).size == ruin_record.visual_scar_size and
@@ -298,11 +482,43 @@ func _initialize() -> void:
                     "render-only ruin scar geometry matches native draw record")
             check(ruin_node.get_class() == "MeshInstance3D",
                 "native ruin prop remains render-only in Godot")
+    runtime.start_coastal_room_fixture()
+    for _frame in range(60):
+        runtime.submit_input(1.0, 0.0, 0.0, 0.0, false, true, false, false, false, false)
+        runtime.tick()
+    var coastal_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
+    adapter.sync_snapshot(coastal_snapshot)
+    var coastal_water: Dictionary = coastal_snapshot.coastal_water
+    var water_node: MeshInstance3D = adapter.coastal_water_node()
+    var water_mesh := water_node.mesh as PlaneMesh if water_node != null else null
+    var water_material := water_node.material_override as ShaderMaterial if water_node != null else null
+    check(int(coastal_snapshot.setting) == 3 and bool(coastal_water.enabled) and
+        water_node != null and water_node.visible and water_mesh != null,
+        "native Coastal shore state creates a dedicated visible render-only water surface")
+    if water_mesh != null and water_material != null:
+        check(absf(water_mesh.size.x - (float(coastal_water.far_x) - float(coastal_water.shore_x))) <= 0.000001 and
+            absf(water_mesh.size.y - (float(coastal_water.max_z) - float(coastal_water.min_z))) <= 0.000001 and
+            bool(water_node.get_meta("presentation_only")) and
+            absf(float(water_material.get_shader_parameter("native_time")) - float(coastal_water.native_time)) <= 0.000001,
+            "Coastal mesh bounds and shader time come from the native shoreline snapshot")
+        var source_position: Vector3 = coastal_water.source_position
+        check(water_material.shader != null and
+            water_material.get_shader_parameter("source_position") == Vector2(source_position.x, source_position.z) and
+            absf(float(water_material.get_shader_parameter("source_speed")) - float(coastal_water.source_speed)) <= 0.000001 and
+            bool(water_material.get_shader_parameter("source_active")) == bool(coastal_water.source_active) and
+            bool(coastal_water.source_active),
+            "native player entry/speed state activates the Coastal wake presentation")
+        check(water_material.get_shader_parameter("shore_bounds") == Vector2(
+            float(coastal_water.shore_x), float(coastal_water.far_x)),
+            "native shoreline bounds drive shallow-to-deep water shading")
+        check(water_node.get_class() == "MeshInstance3D" and
+            adapter.find_children("", "CollisionObject3D", true, false).is_empty(),
+            "Coastal water adds no Godot collision or gameplay authority")
     adapter.free()
     runtime.free()
     if not failures.is_empty():
         print("RESULT: FAIL count=", failures.size())
         quit(2)
         return
-    print("RESULT: PASS native room structures, City street and authored facades, lawn, FieldGrass, CityAsphalt, rocks, HouseGeometry, MarkerPillarGeometry, and RuinGeometry drive render-only Godot nodes")
+    print("RESULT: PASS native room structures, City presentation, reactive Field grass, Coastal water, Sterile surfaces, environment props, source textures, and render-only geometry")
     quit(0)

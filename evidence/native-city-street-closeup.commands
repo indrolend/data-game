@@ -1,0 +1,3 @@
+city_fixture
+step frames=90 moveZ=1 sprint=true
+quit

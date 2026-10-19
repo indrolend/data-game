@@ -43,7 +43,10 @@ func sync_from_native(snapshot: Dictionary, lattice: PackedVector3Array) -> void
 
     position = snapshot.position + Vector3.UP * (0.57 + float(snapshot.vertical_offset))
     rotation = Vector3.ZERO
-    scale = Vector3.ONE
+    # The native lattice exists throughout the morph, but its presentation
+    # grows from the collapsing shell rather than popping in at full size.
+    var morph_scale := clampf(float(snapshot.get("morph_scale", 0.0)), 0.0, 1.0)
+    scale = snapshot.get("scale", Vector3.ONE) * morph_scale
 
     var triangles := PackedVector3Array()
 

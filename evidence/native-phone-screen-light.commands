@@ -1,0 +1,4 @@
+# Capture the original native display light in first-person gameplay and pause mode.
+step frames=1 camera=true
+pause
+quit

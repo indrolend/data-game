@@ -1,0 +1,4 @@
+Executable: C:\Users\indro\Projects\data-game\build\desktop-release\bin\Release\DigitalBreakdown.exe
+Arguments: --capture-frame C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\evidence\native-source-materials\native-current\city_seed16_room12.ppm --capture-room-seed 16 --capture-room-index 12 --capture-graphics-preset 1 --capture-shadows 1 --capture-width 1280 --capture-height 720
+Working directory: C:\Users\indro\Projects\data-game (canonical repo; capture has isolated persistence)
+Source revision: 18b19807333be6b1c83f0a39ae08084978285aeb

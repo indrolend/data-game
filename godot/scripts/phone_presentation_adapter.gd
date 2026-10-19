@@ -8,6 +8,7 @@ var body: MeshInstance3D
 var glass: MeshInstance3D
 var screen_text: Label3D
 var lens: MeshInstance3D
+var screen_light: OmniLight3D
 var _body_material: StandardMaterial3D
 var _screen_material: StandardMaterial3D
 var _text_material: StandardMaterial3D
@@ -41,6 +42,11 @@ func _ready() -> void:
 	_screen_material.emission_energy_multiplier = 0.45
 	glass.material_override = _screen_material
 	phone_root.add_child(glass)
+	screen_light = OmniLight3D.new()
+	screen_light.name = "NativePhoneScreenLight"
+	screen_light.shadow_enabled = false
+	screen_light.light_specular = 0.35
+	phone_root.add_child(screen_light)
 
 	screen_text = Label3D.new()
 	screen_text.name = "ScreenText"
@@ -97,6 +103,13 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	(glass.mesh as BoxMesh).size = screen_size
 	glass.position = snapshot.screen_center_offset
 	glass.visible = bool(snapshot.screen_visible) or first_person
+	screen_light.position = snapshot.screen_center_offset + Vector3(0.0, 0.0,
+		float(snapshot.screen_light_forward_offset))
+	screen_light.visible = glass.visible and float(snapshot.screen_light_intensity) > 0.0001
+	screen_light.light_color = snapshot.screen_light_color
+	var light_pulse := clampf(float(snapshot.screen_light_pulse), 0.0, 1.0)
+	screen_light.light_energy = float(snapshot.screen_light_intensity) * (1.0 + light_pulse * 0.25)
+	screen_light.omni_range = float(snapshot.screen_light_radius)
 	screen_text.position = snapshot.screen_center_offset + Vector3(0.0, 0.0, screen_size.z * 0.5 + 0.0002)
 	screen_text.visible = glass.visible
 	lens.position = Vector3(0.0, body_size.y * body_scale.y * 0.39, body_size.z * body_scale.z * 0.5 + 0.0004)
@@ -107,7 +120,7 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	var glow: float = float(snapshot.screen_glow)
 	_screen_material.albedo_color = Color(0.008, 0.018, 0.024).lerp(tint, 0.14)
 	_screen_material.emission = tint
-	_screen_material.emission_energy_multiplier = maxf(0.2, brightness * 0.7 + glow * 0.16)
+	_screen_material.emission_energy_multiplier = maxf(0.0, float(snapshot.emission_strength))
 	_text_material.albedo_color = tint.lightened(0.38)
 	_text_material.emission = tint
 	_text_material.emission_enabled = true

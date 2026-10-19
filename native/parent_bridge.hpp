@@ -142,6 +142,13 @@ public:
         game.debugStartGeneratedRoomFixture(
             room_environment::representativeInspectorSeed(room_environment::RoomPremise::CityCourtyard), 12);
     }
+    void startCoastalRoomFixture() {
+        constexpr int roomIndex = 12;
+        int seed = room_environment::representativeInspectorSeed(room_environment::RoomPremise::CoastalShore);
+        while (!room_environment::matchesInspectorPremise(
+            room_environment::roomPlan(seed, roomIndex), room_environment::RoomPremise::CoastalShore)) ++seed;
+        game.debugStartGeneratedRoomFixture(seed, roomIndex);
+    }
     void startSterileRoomFixture() {
         constexpr int roomIndex = 12;
         int seed = room_environment::representativeInspectorSeed(room_environment::RoomPremise::SterileChamber);

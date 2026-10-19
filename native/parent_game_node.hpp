@@ -34,6 +34,7 @@ public:
     void start_target_fixture();
     void start_target_interaction_fixture();
     void start_city_room_fixture();
+    void start_coastal_room_fixture();
     void start_sterile_room_fixture();
     void start_ruin_room_fixture();
     void start_upgrade_fixture();
@@ -52,6 +53,8 @@ public:
     PackedByteArray field_grass_texture_pixels() const;
     PackedByteArray city_asphalt_texture_pixels() const;
     Array grass_blade_presentation_snapshot(int tile_index) const;
+    Array grass_blade_tip_presentation_snapshot(int tile_index) const;
+    Array particle_presentation_snapshot() const;
     Dictionary lighting_presentation_snapshot() const;
     Dictionary player_action_snapshot() const;
     Dictionary target_presentation_snapshot(int index) const;

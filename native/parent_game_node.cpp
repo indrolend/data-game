@@ -30,6 +30,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("start_target_fixture"),&ParentGameNode::start_target_fixture);
     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
     ClassDB::bind_method(D_METHOD("start_city_room_fixture"),&ParentGameNode::start_city_room_fixture);
+    ClassDB::bind_method(D_METHOD("start_coastal_room_fixture"),&ParentGameNode::start_coastal_room_fixture);
     ClassDB::bind_method(D_METHOD("start_sterile_room_fixture"),&ParentGameNode::start_sterile_room_fixture);
     ClassDB::bind_method(D_METHOD("start_ruin_room_fixture"),&ParentGameNode::start_ruin_room_fixture);
     ClassDB::bind_method(D_METHOD("start_upgrade_fixture"),&ParentGameNode::start_upgrade_fixture);
@@ -48,6 +49,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
     ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
     ClassDB::bind_method(D_METHOD("grass_blade_presentation_snapshot","tile_index"),&ParentGameNode::grass_blade_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("grass_blade_tip_presentation_snapshot","tile_index"),&ParentGameNode::grass_blade_tip_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("particle_presentation_snapshot"),&ParentGameNode::particle_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("lighting_presentation_snapshot"),&ParentGameNode::lighting_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("player_action_snapshot"),&ParentGameNode::player_action_snapshot);
     ClassDB::bind_method(D_METHOD("target_presentation_snapshot","index"),&ParentGameNode::target_presentation_snapshot);
@@ -96,6 +99,7 @@ void ParentGameNode::start_rally_fixture(){bridge.startRallyFixture();}
 void ParentGameNode::start_target_fixture(){bridge.startTargetFixture();}
 void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();}
 void ParentGameNode::start_city_room_fixture(){bridge.startCityRoomFixture();}
+void ParentGameNode::start_coastal_room_fixture(){bridge.startCoastalRoomFixture();}
 void ParentGameNode::start_sterile_room_fixture(){bridge.startSterileRoomFixture();}
 void ParentGameNode::start_ruin_room_fixture(){bridge.startRuinRoomFixture();}
 void ParentGameNode::start_upgrade_fixture(){bridge.startUpgradeFixture();}
@@ -233,6 +237,11 @@ Dictionary ParentGameNode::phone_presentation_snapshot() const {
     result["screen_tint"] = Color(snapshot.screenTint.x,snapshot.screenTint.y,snapshot.screenTint.z,1.0f);
     result["screen_glow"] = snapshot.screenGlow;
     result["emission_strength"] = snapshot.emissionStrength;
+    result["screen_light_color"] = Color(snapshot.screenLightColor.x,snapshot.screenLightColor.y,snapshot.screenLightColor.z);
+    result["screen_light_intensity"] = snapshot.screenLightIntensity;
+    result["screen_light_radius"] = snapshot.screenLightRadius;
+    result["screen_light_forward_offset"] = snapshot.screenLightForwardOffset;
+    result["screen_light_pulse"] = snapshot.screenLightPulse;
     result["interactive"] = snapshot.interactive;
     result["battery"] = snapshot.battery;
     result["souls"] = snapshot.souls;
@@ -319,6 +328,18 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
     result["grass"] = snapshot.grass;
     result["sidewalks"] = snapshot.sidewalks;
     result["grass_amount"] = snapshot.grassAmount;
+    Dictionary coastal_water;
+    coastal_water["enabled"] = snapshot.coastalWater;
+    coastal_water["shore_x"] = coastal_water::ShoreX;
+    coastal_water["far_x"] = coastal_water::FarX;
+    coastal_water["min_z"] = coastal_water::MinZ;
+    coastal_water["max_z"] = coastal_water::MaxZ;
+    coastal_water["tile_offset_z"] = static_cast<float>(snapshot.tileIndex) * world::RoomDepth;
+    coastal_water["native_time"] = snapshot.presentationTime;
+    coastal_water["source_position"] = v(snapshot.waterSourcePosition);
+    coastal_water["source_speed"] = snapshot.waterSourceSpeed;
+    coastal_water["source_active"] = snapshot.waterSourceActive;
+    result["coastal_water"] = coastal_water;
     Array structures;
     for (const auto& structure : snapshot.structures) {
         Dictionary item;
@@ -424,6 +445,7 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
             item["visual_mesh_normals"] = normals;
             item["visual_color"] = Color(substrate.r * 0.82f,
                 substrate.g * 0.82f, substrate.b * 0.82f);
+            item["visual_texture"] = "stone";
             item["visual_texture_world_scale"] = 1.35f;
         }
         objects.push_back(item);
@@ -466,6 +488,27 @@ Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
         item["width"] = blade.width;
         item["phase"] = blade.phase;
         result[index] = item;
+    }
+    return result;
+}
+Array ParentGameNode::grass_blade_tip_presentation_snapshot(int tile_index) const {
+    const auto& state = bridge.state();
+    if (tile_index < 0) tile_index = state.topology.currentTileIndex;
+    const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+    Array result;
+    if (!plan.grass) return result;
+    result.resize(room_environment::GrassBladeCountLow);
+    room_environment::GrassReactionInputs inputs;
+    inputs.player = state.player.pos;
+    inputs.vacuumOrigin = state.phoneTransform.vacuumPullPoint;
+    inputs.vacuumStrength = state.vacuum.fieldStrength;
+    inputs.shotOrigin = state.environmentVisual.latestShotOrigin;
+    inputs.shotAge = state.environmentVisual.latestShotAge;
+    const float tileOffset = static_cast<float>(tile_index) * world::RoomDepth;
+    for (int index = 0; index < room_environment::GrassBladeCountLow; ++index) {
+        auto blade = room_environment::grassBlade(state.roomSeed, state.roomIndex, tile_index, index);
+        blade.root.z += tileOffset;
+        result[index] = v(room_environment::grassTip(blade, state.time, inputs));
     }
     return result;
 }
@@ -539,6 +582,8 @@ Dictionary ParentGameNode::target_presentation_snapshot(int index) const {
     result["locomotion_phase"] = snapshot.locomotionPhase;
     result["animation_time"] = snapshot.animationTime;
     result["hit_amount"] = snapshot.hitAmount;
+    result["shell_crack_amount"] = snapshot.shellCrackAmount;
+    result["damage_surface_color"] = Color(snapshot.damageSurfaceColor.r,snapshot.damageSurfaceColor.g,snapshot.damageSurfaceColor.b,1.0f);
     result["hit_direction_local"] = snapshot.hitDirectionLocal;
     result["attack_active"] = snapshot.attackActive;
     result["attack_timer"] = snapshot.attackTimer;
@@ -669,17 +714,50 @@ PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
     feet.active=snapshot.bodyAuthoritative;
     std::vector<float> vertices;
     human_model.skin(snapshot.animationTime,snapshot.attackTimer,snapshot.attackVariant,vertices,expression,feet);
-    result.resize(static_cast<int64_t>(vertices.size()/3u));
-    for(int64_t i=0;i<result.size();++i)
-        result.set(i,Vector3(vertices[static_cast<std::size_t>(i)*3u],
-            vertices[static_cast<std::size_t>(i)*3u+1u],vertices[static_cast<std::size_t>(i)*3u+2u]));
+    const auto& target = bridge.state().targets[index];
+    const float armorMaximum = combat_presentation::shellArmorMaximum(target.brute);
+    const float crackAmount = snapshot.shellCrackAmount;
+    std::vector<Vector3> visibleVertices;
+    visibleVertices.reserve(vertices.size());
+    for(std::size_t triangle=0;triangle+8u<vertices.size();triangle+=9u){
+        const Vector3 a(vertices[triangle],vertices[triangle+1u],vertices[triangle+2u]);
+        const Vector3 b(vertices[triangle+3u],vertices[triangle+4u],vertices[triangle+5u]);
+        const Vector3 c(vertices[triangle+6u],vertices[triangle+7u],vertices[triangle+8u]);
+        const Vec3 center{(a.x+b.x+c.x)/3.0f,(a.y+b.y+c.y)/3.0f,(a.z+b.z+c.z)/3.0f};
+        if(humanShellTriangleMissingTowardCrit(triangle/9u,crackAmount,center)) continue;
+        visibleVertices.push_back(a); visibleVertices.push_back(b); visibleVertices.push_back(c);
+    }
+    result.resize(static_cast<int64_t>(visibleVertices.size()));
+    for(int64_t i=0;i<result.size();++i) result.set(i,visibleVertices[static_cast<std::size_t>(i)]);
     return result;
 }
 Color ParentGameNode::target_model_color(int index) const {
     if(index<0||index>=TARGET_COUNT)return Color(1,1,1,1);
-    const auto& target=bridge.state().targets[index];
-    const auto color=enemyShellColor(target.brute,target.attackVariant,bridge.state().roomIndex);
+    const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
+    const auto color=snapshot.damageSurfaceColor;
     return Color(color.r,color.g,color.b,1.0f);
+}
+Array ParentGameNode::particle_presentation_snapshot() const {
+    const auto& state = bridge.state();
+    const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+    Array result;
+    for (const auto& particle : state.particles) {
+        if (particle.life <= 0.0f || particle.maxLife <= 0.0f) continue;
+        const float remaining = clampf(particle.life / particle.maxLife, 0.0f, 1.0f);
+        const auto color = particleMaterialColor(particle.material, plan.setting, remaining);
+        Dictionary item;
+        item["position"] = v(particle.pos);
+        item["size"] = particle.size;
+        item["life"] = particle.life;
+        item["max_life"] = particle.maxLife;
+        item["remaining"] = remaining;
+        item["material"] = static_cast<int>(particle.material);
+        item["settled"] = particleSurfaceSettled(particle);
+        item["surface_normal"] = v(particleSurfaceNormal(particle));
+        item["color"] = Color(color.r, color.g, color.b, remaining);
+        result.push_back(item);
+    }
+    return result;
 }
 Vector3 ParentGameNode::player_position()const{return v(bridge.state().player.pos);}
 Vector3 ParentGameNode::camera_position()const{return v(bridge.state().camera.pos);}

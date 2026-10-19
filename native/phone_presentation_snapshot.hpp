@@ -21,6 +21,11 @@ struct PhonePresentationSnapshot {
     Vec3 screenTint;
     float screenGlow = 0.0f;
     float emissionStrength = 0.0f;
+    Vec3 screenLightColor;
+    float screenLightIntensity = 0.0f;
+    float screenLightRadius = 0.0f;
+    float screenLightForwardOffset = 0.0f;
+    float screenLightPulse = 0.0f;
     bool interactive = false;
     float battery = 0.0f;
     int souls = 0;
@@ -53,6 +58,11 @@ struct PhonePresentationSnapshot {
         snapshot.screenTint = state.phoneDisplay.screenTint;
         snapshot.screenGlow = state.phoneVisual.screenGlow;
         snapshot.emissionStrength = state.phoneDisplay.emissionStrength;
+        snapshot.screenLightColor = state.phoneDisplay.lighting.color;
+        snapshot.screenLightIntensity = state.phoneDisplay.lighting.intensity;
+        snapshot.screenLightRadius = state.phoneDisplay.lighting.radius;
+        snapshot.screenLightForwardOffset = state.phoneDisplay.lighting.forwardOffset;
+        snapshot.screenLightPulse = state.phoneDisplay.lighting.pulse;
         snapshot.interactive = state.phoneDisplay.interactive;
         snapshot.battery = state.player.battery;
         snapshot.souls = state.player.souls;

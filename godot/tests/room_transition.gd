@@ -34,6 +34,23 @@ func _run() -> void:
 		"door crossing advances native room progression and pauses for native upgrade choice")
 	check(frames_to_transition <= 120,
 		"door transition occurs within bounded native movement input")
+	var transitioned_room: Dictionary = runtime.room_presentation_snapshot(-1)
+	scene._sync()
+	check(int(scene.room_adapter.get_meta("native_room_index")) == int(transitioned_room.room_index),
+		"main presentation synchronizes the room index after native doorway progression")
+	var transitioned_floor_id := "room/%d/structure/floor" % int(transitioned_room.tile_index)
+	var transitioned_floor: MeshInstance3D = scene.room_adapter.structure(transitioned_floor_id)
+	var native_floor: Dictionary = {}
+	for structure in transitioned_room.structures as Array:
+		if str(structure.id) == transitioned_floor_id:
+			native_floor = structure
+			break
+	check(transitioned_floor != null and not native_floor.is_empty(),
+		"room transition leaves a synchronized render floor for the current native tile")
+	if transitioned_floor != null and not native_floor.is_empty():
+		check(transitioned_floor.position == native_floor.center and
+			(scene.room_adapter.structure(transitioned_floor_id).mesh as BoxMesh).size == native_floor.size,
+			"rendered floor transform and dimensions match the post-transition native room snapshot")
 	scene.free()
 	if not failures.is_empty():
 		print("RESULT: FAIL count=", failures.size(), " crossing_frame=", frames_to_transition,

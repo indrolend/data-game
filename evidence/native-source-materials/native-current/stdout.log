@@ -1,0 +1,8 @@
+Persistent save: isolated for deterministic run
+CAPTURE_ROOM_FIXTURE seed=16 room=12 setting=CITY form=COURTYARD quality=1 shadows=1 lifetime=0 best=0 player=(0.00,15.50)
+Models: phone=loaded flower=prismatic human=loaded trees=common/twisted/dead/pine cityModules=window/small-window/door/door-window/cornice structural=wall-window/wall-door/corner/crown menuFont=regular/semibold birds=v-atlas foliage=cc0-fir photos=grass/bark/stone/metal/sand/sterile
+Digital Breakdown desktop host running.
+Build identity: experimental-2026.10.19 18b1980 windows/x64 protocol 9 gameplay 7 save 4 storefront/solo
+WASD move | Shift sprint | Space jump | Mouse look | Left mouse vacuum | F melee | Q shoot | C camera | Tab release mouse | Esc quit
+Directional shadow map: supported
+CAPTURE_FRAME_OK C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\evidence\native-source-materials\native-current\city_seed16_room12.ppm

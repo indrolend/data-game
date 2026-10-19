@@ -1,0 +1,2 @@
+godot_console.exe --path godot --script res://scripts/agent_playtest.gd -- --commands=C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\evidence\native-supplemental-effects.commands --capture-dir=res://../evidence/native-supplemental-effects-verified
+The full fixed-tick input sequence is preserved in ../native-supplemental-effects.commands.

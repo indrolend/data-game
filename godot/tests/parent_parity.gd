@@ -23,7 +23,8 @@ func phone_snapshot(game: Object) -> void:
     var screen_offset: Vector3 = p.screen_center_offset
     var screen_size: Vector3 = p.screen_size
     var tint: Color = p.screen_tint
-    print("PHONE,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%d,%d,%d,%.7f,%.7f" % [
+    var screen_light_color: Color = p.screen_light_color
+    print("PHONE,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
         game.frame(), position.x, position.y, position.z,
         orientation.x, orientation.y, orientation.z, orientation.w,
         body_size.x, body_size.y, body_size.z,
@@ -33,7 +34,10 @@ func phone_snapshot(game: Object) -> void:
         int(p.screen_mode), int(p.body_visible), int(p.screen_visible), int(p.first_person),
         p.screen_brightness, p.content_opacity, tint.r, tint.g, tint.b,
         p.screen_glow, p.emission_strength, int(p.interactive), p.battery,
-        p.souls, int(p.low_battery), int(p.vacuum_active), p.vacuum_power, p.capture_pulse])
+        p.souls, int(p.low_battery), int(p.vacuum_active), p.vacuum_power, p.capture_pulse,
+        screen_light_color.r, screen_light_color.g, screen_light_color.b,
+        p.screen_light_intensity, p.screen_light_radius,
+        p.screen_light_forward_offset, p.screen_light_pulse])
     if game.frame() == 0:
         phone_menu_snapshot(game)
 
@@ -133,7 +137,8 @@ func target_pose_snapshot(game: Object, target: int) -> void:
     var attack_direction: Vector3 = p.attack_direction
     var pose: Dictionary = p.pose
     var head_center: Vector3 = p.head_center
-    print("TARGETPOSE,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%.7f,%.7f,%.7f,%d,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+    var damage_surface: Color = p.damage_surface_color
+    print("TARGETPOSE,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%.7f,%.7f,%.7f,%d,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
         game.frame(), target, position.x, position.y, position.z,
         velocity.x, velocity.y, velocity.z, p.visual_yaw, p.locomotion_amount,
         p.locomotion_phase, p.attack_timer, p.attack_phase, p.attack_commit_phase,
@@ -143,7 +148,8 @@ func target_pose_snapshot(game: Object, target: int) -> void:
         pose.root_bob, pose.torso_pitch, pose.torso_roll, pose.left_arm_swing,
         pose.right_arm_swing, pose.left_leg_swing, pose.right_leg_swing,
         pose.hit_lean, pose.collapse, head_center.x, head_center.y, head_center.z,
-        p.head_radius])
+        p.head_radius, p.shell_crack_amount, damage_surface.r,
+        damage_surface.g, damage_surface.b])
     var tether_anchor: Vector3 = p.tether_anchor
     var tether_destination: Vector3 = p.tether_destination
     print("TETHER,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
@@ -215,6 +221,15 @@ func _initialize() -> void:
         first_blade.height, first_blade.width, first_blade.phase,
         last_root.x, last_root.y, last_root.z,
         last_blade.height, last_blade.width, last_blade.phase])
+    var grass_tips: Array = game.grass_blade_tip_presentation_snapshot(
+        int(initial_room_snapshot.tile_index))
+    var first_tip: Vector3 = grass_tips[0]
+    var middle_tip: Vector3 = grass_tips[grass_tips.size() / 2]
+    var last_tip: Vector3 = grass_tips[grass_tips.size() - 1]
+    print("GRASSTIPS,3,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+        first_tip.x, first_tip.y, first_tip.z,
+        middle_tip.x, middle_tip.y, middle_tip.z,
+        last_tip.x, last_tip.y, last_tip.z])
     var asphalt_pixels: PackedByteArray = game.city_asphalt_texture_pixels()
     var asphalt_sum := 0
     for pixel in asphalt_pixels:
@@ -347,6 +362,49 @@ func _initialize() -> void:
     city_room.start_city_room_fixture()
     var city_snapshot: Dictionary = city_room.room_presentation_snapshot(-1)
     for structure in city_snapshot.structures as Array:
+        if int(structure.kind) == 9 or int(structure.kind) == 10:
+            var fixture_center: Vector3 = structure.center
+            var fixture_size: Vector3 = structure.size
+            var fixture_material: Dictionary = structure.material
+            var fixture_color: Color = fixture_material.base_color
+            var fixture_category := "CITYLAMP" if int(structure.kind) == 9 else "CITYSERVICE"
+            print("%s,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d" % [
+                fixture_category, structure.id,
+                fixture_center.x, fixture_center.y, fixture_center.z,
+                fixture_size.x, fixture_size.y, fixture_size.z,
+                fixture_color.r, fixture_color.g, fixture_color.b,
+                int(fixture_material.shading), int(fixture_material.fog)])
+            continue
+        if int(structure.kind) == 8:
+            var window_center: Vector3 = structure.center
+            var window_size: Vector3 = structure.size
+            var window_material: Dictionary = structure.material
+            var window_color: Color = window_material.base_color
+            print("CITYWINDOW,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d" % [
+                structure.id, window_center.x, window_center.y, window_center.z,
+                window_size.x, window_size.y, window_size.z,
+                window_color.r, window_color.g, window_color.b, int(window_material.fog)])
+            continue
+        if int(structure.kind) == 7:
+            var skyline_center: Vector3 = structure.center
+            var skyline_size: Vector3 = structure.size
+            var skyline_material: Dictionary = structure.material
+            var skyline_color: Color = skyline_material.base_color
+            print("CITYSKYLINE,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+                structure.id, skyline_center.x, skyline_center.y, skyline_center.z,
+                skyline_size.x, skyline_size.y, skyline_size.z,
+                skyline_color.r, skyline_color.g, skyline_color.b])
+            continue
+        if int(structure.kind) == 6:
+            var mass_center: Vector3 = structure.center
+            var mass_size: Vector3 = structure.size
+            var mass_material: Dictionary = structure.material
+            var mass_color: Color = mass_material.base_color
+            print("CITYMASS,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
+                structure.id, mass_center.x, mass_center.y, mass_center.z,
+                mass_size.x, mass_size.y, mass_size.z,
+                mass_color.r, mass_color.g, mass_color.b])
+            continue
         if int(structure.kind) != 5:
             continue
         var structure_center: Vector3 = structure.center
@@ -374,6 +432,17 @@ func _initialize() -> void:
             center.x, center.y, center.z, size.x, size.y, size.z, object.yaw,
             int(object.physical), color.r, color.g, color.b, object.visual_texture])
     city_room.free()
+    var coastal_room = ClassDB.instantiate("ParentGameNode")
+    coastal_room.start_coastal_room_fixture()
+    var coastal_snapshot: Dictionary = coastal_room.room_presentation_snapshot(-1)
+    var coastal_water: Dictionary = coastal_snapshot.coastal_water
+    var coastal_source: Vector3 = coastal_water.source_position
+    print("COASTALWATER,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%.7f" % [
+        int(coastal_water.enabled), coastal_water.native_time,
+        coastal_water.shore_x, coastal_water.far_x, coastal_water.min_z, coastal_water.max_z,
+        coastal_source.x, coastal_source.y, coastal_source.z, coastal_water.source_speed,
+        int(coastal_water.source_active), coastal_water.tile_offset_z])
+    coastal_room.free()
     var sterile_room = ClassDB.instantiate("ParentGameNode")
     sterile_room.start_sterile_room_fixture()
     var sterile_snapshot: Dictionary = sterile_room.room_presentation_snapshot(-1)

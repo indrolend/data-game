@@ -3,6 +3,16 @@
 #include "Game.hpp"
 #include "HumanVisual.hpp"
 
+// Game.cpp keeps these source gameplay constants internal to its translation
+// unit. Keep this presentation-only pairing aligned with target initialization.
+namespace combat_presentation {
+constexpr float NormalShellArmorMaximum = 2.0f;
+constexpr float BruteShellArmorMaximum = 4.0f;
+inline float shellArmorMaximum(bool brute) {
+    return brute ? BruteShellArmorMaximum : NormalShellArmorMaximum;
+}
+}
+
 // Presentation contracts expose the native mechanic phases and resolved poses
 // together. Godot may interpolate these values, but must never use animation
 // playback position to decide damage, displacement, grabs, or recovery.
@@ -81,6 +91,8 @@ struct TargetPresentationSnapshot {
     float locomotionPhase = 0.0f;
     float animationTime = 0.0f;
     float hitAmount = 0.0f;
+    float shellCrackAmount = 0.0f;
+    VisualColor damageSurfaceColor{1.0f, 1.0f, 1.0f};
     float hitDirectionLocal = 0.0f;
     bool attackActive = false;
     float attackTimer = 0.0f;
@@ -131,6 +143,16 @@ struct TargetPresentationSnapshot {
         snapshot.locomotionPhase = target.visualWalkPhase;
         snapshot.animationTime = target.humanAnimationTime;
         snapshot.hitAmount = target.hitFlash;
+        const float armorMaximum = combat_presentation::shellArmorMaximum(target.brute);
+        // Keep the damaged shell mask through the soul morph. The Godot
+        // presentation fades this same shell as the native lattice grows,
+        // avoiding a reset-to-intact frame at the defeat boundary.
+        snapshot.shellCrackAmount = humanShellThinningAmount(
+            target.armor, armorMaximum, false);
+        const auto roomPlan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+        const auto baseColor = enemyShellColor(target.brute, target.attackVariant, state.roomIndex);
+        snapshot.damageSurfaceColor = humanDamageSurfaceColor(baseColor, roomPlan.setting,
+            target.armor, armorMaximum, target.slurpable, 0.0f);
         snapshot.hitDirectionLocal = target.hitDirectionLocal;
         snapshot.attackActive = target.attackTimer > 0.0f;
         snapshot.attackTimer = target.attackTimer;

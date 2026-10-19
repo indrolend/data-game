@@ -1,0 +1,1 @@
+godot_console.exe --path godot --script res://scripts/agent_playtest.gd -- --commands=C:\Users\indro\Projects\DigitalBreakdown-Godot-Migration\evidence\native-city-street-details.commands --capture-dir=res://../evidence/native-city-street-details

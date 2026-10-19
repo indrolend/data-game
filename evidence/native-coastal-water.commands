@@ -1,0 +1,4 @@
+coastal_fixture
+step frames=36 moveX=1 sprint=true
+step frames=1 camera=true
+quit

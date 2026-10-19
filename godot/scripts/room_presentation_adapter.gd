@@ -11,10 +11,14 @@ var _ruin_nodes: Dictionary = {}
 var _field_grass_texture: ImageTexture
 var _field_grass_image: Image
 var _city_asphalt_texture: ImageTexture
+var _native_material_textures: Dictionary = {}
 var _city_facade_nodes: Dictionary = {}
 var _city_facade_meshes: Dictionary = {}
 var _grass_node: Node3D
 var _grass_snapshot_key := ""
+var _grass_blade_records: Array = []
+var _coastal_water: MeshInstance3D
+var _coastal_water_material: ShaderMaterial
 
 func set_native_field_grass_pixels(pixels: PackedByteArray) -> void:
     if _field_grass_texture != null:
@@ -34,6 +38,41 @@ func set_native_city_asphalt_pixels(pixels: PackedByteArray) -> void:
         return
     var image := Image.create_from_data(32, 32, false, Image.FORMAT_RGB8, pixels)
     _city_asphalt_texture = ImageTexture.create_from_image(image)
+
+func native_material_texture(material_name: String) -> ImageTexture:
+    if _native_material_textures.has(material_name):
+        return _native_material_textures[material_name]
+    if material_name not in ["stone", "metal"]:
+        return null
+    var material_path := ProjectSettings.globalize_path(
+        "res://../parent/models/materials/photo-%s-runtime.rgb" % material_name)
+    var file := FileAccess.open(material_path, FileAccess.READ)
+    if file == null:
+        push_error("Could not open native runtime material: " + material_path)
+        return null
+    var pixels := file.get_buffer(file.get_length())
+    file.close()
+    if pixels.size() != 512 * 512 * 3:
+        push_error("Native runtime material must contain 512x512 RGB pixels: " + material_path)
+        return null
+    var image := Image.create_from_data(512, 512, false, Image.FORMAT_RGB8, pixels)
+    var texture := ImageTexture.create_from_image(image)
+    _native_material_textures[material_name] = texture
+    return texture
+
+func _apply_native_material_texture(material: StandardMaterial3D, material_name: String,
+        world_scale: float, phase: float = 0.0) -> void:
+    material.set_meta("native_texture", material_name)
+    material.set_meta("native_texture_world_scale", world_scale)
+    material.set_meta("native_texture_phase", phase)
+    var texture := native_material_texture(material_name)
+    material.albedo_texture = texture
+    if texture != null:
+        material.uv1_triplanar = true
+        material.uv1_scale = Vector3.ONE / maxf(world_scale, 0.05)
+        material.uv1_offset = Vector3(phase, fposmod(phase * 1.618, 1.0), 0.0)
+    else:
+        material.uv1_triplanar = false
 
 func sync_snapshot(snapshot: Dictionary) -> void:
     var retained: Dictionary = {}
@@ -61,6 +100,7 @@ func sync_snapshot(snapshot: Dictionary) -> void:
     set_meta("native_tile_index", int(snapshot.tile_index))
     _sync_lawn_objects(snapshot.objects as Array, int(snapshot.tile_index))
     _sync_grass(snapshot)
+    _sync_coastal_water(snapshot)
     _sync_rock_objects(snapshot.objects as Array)
     _sync_house_objects(snapshot.objects as Array)
     _sync_marker_objects(snapshot.objects as Array)
@@ -85,54 +125,103 @@ func grass_blade_count() -> int:
 func grass_blade(index: int) -> MeshInstance3D:
     return _grass_node.get_child(index) as MeshInstance3D if _grass_node != null else null
 
+func coastal_water_node() -> MeshInstance3D:
+    return _coastal_water
+
 func _sync_grass(snapshot: Dictionary) -> void:
     var key := "%d:%d:%d:%d" % [int(snapshot.room_seed), int(snapshot.room_index),
         int(snapshot.tile_index), int(snapshot.grass)]
-    if key == _grass_snapshot_key:
-        return
-    _grass_snapshot_key = key
+    var rebuild := key != _grass_snapshot_key
+    if rebuild:
+        _grass_snapshot_key = key
     if _grass_node == null:
         _grass_node = Node3D.new()
         _grass_node.name = "NativeFieldGrass"
         _grass_node.set_meta("presentation_only", true)
         add_child(_grass_node)
-    for old_blade in _grass_node.get_children():
-        _grass_node.remove_child(old_blade)
-        old_blade.free()
     var blades: Array = snapshot.get("grass_blades", [])
-    if not bool(snapshot.grass) or blades.is_empty():
+    if rebuild:
+        for old_blade in _grass_node.get_children():
+            _grass_node.remove_child(old_blade)
+            old_blade.free()
+        _grass_blade_records = blades.duplicate()
+    if not bool(snapshot.grass) or (rebuild and blades.is_empty()):
         _grass_node.visible = false
         return
-    var blade_mesh := _grass_blade_mesh()
-    var blade_material := StandardMaterial3D.new()
-    blade_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    blade_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-    var grass_image := _field_grass_image
-    if grass_image != null:
-        var average := Color(0, 0, 0, 1)
-        for y in range(grass_image.get_height()):
-            for x in range(grass_image.get_width()):
-                average += grass_image.get_pixel(x, y)
-        var pixel_count := grass_image.get_width() * grass_image.get_height()
-        blade_material.albedo_color = Color(average.r / pixel_count,
-            average.g / pixel_count, average.b / pixel_count, 1.0)
-    blade_mesh.surface_set_material(0, blade_material)
-    for index in range(blades.size()):
-        var blade: Dictionary = blades[index]
-        var root: Vector3 = blade.root
-        var height := float(blade.height)
-        var width := float(blade.width)
-        var phase := float(blade.phase)
-        var blade_node := MeshInstance3D.new()
-        blade_node.name = "NativeBlade_%03d" % index
-        blade_node.mesh = blade_mesh
-        blade_node.position = root
-        blade_node.rotation.y = phase
-        blade_node.scale = Vector3(width, height, width)
-        blade_node.set_meta("native_height", height)
-        blade_node.set_meta("native_width", width)
-        _grass_node.add_child(blade_node)
+    if rebuild:
+        var blade_mesh := _grass_blade_mesh()
+        var blade_material := StandardMaterial3D.new()
+        blade_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        blade_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+        var grass_image := _field_grass_image
+        if grass_image != null:
+            var average := Color(0, 0, 0, 1)
+            for y in range(grass_image.get_height()):
+                for x in range(grass_image.get_width()):
+                    average += grass_image.get_pixel(x, y)
+            var pixel_count := grass_image.get_width() * grass_image.get_height()
+            blade_material.albedo_color = Color(average.r / pixel_count,
+                average.g / pixel_count, average.b / pixel_count, 1.0)
+        blade_mesh.surface_set_material(0, blade_material)
+        for index in range(_grass_blade_records.size()):
+            var blade: Dictionary = _grass_blade_records[index]
+            var blade_node := MeshInstance3D.new()
+            blade_node.name = "NativeBlade_%03d" % index
+            blade_node.mesh = blade_mesh
+            blade_node.set_meta("native_height", float(blade.height))
+            blade_node.set_meta("native_width", float(blade.width))
+            _grass_node.add_child(blade_node)
+    var tips: Array = snapshot.get("grass_tips", [])
+    for index in range(mini(_grass_blade_records.size(), _grass_node.get_child_count())):
+        var blade: Dictionary = _grass_blade_records[index]
+        var blade_node := _grass_node.get_child(index) as MeshInstance3D
+        var root_position: Vector3 = blade.root
+        var tip_position: Vector3 = tips[index] if index < tips.size() else root_position + Vector3.UP * float(blade.height)
+        var tip_delta := tip_position - root_position
+        if tip_delta.length_squared() < 0.000001:
+            tip_delta = Vector3.UP * float(blade.height)
+        blade_node.position = root_position
+        blade_node.scale = Vector3(float(blade.width), tip_delta.length(), float(blade.width))
+        blade_node.quaternion = Quaternion(Vector3.UP, tip_delta.normalized()) * Quaternion(Vector3.UP, float(blade.phase))
+        blade_node.set_meta("native_tip", tip_position)
     _grass_node.visible = true
+
+func _sync_coastal_water(snapshot: Dictionary) -> void:
+    var water: Dictionary = snapshot.get("coastal_water", {})
+    if not bool(water.get("enabled", false)):
+        if _coastal_water != null:
+            _coastal_water.visible = false
+        return
+    if _coastal_water == null:
+        var shore_x := float(water.shore_x)
+        var far_x := float(water.far_x)
+        var min_z := float(water.min_z)
+        var max_z := float(water.max_z)
+        var plane := PlaneMesh.new()
+        plane.size = Vector2(far_x - shore_x, max_z - min_z)
+        plane.subdivide_width = 64
+        plane.subdivide_depth = 128
+        _coastal_water = MeshInstance3D.new()
+        _coastal_water.name = "NativeCoastalWater"
+        _coastal_water.mesh = plane
+        _coastal_water.position = Vector3((shore_x + far_x) * 0.5, 0.0,
+            float(water.tile_offset_z) + (min_z + max_z) * 0.5)
+        _coastal_water.set_meta("presentation_only", true)
+        _coastal_water.set_meta("native_bounds", Vector4(shore_x, far_x, min_z, max_z))
+        _coastal_water_material = ShaderMaterial.new()
+        _coastal_water_material.shader = load("res://shaders/coastal_water.gdshader")
+        _coastal_water.material_override = _coastal_water_material
+        add_child(_coastal_water)
+    _coastal_water.visible = true
+    _coastal_water.position.z = (float(water.tile_offset_z) +
+        (float(water.min_z) + float(water.max_z)) * 0.5)
+    _coastal_water_material.set_shader_parameter("native_time", float(water.native_time))
+    _coastal_water_material.set_shader_parameter("shore_bounds", Vector2(
+        float(water.shore_x), float(water.far_x)))
+    _coastal_water_material.set_shader_parameter("source_position", Vector2(
+        (water.source_position as Vector3).x, (water.source_position as Vector3).z))
+    _coastal_water_material.set_shader_parameter("source_speed", float(water.source_speed))
+    _coastal_water_material.set_shader_parameter("source_active", bool(water.source_active))
 
 func _grass_blade_mesh() -> ArrayMesh:
     var vertices := PackedVector3Array([
@@ -330,8 +419,8 @@ func _sync_rock_objects(objects: Array) -> void:
         var material := StandardMaterial3D.new()
         material.albedo_color = record.visual_color
         material.roughness = 0.92
-        material.set_meta("native_texture_world_scale", float(record.visual_texture_world_scale))
-        material.set_meta("native_texture", "stone; pixels not yet ported")
+        _apply_native_material_texture(material, str(record.get("visual_texture", "stone")),
+            float(record.visual_texture_world_scale))
         mesh_instance.material_override = material
         mesh_instance.set_meta("native_physical", bool(record.physical))
     for stable_id in _rock_nodes.keys():
@@ -367,8 +456,8 @@ func _sync_house_objects(objects: Array) -> void:
         (mesh_instance.mesh as BoxMesh).size = record.size
         var house_material := mesh_instance.material_override as StandardMaterial3D
         house_material.albedo_color = record.visual_color
-        house_material.set_meta("native_texture", str(record.visual_texture))
-        house_material.set_meta("native_texture_world_scale", float(record.visual_texture_world_scale))
+        _apply_native_material_texture(house_material, str(record.visual_texture),
+            float(record.visual_texture_world_scale))
         mesh_instance.set_meta("native_physical", bool(record.physical))
     for stable_id in _house_nodes.keys():
         if not retained.has(stable_id):
@@ -402,8 +491,8 @@ func _sync_marker_objects(objects: Array) -> void:
         (mesh_instance.mesh as BoxMesh).size = record.size
         var marker_material := mesh_instance.material_override as StandardMaterial3D
         marker_material.albedo_color = record.visual_color
-        marker_material.set_meta("native_texture", str(record.visual_texture))
-        marker_material.set_meta("native_texture_world_scale", float(record.visual_texture_world_scale))
+        _apply_native_material_texture(marker_material, str(record.visual_texture),
+            float(record.visual_texture_world_scale))
         mesh_instance.set_meta("native_physical", bool(record.physical))
     for stable_id in _marker_nodes.keys():
         if not retained.has(stable_id):
@@ -437,9 +526,8 @@ func _sync_ruin_objects(objects: Array) -> void:
         (mesh_instance.mesh as BoxMesh).size = record.size
         var ruin_material := mesh_instance.material_override as StandardMaterial3D
         ruin_material.albedo_color = record.visual_color
-        ruin_material.set_meta("native_texture", str(record.visual_texture))
-        ruin_material.set_meta("native_texture_world_scale", float(record.visual_texture_world_scale))
-        ruin_material.set_meta("native_texture_phase", float(record.visual_texture_phase))
+        _apply_native_material_texture(ruin_material, str(record.visual_texture),
+            float(record.visual_texture_world_scale), float(record.visual_texture_phase))
         var scar: MeshInstance3D = mesh_instance.get_node_or_null("NativeScar")
         if bool(record.visual_has_scar):
             if scar == null:
@@ -461,6 +549,10 @@ func _sync_ruin_objects(objects: Array) -> void:
 func _material_from_native(definition: Dictionary) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = definition.base_color
+    var specular_color: Color = definition.specular
+    material.metallic_specular = clampf((specular_color.r + specular_color.g + specular_color.b) * 0.8333333, 0.0, 1.0)
+    var native_shininess := float(definition.shininess)
+    material.roughness = clampf(sqrt(2.0 / (native_shininess + 2.0)), 0.06, 0.98)
     if int(definition.shading) == 0:
         material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     var emission: Color = definition.emission
@@ -483,6 +575,8 @@ func _material_from_native(definition: Dictionary) -> StandardMaterial3D:
         material.uv1_triplanar = true
         var world_scale := maxf(float(definition.texture_world_scale), 0.001)
         material.uv1_scale = Vector3.ONE / world_scale
-    material.set_meta("native_shininess", float(definition.shininess))
+    material.set_meta("native_shininess", native_shininess)
+    material.set_meta("native_specular", specular_color)
     material.set_meta("native_fog", bool(definition.fog))
+    material.disable_fog = not bool(definition.fog)
     return material

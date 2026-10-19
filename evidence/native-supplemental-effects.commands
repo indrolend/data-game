@@ -1,0 +1,22 @@
+# Replay native pursuit, shell damage/break, vacuum capture, and first-person phone display.
+reset
+step frames=120
+step frames=120
+step frames=110
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=50 melee=on
+step frames=10 melee=on
+step frames=1 lookX=120
+step frames=89 vacuum=on
+step frames=1 camera=on
+quit

@@ -1,0 +1,4 @@
+city_fixture
+step frames=1 lookX=524 camera=true
+step frames=1 moveX=1
+quit

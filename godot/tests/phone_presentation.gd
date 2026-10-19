@@ -23,6 +23,8 @@ func _run() -> void:
 	var body: MeshInstance3D = phone_root.get_node("Body")
 	var screen: MeshInstance3D = phone_root.get_node("Screen")
 	var screen_text: Label3D = phone_root.get_node("ScreenText")
+	var screen_light: OmniLight3D = phone_root.get_node("NativePhoneScreenLight")
+	var screen_material: StandardMaterial3D = screen.material_override
 	var body_mesh: BoxMesh = body.mesh
 	var screen_mesh: BoxMesh = screen.mesh
 	var expected_body_size: Vector3 = snapshot.body_size * snapshot.body_scale
@@ -41,6 +43,17 @@ func _run() -> void:
 		"screen indicator reflects native battery state")
 	check(screen_text.text.contains("SOUL %02d" % int(snapshot.souls)),
 		"screen indicator reflects native soul inventory")
+	check(screen_light.light_color.is_equal_approx(snapshot.screen_light_color) and
+		absf(screen_light.light_energy - float(snapshot.screen_light_intensity) *
+			(1.0 + clampf(float(snapshot.screen_light_pulse), 0.0, 1.0) * 0.25)) <= 0.00001 and
+		absf(screen_light.omni_range - float(snapshot.screen_light_radius)) <= 0.00001,
+		"phone screen point light color, intensity, and radius come from native display-light state")
+	check(screen_light.position.distance_to(snapshot.screen_center_offset + Vector3(0.0, 0.0,
+		float(snapshot.screen_light_forward_offset))) <= 0.00001,
+		"phone screen light is placed at the native display-light forward offset")
+	check(absf(screen_material.emission_energy_multiplier - float(snapshot.emission_strength)) <= 0.00001,
+		"screen material emission strength is copied directly from native display state")
+	var gameplay_screen_energy := screen_light.light_energy
 	var menu: Dictionary = snapshot.menu_layout
 	check(not bool(menu.active), "gameplay display is not mistaken for an interactive phone menu")
 	check(int(menu.logical_width) == 720 and int(menu.logical_height) == 1280,
@@ -52,6 +65,8 @@ func _run() -> void:
 	snapshot = runtime.phone_presentation_snapshot()
 	var menu_rows: Array = menu.rows
 	check(bool(menu.active), "native pause mode enables the original phone menu")
+	check(screen_light.light_energy > gameplay_screen_energy,
+		"native menu mode increases character phone-screen light output")
 	check(menu_rows.size() == 3 and menu_rows[0].label == "Resume" and
 		menu_rows[1].label == "Settings" and menu_rows[2].label == "Exit Run",
 		"pause labels and ordering come from the parent PhoneMenuModel")

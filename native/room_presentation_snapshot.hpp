@@ -3,6 +3,7 @@
 #include "ComputedSceneObjects.hpp"
 #include "CityFacadeGrammar.hpp"
 #include "CityStreetGrammar.hpp"
+#include "CoastalWater.hpp"
 #include "Game.hpp"
 #include "MaterialResponse.hpp"
 
@@ -14,7 +15,12 @@ enum class RoomStructureKind : unsigned char {
     BoundaryWall,
     DoorFrame,
     TraversalSurface,
-    CityStreet
+    CityStreet,
+    CityBuildingMass,
+    CitySkylineMass,
+    CitySkylineWindow,
+    CityStreetFixture,
+    CityServiceFixture
 };
 
 struct RoomStructureRecord {
@@ -50,7 +56,12 @@ struct RoomPresentationSnapshot {
     bool advancing = false;
     bool grass = false;
     bool sidewalks = false;
+    bool coastalWater = false;
     float grassAmount = 0.0f;
+    float presentationTime = 0.0f;
+    Vec3 waterSourcePosition;
+    float waterSourceSpeed = 0.0f;
+    bool waterSourceActive = false;
     std::vector<RoomStructureRecord> structures;
     std::vector<CityFacadeModuleRecord> cityFacadeModules;
     std::vector<computed_scene::Object> objects;
@@ -76,6 +87,16 @@ struct RoomPresentationSnapshot {
         snapshot.grass = plan.grass;
         snapshot.sidewalks = plan.sidewalks;
         snapshot.grassAmount = plan.grassAmount;
+        snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
+        snapshot.presentationTime = state.time;
+        snapshot.waterSourcePosition = state.player.pos;
+        snapshot.waterSourceSpeed = std::sqrt(state.player.vel.x * state.player.vel.x +
+            state.player.vel.z * state.player.vel.z);
+        const float currentTileOffset = static_cast<float>(state.topology.currentTileIndex) *
+            world::RoomDepth;
+        snapshot.waterSourceActive = snapshot.coastalWater && coastal_water::contains(
+            state.player.pos.x, state.player.pos.z - currentTileOffset) &&
+            snapshot.waterSourceSpeed >= 0.35f;
         const float z0 = static_cast<float>(tileIndex) * world::RoomDepth;
         const float doorWidth = 5.35f;
         const float doorHeight = 3.95f;
@@ -92,7 +113,8 @@ struct RoomPresentationSnapshot {
         };
         const VisualColor floorColor = field ? VisualIdentity::FieldGround
             : (sterile ? VisualColor{0.58f, 0.61f, 0.63f}
-                : (coastal ? VisualColor{0.24f, 0.43f, 0.50f} : VisualIdentity::RoomFloor));
+                : (coastal ? roomSubstrateColor(plan.setting)
+                    : VisualIdentity::RoomFloor));
         const SemanticSurface floorSurface = field ? SemanticSurface::FieldGround
             : (city ? SemanticSurface::CityAsphalt
                 : (sterile ? SemanticSurface::SterilePanel : SemanticSurface::Default));
@@ -211,6 +233,124 @@ struct RoomPresentationSnapshot {
                 addStreetBox("city/center-dash/" + std::to_string(dash),
                     {0, 0.032f, z0 + localZ}, {0.075f, 0.012f, 1.75f},
                     {0.62f * wear, 0.50f * wear, 0.22f * wear});
+            }
+
+            // Add render-only City props from the native street-plan formulas.
+            // The traced C++ tree defines placement/counts but has no matching
+            // lamp/service draw pass; treat these as Godot presentation work,
+            // not recovered renderer parity.
+            const float lampX = street.roadHalfWidth + street.sidewalkWidth - street.lampInset;
+            for (const float side : {-1.0f, 1.0f}) {
+                for (int lamp = 0; lamp < street.lampPairs; ++lamp) {
+                    const float localZ = city_street::lampZ(street, lamp) + (side > 0.0f ? 1.1f : -1.1f);
+                    const float poleHeight = 2.75f;
+                    const std::string prefix = "city/lamp/" + std::to_string(static_cast<int>(side)) + "/" +
+                        std::to_string(lamp);
+                    const auto addLampBox = [&](const std::string& suffix, Vec3 center, Vec3 size,
+                                                VisualColor color, bool unlit = false) {
+                        addStructure((prefix + "/" + suffix).c_str(), RoomStructureKind::CityStreetFixture,
+                            center, size, unlit ? render_contract::unlit(color)
+                                : semanticMaterial(SemanticSurface::Default, color));
+                    };
+                    addLampBox("pole", {side * lampX, poleHeight * 0.5f, z0 + localZ},
+                        {0.075f, poleHeight, 0.075f}, {0.13f, 0.15f, 0.16f});
+                    addLampBox("arm", {side * (lampX - 0.18f), poleHeight - 0.04f, z0 + localZ},
+                        {0.42f, 0.065f, 0.075f}, {0.13f, 0.15f, 0.16f});
+                    addLampBox("bulb", {side * (lampX - 0.37f), poleHeight - 0.10f, z0 + localZ},
+                        {0.16f, 0.055f, 0.11f}, {0.78f, 0.71f, 0.52f}, true);
+                }
+            }
+            for (int cluster = 0; cluster < street.serviceClusters; ++cluster) {
+                const float side = (cluster & 1) ? 1.0f : -1.0f;
+                const float localZ = -10.5f + cluster * 19.0f +
+                    (room_environment::unit(key + 81u + static_cast<unsigned int>(cluster)) - 0.5f) * 2.0f;
+                const float outer = street.roadHalfWidth + street.sidewalkWidth + 0.46f;
+                const std::string prefix = "city/service/" + std::to_string(cluster);
+                const auto addServiceBox = [&](const std::string& suffix, Vec3 center, Vec3 size,
+                                               VisualColor color, bool unlit = false) {
+                    addStructure((prefix + "/" + suffix).c_str(), RoomStructureKind::CityServiceFixture,
+                        center, size, unlit ? render_contract::unlit(color)
+                            : semanticMaterial(SemanticSurface::Default, color));
+                };
+                addServiceBox("body", {side * outer, 0.44f, z0 + localZ},
+                    {0.62f, 0.88f, 0.44f}, {0.18f, 0.21f, 0.21f});
+                addServiceBox("panel", {side * (outer - side * 0.32f), 0.50f, z0 + localZ},
+                    {0.018f, 0.52f, 0.25f}, {0.075f, 0.09f, 0.095f});
+                for (int vent = 0; vent < 3; ++vent) {
+                    addServiceBox("vent/" + std::to_string(vent),
+                        {side * (outer - side * 0.335f), 0.61f - vent * 0.13f, z0 + localZ},
+                        {0.012f, 0.025f, 0.19f}, {0.36f, 0.38f, 0.36f});
+                }
+                addServiceBox("status-light", {side * (outer - side * 0.342f), 0.76f, z0 + localZ},
+                    {0.014f, 0.075f, 0.12f}, {0.42f, 0.68f, 0.64f}, true);
+            }
+
+            // The desktop renderer draws the native City obstacle boxes as
+            // building masses. Keep the same authoritative boxes visible in
+            // Godot; these records are presentation only and add no collision.
+            const int authoredObstacleCount = std::min(state.debug.colliderCount, plan.obstacleCount);
+            for (int obstacleIndex = 0; obstacleIndex < authoredObstacleCount; ++obstacleIndex) {
+                const auto& obstacle = state.roomColliders[obstacleIndex];
+                const VisualColor plaster = (obstacleIndex % 3) == 0
+                    ? VisualColor{0.40f, 0.38f, 0.34f}
+                    : ((obstacleIndex % 3) == 1
+                        ? VisualColor{0.34f, 0.37f, 0.38f}
+                        : VisualColor{0.42f, 0.36f, 0.33f});
+                addStructure(("city/building-mass/" + std::to_string(obstacleIndex)).c_str(),
+                    RoomStructureKind::CityBuildingMass,
+                    {obstacle.center.x, obstacle.center.y, z0 + obstacle.center.z},
+                    {obstacle.width, obstacle.height, obstacle.depth},
+                    semanticMaterial(SemanticSurface::Default, plaster));
+            }
+
+            // Recover the desktop renderer's deterministic skyline silhouettes
+            // from the same street grammar, including their worn roof caps.
+            for (const int side : {-1, 1}) {
+                for (int band = 0; band < street.skylineBands; ++band) {
+                    const auto block = city_street::skylineBlock(street, key, tileIndex, side, band);
+                    const VisualColor body = block.family == 0
+                        ? VisualColor{0.245f, 0.26f, 0.27f}
+                        : (block.family == 1
+                            ? VisualColor{0.31f, 0.27f, 0.235f}
+                            : VisualColor{0.20f, 0.225f, 0.245f});
+                    const std::string prefix = "city/skyline/" + std::to_string(side) + "/" +
+                        std::to_string(band);
+                    addStructure((prefix + "/body").c_str(), RoomStructureKind::CitySkylineMass,
+                        {block.x, block.height * 0.5f, z0 + block.z},
+                        {block.width, block.height, block.depth},
+                        semanticMaterial(SemanticSurface::Default, body));
+                    addStructure((prefix + "/cap").c_str(), RoomStructureKind::CitySkylineMass,
+                        {block.x, block.height + 0.10f, z0 + block.z},
+                        {block.width * 1.04f, 0.20f, block.depth * 1.04f},
+                        semanticMaterial(SemanticSurface::Default,
+                            {body.r * 0.78f, body.g * 0.80f, body.b * 0.82f}));
+                    const float faceX = block.x - static_cast<float>(side) * block.width * 0.505f;
+                    const int rows = state.localSettings.graphicsPreset <= 0 ? 2 : 3;
+                    const unsigned int facadeKey = key ^
+                        static_cast<unsigned int>((side + 2) * 193 + (band + 1) * 977);
+                    const float nightPresence = 0.34f +
+                        (1.0f - render_contract::celestialDaylight(state.time)) * 0.66f;
+                    for (int row = 0; row < rows; ++row) {
+                        for (int bay = 0; bay < 2; ++bay) {
+                            VisualColor windowColor{0.025f, 0.038f, 0.045f};
+                            if (city_facade::windowOccupied(facadeKey, row, bay)) {
+                                const float warmth = city_facade::occupiedWindowWarmth(facadeKey, row, bay);
+                                windowColor = {
+                                    (0.58f + warmth * 0.18f) * nightPresence,
+                                    (0.34f + warmth * 0.12f) * nightPresence,
+                                    (0.13f + warmth * 0.05f) * nightPresence};
+                            }
+                            const float windowY = 1.4f + static_cast<float>(row) *
+                                (block.height - 2.0f) / static_cast<float>(std::max(1, rows - 1));
+                            const float windowZ = z0 + block.z +
+                                (bay ? 0.22f : -0.22f) * block.depth;
+                            addStructure((prefix + "/window/" + std::to_string(row) + "/" +
+                                std::to_string(bay)).c_str(), RoomStructureKind::CitySkylineWindow,
+                                {faceX, windowY, windowZ}, {0.025f, 0.34f, block.depth * 0.26f},
+                                render_contract::unlit(windowColor));
+                        }
+                    }
+                }
             }
 
             // Reuse the mature renderer's authored modular bays on selected

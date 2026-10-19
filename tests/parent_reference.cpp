@@ -65,12 +65,23 @@ bool validPhoneSnapshot(const GameState& state, const PhonePresentationSnapshot&
         std::isfinite(p.screenBrightness)&&p.screenBrightness>=0.0f&&p.screenBrightness<=1.0f&&
         std::isfinite(p.contentOpacity)&&p.contentOpacity>=0.0f&&p.contentOpacity<=1.0f&&
         std::isfinite(p.screenGlow)&&std::isfinite(p.emissionStrength)&&
+        std::isfinite(p.screenLightColor.x)&&std::isfinite(p.screenLightColor.y)&&
+        std::isfinite(p.screenLightColor.z)&&std::isfinite(p.screenLightIntensity)&&
+        std::isfinite(p.screenLightRadius)&&std::isfinite(p.screenLightForwardOffset)&&
+        std::isfinite(p.screenLightPulse)&&
         std::isfinite(p.battery)&&p.battery>=0.0f&&p.battery<=100.0f&&
         p.souls>=0&&p.souls<=PHONE_CAPACITY&&std::isfinite(p.vacuumPower)&&
         std::isfinite(p.capturePulse)&&p.position.x==state.phoneTransform.position.x&&
         p.position.y==state.phoneTransform.position.y&&p.position.z==state.phoneTransform.position.z&&
         p.screenMode==static_cast<int>(state.phoneDisplay.mode)&&p.battery==state.player.battery&&
-        p.souls==state.player.souls&&p.firstPerson==state.camera.firstPerson;
+        p.souls==state.player.souls&&p.firstPerson==state.camera.firstPerson&&
+        p.screenLightIntensity==state.phoneDisplay.lighting.intensity&&
+        p.screenLightRadius==state.phoneDisplay.lighting.radius&&
+        p.screenLightForwardOffset==state.phoneDisplay.lighting.forwardOffset&&
+        p.screenLightPulse==state.phoneDisplay.lighting.pulse&&
+        p.screenLightColor.x==state.phoneDisplay.lighting.color.x&&
+        p.screenLightColor.y==state.phoneDisplay.lighting.color.y&&
+        p.screenLightColor.z==state.phoneDisplay.lighting.color.z;
 }
 
 void phoneSnapshot(const Game& game) {
@@ -92,7 +103,10 @@ void phoneSnapshot(const Game& game) {
         <<p.screenTint.x<<','<<p.screenTint.y<<','<<p.screenTint.z<<','
         <<p.screenGlow<<','<<p.emissionStrength<<','<<p.interactive<<','
         <<p.battery<<','<<p.souls<<','<<p.lowBattery<<','<<p.vacuumActive<<','
-        <<p.vacuumPower<<','<<p.capturePulse<<'\n';
+        <<p.vacuumPower<<','<<p.capturePulse<<','
+        <<p.screenLightColor.x<<','<<p.screenLightColor.y<<','<<p.screenLightColor.z<<','
+        <<p.screenLightIntensity<<','<<p.screenLightRadius<<','
+        <<p.screenLightForwardOffset<<','<<p.screenLightPulse<<'\n';
 }
 
 void phoneMenuSnapshot(const Game& game) {
@@ -176,7 +190,9 @@ void interactionSnapshot(const Game& game, int targetIndex) {
               << p.pose.leftLegSwing << ',' << p.pose.rightLegSwing << ','
               << p.pose.hitLean << ',' << p.pose.collapse << ','
               << p.headCenter.x << ',' << p.headCenter.y << ',' << p.headCenter.z << ','
-              << p.headRadius << '\n';
+              << p.headRadius << ',' << p.shellCrackAmount << ','
+              << p.damageSurfaceColor.r << ',' << p.damageSurfaceColor.g << ','
+              << p.damageSurfaceColor.b << '\n';
     std::cout << "TETHER," << state.frame << ',' << targetIndex << ',' << p.tetherVisible << ','
               << p.tetherAnchor.x << ',' << p.tetherAnchor.y << ',' << p.tetherAnchor.z << ','
               << p.tetherDestination.x << ',' << p.tetherDestination.y << ',' << p.tetherDestination.z << ','
@@ -234,6 +250,24 @@ int main() {
               << firstBlade.height << ',' << firstBlade.width << ',' << firstBlade.phase << ','
               << lastBlade.root.x << ',' << lastBlade.root.y << ',' << lastBlade.root.z + grassTileOffset << ','
               << lastBlade.height << ',' << lastBlade.width << ',' << lastBlade.phase << '\n';
+    room_environment::GrassReactionInputs grassInputs;
+    grassInputs.player = game.state().player.pos;
+    grassInputs.vacuumOrigin = game.state().phoneTransform.vacuumPullPoint;
+    grassInputs.vacuumStrength = game.state().vacuum.fieldStrength;
+    grassInputs.shotOrigin = game.state().environmentVisual.latestShotOrigin;
+    grassInputs.shotAge = game.state().environmentVisual.latestShotAge;
+    const auto grassTipAt = [&](int index) {
+        auto blade = room_environment::grassBlade(game.state().roomSeed,
+            game.state().roomIndex, grassTile, index);
+        blade.root.z += grassTileOffset;
+        return room_environment::grassTip(blade, game.state().time, grassInputs);
+    };
+    const auto firstGrassTip = grassTipAt(0);
+    const auto middleGrassTip = grassTipAt(room_environment::GrassBladeCountLow / 2);
+    const auto lastGrassTip = grassTipAt(room_environment::GrassBladeCountLow - 1);
+    std::cout << "GRASSTIPS,3," << firstGrassTip.x << ',' << firstGrassTip.y << ',' << firstGrassTip.z << ','
+              << middleGrassTip.x << ',' << middleGrassTip.y << ',' << middleGrassTip.z << ','
+              << lastGrassTip.x << ',' << lastGrassTip.y << ',' << lastGrassTip.z << '\n';
     const auto asphaltPixels = city_surface_texture::pixels();
     unsigned int asphaltSum = 0;
     for (const auto pixel : asphaltPixels) asphaltSum += pixel;
@@ -391,6 +425,20 @@ int main() {
                   << structure.material.emission.r << ',' << structure.material.emission.g << ','
                   << structure.material.emission.b << '\n';
     }
+    auto coastalRoom = std::make_unique<Game>();
+    int coastalSeed = room_environment::representativeInspectorSeed(room_environment::RoomPremise::CoastalShore);
+    while (!room_environment::matchesInspectorPremise(
+        room_environment::roomPlan(coastalSeed, 12), room_environment::RoomPremise::CoastalShore)) ++coastalSeed;
+    coastalRoom->debugStartGeneratedRoomFixture(coastalSeed, 12);
+    const auto coastalSnapshot = RoomPresentationSnapshot::from(
+        coastalRoom->state(), coastalRoom->state().topology.currentTileIndex);
+    std::cout << "COASTALWATER," << (coastalSnapshot.coastalWater ? 1 : 0) << ','
+              << coastalSnapshot.presentationTime << ',' << coastal_water::ShoreX << ','
+              << coastal_water::FarX << ',' << coastal_water::MinZ << ',' << coastal_water::MaxZ << ','
+              << coastalSnapshot.waterSourcePosition.x << ',' << coastalSnapshot.waterSourcePosition.y << ','
+              << coastalSnapshot.waterSourcePosition.z << ',' << coastalSnapshot.waterSourceSpeed << ','
+              << (coastalSnapshot.waterSourceActive ? 1 : 0) << ','
+              << static_cast<float>(coastalSnapshot.tileIndex) * world::RoomDepth << '\n';
     for (const auto& object : roomSnapshot.objects) {
         std::cout << "ROOMOBJ," << object.id << ',' << object.tileIndex << ',' << object.propIndex << ','
                   << object.partIndex << ',' << static_cast<int>(object.primitive) << ','
@@ -422,6 +470,42 @@ int main() {
     const auto citySnapshot = RoomPresentationSnapshot::from(
         cityRoom.state(), cityRoom.state().topology.currentTileIndex);
     for (const auto& structure : citySnapshot.structures) {
+        if (structure.kind == RoomStructureKind::CityStreetFixture ||
+            structure.kind == RoomStructureKind::CityServiceFixture) {
+            const char* category = structure.kind == RoomStructureKind::CityStreetFixture
+                ? "CITYLAMP" : "CITYSERVICE";
+            std::cout << category << ',' << structure.id << ',' << structure.center.x << ','
+                      << structure.center.y << ',' << structure.center.z << ','
+                      << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
+                      << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
+                      << structure.material.baseColor.b << ',' << static_cast<int>(structure.material.shading)
+                      << ',' << structure.material.fog << '\n';
+            continue;
+        }
+        if (structure.kind == RoomStructureKind::CitySkylineWindow) {
+            std::cout << "CITYWINDOW," << structure.id << ',' << structure.center.x << ','
+                      << structure.center.y << ',' << structure.center.z << ','
+                      << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
+                      << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
+                      << structure.material.baseColor.b << ',' << structure.material.fog << '\n';
+            continue;
+        }
+        if (structure.kind == RoomStructureKind::CitySkylineMass) {
+            std::cout << "CITYSKYLINE," << structure.id << ',' << structure.center.x << ','
+                      << structure.center.y << ',' << structure.center.z << ','
+                      << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
+                      << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
+                      << structure.material.baseColor.b << '\n';
+            continue;
+        }
+        if (structure.kind == RoomStructureKind::CityBuildingMass) {
+            std::cout << "CITYMASS," << structure.id << ',' << structure.center.x << ','
+                      << structure.center.y << ',' << structure.center.z << ','
+                      << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
+                      << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
+                      << structure.material.baseColor.b << '\n';
+            continue;
+        }
         if (structure.kind != RoomStructureKind::CityStreet) continue;
         std::cout << "CITYSTRUCT," << structure.id << ',' << structure.center.x << ','
                   << structure.center.y << ',' << structure.center.z << ','

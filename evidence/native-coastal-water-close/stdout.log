@@ -1,0 +1,9 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+AGENT_PLAYTEST_READY schema=2 fixed_dt=0.016666667 max_step_frames=120 persistent_save=DISABLED
+AGENT_STATE schema=2 frame=10 pos=0.000000,0.080000,15.500000 battery=100.000000 souls=0 grounded=1 first_person=0 vacuum=0 nearest_target=7 nearest_distance=23.000000 frame_capture=1 frame_file="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-coastal-water-close/frame-000-tick-000010.png"
+AGENT_STATE schema=2 frame=4 pos=0.000000,0.080000,15.500000 battery=100.000000 souls=0 grounded=1 first_person=0 vacuum=0 nearest_target=7 nearest_distance=23.000000 frame_capture=1 frame_file="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-coastal-water-close/frame-001-tick-000004.png"
+AGENT_STATE schema=2 frame=32 pos=1.571327,0.080000,15.500000 battery=99.099945 souls=0 grounded=1 first_person=0 vacuum=0 nearest_target=7 nearest_distance=23.053612 frame_capture=1 frame_file="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-coastal-water-close/frame-002-tick-000032.png"
+AGENT_STATE schema=2 frame=40 pos=1.685743,0.080000,15.500000 battery=99.099945 souls=0 grounded=1 first_person=1 vacuum=0 nearest_target=7 nearest_distance=23.061693 frame_capture=1 frame_file="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-coastal-water-close/frame-003-tick-000040.png"
+AGENT_PLAYTEST_QUIT frame=40

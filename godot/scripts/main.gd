@@ -4,6 +4,7 @@ extends Node3D
 const PhonePresentationAdapter = preload("res://scripts/phone_presentation_adapter.gd")
 const RoomPresentationAdapter = preload("res://scripts/room_presentation_adapter.gd")
 const HumanModelAdapter = preload("res://scripts/human_model_adapter.gd")
+const NativeParticlePresentationAdapter = preload("res://scripts/native_particle_presentation_adapter.gd")
 const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
 const DeveloperConsole = preload("res://scripts/developer_console.gd")
 const HudPresentationAdapter = preload("res://scripts/hud_presentation_adapter.gd")
@@ -11,6 +12,7 @@ var runtime: Node
 var developer_console: Control
 var hud_adapter: Control
 var phone_adapter: Node
+var particle_adapter: Node
 var room_adapter: Node
 var camera: Camera3D
 var world_environment: WorldEnvironment
@@ -59,6 +61,9 @@ func _ready() -> void:
     phone_adapter = PhonePresentationAdapter.new()
     phone_adapter.name = "PhonePresentationAdapter"
     add_child(phone_adapter)
+    particle_adapter = NativeParticlePresentationAdapter.new()
+    particle_adapter.name = "NativeParticlePresentationAdapter"
+    add_child(particle_adapter)
     for i in range(runtime.target_count()):
         var enemy := HumanModelAdapter.new()
         enemy.call("configure", i, runtime.target_model_color(i))
@@ -246,11 +251,14 @@ func _sync() -> void:
         room_snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(
             int(room_snapshot.tile_index))
         _grass_snapshot_key = grass_key
+    room_snapshot["grass_tips"] = runtime.grass_blade_tip_presentation_snapshot(
+        int(room_snapshot.tile_index))
     room_adapter.call("sync_snapshot", room_snapshot)
     camera.position = runtime.camera_position()
     camera.look_at(runtime.camera_target(), Vector3.UP)
     camera.fov = runtime.camera_fov_degrees()
     phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera)
+    particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
     var hud_targets: Array[Dictionary] = []
     for i in range(targets.size()):
         var target_snapshot: Dictionary = runtime.target_presentation_snapshot(i)

@@ -20,6 +20,7 @@ func configure(index: int, color: Color) -> void:
     material.albedo_color = color
     material.roughness = 0.78
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     mesh_instance.material_override = material
     add_child(mesh_instance)
 
@@ -45,8 +46,15 @@ func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array) -> voi
     _sync_tether(snapshot)
     if not visible or vertices.is_empty():
         return
-    material.albedo_color = base_color.lerp(Color(1.0, 0.28, 0.2), clampf(float(snapshot.hit_amount), 0.0, 1.0))
-    position = snapshot.position + Vector3.UP * float(snapshot.pose.root_bob)
+    base_color = snapshot.get("damage_surface_color", base_color)
+    var hit_color: Color = base_color.lerp(Color(1.0, 0.28, 0.2), clampf(float(snapshot.hit_amount), 0.0, 1.0))
+    var morph := clampf(float(snapshot.pose.soul_morph), 0.0, 1.0)
+    var morph_eased := morph * morph * (3.0 - 2.0 * morph)
+    hit_color.a = 1.0 - morph_eased
+    material.albedo_color = hit_color
+    # Collapse the skinned shell toward the native soul-lattice center instead
+    # of shrinking it into the floor. The lattice grows from this same pivot.
+    position = snapshot.position + Vector3.UP * (float(snapshot.pose.root_bob) + 0.57 * morph)
     rotation = Vector3(float(snapshot.body_pitch), float(snapshot.pose.yaw), float(snapshot.body_roll))
     var expressive: Vector3 = snapshot.pose.expressive_scale
     var model_scale := float(snapshot.pose.scale)
