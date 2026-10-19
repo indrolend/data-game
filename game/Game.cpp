@@ -450,6 +450,37 @@ Game::EnemyRuntimePool& Game::enemyRuntime(){
     return *enemyRuntime_;
 }
 
+Game::Snapshot Game::snapshot() const {
+    Snapshot result;
+    result.state=state_;
+    result.simulationPlayerId=simulationPlayerId_;
+    result.enemyMotorExpressionEnabled=enemyMotorExpressionEnabled_;
+    if(enemyRuntime_){
+        result.enemyPerceptions=enemyRuntime_->perceptions;
+        result.enemyBehaviors=enemyRuntime_->behaviors;
+        result.enemyLocomotions=enemyRuntime_->locomotions;
+        result.enemyBodies=enemyRuntime_->bodies;
+        result.enemyMotors=enemyRuntime_->motors;
+        result.enemyMotorOutputs=enemyRuntime_->motorOutputs;
+        result.enemyPerceptionCursor=enemyRuntime_->perceptionCursor;
+    }
+    return result;
+}
+
+void Game::restore(const Snapshot& snapshotValue) {
+    state_=snapshotValue.state;
+    simulationPlayerId_=snapshotValue.simulationPlayerId;
+    enemyMotorExpressionEnabled_=snapshotValue.enemyMotorExpressionEnabled;
+    auto& runtime=enemyRuntime();
+    runtime.perceptions=snapshotValue.enemyPerceptions;
+    runtime.behaviors=snapshotValue.enemyBehaviors;
+    runtime.locomotions=snapshotValue.enemyLocomotions;
+    runtime.bodies=snapshotValue.enemyBodies;
+    runtime.motors=snapshotValue.enemyMotors;
+    runtime.motorOutputs=snapshotValue.enemyMotorOutputs;
+    runtime.perceptionCursor=snapshotValue.enemyPerceptionCursor;
+}
+
 const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& Game::enemyPerceptions() const {
     static const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> empty{};
     return enemyRuntime_?enemyRuntime_->perceptions:empty;

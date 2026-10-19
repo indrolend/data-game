@@ -477,6 +477,14 @@ target_include_directories(GameplayFlowProbe PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(GameplayFlowProbe PRIVATE cxx_std_17)
 
 add_executable(
+    BigBangCaptureRuntimeTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/bigbang_capture_runtime_test.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(BigBangCaptureRuntimeTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(BigBangCaptureRuntimeTest PRIVATE cxx_std_17)
+
+add_executable(
     RoomProgressionProbe
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_progression_probe.cpp"
     "${DB_GAME_ROOT}/Game.cpp"
@@ -561,6 +569,7 @@ add_test(NAME SoulProjectileLifecycleTest COMMAND SoulProjectileLifecycleTest)
 add_test(NAME TraversalCalibrationTest COMMAND TraversalCalibrationTest)
 add_test(NAME DesktopSaveRecoveryTest COMMAND DigitalBreakdown --save-roundtrip-test)
 add_test(NAME GameplayFlowProbe COMMAND GameplayFlowProbe)
+add_test(NAME BigBangCaptureRuntimeTest COMMAND BigBangCaptureRuntimeTest)
 add_test(NAME RoomProgressionProbe COMMAND RoomProgressionProbe)
 add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
 add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
