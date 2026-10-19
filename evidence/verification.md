@@ -298,3 +298,22 @@ meshes; native collision and room rules remain unchanged.
   `evidence/native-ruin-presentation-detail/frame-003-tick-000023.png`: the ruin
   blocks/scar accents render, but the camera shows them at a distance and lacks
   source stone pixels/lighting. This is not original-renderer visual parity.
+
+## 2026-10-19 — native cleared-room transition
+
+Added a test-only rally fixture that places the original player immediately
+before a cleared-room doorway. The Godot test submits ordinary movement input
+to `ParentGameNode`; no room advancement or upgrade state is synthesized by
+Godot. Fourteen fixed ticks cross the seam, advance room 1 to room 2, and open
+the native paused upgrade choice through `Game::updateRoomTopology()`.
+
+- `godot/tests/room_transition.gd`: PASS; native transition occurs in 14 ticks,
+  advances the room, and activates the native upgrade panel.
+- `tests/verify.ps1`: PASS; full configure/build, headless behavior/presentation
+  tests, startup, and parent parity.
+- `tests/compare_parity.ps1`: PASS; 209 rows within `1e-5`. The new
+  `ROOMCROSS` parent and Godot records both report frame 14, room 2, player
+  position `(0, 0.08, -21.0122757)`, upgrade active, paused, battery 100, and
+  souls 0.
+- This is headless gameplay-path evidence only. No graphical multi-room
+  transition capture was made, and visual parity remains unestablished.

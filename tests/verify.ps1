@@ -21,6 +21,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "HUD presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/upgrade_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "upgrade-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Upgrade presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/room_transition.gd 2>&1 | Set-Content (Join-Path $evidence "room-transition.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native room transition contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/playable_encounter.gd 2>&1 | Set-Content (Join-Path $evidence "playable-encounter.log")
     if ($LASTEXITCODE -ne 0) { throw "Godot playable encounter test failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --quit-after 2 2>&1 | Set-Content (Join-Path $evidence "godot-startup.log")

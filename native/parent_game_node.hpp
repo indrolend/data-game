@@ -35,6 +35,7 @@ public:
     void start_sterile_room_fixture();
     void start_ruin_room_fixture();
     void start_upgrade_fixture();
+    void start_room_transition_fixture();
     void refill_target_interaction_battery();
     String execute_developer_command(const String& command);
     void set_developer_console_open(bool open);

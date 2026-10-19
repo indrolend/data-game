@@ -30,6 +30,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("start_sterile_room_fixture"),&ParentGameNode::start_sterile_room_fixture);
     ClassDB::bind_method(D_METHOD("start_ruin_room_fixture"),&ParentGameNode::start_ruin_room_fixture);
     ClassDB::bind_method(D_METHOD("start_upgrade_fixture"),&ParentGameNode::start_upgrade_fixture);
+    ClassDB::bind_method(D_METHOD("start_room_transition_fixture"),&ParentGameNode::start_room_transition_fixture);
     ClassDB::bind_method(D_METHOD("refill_target_interaction_battery"),&ParentGameNode::refill_target_interaction_battery);
     ClassDB::bind_method(D_METHOD("execute_developer_command","command"),&ParentGameNode::execute_developer_command);
     ClassDB::bind_method(D_METHOD("set_developer_console_open","open"),&ParentGameNode::set_developer_console_open);
@@ -91,6 +92,7 @@ void ParentGameNode::start_city_room_fixture(){bridge.startCityRoomFixture();}
 void ParentGameNode::start_sterile_room_fixture(){bridge.startSterileRoomFixture();}
 void ParentGameNode::start_ruin_room_fixture(){bridge.startRuinRoomFixture();}
 void ParentGameNode::start_upgrade_fixture(){bridge.startUpgradeFixture();}
+void ParentGameNode::start_room_transition_fixture(){bridge.startRoomTransitionFixture();}
 void ParentGameNode::refill_target_interaction_battery(){bridge.refillTargetInteractionBattery();}
 String ParentGameNode::execute_developer_command(const String& command) {
     const CharString utf8 = command.utf8();

@@ -354,4 +354,17 @@ func _initialize() -> void:
     upgrade_game.activate_upgrade_selection()
     upgrade_snapshot(upgrade_game, "run")
     upgrade_game.free()
+    var crossing = ClassDB.instantiate("ParentGameNode")
+    crossing.start_room_transition_fixture()
+    for _frame in range(120):
+        if bool(crossing.upgrade_presentation_snapshot().active):
+            break
+        crossing.submit_input(0, 1, 0, 0, false, false, false, false, false, false)
+        crossing.tick()
+    var crossed: Dictionary = crossing.upgrade_presentation_snapshot()
+    var crossed_position: Vector3 = crossing.player_position()
+    print("ROOMCROSS,%d,%d,%.7f,%.7f,%.7f,%d,%d,%.7f,%d" % [
+        crossing.frame(), crossed.room_index, crossed_position.x, crossed_position.y,
+        crossed_position.z, int(crossed.active), int(crossing.paused()), crossing.battery(), crossing.souls()])
+    crossing.free()
     quit(0)

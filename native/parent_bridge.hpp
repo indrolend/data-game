@@ -168,6 +168,15 @@ public:
         state.progression.permanent.levels = {{1, 2, 0}};
         state.progression.run.temporaryLevels = {{2, 1, 3}};
     }
+    void startRoomTransitionFixture() {
+        game.debugStartRallyLab();
+        auto& state = game.networkMutableState();
+        state.player.pos = {0.0f, 0.08f, -20.72f};
+        state.player.vel = {};
+        state.player.grounded = true;
+        state.camera.yaw = 0.0f;
+        state.camera.pitch = 0.0f;
+    }
     void refillTargetInteractionBattery() { game.debugFillBattery(); }
     std::string executeDeveloperCommand(const std::string& command) {
         codec.input = command;

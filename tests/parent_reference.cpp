@@ -447,5 +447,23 @@ int main() {
     upgradeGame.networkMutableState().hud.menuSelection = 1;
     upgradeGame.chooseTemporaryUpgrade(1);
     emitUpgradeSnapshot("run", upgradeGame.state());
+
+    Game roomCrossing;
+    roomCrossing.debugStartRallyLab();
+    auto& crossingState = roomCrossing.networkMutableState();
+    crossingState.player.pos = {0.0f, 0.08f, -20.72f};
+    crossingState.player.vel = {};
+    crossingState.player.grounded = true;
+    crossingState.camera.yaw = 0.0f;
+    crossingState.camera.pitch = 0.0f;
+    for (int frame = 0; frame < 120 && !roomCrossing.state().upgradeMenu.active; ++frame) {
+        submit(roomCrossing, 0, 1, 0, 0, false, false, false, false, false, false);
+        roomCrossing.update(1.0f / 60.0f);
+    }
+    const auto& crossed = roomCrossing.state();
+    std::cout << "ROOMCROSS," << crossed.frame << ',' << crossed.roomIndex << ','
+        << crossed.player.pos.x << ',' << crossed.player.pos.y << ',' << crossed.player.pos.z << ','
+        << crossed.upgradeMenu.active << ',' << crossed.uiPaused << ',' << crossed.player.battery << ','
+        << crossed.player.souls << '\n';
     return 0;
 }
