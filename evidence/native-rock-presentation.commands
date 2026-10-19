@@ -1,0 +1,4 @@
+# Show the default parent-driven room, then rotate toward its native rock record.
+step frames=1 lookX=-150
+observe
+quit

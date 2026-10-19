@@ -1,0 +1,8 @@
+observe
+step frames=120 moveZ=1
+observe
+step frames=1 camera=true
+observe
+step frames=60 vacuum=true
+observe
+quit

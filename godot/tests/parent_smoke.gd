@@ -79,6 +79,74 @@ func _initialize() -> void:
     check(actions.target_count() > 0, "native target collection is exposed")
     actions.free()
 
+    var melee_contract := new_game()
+    var melee_before: Dictionary = melee_contract.player_action_snapshot()
+    tick(melee_contract, 1, 0.0, 0.0, false, false, false, true)
+    var melee_started: Dictionary = melee_contract.player_action_snapshot()
+    check(int(melee_started.sequence) > int(melee_before.sequence),
+        "grounded melee advances the native action sequence")
+    check(float(melee_started.range) > 0.0 and float(melee_started.hit_radius) > 0.0,
+        "native melee exposes attack reach and hit radius")
+    check((melee_started.direction as Vector3).length() > 0.99,
+        "native melee exposes a normalized attack direction")
+    tick(melee_contract, 5)
+    var melee_advanced: Dictionary = melee_contract.player_action_snapshot()
+    check(float(melee_advanced.phase) > float(melee_started.phase),
+        "native melee presentation phase advances with native mechanic time")
+    melee_contract.free()
+
+    var communication := new_game()
+    communication.set_comm_signal(2)
+    communication.tick()
+    check(communication.comm_signal() == 2, "communication signal is owned and activated by parent Game")
+    check(communication.comm_signal_timer() > 0.0, "parent Game owns communication signal lifetime")
+    tick(communication, 150)
+    check(communication.comm_signal() == 0, "parent Game expires communication signal")
+    communication.free()
+
+    var pause := new_game()
+    tick(pause, 30, 0.0, 1.0)
+    var position_before_pause: Vector3 = pause.player_position()
+    var time_before_pause: float = pause.simulation_time()
+    pause.set_paused(true)
+    tick(pause, 60, 0.0, 1.0)
+    check(pause.paused(), "parent Game owns paused state")
+    check(pause.player_position().distance_to(position_before_pause) <= 0.000001,
+        "solo pause freezes parent player simulation")
+    check(absf(pause.simulation_time() - time_before_pause) <= 0.000001,
+        "solo pause freezes parent simulation clock")
+    pause.set_paused(false)
+    tick(pause, 30, 0.0, 1.0)
+    check(not pause.paused(), "parent Game resumes from pause")
+    check(pause.player_position().distance_to(position_before_pause) > 0.001,
+        "movement resumes after parent pause ends")
+    pause.free()
+
+    var room := new_game()
+    var room_snapshot: Dictionary = room.room_presentation_snapshot(0)
+    var room_snapshot_again: Dictionary = room.room_presentation_snapshot(0)
+    check(int(room_snapshot.room_seed) == 12345, "room presentation uses native room seed")
+    check(int(room_snapshot.room_index) == 1, "room presentation uses native room index")
+    check((room_snapshot.structures as Array).size() == 8,
+        "native open-field room produces floor, two complete door frames, and selected traversal surface")
+    check((room_snapshot.objects as Array).size() > 0, "native room produces computed scene objects")
+    check((room_snapshot.objects as Array).size() == (room_snapshot_again.objects as Array).size(),
+        "native computed room object count is deterministic")
+    if (room_snapshot.objects as Array).size() > 0:
+        check(str((room_snapshot.objects as Array)[0].id) == str((room_snapshot_again.objects as Array)[0].id),
+            "native computed room object IDs are stable")
+    check(str((room_snapshot.structures as Array)[0].id) == "room/0/structure/floor",
+        "native room structure IDs are stable")
+    var floor_material: Dictionary = (room_snapshot.structures as Array)[0].material
+    var floor_color: Color = floor_material.base_color
+    check(absf(floor_color.r - 63.0 / 255.0) <= 0.000001,
+        "native field floor material carries VisualIdentity field color")
+    check(int(floor_material.texture) == 1,
+        "native field floor material carries field-grass texture identity")
+    check(str((room_snapshot.structures as Array)[7].id) == "room/0/structure/traversal/4",
+        "native room exposes selected traversal surface by stable graph index")
+    room.free()
+
     var rally := new_game()
     rally.start_rally_fixture()
     check(rally.souls() == 1, "parent rally fixture seeds one stored soul")
@@ -104,12 +172,22 @@ func _initialize() -> void:
     check(live_count == 0 or target_fixture_b.target_alive(first_live),
         "parent target fixture is deterministic")
     if first_live >= 0:
+        var target_pose_start: Dictionary = target_fixture_a.target_presentation_snapshot(first_live)
+        check(int(target_pose_start.index) == first_live,
+            "target presentation snapshot preserves native target identity")
+        check(float(target_pose_start.head_radius) > 0.0,
+            "target presentation exposes native-scaled head volume")
         check(target_fixture_a.target_position(first_live).distance_to(
             target_fixture_b.target_position(first_live)) <= 0.000001,
             "deterministic fixture target positions match")
     tick(target_fixture_a, 120)
     tick(target_fixture_b, 120)
     if first_live >= 0:
+        var target_pose_moved: Dictionary = target_fixture_a.target_presentation_snapshot(first_live)
+        check(bool(target_pose_moved.body_authoritative),
+            "moving enemy exposes authoritative native body presentation")
+        check(float(target_pose_moved.attack_commit_phase) < float(target_pose_moved.attack_end_phase),
+            "enemy presentation exposes ordered native damage window boundaries")
         check(target_fixture_a.target_position(first_live).distance_to(
             target_fixture_b.target_position(first_live)) <= 0.000001,
             "deterministic enemy trajectories match after neutral ticks")
@@ -165,5 +243,5 @@ func _initialize() -> void:
         print("RESULT: FAIL count=", failures.size())
         quit(2)
         return
-    print("RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting")
+    print("RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee action/pose contracts, enemy body/attack contracts, communication signals, native pause/resume, native room/object contracts, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting")
     quit(0)

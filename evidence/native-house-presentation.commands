@@ -1,0 +1,4 @@
+# Switch to the original Game's generated CityCourtyard fixture and capture it.
+city_fixture
+observe
+quit

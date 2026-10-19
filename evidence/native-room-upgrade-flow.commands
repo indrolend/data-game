@@ -1,0 +1,9 @@
+# Exercise the upgrade path end to end: permanent Lunge token, then run Lunge.
+upgrade_fixture
+upgrade_move horizontal=1 vertical=0
+upgrade_move horizontal=0 vertical=1
+upgrade_confirm
+upgrade_move horizontal=0 vertical=-1
+upgrade_confirm
+observe
+quit

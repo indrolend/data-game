@@ -13,6 +13,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Headless smoke failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/phone_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "phone-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Phone presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/room_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "room-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Room presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/human_model_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "human-model-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Human model presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/hud_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "hud-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "HUD presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/upgrade_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "upgrade-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Upgrade presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/playable_encounter.gd 2>&1 | Set-Content (Join-Path $evidence "playable-encounter.log")
+    if ($LASTEXITCODE -ne 0) { throw "Godot playable encounter test failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --quit-after 2 2>&1 | Set-Content (Join-Path $evidence "godot-startup.log")
     if ($LASTEXITCODE -ne 0) { throw "Godot startup failed with exit code $LASTEXITCODE" }
     & "$PSScriptRoot/compare_parity.ps1" -GodotExe $GodotExe 2>&1 | Set-Content (Join-Path $evidence "parity-result.log")

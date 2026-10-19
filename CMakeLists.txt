@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(parent_reference tests/parent_reference.cpp parent/game/Game.cpp)
-target_include_directories(parent_reference PRIVATE parent/game)
+target_include_directories(parent_reference PRIVATE parent/game native)
 # Supply a matching checkout of godot-cpp using -DGODOT_CPP_DIR=...
 if(NOT GODOT_CPP_DIR)
   message(FATAL_ERROR "Set -DGODOT_CPP_DIR to the official godot-cpp checkout matching your Godot 4 version")

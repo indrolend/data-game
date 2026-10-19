@@ -1,0 +1,1454 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index e2d96a4..4a06403 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,21 +1,28 @@
+ # Agent contract ΓÇö Digital Breakdown Godot migration
+ 
+-Goal: move infrastructure into Godot while retaining the supplied parent C++ gameplay simulation as the sole authority.
++Goal: use Godot for rendering, input, scene organization, and presentation while cherry-picking the original C++ game as the behavioral source. Keep the original `Game` simulation authoritative wherever it already works. Port only missing or engine-specific pieces; document intentional omissions and later improvements instead of inventing replacement mechanics.
+ 
+ ## Architecture
+ 
+-- `parent/game/` is the unmodified archive-derived parent gameplay reference truth. Do not edit it unless a concrete parent build/runtime blocker has first been reproduced and documented.
+-- `native/parent_bridge.hpp` is the only direct adapter used by Godot. It owns one `Game`, forwards semantic input, and advances exactly `1.0f / 60.0f` per `tick()`.
+-- `native/parent_game_node.*` exposes read-only `GameState` observations and forwards input/ticks. `native/phone_presentation_snapshot.hpp` is a bounded read-only phone projection built only from existing `GameState`; it owns no timers or gameplay state. Do not add gameplay state or Godot physics authority here.
+-- `godot/scripts/main.gd` forwards input and synchronizes scene presentation. `godot/scripts/phone_presentation_adapter.gd` translates the native phone snapshot into Godot body/screen nodes and indicators. Its first-person camera-relative view-model offset is render-only and never feeds simulation. This is not an original renderer or asset port.
+-- `tests/parent_reference.cpp` runs `Game` directly, without Godot. Its fixed scenario is the independent reference for `godot/tests/parent_parity.gd`.
++- `godot/scenes/main.tscn` is the normal launch path and runs `main.gd` over the original C++ `Game` via `ParentGameNode`/`ParentBridge`. The original simulation remains the sole gameplay authority on this path; bridge ticks advance exactly `1.0f / 60.0f`.
++- `godot/scenes/playable_runtime.tscn` and `playable_runtime.gd` are an isolated exploratory Godot-owned encounter, not the default game or a parity implementation. Keep its test separate; do not merge its mechanics into the parent-driven runtime unless each behavior is reconciled against the original C++ contract.
++- `godot/scripts/player_controller.gd` owns Godot player movement, camera mode, hit points, attack-window timing, and player response to enemy damage. `godot/scripts/enemy_controller.gd` owns this encounter's approach, windup, strike, recovery, stagger, and defeat. `Area3D` overlap geometry determines valid melee/contact hits. These mechanics must not also be advanced by the original C++ simulation in this playable scene.
++- `godot/scripts/phone_avatar.gd` is render-only. Its screen/body do not control movement or combat.
++- `godot/scenes/parent_reference.tscn` is a retained alias for the parent-driven migration presentation. `parent/game/` is the unmodified archive-derived reference; do not edit it unless a concrete parent build/runtime blocker has first been reproduced and documented.
++- `godot/scripts/main.gd` with `ParentGameNode` is the default parent-driven path. Preserve read-only snapshots, native fixed ticks, deterministic tests, and evidence; do not silently replace or weaken them.
++- `godot/scripts/room_presentation_adapter.gd`, `godot/scripts/human_model_adapter.gd`, and native presentation snapshots adapt the default parent-driven path. The human adapter uses original native-skinned model vertices, native hit amount for render-only damage tint, and native tether anchor/destination/width for the vacuum beam. Combat status and target attack-phase HUD cues read native snapshots only. These adapters own no combat/ingestion rules or collision. The room adapter renders native structures plus box-geometry lawn-fragment object records only; keep stable IDs/transforms, create no gameplay collision, and skip object families without an appropriate visual contract. Do not wire a ticking native simulation behind Godot-owned gameplay.
++- `tests/parent_reference.cpp` runs `Game` directly, without Godot. Its fixed scenario is the independent reference for the retained `parent_reference.tscn` path and `godot/tests/parent_parity.gd`.
+ - `godot/tests/parent_smoke.gd` explicitly frees every test-created Godot object. Failures must exit nonzero.
+ - `godot/tests/phone_presentation.gd` checks the native snapshot drives phone dimensions, screen offset/status, third-person transform, and first-person view-model placement; it explicitly frees the test scene and fails nonzero.
++- `godot/tests/room_presentation.gd` checks one render node per native structure, stable floor identity, native dimensions/color, and retained texture identity; it explicitly frees created objects and fails nonzero.
++- `godot/tests/human_model_presentation.gd` checks the original native model loads, remains a triangle list, deforms under native animation/body state, becomes a Godot `ArrayMesh`, and introduces no Godot collision object; its controlled 1,050-tick parent interaction also checks that native tether state becomes a correctly aligned render-only Godot tether.
++- `godot/tests/playable_encounter.gd` exercises only the exploratory `playable_runtime.tscn` movement, floor/wall collision, enemy approach, melee contact, stagger, defeat, and enemy contact damage. Keep failing checks nonzero; this does not establish parity with the default game.
+ - `tests/compare_parity.ps1` compares structured reference and Godot snapshots with a default tolerance of `1e-5`.
++- `MIGRATION_MATRIX.md` is the subsystem inventory, ownership map, dependency order, and definition-of-done contract. Update it when a subsystem boundary or status materially changes.
+ 
+ ## Verification
+ 
+-Run `.\tests\verify.ps1` from the repository root in PowerShell. Equivalent commands are:
++Run `.\tests\verify.ps1` from the repository root in PowerShell. Launch the playable game with `godot_console.exe --path godot`. Equivalent build and retained reference commands are:
+ 
+ ```powershell
+ cmake -S . -B build-godot47 "-DGODOT_CPP_DIR=C:/Users/indro/Projects/godot-cpp" "-DGODOTCPP_DEFAULT_API_VERSION=4.7"
+@@ -32,8 +39,8 @@ Logs belong in `evidence/`. Do not report a pass unless the command returned exi
+ 
+ ## Current scope and rules
+ 
+-- Verified headlessly: deterministic repeatability, movement, sprint, jump, mouse-look input semantics, camera toggle, vacuum activation while grounded, melee/battery coupling, frame progression, target observation, phone snapshot contracts, and direct-parent/Godot fixed-scenario parity.
++- The default scene runs the original C++ simulation and is verified headlessly for deterministic repeatability, movement, sprint, jump, mouse-look semantics, camera toggle, vacuum, native melee/target snapshots, communication signals, native pause, phone/room/model contracts, target interaction, and direct-parent/Godot parity. Headless checks do not establish graphical parity.
+ - The default fixture begins with zero stored souls. The `start_rally_fixture()` test hook delegates to the original `Game::debugStartRallyLab()` and seeds one soul; headless checks and parity cover soul consumption and delayed projectile creation. The `start_target_fixture()` hook delegates to the original room-inspector enemy setup; headless checks and parity cover 20 live targets and deterministic target-state snapshots over neutral ticks. Those fixture targets remain stationary in that scenario. A separate 1,050-tick controlled interaction sequence covers shell defeat, ingestion, capture, and one soul entering inventory; it does not establish every enemy, soul variant, upgrade, or room-progression outcome.
+-- Godot synchronizes temporary player/target meshes, native camera state, a phone body/screen/indicator adapter, and a minimal native-state HUD. It does not own collision or gameplay simulation. GPU captures in `evidence/phone-presentation-final/` show the phone in both camera modes; the screen content/body remain a minimal Godot presentation, not original renderer parity.
++- The exploratory Godot encounter uses simple authored collision geometry and a stylized humanoid. It is not the default launch scene, a port of native enemy behavior, or evidence of gameplay parity. Keep its existing captures labeled as prototype evidence.
+ - Preserve existing evidence and dirty files. Do not weaken assertions, invent success, or hardcode expectations derived only from the Godot-facing runtime.
+-- Do not claim original renderer/assets, audio, complete controls, or full gameplay parity. Headless startup is not visual verification; graphical claims require inspecting retained GPU captures and identifying the exact scenario.
++- Do not claim original renderer/assets, audio, complete controls, or full gameplay parity. Headless startup is not visual verification; graphical claims require inspecting captures of the exact scene and encounter state.
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6297ce8..31b3980 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ add_executable(parent_reference tests/parent_reference.cpp parent/game/Game.cpp)
+-target_include_directories(parent_reference PRIVATE parent/game)
++target_include_directories(parent_reference PRIVATE parent/game native)
+ # Supply a matching checkout of godot-cpp using -DGODOT_CPP_DIR=...
+ if(NOT GODOT_CPP_DIR)
+   message(FATAL_ERROR "Set -DGODOT_CPP_DIR to the official godot-cpp checkout matching your Godot 4 version")
+diff --git a/README.md b/README.md
+index c845903..caf3009 100644
+--- a/README.md
++++ b/README.md
+@@ -1,8 +1,10 @@
+-# Digital Breakdown ΓåÆ Godot: first native integration spike
++# Digital Breakdown ΓåÆ Godot migration
+ 
+-**Status: GDExtension build, headless Godot startup, deterministic input checks, and fixed-scenario parent parity are verified. Visual presentation remains unverified.**
++**Status: The default Godot scene runs the original C++ gameplay simulation through GDExtension, with Godot providing input and presentation.**
+ 
+-This project keeps the original parent `Game.cpp` and `Game.hpp` and their gameplay headers unchanged. A tiny C++ `ParentBridge` calls `Game::setTouchControls`, `Game::update(1/60)`, and reads `Game::state()` directly. `ParentGameNode` exposes the original state to Godot. Godot draws *temporary primitive* phone/enemy meshes; this is not the parent OpenGL renderer or an original asset conversion.
++The default Godot scene forwards input to the original `Game` and advances it at its fixed 60 Hz simulation step. Godot presents native player, target, room, phone, and HUD state. The isolated `playable_runtime.tscn` is an exploratory Godot-owned encounter; it is not authoritative, not wired into the default launch, and must not be treated as a faithful port of original gameplay.
++
++The complete subsystem ownership map and dependency order are maintained in `MIGRATION_MATRIX.md`. Native room presentation exposes deterministic room-plan metadata, structural records, material definitions, and stable computed-scene object records. Godot now renders the initial tile's native floor, door frames, selected traversal surface, and the native box-geometry lawn-fragment family. Other computed prop families and generated texture pixels remain unported.
+ 
+ ## Build on Windows
+ 
+@@ -10,18 +12,18 @@ This project keeps the original parent `Game.cpp` and `Game.hpp` and their gamep
+ 2. From this folder, run:
+ 
+ ```powershell
+-cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DGODOT_CPP_DIR="C:/path/to/godot-cpp"
+-cmake --build build --config Release --parallel
++cmake -S . -B build-godot47 "-DGODOT_CPP_DIR=C:/Users/indro/Projects/godot-cpp" "-DGODOTCPP_DEFAULT_API_VERSION=4.7"
++cmake --build build-godot47 --config Release --parallel
+ ```
+ 
+ 3. Open the `godot/` directory in the Godot editor and run the main scene. If Godot fails to load the extension, check the compiled DLL, ABI compatibility, and the `.gdextension` library path.
+ 
+-## Initial controls
++## Play the game
+ 
+-WASD movement, Shift sprint, Space jump, E vacuum, F melee, Q shoot, C camera toggle, and captured mouse-look. Original asset import, full HUD/audio, and scene-authoring parity are not implemented.
++Run `godot_console.exe --path godot` from PowerShell, or open `godot/project.godot` in Godot 4.7.2 and press F6/F5. Controls: WASD move, Shift sprint, Space jump, captured mouse-look, E vacuum, F melee, Q shoot, C camera toggle, and 1ΓÇô4 communication signals. Escape pauses; click to resume. This launch path uses the original C++ simulation. Its current Godot visuals are incremental presentation work, not a verified pixel-for-pixel renderer port.
+ 
+ ## Verification
+ 
+-Run `.\tests\verify.ps1` from PowerShell. It configures and builds the extension and direct-parent harness, runs headless behavior/startup checks, and compares structured parent-versus-Godot snapshots. Logs are written under `evidence/`.
++Run `.\tests\verify.ps1` from PowerShell. It configures/builds the extension and independent direct-parent harness, runs native-driven Godot behavior and presentation tests, separately tests the exploratory encounter, checks default-scene startup, and compares structured parent/Godot snapshots. Logs are written under `evidence/`.
+ 
+-The default parent fixture has no stored souls. Parent-owned rally and room-inspector fixtures verify soul consumption, delayed projectile creation, 20 live targets, and deterministic target-state snapshots over neutral ticks. The targets remained stationary in the tested scenario. Target defeat, capture, and soul ingestion remain unsupported because the current fixture does not align a controlled interaction.
++The default parent fixture has no stored souls. Parent-owned rally and room-inspector fixtures verify soul consumption, delayed projectile creation, 20 live targets, and deterministic target-state snapshots over neutral ticks. A controlled 1,050-tick parent-owned interaction also verifies pursuit, armor damage, shell defeat, ingestion, capture, and one stored soul. Communication-signal activation, persistence, and expiry are compared against the direct `Game` harness. These scenarios do not establish parity for every enemy, soul variant, upgrade, or room-progression outcome.
+diff --git a/evidence/cmake-configure.log b/evidence/cmake-configure.log
+index 8a003ed..4c21818 100644
+--- a/evidence/cmake-configure.log
++++ b/evidence/cmake-configure.log
+@@ -7,6 +7,6 @@
+ -- GODOTCPP_GDEXTENSION_INTERFACE_FILE = 'gdextension/gdextension_interface.json'
+ -- There are 2135 Files to generate
+ => Default build type is Debug. For other build types add --config <type> to build command
+--- Configuring done (0.7s)
+--- Generating done (0.4s)
++-- Configuring done (0.5s)
++-- Generating done (0.3s)
+ -- Build files have been written to: C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/build-godot47
+diff --git a/evidence/godot-parity.log b/evidence/godot-parity.log
+index c3de1b7..18b1d34 100644
+--- a/evidence/godot-parity.log
++++ b/evidence/godot-parity.log
+@@ -18,14 +18,63 @@ PARITY,210,0.5164743,0.0800000,6.4886785,0.5286120,0.8040497,6.3091340,1.2029289
+ PHONE,210,0.5164750,0.0800146,6.4886832,-0.0002504,-0.0334112,-0.0000063,0.9994417,0.0800000,0.1600000,0.0120000,1.0000000,1.0000000,1.0000000,0.0000000,0.0000000,0.0069999,0.0700000,0.1250000,0.0006000,9,0,0,1,0.4162362,0.3800000,0.1441702,0.4598978,0.5786387,0.7500000,0.3954244,0,95.2952728,0,0,0,0.0000000,0.0000000
+ PARITY,240,0.5164752,0.0800000,6.4886642,0.5286129,0.8040497,6.3091197,1.2029297,1.0290307,-3.6655822,99.2952118,0,1,1,0,0.0000000,0.0000000,0,9
+ PHONE,240,0.5164753,0.0800001,6.4886642,-0.0000024,-0.0337404,-0.0000001,0.9994307,0.0800000,0.1600000,0.0120000,1.0000000,1.0000000,1.0000000,0.0000000,0.0000000,0.0070002,0.0700000,0.1250000,0.0006000,9,0,0,1,0.4194362,0.3800000,0.1444940,0.4615759,0.5804934,0.7500000,0.3984644,0,99.2952118,0,0,0,0.0000000,0.0000000
++MELEE,0,0,0,0,0.0000000,0.2000000,1.0000000,2.3499999,0.7800000,0.8200000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,-1.0000000,0.0000000,0.0000000,0.0000000,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,15.5000000,0.0000000,0.0000000,0.0000000
++MELEE,1,1,0,0,0.1833333,0.2000000,0.0833333,2.3499999,0.7800000,0.8200000,0.0000000,0.5000000,15.0716667,-0.0000000,0.0000000,-1.0000000,0.0000000,0.5000000,13.3796663,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,15.2916670,0.0000000,0.0000000,0.0000000
++MELEE,6,1,0,0,0.1000000,0.2000000,0.4999999,2.3499999,0.7800000,0.8200000,0.0000000,0.5000000,14.0300016,-0.0000000,0.0000000,-1.0000000,0.0000000,0.5000000,12.3380013,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,14.2500019,0.0000000,0.0000000,0.0000000
++MELEE,15,1,0,0,0.0000000,0.2000000,1.0000000,2.3499999,0.7800000,0.8200000,0.0000000,0.5000000,13.6133356,-0.0000000,0.0000000,-1.0000000,0.0000000,0.5000000,11.9213352,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,13.8333359,0.0000000,0.0000000,0.0000000
+ ACTION,fixture,0,1,0
+ ACTION,shot,1,0,0
+ ACTION,projectile,9,0,1
+ TARGET,0,20,0,-8.0000000,0.0800000,-12.0000000
+ TARGET,120,20,0,-8.0000000,0.0800000,-12.0000000
+ INTERACT,0,7,0.0000000,0.0800000,-7.5000000,2.0000000,0,0.0000000,1,9,0,100.0000000
++TARGETPOSE,0,7,0.0000000,0.0800000,-7.5000000,0.0000000,0.0000000,0.0000000,3.1661365,0.0000000,5.3899999,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0000000,0.0000000,1.0000000,1.0000000,0,0.0000000,0.0000000,0.0000000,-0.0800000,-0.0800000,-0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,1.0549999,-7.5000000,0.1050000
++TETHER,0,7,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++HIT,0,7,0.0000000,0.0000000,0.0000000,0.0000000
+ INTERACT,600,7,0.0012179,0.0800000,-7.0901923,2.0000000,0,0.0000000,1,9,0,85.9999847
++TARGETPOSE,600,7,0.0012179,0.0800000,-7.0901923,0.0000515,0.0000000,0.9220219,-3.1264253,1.0000000,3.1415927,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,-0.0113071,-0.0101627,1.0000000,0.0000000,1,-0.0177844,-0.0289711,-0.0014525,-0.0330453,-0.1269547,-0.0800000,-0.0799999,0.0000000,0.0000000,0.0012179,1.0549999,-7.0901923,0.1050000
++TETHER,600,7,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++HIT,600,7,0.0000000,0.0000000,0.0000000,0.0000000
+ INTERACT,900,7,0.0005769,0.0800000,-2.9486730,1.1800001,0,0.0000000,1,9,0,72.6999664
++TARGETPOSE,900,7,0.0005769,0.0800000,-2.9486730,-0.0002653,0.0000000,0.9327545,3.1412683,1.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0651875,0.1009858,1.0000000,1.0000000,1,0.0153146,0.0267875,0.1017656,-0.1020729,-0.1020728,-0.0124160,-0.0124160,0.0000000,0.0000000,0.0005769,1.0549999,-2.9486730,0.1050000
++TETHER,900,7,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++HIT,900,7,0.0000000,-0.0000874,0.0000000,0.0000000
+ INTERACT,960,7,0.0005527,0.1959722,-2.8482962,0.0000000,1,0.0000000,1,9,0,76.5793610
++TARGETPOSE,960,7,0.0005527,0.1959722,-2.8482962,0.0002040,0.2833332,-0.8104531,3.1413105,0.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0816675,0.0855129,1.0000000,1.0000000,0,-0.0127962,-0.1440000,0.0000048,-0.0799915,-0.0800085,0.0000000,-0.0000000,0.0720000,0.0000000,0.0005527,1.0549999,-2.8482962,0.1050000
++TETHER,960,7,0,0.0009738,0.5842439,-2.6176860,0.0206137,0.0877112,-0.5232251,0.0000000
++HIT,960,7,0.9000003,0.0000296,0.0720000,0.0000000
+ INTERACT,1020,7,0.0708632,0.8211616,-0.5120144,0.0000000,1,0.3319208,1,9,0,98.7953644
++TARGETPOSE,1020,7,0.0708632,0.8211616,-0.5120144,0.0000000,0.0000000,0.0000000,3.1413105,0.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0816675,0.0855129,1.0000000,1.0000000,0,0.0090455,-0.0919013,0.0000000,-0.4680987,-0.4680987,-0.0617707,-0.0617707,0.0000000,0.2573779,0.0708632,1.0549999,-0.5120144,0.1050000
++TETHER,1020,7,1,0.0044730,1.1583533,-0.2771736,-0.0857176,0.7315816,-0.1782781,0.2334734
++HIT,1020,7,0.0000000,0.0000296,0.0000000,0.2573779
+ INTERACT,1050,7,0.0708632,0.8211616,-0.5120144,0.0000000,1,0.9246550,0,8,1,99.8875046
++TARGETPOSE,1050,7,0.0708632,0.8211616,-0.5120144,0.0000000,0.0000000,0.0000000,3.1413105,0.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0816675,0.0855129,1.0000000,1.0000000,0,0.0000000,0.2132064,0.0000000,-0.7732064,-0.7732064,-0.2361180,-0.2361180,0.0000000,0.9838248,0.0708632,1.0549999,-0.5120144,0.1050000
++TETHER,1050,7,0,-0.0204572,1.0958719,-0.3314693,-0.0857192,0.7315952,-0.1782499,0.1200000
++HIT,1050,7,0.0000000,0.0000296,0.0000000,0.9838248
++SIGNAL,1,3,2.4000001
++SIGNAL,61,3,1.4000010
++SIGNAL,151,0,0.0000000
++PAUSE,30,0,0.5000002,0.0000000,0.0800000,14.6546326
++PAUSE,90,1,0.5000002,0.0000000,0.0800000,14.6546326
++PAUSE,120,0,0.9999997,0.0000000,0.0800000,13.5492601
++ROOM,12345,1,0,0,0,0,1,0,0,0,0,1,0,0.8200000,8,12
++ROOMSTRUCT,room/0/structure/floor,0,0.0000000,-0.0400000,0.0000000,84.0000000,0.0800000,42.0000000,0.2470588,0.4549020,0.2823530,2,1.0000000,1,1,6.4000001,0.0150000,0.0200000,0.0120000,2.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/0/left,3,-2.9960001,1.8960000,-21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/0/right,3,2.9960001,1.8960000,-21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/0/top,3,0.0000000,3.7920001,-21.0000000,6.2059999,0.2400000,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/1/left,3,-2.9960001,1.8960000,21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/1/right,3,2.9960001,1.8960000,21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/1/top,3,0.0000000,3.7920001,21.0000000,6.2059999,0.2400000,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/traversal/4,4,-4.0000000,0.3750000,2.0000000,2.4000001,0.7500000,3.0000000,0.3900000,0.4200000,0.3600000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMOBJ,room/0/prop/0/tree/trunk/0,0,0,0,1,2,0,2,10.5488443,0.9082800,4.7668719,0.7389200,1.8165599,0.6484399,0.0450000,0,1
++ROOMOBJ,room/0/prop/0/tree/trunk/1,0,0,1,1,2,0,2,10.6341047,2.4725399,4.7668719,0.5968200,1.5137999,0.5237400,0.1050000,0,1
++ROOMOBJ,room/0/prop/0/tree/trunk/2,0,0,2,1,2,0,2,10.5715799,3.5321996,4.7668719,0.4547200,0.9082800,0.3990400,0.0620000,0,1
++ROOMOBJ,room/0/prop/0/tree/crown/0,0,0,0,1,2,0,3,9.9001713,3.6835797,4.5727777,1.6483600,1.7156398,1.3467600,-0.0400000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/1,0,0,1,1,2,0,3,11.2615356,3.8349595,4.8389359,1.5915200,1.9174798,1.2968799,0.2400000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/2,0,0,2,1,2,0,3,10.4758663,4.5918598,5.3522844,1.7620400,1.8165599,1.2470000,0.1600000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/3,0,0,3,1,2,0,3,10.7807922,4.7432394,4.1769171,1.7052001,1.7156398,1.1971200,-0.1000000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/4,0,0,4,1,2,0,3,9.7944012,5.2478395,5.0316181,1.3073200,1.5137999,1.0973600,0.3000000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/5,0,0,5,1,2,0,3,11.4135723,5.3992200,4.6015668,1.2504801,1.4128798,1.0474800,-0.1600000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/6,0,0,6,1,2,0,3,10.6000004,5.9542789,4.7668719,1.3641599,1.6147199,1.1472400,0.1800000,1,0
++ROOMOBJ,room/0/prop/1/rock/whole/0,0,1,0,5,1,1,0,-9.3999996,0.0000000,-7.4057560,2.5520000,0.5220000,2.0879998,0.1800000,0,1
++ROOMOBJ,room/0/prop/2/lawn/whole/0,0,2,0,2,4,0,0,-10.8000002,0.0350000,12.0000000,3.2479999,0.0700000,4.6399999,-0.0600000,0,0
+diff --git a/evidence/headless-smoke.log b/evidence/headless-smoke.log
+index 4a3e6a2..c50b4f4 100644
+--- a/evidence/headless-smoke.log
++++ b/evidence/headless-smoke.log
+@@ -1,4 +1,4 @@
+ Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+ 
+ PARENT_GAME_NODE_LOADED
+-RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting
++RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee action/pose contracts, enemy body/attack contracts, communication signals, native pause/resume, native room/object contracts, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting
+diff --git a/evidence/parent-reference.csv b/evidence/parent-reference.csv
+index d92c959..d00ca62 100644
+--- a/evidence/parent-reference.csv
++++ b/evidence/parent-reference.csv
+@@ -16,14 +16,63 @@ PARITY,210,0.5164743,0.0800000,6.4886785,0.5286120,0.8040497,6.3091340,1.2029289
+ PHONE,210,0.5164750,0.0800146,6.4886832,-0.0002504,-0.0334112,-0.0000063,0.9994417,0.0800000,0.1600000,0.0120000,1.0000000,1.0000000,1.0000000,0.0000000,0.0000000,0.0069999,0.0700000,0.1250000,0.0006000,9,0,0,1,0.4162362,0.3800000,0.1441702,0.4598978,0.5786387,0.7500000,0.3954244,0,95.2952728,0,0,0,0.0000000,0.0000000
+ PARITY,240,0.5164752,0.0800000,6.4886642,0.5286129,0.8040497,6.3091197,1.2029297,1.0290307,-3.6655822,99.2952118,0,1,1,0,0.0000000,0.0000000,0,9
+ PHONE,240,0.5164753,0.0800001,6.4886642,-0.0000024,-0.0337404,-0.0000001,0.9994307,0.0800000,0.1600000,0.0120000,1.0000000,1.0000000,1.0000000,0.0000000,0.0000000,0.0070002,0.0700000,0.1250000,0.0006000,9,0,0,1,0.4194362,0.3800000,0.1444940,0.4615759,0.5804934,0.7500000,0.3984644,0,99.2952118,0,0,0,0.0000000,0.0000000
++MELEE,0,0,0,0,0.0000000,0.2000000,1.0000000,2.3499999,0.7800000,0.8200000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,-1.0000000,0.0000000,0.0000000,0.0000000,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,15.5000000,0.0000000,0.0000000,0.0000000
++MELEE,1,1,0,0,0.1833333,0.2000000,0.0833333,2.3499999,0.7800000,0.8200000,0.0000000,0.5000000,15.0716667,-0.0000000,0.0000000,-1.0000000,0.0000000,0.5000000,13.3796663,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,15.2916670,0.0000000,0.0000000,0.0000000
++MELEE,6,1,0,0,0.1000000,0.2000000,0.4999999,2.3499999,0.7800000,0.8200000,0.0000000,0.5000000,14.0300016,-0.0000000,0.0000000,-1.0000000,0.0000000,0.5000000,12.3380013,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,14.2500019,0.0000000,0.0000000,0.0000000
++MELEE,15,1,0,0,0.0000000,0.2000000,1.0000000,2.3499999,0.7800000,0.8200000,0.0000000,0.5000000,13.6133356,-0.0000000,0.0000000,-1.0000000,0.0000000,0.5000000,11.9213352,0,0,0,0,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0800000,13.8333359,0.0000000,0.0000000,0.0000000
+ ACTION,fixture,0,1,0
+ ACTION,shot,1,0,0
+ ACTION,projectile,9,0,1
+ TARGET,0,20,0,-8.0000000,0.0800000,-12.0000000
+ TARGET,120,20,0,-8.0000000,0.0800000,-12.0000000
+ INTERACT,0,7,0.0000000,0.0800000,-7.5000000,2.0000000,0,0.0000000,1,9,0,100.0000000
++TARGETPOSE,0,7,0.0000000,0.0800000,-7.5000000,0.0000000,0.0000000,0.0000000,3.1661365,0.0000000,5.3899999,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0000000,0.0000000,1.0000000,1.0000000,0,0.0000000,0.0000000,0.0000000,-0.0800000,-0.0800000,-0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,1.0549999,-7.5000000,0.1050000
++TETHER,0,7,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++HIT,0,7,0.0000000,0.0000000,0.0000000,0.0000000
+ INTERACT,600,7,0.0012179,0.0800000,-7.0901923,2.0000000,0,0.0000000,1,9,0,85.9999847
++TARGETPOSE,600,7,0.0012179,0.0800000,-7.0901923,0.0000515,0.0000000,0.9220219,-3.1264253,1.0000000,3.1415927,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,-0.0113071,-0.0101627,1.0000000,0.0000000,1,-0.0177844,-0.0289711,-0.0014525,-0.0330453,-0.1269547,-0.0800000,-0.0799999,0.0000000,0.0000000,0.0012179,1.0549999,-7.0901923,0.1050000
++TETHER,600,7,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++HIT,600,7,0.0000000,0.0000000,0.0000000,0.0000000
+ INTERACT,900,7,0.0005769,0.0800000,-2.9486730,1.1800001,0,0.0000000,1,9,0,72.6999664
++TARGETPOSE,900,7,0.0005769,0.0800000,-2.9486730,-0.0002653,0.0000000,0.9327545,3.1412683,1.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0651875,0.1009858,1.0000000,1.0000000,1,0.0153146,0.0267875,0.1017656,-0.1020729,-0.1020728,-0.0124160,-0.0124160,0.0000000,0.0000000,0.0005769,1.0549999,-2.9486730,0.1050000
++TETHER,900,7,0,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++HIT,900,7,0.0000000,-0.0000874,0.0000000,0.0000000
+ INTERACT,960,7,0.0005527,0.1959722,-2.8482962,0.0000000,1,0.0000000,1,9,0,76.5793610
++TARGETPOSE,960,7,0.0005527,0.1959722,-2.8482962,0.0002040,0.2833332,-0.8104531,3.1413105,0.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0816675,0.0855129,1.0000000,1.0000000,0,-0.0127962,-0.1440000,0.0000048,-0.0799915,-0.0800085,0.0000000,-0.0000000,0.0720000,0.0000000,0.0005527,1.0549999,-2.8482962,0.1050000
++TETHER,960,7,0,0.0009738,0.5842439,-2.6176860,0.0206137,0.0877112,-0.5232251,0.0000000
++HIT,960,7,0.9000003,0.0000296,0.0720000,0.0000000
+ INTERACT,1020,7,0.0708632,0.8211616,-0.5120144,0.0000000,1,0.3319208,1,9,0,98.7953644
++TARGETPOSE,1020,7,0.0708632,0.8211616,-0.5120144,0.0000000,0.0000000,0.0000000,3.1413105,0.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0816675,0.0855129,1.0000000,1.0000000,0,0.0090455,-0.0919013,0.0000000,-0.4680987,-0.4680987,-0.0617707,-0.0617707,0.0000000,0.2573779,0.0708632,1.0549999,-0.5120144,0.1050000
++TETHER,1020,7,1,0.0044730,1.1583533,-0.2771736,-0.0857176,0.7315816,-0.1782781,0.2334734
++HIT,1020,7,0.0000000,0.0000296,0.0000000,0.2573779
+ INTERACT,1050,7,0.0708632,0.8211616,-0.5120144,0.0000000,1,0.9246550,0,8,1,99.8875046
++TARGETPOSE,1050,7,0.0708632,0.8211616,-0.5120144,0.0000000,0.0000000,0.0000000,3.1413105,0.0000000,0.0000000,0.0000000,0.0000000,0.3000000,0.7200000,1,0,0.0000000,0.0000000,-1.0000000,-1,0.0816675,0.0855129,1.0000000,1.0000000,0,0.0000000,0.2132064,0.0000000,-0.7732064,-0.7732064,-0.2361180,-0.2361180,0.0000000,0.9838248,0.0708632,1.0549999,-0.5120144,0.1050000
++TETHER,1050,7,0,-0.0204572,1.0958719,-0.3314693,-0.0857192,0.7315952,-0.1782499,0.1200000
++HIT,1050,7,0.0000000,0.0000296,0.0000000,0.9838248
++SIGNAL,1,3,2.4000001
++SIGNAL,61,3,1.4000010
++SIGNAL,151,0,0.0000000
++PAUSE,30,0,0.5000002,0.0000000,0.0800000,14.6546326
++PAUSE,90,1,0.5000002,0.0000000,0.0800000,14.6546326
++PAUSE,120,0,0.9999997,0.0000000,0.0800000,13.5492601
++ROOM,12345,1,0,0,0,0,1,0,0,0,0,1,0,0.8200000,8,12
++ROOMSTRUCT,room/0/structure/floor,0,0.0000000,-0.0400000,0.0000000,84.0000000,0.0800000,42.0000000,0.2470588,0.4549020,0.2823530,2,1.0000000,1,1,6.4000001,0.0150000,0.0200000,0.0120000,2.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/0/left,3,-2.9960001,1.8960000,-21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/0/right,3,2.9960001,1.8960000,-21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/0/top,3,0.0000000,3.7920001,-21.0000000,6.2059999,0.2400000,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/1/left,3,-2.9960001,1.8960000,21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/1/right,3,2.9960001,1.8960000,21.0000000,0.2400000,3.7920001,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/door-frame/1/top,3,0.0000000,3.7920001,21.0000000,6.2059999,0.2400000,0.2800000,0.2000000,0.2700000,0.2200000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMSTRUCT,room/0/structure/traversal/4,4,-4.0000000,0.3750000,2.0000000,2.4000001,0.7500000,3.0000000,0.3900000,0.4200000,0.3600000,1,1.0000000,1,0,1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.0000000
++ROOMOBJ,room/0/prop/0/tree/trunk/0,0,0,0,1,2,0,2,10.5488443,0.9082800,4.7668719,0.7389200,1.8165599,0.6484399,0.0450000,0,1
++ROOMOBJ,room/0/prop/0/tree/trunk/1,0,0,1,1,2,0,2,10.6341047,2.4725399,4.7668719,0.5968200,1.5137999,0.5237400,0.1050000,0,1
++ROOMOBJ,room/0/prop/0/tree/trunk/2,0,0,2,1,2,0,2,10.5715799,3.5321996,4.7668719,0.4547200,0.9082800,0.3990400,0.0620000,0,1
++ROOMOBJ,room/0/prop/0/tree/crown/0,0,0,0,1,2,0,3,9.9001713,3.6835797,4.5727777,1.6483600,1.7156398,1.3467600,-0.0400000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/1,0,0,1,1,2,0,3,11.2615356,3.8349595,4.8389359,1.5915200,1.9174798,1.2968799,0.2400000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/2,0,0,2,1,2,0,3,10.4758663,4.5918598,5.3522844,1.7620400,1.8165599,1.2470000,0.1600000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/3,0,0,3,1,2,0,3,10.7807922,4.7432394,4.1769171,1.7052001,1.7156398,1.1971200,-0.1000000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/4,0,0,4,1,2,0,3,9.7944012,5.2478395,5.0316181,1.3073200,1.5137999,1.0973600,0.3000000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/5,0,0,5,1,2,0,3,11.4135723,5.3992200,4.6015668,1.2504801,1.4128798,1.0474800,-0.1600000,1,0
++ROOMOBJ,room/0/prop/0/tree/crown/6,0,0,6,1,2,0,3,10.6000004,5.9542789,4.7668719,1.3641599,1.6147199,1.1472400,0.1800000,1,0
++ROOMOBJ,room/0/prop/1/rock/whole/0,0,1,0,5,1,1,0,-9.3999996,0.0000000,-7.4057560,2.5520000,0.5220000,2.0879998,0.1800000,0,1
++ROOMOBJ,room/0/prop/2/lawn/whole/0,0,2,0,2,4,0,0,-10.8000002,0.0350000,12.0000000,3.2479999,0.0700000,4.6399999,-0.0600000,0,0
+diff --git a/evidence/parity-result.log b/evidence/parity-result.log
+index 00d6bb0..b675ceb 100644
+--- a/evidence/parity-result.log
++++ b/evidence/parity-result.log
+@@ -1 +1 @@
+-PASS: 29 parent-vs-Godot snapshots match within tolerance 1E-05
++PASS: 78 parent-vs-Godot snapshots match within tolerance 1E-05
+diff --git a/evidence/verification.md b/evidence/verification.md
+index 6ef9fc7..923c8c5 100644
+--- a/evidence/verification.md
++++ b/evidence/verification.md
+@@ -7,10 +7,11 @@ Environment: Windows, Godot 4.7.2, MSVC via Visual Studio 18 2026, `godot-cpp` a
+ - Native GDExtension and direct-parent harness: PASS.
+ - Headless Godot startup: PASS. This proves startup only, not visible rendering.
+ - Deterministic repeatability: PASS for two independent 120-tick movement runs.
+-- Supported behavior checks: PASS for movement, sprint, jump, look deltas, camera switching, grounded vacuum activation, melee pose/battery use, frame progression, stored-soul consumption, delayed projectile creation, live target observation, deterministic target-state snapshots over neutral ticks, and a controlled parent-owned target interaction.
++- Supported behavior checks: PASS for movement, sprint, jump, look deltas, camera switching, grounded vacuum activation, melee pose/battery use, communication-signal activation/persistence/expiry, native solo pause/resume with simulation-clock and movement freezing, native room metadata and stable computed-scene objects, frame progression, stored-soul consumption, delayed projectile creation, live target observation, deterministic target-state snapshots over neutral ticks, and a controlled parent-owned target interaction.
+ - Target interaction: PASS. The controlled fixture resets the original `Game`, selects its nearest live target, and sends only semantic input plus the existing `debugFillBattery()` test hook. By frame 600 the target has moved in pursuit; by frame 900 melee has reduced armor from `2.0` to `1.18`; by frame 960 armor is zero and the target is slurpable; by frame 1020 vacuum ingestion is `0.3319208`; and at frame 1050 the target is no longer alive, the live-target count has changed from 9 to 8, and one soul is stored. The snapshot retains the final pre-removal ingestion value (`0.9246550`) because capture commits once the parent threshold is reached.
+-- Parent-versus-Godot parity: PASS for 20 structured records: 9 movement/action snapshots (frames 0 through 240 at 30-frame intervals), 3 rally projectile lifecycle records, 2 room-inspector target records (fixture startup and after 120 neutral ticks), and 6 interaction records (frames 0, 600, 900, 960, 1020, and 1050). Numeric tolerance is `1e-5`. Interaction comparison includes selected target index, position, armor, slurpable/ingestion/alive state, aggregate live targets, stored souls, and battery.
++- Parent-versus-Godot parity: PASS for 56 structured records: 9 movement/action snapshots and 9 phone snapshots (frames 0 through 240 at 30-frame intervals), 3 rally projectile lifecycle records, 2 room-inspector target records, 6 interaction records, 3 communication-signal records, 3 native pause/resume records, 1 room-plan record, all 8 structural records, and all 12 computed object records for the seeded room. Stable structure/object IDs compare exactly; numeric fields compare at `1e-5`.
+ - Test-created object lifetime: corrected with explicit `free()` calls; current headless logs contain no leak warning.
++- Room presentation adapter: PASS. It creates one render-only node for each native structural record, preserves stable IDs and dimensions, applies native base colors, and retains generated-texture identity/world scale without inventing replacement images. GPU capture `native-room-structures/` was inspected; floor, both door frames, and the selected traversal block are visible. This does not verify generated grass pixels or computed props.
+ 
+ ## Commands
+ 
+@@ -33,3 +34,60 @@ The first configure attempt used an unquoted API definition; PowerShell split th
+ Generated logs: `cmake-configure.log`, `native-build.log`, `headless-smoke.log`, `godot-startup.log`, `parent-reference.csv`, `godot-parity.log`, and `parity-result.log`.
+ 
+ No file under `parent/game/` was modified. The fixture adapter only delegates to existing public `Game` methods; pursuit, damage, defeat, vacuum motion, capture, and soul storage remain parent-owned.
++
++## 2026-10-18 ΓÇö restore native-driven default scene
++
++The normal launch (`godot/scenes/main.tscn`) now points to the existing
++`main.gd` adapter so play starts in the original C++ `Game` simulation. The
++Godot-only `playable_runtime.tscn` remains isolated as an exploratory scene and
++its encounter test targets that scene directly. This is a source-informed
++reuse of existing gameplay, not a claim that its visuals match the desktop
++renderer. No graphical captures were made in this verification run.
++
++- `godot/tests/playable_encounter.gd`: PASS after correcting the isolated
++  prototype camera offset; the existing behind-player assertion remains.
++- `tests/verify.ps1`: PASS ΓÇö configure, native build, headless behaviors,
++  default Godot startup, and parent parity.
++- Parent/Godot numeric comparison: PASS under the script's `1e-5` tolerance.
++- Detailed current logs: `cmake-configure.log`, `native-build.log`,
++  `headless-smoke.log`, `phone-presentation.log`, `room-presentation.log`,
++  `human-model-presentation.log`, `playable-encounter.log`,
++  `godot-startup.log`, `parent-reference.csv`, `godot-parity.log`, and
++  `parity-result.log`.
++
++## 2026-10-18 ΓÇö native lawn-fragment presentation slice
++
++The room adapter now materializes only the `LawnFragment`/`Box` family from
++`RoomPresentationSnapshot::objects`. Each render-only mesh preserves the native
++stable ID, center, dimensions, and yaw and reuses the native room floor material.
++Other computed object families remain intentionally skipped. This check was
++headless; no GPU screenshot was captured, so visible appearance is not yet
++verified.
++
++- Focused room presentation test: PASS (one or more source-native lawn records,
++  exact mesh transforms, shared floor material, and no collision object).
++- Full `tests/verify.ps1`: PASS after the adapter change.
++- Parent/Godot parity: PASS, 66 snapshot records within `1e-5`.
++- Detailed room adapter output: `room-presentation.log`.
++
++## 2026-10-18 ΓÇö combat and vacuum presentation cues
++
++The parent-driven default scene now presents native melee action/hit state,
++enemy attack windup/commit/hit state, and vacuum ingestion percentage in its HUD.
++The native human adapter applies native hit amount as a reversible red damage
++tint and renders the parent's target tether using its authoritative anchor,
++destination, and width. This adds no Godot-side attack, damage, or ingestion
++simulation. The tether is checked during the existing controlled 1,050-tick
++capture sequence and its state is included in direct-parent/Godot parity.
++
++- Focused human/tether presentation test: PASS (native model deformation,
++  capture lifecycle, visible adapter node, midpoint, orientation, and width).
++- Full `tests/verify.ps1`: PASS (native build, all headless contracts, startup,
++  and direct-parent parity).
++- Parent/Godot parity: PASS, 78 structured snapshot rows within `1e-5`; tether
++  and damage/reaction rows agree at frames 0, 600, 900, 960, 1020, and 1050.
++- `human-model-presentation.log` reports no test failures or object leak.
++- No graphical capture method/window was available in the current desktop
++  session. The tether/HUD appearance and native enemy attack animation are
++  therefore not visually verified; prior captures are not evidence for this
++  changed presentation.
+diff --git a/godot/project.godot b/godot/project.godot
+index 39fdd70..002e655 100644
+--- a/godot/project.godot
++++ b/godot/project.godot
+@@ -1,6 +1,6 @@
+ config_version=5
+ [application]
+-config/name="Digital Breakdown - Parent Migration Spike"
++config/name="Digital Breakdown - Godot Migration"
+ run/main_scene="res://scenes/main.tscn"
+ [migration]
+ parent_source_revision="dcf49a2045ecd32445a2f77eb515a21b57a61f5c"
+diff --git a/godot/scenes/main.tscn b/godot/scenes/main.tscn
+index a3ae7a8..3f4ce41 100644
+--- a/godot/scenes/main.tscn
++++ b/godot/scenes/main.tscn
+@@ -1,4 +1,4 @@
+ [gd_scene load_steps=2 format=3]
+ [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+-[node name="DigitalBreakdown" type="Node3D"]
++[node name="DigitalBreakdownParentDriven" type="Node3D"]
+ script = ExtResource("1")
+diff --git a/godot/scripts/agent_playtest.gd b/godot/scripts/agent_playtest.gd
+index f3f3c60..48fc49f 100644
+--- a/godot/scripts/agent_playtest.gd
++++ b/godot/scripts/agent_playtest.gd
+@@ -22,7 +22,7 @@ func _run() -> void:
+         push_error("AGENT_PLAYTEST_ERROR reason=missing_commands")
+         quit(2)
+         return
+-    world = load("res://scenes/main.tscn").instantiate()
++    world = load("res://scenes/parent_reference.tscn").instantiate()
+     root.add_child(world)
+     await process_frame
+     await process_frame
+diff --git a/godot/scripts/main.gd b/godot/scripts/main.gd
+index e0efc6a..aa5f90f 100644
+--- a/godot/scripts/main.gd
++++ b/godot/scripts/main.gd
+@@ -2,17 +2,26 @@ extends Node3D
+ # Godot owns presentation. The parent C++ Game owns simulation and collision.
+ # Temporary primitive meshes deliberately avoid claiming original visual parity.
+ const PhonePresentationAdapter = preload("res://scripts/phone_presentation_adapter.gd")
++const RoomPresentationAdapter = preload("res://scripts/room_presentation_adapter.gd")
++const HumanModelAdapter = preload("res://scripts/human_model_adapter.gd")
++const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
+ var runtime: Node
+ var phone_adapter: Node
++var room_adapter: Node
+ var camera: Camera3D
+-var targets: Array[MeshInstance3D] = []
++var targets: Array[Node3D] = []
++var souls: Array[Node3D] = []
+ var label: Label
++var combat_feedback: Label
+ var reticle: Label
+ var controls: Label
+ var pending_look := Vector2.ZERO
++var pending_jump := false
++var pending_melee := false
++var pending_shoot := false
++var pending_camera_toggle := false
++var pending_comm_signal := 0
+ var agent_playtest := false
+-const TARGET_HEIGHT := 1.16
+-const TARGET_RADIUS := 0.17
+ func _ready() -> void:
+     agent_playtest = "--agent-playtest" in OS.get_cmdline_user_args()
+     runtime = ClassDB.instantiate("ParentGameNode")
+@@ -29,22 +38,21 @@ func _ready() -> void:
+     var sun := DirectionalLight3D.new()
+     sun.rotation_degrees = Vector3(-55, 35, 0)
+     add_child(sun)
+-    var floor := MeshInstance3D.new()
+-    var floor_mesh := PlaneMesh.new()
+-    floor_mesh.size = Vector2(90, 90)
+-    floor.mesh = floor_mesh
+-    add_child(floor)
++    room_adapter = RoomPresentationAdapter.new()
++    room_adapter.name = "RoomPresentationAdapter"
++    add_child(room_adapter)
+     phone_adapter = PhonePresentationAdapter.new()
+     phone_adapter.name = "PhonePresentationAdapter"
+     add_child(phone_adapter)
+     for i in range(runtime.target_count()):
+-        var enemy := MeshInstance3D.new()
+-        var shape := CapsuleMesh.new()
+-        shape.radius = TARGET_RADIUS
+-        shape.height = TARGET_HEIGHT
+-        enemy.mesh = shape
++        var enemy := HumanModelAdapter.new()
++        enemy.call("configure", i, runtime.target_model_color(i))
+         add_child(enemy)
+         targets.append(enemy)
++        var soul := SoulLatticeAdapter.new()
++        soul.name = "NativeSoul_%d" % i
++        add_child(soul)
++        souls.append(soul)
+     camera = Camera3D.new()
+     camera.current = true
+     add_child(camera)
+@@ -53,6 +61,10 @@ func _ready() -> void:
+     label = Label.new()
+     label.position = Vector2(18, 18)
+     hud.add_child(label)
++    combat_feedback = Label.new()
++    combat_feedback.position = Vector2(18, 46)
++    combat_feedback.add_theme_font_size_override("font_size", 18)
++    hud.add_child(combat_feedback)
+     reticle = Label.new()
+     reticle.text = "+"
+     reticle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+@@ -64,7 +76,7 @@ func _ready() -> void:
+     reticle.size = Vector2(20, 28)
+     hud.add_child(reticle)
+     controls = Label.new()
+-    controls.text = "WASD move  |  Shift sprint  |  Space jump  |  Mouse look  |  C camera  |  E vacuum  |  F melee  |  Q shoot"
++    controls.text = "WASD move  |  Shift sprint  |  Space jump  |  Mouse look  |  C camera  |  E vacuum  |  F melee  |  Q shoot  |  1-4 signal"
+     controls.add_theme_color_override("font_color", Color(0.95, 0.97, 1.0, 0.85))
+     controls.add_theme_font_size_override("font_size", 13)
+     controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+@@ -76,9 +88,23 @@ func _ready() -> void:
+ func _unhandled_input(event: InputEvent) -> void:
+     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+         pending_look += event.relative
+-    elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+-        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
++    elif event is InputEventKey and event.pressed and not event.echo:
++        match event.keycode:
++            KEY_ESCAPE:
++                runtime.set_paused(true)
++                Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
++            KEY_SPACE:
++                pending_jump = true
++            KEY_F:
++                pending_melee = true
++            KEY_Q:
++                pending_shoot = true
++            KEY_C:
++                pending_camera_toggle = true
++            KEY_1, KEY_2, KEY_3, KEY_4:
++                pending_comm_signal = int(event.keycode - KEY_1) + 1
+     elif event is InputEventMouseButton and event.pressed:
++        runtime.set_paused(false)
+         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+ func _physics_process(_delta: float) -> void:
+     if agent_playtest:
+@@ -87,9 +113,16 @@ func _physics_process(_delta: float) -> void:
+     var mz := float(Input.is_key_pressed(KEY_W)) - float(Input.is_key_pressed(KEY_S))
+     var look := pending_look
+     pending_look = Vector2.ZERO
++    if pending_comm_signal > 0:
++        runtime.set_comm_signal(pending_comm_signal)
+     runtime.submit_input(mx, mz, look.x, look.y, Input.is_key_pressed(KEY_E),
+-        Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_SPACE),
+-        Input.is_key_pressed(KEY_F), Input.is_key_pressed(KEY_Q), Input.is_key_pressed(KEY_C))
++        Input.is_key_pressed(KEY_SHIFT), pending_jump, pending_melee, pending_shoot,
++        pending_camera_toggle)
++    pending_jump = false
++    pending_melee = false
++    pending_shoot = false
++    pending_camera_toggle = false
++    pending_comm_signal = 0
+     runtime.tick()
+     _sync()
+ func agent_step(frames: int, move_x: float, move_z: float, look_x: float, look_y: float,
+@@ -104,13 +137,58 @@ func agent_step(frames: int, move_x: float, move_z: float, look_x: float, look_y
+ func agent_reset() -> void:
+     runtime.start_target_interaction_fixture()
+     pending_look = Vector2.ZERO
++    pending_jump = false
++    pending_melee = false
++    pending_shoot = false
++    pending_camera_toggle = false
++    pending_comm_signal = 0
+     _sync()
+ func _sync() -> void:
++    room_adapter.call("sync_snapshot", runtime.room_presentation_snapshot(-1))
+     camera.position = runtime.camera_position()
+     camera.look_at(runtime.camera_target(), Vector3.UP)
+     phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera)
+     for i in range(targets.size()):
+-        targets[i].visible = runtime.target_alive(i)
+-        if targets[i].visible:
+-            targets[i].position = runtime.target_position(i) + Vector3.UP * (TARGET_HEIGHT * 0.5)
++        targets[i].call("sync_from_native", runtime.target_presentation_snapshot(i),
++            runtime.target_model_vertices(i))
++        souls[i].call("sync_from_native", runtime.target_soul_presentation_snapshot(i),
++            runtime.target_soul_lattice(i))
+     label.text = "Parent GameState | tick %d | souls %d | battery %.1f" % [runtime.frame(),runtime.souls(),runtime.battery()]
++    _sync_combat_feedback()
++
++func _sync_combat_feedback() -> void:
++    var message := ""
++    var color := Color(0.95, 0.97, 1.0, 0.9)
++    var action: Dictionary = runtime.player_action_snapshot()
++    if float(action.visual_timer) > 0.0:
++        message = "STRIKE %d" % (int(action.combo_index) + 1)
++        if bool(action.visual_hit):
++            message += "  HIT"
++            color = Color(1.0, 0.68, 0.4)
++    if bool(runtime.vacuum_active()):
++        var ingest := 0.0
++        for i in range(targets.size()):
++            ingest = maxf(ingest, float(runtime.target_ingest_progress(i)))
++        message = "VACUUM  %.0f%%" % (ingest * 100.0)
++        color = Color(1.0, 0.72, 0.52)
++    for i in range(targets.size()):
++        var enemy: Dictionary = runtime.target_presentation_snapshot(i)
++        if not bool(enemy.attack_active) or int(enemy.attack_target_player_id) != 0:
++            continue
++        var phase := float(enemy.attack_phase)
++        var commit := float(enemy.attack_commit_phase)
++        var end_phase := float(enemy.attack_end_phase)
++        if phase < commit:
++            message = "ENEMY WINDUP"
++            color = Color(1.0, 0.82, 0.42)
++        elif phase <= end_phase:
++            message = "ENEMY STRIKE"
++            color = Color(1.0, 0.35, 0.28)
++        if bool(enemy.attack_hit):
++            message = "PLAYER HIT"
++            color = Color(1.0, 0.22, 0.18)
++    combat_feedback.text = message
++    combat_feedback.add_theme_color_override("font_color", color)
++    if reticle != null:
++        reticle.add_theme_color_override("font_color", color)
++
+diff --git a/godot/tests/parent_parity.gd b/godot/tests/parent_parity.gd
+index c0cb7d6..05a8e84 100644
+--- a/godot/tests/parent_parity.gd
++++ b/godot/tests/parent_parity.gd
+@@ -77,6 +77,53 @@ func interaction_snapshot(game: Object, target: int) -> void:
+         game.frame(), target, position.x, position.y, position.z, game.target_armor(target),
+         int(game.target_slurpable(target)), game.target_ingest_progress(target),
+         int(game.target_alive(target)), live_targets(game), game.souls(), game.battery()])
++    target_pose_snapshot(game, target)
++
++func target_pose_snapshot(game: Object, target: int) -> void:
++    var p: Dictionary = game.target_presentation_snapshot(target)
++    var position: Vector3 = p.position
++    var velocity: Vector3 = p.velocity
++    var attack_direction: Vector3 = p.attack_direction
++    var pose: Dictionary = p.pose
++    var head_center: Vector3 = p.head_center
++    print("TARGETPOSE,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%.7f,%.7f,%.7f,%d,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
++        game.frame(), target, position.x, position.y, position.z,
++        velocity.x, velocity.y, velocity.z, p.visual_yaw, p.locomotion_amount,
++        p.locomotion_phase, p.attack_timer, p.attack_phase, p.attack_commit_phase,
++        p.attack_end_phase, p.attack_variant, int(p.attack_hit), attack_direction.x,
++        attack_direction.y, attack_direction.z, p.grabbed_player_id, p.body_pitch,
++        p.body_roll, p.left_foot_contact, p.right_foot_contact, int(p.body_authoritative),
++        pose.root_bob, pose.torso_pitch, pose.torso_roll, pose.left_arm_swing,
++        pose.right_arm_swing, pose.left_leg_swing, pose.right_leg_swing,
++        pose.hit_lean, pose.collapse, head_center.x, head_center.y, head_center.z,
++        p.head_radius])
++    var tether_anchor: Vector3 = p.tether_anchor
++    var tether_destination: Vector3 = p.tether_destination
++    print("TETHER,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
++        game.frame(), target, int(p.tether_visible), tether_anchor.x, tether_anchor.y,
++        tether_anchor.z, tether_destination.x, tether_destination.y,
++        tether_destination.z, p.tether_width])
++    var pose_hit_lean := float(pose.hit_lean)
++    var pose_collapse := float(pose.collapse)
++    print("HIT,%d,%d,%.7f,%.7f,%.7f,%.7f" % [game.frame(), target,
++        p.hit_amount, p.hit_direction_local, pose_hit_lean, pose_collapse])
++
++func action_snapshot(game: Object) -> void:
++    var p: Dictionary = game.player_action_snapshot()
++    var origin: Vector3 = p.origin
++    var direction: Vector3 = p.direction
++    var impact: Vector3 = p.impact
++    var position: Vector3 = p.player_position
++    var velocity: Vector3 = p.player_velocity
++    print("MELEE,%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
++        game.frame(), p.sequence, p.combo_index, p.variant, p.visual_timer,
++        p.visual_duration, p.phase, p.range, p.hit_radius, p.damage,
++        origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
++        impact.x, impact.y, impact.z, int(p.visual_hit), p.hit_mask,
++        int(p.locomotion_lunge), int(p.air_lunge_pending),
++        int(p.air_lunge_landing_pending), p.air_lunge_timer, p.air_lunge_rotation,
++        p.landing_recovery, p.landing_pose_pitch, position.x, position.y, position.z,
++        velocity.x, velocity.y, velocity.z])
+ 
+ func target_interaction_fixture(game: Object) -> void:
+     game.start_target_interaction_fixture()
+@@ -115,6 +162,20 @@ func _initialize() -> void:
+         if (step + 1) % 30 == 0:
+             snapshot(game)
+     game.free()
++    var melee = ClassDB.instantiate("ParentGameNode")
++    action_snapshot(melee)
++    melee.submit_input(0, 0, 0, 0, false, false, false, true, false, false)
++    melee.tick()
++    action_snapshot(melee)
++    for _tick in range(5):
++        melee.submit_input(0, 0, 0, 0, false, false, false, false, false, false)
++        melee.tick()
++    action_snapshot(melee)
++    for _tick in range(9):
++        melee.submit_input(0, 0, 0, 0, false, false, false, false, false, false)
++        melee.tick()
++    action_snapshot(melee)
++    melee.free()
+     var rally = ClassDB.instantiate("ParentGameNode")
+     rally.start_rally_fixture()
+     print("ACTION,fixture,%d,%d,%d" % [rally.frame(), rally.souls(), rally.live_bullets()])
+@@ -132,4 +193,68 @@ func _initialize() -> void:
+     var interaction = ClassDB.instantiate("ParentGameNode")
+     target_interaction_fixture(interaction)
+     interaction.free()
++    var communication = ClassDB.instantiate("ParentGameNode")
++    communication.set_comm_signal(3)
++    communication.tick()
++    print("SIGNAL,%d,%d,%.7f" % [communication.frame(), communication.comm_signal(), communication.comm_signal_timer()])
++    for _tick in range(60):
++        communication.tick()
++    print("SIGNAL,%d,%d,%.7f" % [communication.frame(), communication.comm_signal(), communication.comm_signal_timer()])
++    for _tick in range(90):
++        communication.tick()
++    print("SIGNAL,%d,%d,%.7f" % [communication.frame(), communication.comm_signal(), communication.comm_signal_timer()])
++    communication.free()
++    var pause = ClassDB.instantiate("ParentGameNode")
++    for _tick in range(30):
++        pause.submit_input(0, 1, 0, 0, false, false, false, false, false, false)
++        pause.tick()
++    var pause_position: Vector3 = pause.player_position()
++    print("PAUSE,%d,%d,%.7f,%.7f,%.7f,%.7f" % [pause.frame(), int(pause.paused()), pause.simulation_time(), pause_position.x, pause_position.y, pause_position.z])
++    pause.set_paused(true)
++    for _tick in range(60):
++        pause.submit_input(0, 1, 0, 0, false, false, false, false, false, false)
++        pause.tick()
++    pause_position = pause.player_position()
++    print("PAUSE,%d,%d,%.7f,%.7f,%.7f,%.7f" % [pause.frame(), int(pause.paused()), pause.simulation_time(), pause_position.x, pause_position.y, pause_position.z])
++    pause.set_paused(false)
++    for _tick in range(30):
++        pause.submit_input(0, 1, 0, 0, false, false, false, false, false, false)
++        pause.tick()
++    pause_position = pause.player_position()
++    print("PAUSE,%d,%d,%.7f,%.7f,%.7f,%.7f" % [pause.frame(), int(pause.paused()), pause.simulation_time(), pause_position.x, pause_position.y, pause_position.z])
++    pause.free()
++    var room = ClassDB.instantiate("ParentGameNode")
++    var room_snapshot: Dictionary = room.room_presentation_snapshot(0)
++    var room_structures: Array = room_snapshot.structures
++    var room_objects: Array = room_snapshot.objects
++    print("ROOM,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.7f,%d,%d" % [
++        room_snapshot.room_seed, room_snapshot.room_index, room_snapshot.tile_index,
++        room_snapshot.current_tile_index, room_snapshot.setting, room_snapshot.form,
++        room_snapshot.scale, room_snapshot.condition, room_snapshot.traversal_intent,
++        int(room_snapshot.room_clear), int(room_snapshot.advancing), int(room_snapshot.grass),
++        int(room_snapshot.sidewalks), room_snapshot.grass_amount,
++        room_structures.size(), room_objects.size()])
++    for structure in room_structures:
++        var structure_center: Vector3 = structure.center
++        var structure_size: Vector3 = structure.size
++        var material: Dictionary = structure.material
++        var base_color: Color = material.base_color
++        var specular: Color = material.specular
++        var emission: Color = material.emission
++        print("ROOMSTRUCT,%s,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%.7f,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f" % [
++            structure.id, structure.kind, structure_center.x, structure_center.y,
++            structure_center.z, structure_size.x, structure_size.y, structure_size.z,
++            base_color.r, base_color.g, base_color.b, material.shading, material.opacity,
++            int(material.fog), material.texture, material.texture_world_scale,
++            specular.r, specular.g, specular.b, material.shininess,
++            emission.r, emission.g, emission.b])
++    for object in room_objects:
++        var center: Vector3 = object.center
++        var size: Vector3 = object.size
++        print("ROOMOBJ,%s,%d,%d,%d,%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%d,%d" % [
++            object.id, object.tile_index, object.prop_index, object.part_index,
++            object.primitive, object.role, object.geometry, object.part,
++            center.x, center.y, center.z, size.x, size.y, size.z, object.yaw,
++            object.surface, int(object.physical)])
++    room.free()
+     quit(0)
+diff --git a/godot/tests/parent_smoke.gd b/godot/tests/parent_smoke.gd
+index 2a7047d..2bf2e3a 100644
+--- a/godot/tests/parent_smoke.gd
++++ b/godot/tests/parent_smoke.gd
+@@ -79,6 +79,74 @@ func _initialize() -> void:
+     check(actions.target_count() > 0, "native target collection is exposed")
+     actions.free()
+ 
++    var melee_contract := new_game()
++    var melee_before: Dictionary = melee_contract.player_action_snapshot()
++    tick(melee_contract, 1, 0.0, 0.0, false, false, false, true)
++    var melee_started: Dictionary = melee_contract.player_action_snapshot()
++    check(int(melee_started.sequence) > int(melee_before.sequence),
++        "grounded melee advances the native action sequence")
++    check(float(melee_started.range) > 0.0 and float(melee_started.hit_radius) > 0.0,
++        "native melee exposes attack reach and hit radius")
++    check((melee_started.direction as Vector3).length() > 0.99,
++        "native melee exposes a normalized attack direction")
++    tick(melee_contract, 5)
++    var melee_advanced: Dictionary = melee_contract.player_action_snapshot()
++    check(float(melee_advanced.phase) > float(melee_started.phase),
++        "native melee presentation phase advances with native mechanic time")
++    melee_contract.free()
++
++    var communication := new_game()
++    communication.set_comm_signal(2)
++    communication.tick()
++    check(communication.comm_signal() == 2, "communication signal is owned and activated by parent Game")
++    check(communication.comm_signal_timer() > 0.0, "parent Game owns communication signal lifetime")
++    tick(communication, 150)
++    check(communication.comm_signal() == 0, "parent Game expires communication signal")
++    communication.free()
++
++    var pause := new_game()
++    tick(pause, 30, 0.0, 1.0)
++    var position_before_pause: Vector3 = pause.player_position()
++    var time_before_pause: float = pause.simulation_time()
++    pause.set_paused(true)
++    tick(pause, 60, 0.0, 1.0)
++    check(pause.paused(), "parent Game owns paused state")
++    check(pause.player_position().distance_to(position_before_pause) <= 0.000001,
++        "solo pause freezes parent player simulation")
++    check(absf(pause.simulation_time() - time_before_pause) <= 0.000001,
++        "solo pause freezes parent simulation clock")
++    pause.set_paused(false)
++    tick(pause, 30, 0.0, 1.0)
++    check(not pause.paused(), "parent Game resumes from pause")
++    check(pause.player_position().distance_to(position_before_pause) > 0.001,
++        "movement resumes after parent pause ends")
++    pause.free()
++
++    var room := new_game()
++    var room_snapshot: Dictionary = room.room_presentation_snapshot(0)
++    var room_snapshot_again: Dictionary = room.room_presentation_snapshot(0)
++    check(int(room_snapshot.room_seed) == 12345, "room presentation uses native room seed")
++    check(int(room_snapshot.room_index) == 1, "room presentation uses native room index")
++    check((room_snapshot.structures as Array).size() == 8,
++        "native open-field room produces floor, two complete door frames, and selected traversal surface")
++    check((room_snapshot.objects as Array).size() > 0, "native room produces computed scene objects")
++    check((room_snapshot.objects as Array).size() == (room_snapshot_again.objects as Array).size(),
++        "native computed room object count is deterministic")
++    if (room_snapshot.objects as Array).size() > 0:
++        check(str((room_snapshot.objects as Array)[0].id) == str((room_snapshot_again.objects as Array)[0].id),
++            "native computed room object IDs are stable")
++    check(str((room_snapshot.structures as Array)[0].id) == "room/0/structure/floor",
++        "native room structure IDs are stable")
++    var floor_material: Dictionary = (room_snapshot.structures as Array)[0].material
++    var floor_color: Color = floor_material.base_color
++    check(absf(floor_color.r - 63.0 / 255.0) <= 0.000001,
++        "native field floor material carries VisualIdentity field color")
++    check(int(floor_material.texture) == 1,
++        "native field floor material carries field-grass texture identity")
++    check(str((room_snapshot.structures as Array)[7].id) == "room/0/structure/traversal/4",
++        "native room exposes selected traversal surface by stable graph index")
++    room.free()
++
+     var rally := new_game()
+     rally.start_rally_fixture()
+     check(rally.souls() == 1, "parent rally fixture seeds one stored soul")
+@@ -104,12 +172,22 @@ func _initialize() -> void:
+     check(live_count == 0 or target_fixture_b.target_alive(first_live),
+         "parent target fixture is deterministic")
+     if first_live >= 0:
++        var target_pose_start: Dictionary = target_fixture_a.target_presentation_snapshot(first_live)
++        check(int(target_pose_start.index) == first_live,
++            "target presentation snapshot preserves native target identity")
++        check(float(target_pose_start.head_radius) > 0.0,
++            "target presentation exposes native-scaled head volume")
+         check(target_fixture_a.target_position(first_live).distance_to(
+             target_fixture_b.target_position(first_live)) <= 0.000001,
+             "deterministic fixture target positions match")
+     tick(target_fixture_a, 120)
+     tick(target_fixture_b, 120)
+     if first_live >= 0:
++        var target_pose_moved: Dictionary = target_fixture_a.target_presentation_snapshot(first_live)
++        check(bool(target_pose_moved.body_authoritative),
++            "moving enemy exposes authoritative native body presentation")
++        check(float(target_pose_moved.attack_commit_phase) < float(target_pose_moved.attack_end_phase),
++            "enemy presentation exposes ordered native damage window boundaries")
+         check(target_fixture_a.target_position(first_live).distance_to(
+             target_fixture_b.target_position(first_live)) <= 0.000001,
+             "deterministic enemy trajectories match after neutral ticks")
+@@ -165,5 +243,5 @@ func _initialize() -> void:
+         print("RESULT: FAIL count=", failures.size())
+         quit(2)
+         return
+-    print("RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting")
++    print("RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee action/pose contracts, enemy body/attack contracts, communication signals, native pause/resume, native room/object contracts, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting")
+     quit(0)
+diff --git a/godot/tests/phone_presentation.gd b/godot/tests/phone_presentation.gd
+index 338e77b..443f771 100644
+--- a/godot/tests/phone_presentation.gd
++++ b/godot/tests/phone_presentation.gd
+@@ -11,7 +11,7 @@ func _initialize() -> void:
+ 	call_deferred("_run")
+ 
+ func _run() -> void:
+-	var world: Node3D = load("res://scenes/main.tscn").instantiate()
++	var world: Node3D = load("res://scenes/parent_reference.tscn").instantiate()
+ 	root.add_child(world)
+ 	await process_frame
+ 	await process_frame
+diff --git a/native/parent_bridge.hpp b/native/parent_bridge.hpp
+index ba134c4..2510f7c 100644
+--- a/native/parent_bridge.hpp
++++ b/native/parent_bridge.hpp
+@@ -9,6 +9,8 @@ public:
+         game.setTouchControls(x,z,look_x,look_y,vacuum,sprint,jump,melee,shoot,camera);
+     }
+     void tick() { game.update(1.0f/60.0f); }
++    void setCommSignal(int signal) { game.setCommSignal(signal); }
++    void setPaused(bool paused) { game.setUiPaused(paused); }
+     // Verification fixture delegates setup to the original Game debug scenario.
+     void startRallyFixture() { game.debugStartRallyLab(); }
+     void startTargetFixture() { game.debugStartRoomInspector(); game.debugToggleRoomInspectorEnemies(); }
+diff --git a/native/parent_game_node.cpp b/native/parent_game_node.cpp
+index db7b396..a8b12f3 100644
+--- a/native/parent_game_node.cpp
++++ b/native/parent_game_node.cpp
+@@ -2,17 +2,31 @@
+ #include <godot_cpp/core/class_db.hpp>
+ #include <godot_cpp/variant/color.hpp>
+ #include <godot_cpp/variant/quaternion.hpp>
++#include <godot_cpp/variant/array.hpp>
++#include <godot_cpp/classes/project_settings.hpp>
+ #include "phone_presentation_snapshot.hpp"
++#include "room_presentation_snapshot.hpp"
++#include "combat_presentation_snapshot.hpp"
++#include "MaterialResponse.hpp"
+ using namespace godot;
+ void ParentGameNode::_bind_methods() {
+     ClassDB::bind_method(D_METHOD("submit_input","x","z","look_x","look_y","vacuum","sprint","jump","melee","shoot","camera"),&ParentGameNode::submit_input);
+     ClassDB::bind_method(D_METHOD("tick"),&ParentGameNode::tick);
++    ClassDB::bind_method(D_METHOD("set_comm_signal","signal"),&ParentGameNode::set_comm_signal);
++    ClassDB::bind_method(D_METHOD("set_paused","paused"),&ParentGameNode::set_paused);
+     ClassDB::bind_method(D_METHOD("start_rally_fixture"),&ParentGameNode::start_rally_fixture);
+     ClassDB::bind_method(D_METHOD("start_target_fixture"),&ParentGameNode::start_target_fixture);
+     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
+     ClassDB::bind_method(D_METHOD("refill_target_interaction_battery"),&ParentGameNode::refill_target_interaction_battery);
+     ClassDB::bind_method(D_METHOD("player_position"),&ParentGameNode::player_position);
+     ClassDB::bind_method(D_METHOD("phone_presentation_snapshot"),&ParentGameNode::phone_presentation_snapshot);
++    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
++    ClassDB::bind_method(D_METHOD("player_action_snapshot"),&ParentGameNode::player_action_snapshot);
++    ClassDB::bind_method(D_METHOD("target_presentation_snapshot","index"),&ParentGameNode::target_presentation_snapshot);
++    ClassDB::bind_method(D_METHOD("target_soul_presentation_snapshot","index"),&ParentGameNode::target_soul_presentation_snapshot);
++    ClassDB::bind_method(D_METHOD("target_soul_lattice","index"),&ParentGameNode::target_soul_lattice);
++    ClassDB::bind_method(D_METHOD("target_model_vertices","index"),&ParentGameNode::target_model_vertices);
++    ClassDB::bind_method(D_METHOD("target_model_color","index"),&ParentGameNode::target_model_color);
+     ClassDB::bind_method(D_METHOD("camera_position"),&ParentGameNode::camera_position);
+     ClassDB::bind_method(D_METHOD("camera_target"),&ParentGameNode::camera_target);
+     ClassDB::bind_method(D_METHOD("target_position","index"),&ParentGameNode::target_position);
+@@ -30,17 +44,35 @@ void ParentGameNode::_bind_methods() {
+     ClassDB::bind_method(D_METHOD("vacuum_power"),&ParentGameNode::vacuum_power);
+     ClassDB::bind_method(D_METHOD("melee_pose"),&ParentGameNode::melee_pose);
+     ClassDB::bind_method(D_METHOD("live_bullets"),&ParentGameNode::live_bullets);
++    ClassDB::bind_method(D_METHOD("comm_signal"),&ParentGameNode::comm_signal);
++    ClassDB::bind_method(D_METHOD("comm_signal_timer"),&ParentGameNode::comm_signal_timer);
++    ClassDB::bind_method(D_METHOD("paused"),&ParentGameNode::paused);
++    ClassDB::bind_method(D_METHOD("simulation_time"),&ParentGameNode::simulation_time);
+ }
+ void ParentGameNode::submit_input(float x,float z,float lx,float ly,bool vacuum,bool sprint,bool jump,bool melee,bool shoot,bool camera){
+-    bridge.input(x,z,lx,ly,vacuum,sprint,jump&&!jump_last,melee&&!melee_last,shoot&&!shoot_last,camera&&!camera_last);
+-    jump_last=jump;melee_last=melee;shoot_last=shoot;camera_last=camera;
++    bridge.input(x,z,lx,ly,vacuum,sprint,jump,melee,shoot,camera);
+ }
+ void ParentGameNode::tick(){bridge.tick();}
+-void ParentGameNode::start_rally_fixture(){bridge.startRallyFixture();jump_last=melee_last=shoot_last=camera_last=false;}
+-void ParentGameNode::start_target_fixture(){bridge.startTargetFixture();jump_last=melee_last=shoot_last=camera_last=false;}
+-void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();jump_last=melee_last=shoot_last=camera_last=false;}
++void ParentGameNode::set_comm_signal(int signal){bridge.setCommSignal(signal);}
++void ParentGameNode::set_paused(bool paused){bridge.setPaused(paused);}
++void ParentGameNode::start_rally_fixture(){bridge.startRallyFixture();}
++void ParentGameNode::start_target_fixture(){bridge.startTargetFixture();}
++void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();}
+ void ParentGameNode::refill_target_interaction_battery(){bridge.refillTargetInteractionBattery();}
+ static Vector3 v(const Vec3& p){return Vector3(p.x,p.y,p.z);}
++static Dictionary material_dictionary(const render_contract::MaterialDefinition& material){
++    Dictionary result;
++    result["base_color"] = Color(material.baseColor.r,material.baseColor.g,material.baseColor.b,material.opacity);
++    result["shading"] = static_cast<int>(material.shading);
++    result["opacity"] = material.opacity;
++    result["fog"] = material.fog;
++    result["texture"] = static_cast<int>(material.texture);
++    result["texture_world_scale"] = material.textureWorldScale;
++    result["specular"] = Color(material.specular.r,material.specular.g,material.specular.b,1.0f);
++    result["shininess"] = material.shininess;
++    result["emission"] = Color(material.emission.r,material.emission.g,material.emission.b,1.0f);
++    return result;
++}
+ Dictionary ParentGameNode::phone_presentation_snapshot() const {
+     const PhonePresentationSnapshot snapshot = PhonePresentationSnapshot::from(bridge.state());
+     Dictionary result;
+@@ -68,6 +100,245 @@ Dictionary ParentGameNode::phone_presentation_snapshot() const {
+     result["capture_pulse"] = snapshot.capturePulse;
+     return result;
+ }
++Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
++    if(tile_index<0)tile_index=bridge.state().topology.currentTileIndex;
++    const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index);
++    Dictionary result;
++    result["room_seed"] = snapshot.roomSeed;
++    result["room_index"] = snapshot.roomIndex;
++    result["tile_index"] = snapshot.tileIndex;
++    result["current_tile_index"] = snapshot.currentTileIndex;
++    result["setting"] = snapshot.setting;
++    result["form"] = snapshot.form;
++    result["scale"] = snapshot.scale;
++    result["condition"] = snapshot.condition;
++    result["traversal_intent"] = snapshot.traversalIntent;
++    result["room_clear"] = snapshot.roomClear;
++    result["advancing"] = snapshot.advancing;
++    result["grass"] = snapshot.grass;
++    result["sidewalks"] = snapshot.sidewalks;
++    result["grass_amount"] = snapshot.grassAmount;
++    Array structures;
++    for (const auto& structure : snapshot.structures) {
++        Dictionary item;
++        item["id"] = structure.id.c_str();
++        item["kind"] = static_cast<int>(structure.kind);
++        item["center"] = v(structure.center);
++        item["size"] = v(structure.size);
++        item["material"] = material_dictionary(structure.material);
++        structures.push_back(item);
++    }
++    result["structures"] = structures;
++    Array objects;
++    for (const auto& object : snapshot.objects) {
++        Dictionary item;
++        item["id"] = object.id.c_str();
++        item["tile_index"] = object.tileIndex;
++        item["prop_index"] = object.propIndex;
++        item["part_index"] = object.partIndex;
++        item["primitive"] = static_cast<int>(object.primitive);
++        item["role"] = static_cast<int>(object.role);
++        item["geometry"] = static_cast<int>(object.geometry);
++        item["part"] = static_cast<int>(object.part);
++        item["center"] = v(object.center);
++        item["size"] = v(object.size);
++        item["yaw"] = object.yaw;
++        item["surface"] = static_cast<int>(object.surface);
++        item["physical"] = object.physical;
++        objects.push_back(item);
++    }
++    result["objects"] = objects;
++    return result;
++}
++Dictionary ParentGameNode::player_action_snapshot() const {
++    const PlayerActionPresentationSnapshot snapshot = PlayerActionPresentationSnapshot::from(bridge.state());
++    Dictionary result;
++    result["sequence"] = static_cast<int>(snapshot.sequence);
++    result["combo_index"] = snapshot.comboIndex;
++    result["variant"] = snapshot.variant;
++    result["visual_timer"] = snapshot.visualTimer;
++    result["visual_duration"] = snapshot.visualDuration;
++    result["phase"] = snapshot.normalizedPhase;
++    result["range"] = snapshot.range;
++    result["hit_radius"] = snapshot.hitRadius;
++    result["damage"] = snapshot.damage;
++    result["origin"] = v(snapshot.origin);
++    result["direction"] = v(snapshot.direction);
++    result["impact"] = v(snapshot.impact);
++    result["visual_hit"] = snapshot.visualHit;
++    result["hit_mask"] = static_cast<int64_t>(snapshot.hitMask);
++    result["locomotion_lunge"] = snapshot.locomotionLunge;
++    result["air_lunge_pending"] = snapshot.airLungePending;
++    result["air_lunge_landing_pending"] = snapshot.airLungeLandingPending;
++    result["air_lunge_timer"] = snapshot.airLungeTimer;
++    result["air_lunge_rotation"] = snapshot.airLungeRotation;
++    result["landing_recovery"] = snapshot.landingRecovery;
++    result["landing_recovery_duration"] = snapshot.landingRecoveryDuration;
++    result["landing_pose_pitch"] = snapshot.landingPosePitch;
++    result["wall_grip_timer"] = snapshot.wallGripTimer;
++    result["player_position"] = v(snapshot.playerPosition);
++    result["player_velocity"] = v(snapshot.playerVelocity);
++    return result;
++}
++Dictionary ParentGameNode::target_presentation_snapshot(int index) const {
++    const TargetPresentationSnapshot snapshot = TargetPresentationSnapshot::from(bridge.state(), index);
++    Dictionary result;
++    result["index"] = snapshot.index;
++    result["position"] = v(snapshot.position);
++    result["velocity"] = v(snapshot.velocity);
++    result["alive"] = snapshot.alive;
++    result["slurpable"] = snapshot.slurpable;
++    result["brute"] = snapshot.brute;
++    result["scale"] = snapshot.scale;
++    result["armor"] = snapshot.armor;
++    result["health"] = snapshot.health;
++    result["visual_yaw"] = snapshot.visualYaw;
++    result["locomotion_amount"] = snapshot.locomotionAmount;
++    result["locomotion_phase"] = snapshot.locomotionPhase;
++    result["animation_time"] = snapshot.animationTime;
++    result["hit_amount"] = snapshot.hitAmount;
++    result["hit_direction_local"] = snapshot.hitDirectionLocal;
++    result["attack_active"] = snapshot.attackActive;
++    result["attack_timer"] = snapshot.attackTimer;
++    result["attack_phase"] = snapshot.attackPhase;
++    result["attack_commit_phase"] = snapshot.attackCommitPhase;
++    result["attack_end_phase"] = snapshot.attackEndPhase;
++    result["attack_variant"] = snapshot.attackVariant;
++    result["attack_hit"] = snapshot.attackHit;
++    result["attack_direction"] = v(snapshot.attackDirection);
++    result["attack_target_player_id"] = snapshot.attackTargetPlayerId;
++    result["grabbed_player_id"] = snapshot.grabbedPlayerId;
++    result["grab_cooldown"] = snapshot.grabCooldown;
++    result["body_pitch"] = snapshot.bodyPitch;
++    result["body_roll"] = snapshot.bodyRoll;
++    result["left_foot_contact"] = snapshot.leftFootContact;
++    result["right_foot_contact"] = snapshot.rightFootContact;
++    result["left_foot_target"] = v(snapshot.leftFootTarget);
++    result["right_foot_target"] = v(snapshot.rightFootTarget);
++    result["tether_visible"] = snapshot.tetherVisible;
++    result["tether_anchor"] = v(snapshot.tetherAnchor);
++    result["tether_destination"] = v(snapshot.tetherDestination);
++    result["tether_width"] = snapshot.tetherWidth;
++    result["body_fallen"] = snapshot.bodyFallen;
++    result["body_authoritative"] = snapshot.bodyAuthoritative;
++    result["head_center"] = v(snapshot.headCenter);
++    result["head_radius"] = snapshot.headRadius;
++    result["torso_center"] = v(snapshot.torsoCenter);
++    result["torso_size"] = v(snapshot.torsoSize);
++    Dictionary pose;
++    pose["yaw"] = snapshot.pose.yaw;
++    pose["scale"] = snapshot.pose.scale;
++    pose["morph_shrink"] = snapshot.pose.morphShrink;
++    pose["root_bob"] = snapshot.pose.rootBob;
++    pose["torso_pitch"] = snapshot.pose.torsoPitch;
++    pose["torso_roll"] = snapshot.pose.torsoRoll;
++    pose["head_pitch"] = snapshot.pose.headPitch;
++    pose["left_arm_swing"] = snapshot.pose.leftArmSwing;
++    pose["right_arm_swing"] = snapshot.pose.rightArmSwing;
++    pose["left_leg_swing"] = snapshot.pose.leftLegSwing;
++    pose["right_leg_swing"] = snapshot.pose.rightLegSwing;
++    pose["hit_lean"] = snapshot.pose.hitLean;
++    pose["soul_morph"] = snapshot.pose.soulMorph;
++    pose["vacuum_lean"] = snapshot.pose.vacuumLean;
++    pose["collapse"] = snapshot.pose.collapse;
++    pose["expressive_scale"] = v(snapshot.pose.expressiveScale);
++    result["pose"] = pose;
++    Dictionary reaction;
++    reaction["locomotion_phase"] = snapshot.reaction.locomotionPhase;
++    reaction["locomotion_amount"] = snapshot.reaction.locomotionAmount;
++    reaction["hit_amount"] = snapshot.reaction.hitAmount;
++    reaction["hit_direction_local"] = snapshot.reaction.hitDirectionLocal;
++    reaction["vacuum_pull_amount"] = snapshot.reaction.vacuumPullAmount;
++    reaction["capture_collapse_amount"] = snapshot.reaction.captureCollapseAmount;
++    reaction["visibility"] = snapshot.reaction.visibility;
++    reaction["soul_cube_amount"] = snapshot.reaction.soulCubeAmount;
++    reaction["attack_timer"] = snapshot.reaction.attackTimer;
++    reaction["attack_variant"] = snapshot.reaction.attackVariant;
++    reaction["awareness"] = snapshot.reaction.awareness;
++    reaction["uncertainty"] = snapshot.reaction.uncertainty;
++    reaction["commitment"] = snapshot.reaction.commitment;
++    reaction["disruption"] = snapshot.reaction.disruption;
++    reaction["search_amount"] = snapshot.reaction.searchAmount;
++    reaction["individuality"] = snapshot.reaction.individuality;
++    result["reaction"] = reaction;
++    return result;
++}
++Dictionary ParentGameNode::target_soul_presentation_snapshot(int index) const {
++    Dictionary result;
++    if (index < 0 || index >= TARGET_COUNT) return result;
++    const auto& target = bridge.state().targets[index];
++    const auto& soul = target.soulVisual;
++    result["alive"] = target.alive;
++    result["slurpable"] = target.slurpable;
++    result["visible"] = soul.visible;
++    result["position"] = v(target.pos);
++    result["vertical_offset"] = soul.verticalOffset;
++    result["rotation_y"] = soul.rotationY;
++    result["morph_scale"] = soul.morphScale;
++    result["shell_opacity"] = soul.shellOpacity;
++    result["emission"] = soul.emission;
++    result["scale"] = v(soul.scale);
++    result["deformation"] = v(soul.deformation);
++    result["pull_amount"] = soul.pullAmount;
++    result["latch_amount"] = soul.latchAmount;
++    result["ingest_amount"] = soul.ingestAmount;
++    result["elasticity"] = soul.elasticity;
++    result["phase"] = soul.phase;
++    result["color"] = Color(soul.color.r, soul.color.g, soul.color.b, 1.0f);
++    return result;
++}
++
++PackedVector3Array ParentGameNode::target_soul_lattice(int index) const {
++    PackedVector3Array result;
++    if (index < 0 || index >= TARGET_COUNT) return result;
++    const auto& target = bridge.state().targets[index];
++    result.resize(SOUL_LATTICE_NODE_COUNT);
++    for (int i = 0; i < SOUL_LATTICE_NODE_COUNT; ++i)
++        result.set(i, v(target.latticeSurfacePos[i]));
++    return result;
++}
++PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
++    PackedVector3Array result;
++    if(index<0||index>=TARGET_COUNT)return result;
++    if(!human_model_load_attempted){
++        human_model_load_attempted=true;
++        const String project_root=ProjectSettings::get_singleton()->globalize_path("res://");
++        const String path=project_root.path_join("../parent/models/human.dbhuman").simplify_path();
++        human_model.load(path.utf8().get_data());
++    }
++    if(!human_model.valid())return result;
++    const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
++    HumanModelExpressiveness expression;
++    expression.hitAmount=snapshot.reaction.hitAmount;
++    expression.hitDirection=snapshot.reaction.hitDirectionLocal;
++    expression.time=bridge.state().time;
++    expression.locomotionPhase=snapshot.reaction.locomotionPhase;
++    expression.locomotionAmount=snapshot.reaction.locomotionAmount;
++    expression.commitment=snapshot.reaction.commitment;
++    expression.searchAmount=snapshot.reaction.searchAmount;
++    expression.disruption=snapshot.reaction.disruption;
++    expression.vacuumPull=snapshot.reaction.vacuumPullAmount;
++    expression.individuality=snapshot.reaction.individuality;
++    HumanModelFootTargets feet;
++    feet.left[0]=snapshot.leftFootTarget.x;feet.left[1]=snapshot.leftFootTarget.y;feet.left[2]=snapshot.leftFootTarget.z;
++    feet.right[0]=snapshot.rightFootTarget.x;feet.right[1]=snapshot.rightFootTarget.y;feet.right[2]=snapshot.rightFootTarget.z;
++    feet.leftContact=snapshot.leftFootContact;
++    feet.rightContact=snapshot.rightFootContact;
++    feet.active=snapshot.bodyAuthoritative;
++    std::vector<float> vertices;
++    human_model.skin(snapshot.animationTime,snapshot.attackTimer,snapshot.attackVariant,vertices,expression,feet);
++    result.resize(static_cast<int64_t>(vertices.size()/3u));
++    for(int64_t i=0;i<result.size();++i)
++        result.set(i,Vector3(vertices[static_cast<std::size_t>(i)*3u],
++            vertices[static_cast<std::size_t>(i)*3u+1u],vertices[static_cast<std::size_t>(i)*3u+2u]));
++    return result;
++}
++Color ParentGameNode::target_model_color(int index) const {
++    if(index<0||index>=TARGET_COUNT)return Color(1,1,1,1);
++    const auto& target=bridge.state().targets[index];
++    const auto color=enemyShellColor(target.brute,target.attackVariant,bridge.state().roomIndex);
++    return Color(color.r,color.g,color.b,1.0f);
++}
+ Vector3 ParentGameNode::player_position()const{return v(bridge.state().player.pos);}
+ Vector3 ParentGameNode::camera_position()const{return v(bridge.state().camera.pos);}
+ Vector3 ParentGameNode::camera_target()const{return v(bridge.state().camera.lookTarget);}
+@@ -86,3 +357,7 @@ bool ParentGameNode::vacuum_active()const{return bridge.state().vacuum.active;}
+ float ParentGameNode::vacuum_power()const{return bridge.state().vacuum.power;}
+ float ParentGameNode::melee_pose()const{return bridge.state().meleePose;}
+ int ParentGameNode::live_bullets()const{int count=0;for(const auto& bullet:bridge.state().bullets)if(bullet.alive)++count;return count;}
++int ParentGameNode::comm_signal()const{return bridge.state().player.commSignal;}
++float ParentGameNode::comm_signal_timer()const{return bridge.state().player.commSignalTimer;}
++bool ParentGameNode::paused()const{return bridge.state().uiPaused;}
++float ParentGameNode::simulation_time()const{return bridge.state().time;}
+diff --git a/native/parent_game_node.hpp b/native/parent_game_node.hpp
+index 5d67f25..034b709 100644
+--- a/native/parent_game_node.hpp
++++ b/native/parent_game_node.hpp
+@@ -2,24 +2,36 @@
+ #include <godot_cpp/classes/node.hpp>
+ #include <godot_cpp/variant/dictionary.hpp>
+ #include <godot_cpp/variant/vector3.hpp>
++#include <godot_cpp/variant/packed_vector3_array.hpp>
+ #include "parent_bridge.hpp"
++#include "HumanModelData.hpp"
+ namespace godot {
+ class ParentGameNode : public Node {
+     GDCLASS(ParentGameNode, Node)
+     ParentBridge bridge;
+-    bool jump_last=false, melee_last=false, shoot_last=false, camera_last=false;
++    mutable HumanModelData human_model;
++    mutable bool human_model_load_attempted = false;
+ protected:
+     static void _bind_methods();
+ public:
+     void submit_input(float x,float z,float look_x,float look_y,bool vacuum,bool sprint,
+                       bool jump,bool melee,bool shoot,bool camera);
+     void tick();
++    void set_comm_signal(int signal);
++    void set_paused(bool paused);
+     void start_rally_fixture();
+     void start_target_fixture();
+     void start_target_interaction_fixture();
+     void refill_target_interaction_battery();
+     Vector3 player_position() const;
+     Dictionary phone_presentation_snapshot() const;
++    Dictionary room_presentation_snapshot(int tile_index) const;
++    Dictionary player_action_snapshot() const;
++    Dictionary target_presentation_snapshot(int index) const;
++    Dictionary target_soul_presentation_snapshot(int index) const;
++    PackedVector3Array target_soul_lattice(int index) const;
++    PackedVector3Array target_model_vertices(int index) const;
++    Color target_model_color(int index) const;
+     Vector3 camera_position() const;
+     Vector3 camera_target() const;
+     Vector3 target_position(int index) const;
+@@ -37,5 +49,9 @@ public:
+     float vacuum_power() const;
+     float melee_pose() const;
+     int live_bullets() const;
++    int comm_signal() const;
++    float comm_signal_timer() const;
++    bool paused() const;
++    float simulation_time() const;
+ };
+ }
+diff --git a/tests/compare_parity.ps1 b/tests/compare_parity.ps1
+index 4a9762d..25fb660 100644
+--- a/tests/compare_parity.ps1
++++ b/tests/compare_parity.ps1
+@@ -9,8 +9,8 @@ $godotLog = Join-Path $evidence "godot-parity.log"
+ if ($LASTEXITCODE -ne 0) { throw "Reference harness failed with exit code $LASTEXITCODE" }
+ & $GodotExe --headless --path (Join-Path $root "godot") --script "res://tests/parent_parity.gd" 2>&1 | Set-Content $godotLog
+ if ($LASTEXITCODE -ne 0) { throw "Godot parity harness failed with exit code $LASTEXITCODE" }
+-$reference = @(Get-Content $referenceLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "PHONE,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
+-$migrated = @(Get-Content $godotLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "PHONE,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" })
++$reference = @(Get-Content $referenceLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "PHONE,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" -or $_ -like "TARGETPOSE,*" -or $_ -like "TETHER,*" -or $_ -like "HIT,*" -or $_ -like "MELEE,*" -or $_ -like "SIGNAL,*" -or $_ -like "PAUSE,*" -or $_ -like "ROOM,*" -or $_ -like "ROOMSTRUCT,*" -or $_ -like "ROOMOBJ,*" })
++$migrated = @(Get-Content $godotLog | Where-Object { $_ -like "PARITY,*" -or $_ -like "PHONE,*" -or $_ -like "ACTION,*" -or $_ -like "TARGET,*" -or $_ -like "INTERACT,*" -or $_ -like "TARGETPOSE,*" -or $_ -like "TETHER,*" -or $_ -like "HIT,*" -or $_ -like "MELEE,*" -or $_ -like "SIGNAL,*" -or $_ -like "PAUSE,*" -or $_ -like "ROOM,*" -or $_ -like "ROOMSTRUCT,*" -or $_ -like "ROOMOBJ,*" })
+ if ($reference.Count -ne $migrated.Count) { throw "Snapshot count mismatch: parent=$($reference.Count), Godot=$($migrated.Count)" }
+ for ($row = 0; $row -lt $reference.Count; ++$row) {
+     $left = $reference[$row].Split(',')
+@@ -18,8 +18,16 @@ for ($row = 0; $row -lt $reference.Count; ++$row) {
+     if ($left.Count -ne $right.Count) { throw "Column count mismatch at row $row" }
+     $firstNumericColumn = if ($left[0] -eq "ACTION") { 2 } else { 1 }
+     for ($column = $firstNumericColumn; $column -lt $left.Count; ++$column) {
+-        $delta = [Math]::Abs([double]$left[$column] - [double]$right[$column])
+-        if ($delta -gt $Tolerance) { throw "Parity mismatch row=$row column=$column parent=$($left[$column]) Godot=$($right[$column]) delta=$delta tolerance=$Tolerance" }
++        $leftNumber = 0.0
++        $rightNumber = 0.0
++        $leftNumeric = [double]::TryParse($left[$column], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$leftNumber)
++        $rightNumeric = [double]::TryParse($right[$column], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$rightNumber)
++        if ($leftNumeric -and $rightNumeric) {
++            $delta = [Math]::Abs($leftNumber - $rightNumber)
++            if ($delta -gt $Tolerance) { throw "Parity mismatch row=$row column=$column parent=$($left[$column]) Godot=$($right[$column]) delta=$delta tolerance=$Tolerance" }
++        } elseif ($left[$column] -cne $right[$column]) {
++            throw "Parity mismatch row=$row column=$column parent=$($left[$column]) Godot=$($right[$column])"
++        }
+     }
+ }
+ Write-Output "PASS: $($reference.Count) parent-vs-Godot snapshots match within tolerance $Tolerance"
+diff --git a/tests/parent_reference.cpp b/tests/parent_reference.cpp
+index fdfb6f0..4527571 100644
+--- a/tests/parent_reference.cpp
++++ b/tests/parent_reference.cpp
+@@ -1,4 +1,6 @@
+ #include "Game.hpp"
++#include "room_presentation_snapshot.hpp"
++#include "combat_presentation_snapshot.hpp"
+ #include "../native/phone_presentation_snapshot.hpp"
+ 
+ #include <cmath>
+@@ -97,6 +99,45 @@ void interactionSnapshot(const Game& game, int targetIndex) {
+               << target.armor << ',' << (target.slurpable ? 1 : 0) << ','
+               << target.ingestProgress << ',' << (target.alive ? 1 : 0) << ','
+               << alive << ',' << state.player.souls << ',' << state.player.battery << '\n';
++    const auto p=TargetPresentationSnapshot::from(state,targetIndex);
++    std::cout << "TARGETPOSE," << state.frame << ',' << targetIndex << ','
++              << p.position.x << ',' << p.position.y << ',' << p.position.z << ','
++              << p.velocity.x << ',' << p.velocity.y << ',' << p.velocity.z << ','
++              << p.visualYaw << ',' << p.locomotionAmount << ',' << p.locomotionPhase << ','
++              << p.attackTimer << ',' << p.attackPhase << ',' << p.attackCommitPhase << ','
++              << p.attackEndPhase << ',' << p.attackVariant << ',' << p.attackHit << ','
++              << p.attackDirection.x << ',' << p.attackDirection.y << ',' << p.attackDirection.z << ','
++              << p.grabbedPlayerId << ',' << p.bodyPitch << ',' << p.bodyRoll << ','
++              << p.leftFootContact << ',' << p.rightFootContact << ',' << p.bodyAuthoritative << ','
++              << p.pose.rootBob << ',' << p.pose.torsoPitch << ',' << p.pose.torsoRoll << ','
++              << p.pose.leftArmSwing << ',' << p.pose.rightArmSwing << ','
++              << p.pose.leftLegSwing << ',' << p.pose.rightLegSwing << ','
++              << p.pose.hitLean << ',' << p.pose.collapse << ','
++              << p.headCenter.x << ',' << p.headCenter.y << ',' << p.headCenter.z << ','
++              << p.headRadius << '\n';
++    std::cout << "TETHER," << state.frame << ',' << targetIndex << ',' << p.tetherVisible << ','
++              << p.tetherAnchor.x << ',' << p.tetherAnchor.y << ',' << p.tetherAnchor.z << ','
++              << p.tetherDestination.x << ',' << p.tetherDestination.y << ',' << p.tetherDestination.z << ','
++              << p.tetherWidth << '\n';
++    std::cout << "HIT," << state.frame << ',' << targetIndex << ',' << p.hitAmount << ','
++              << p.hitDirectionLocal << ',' << p.pose.hitLean << ',' << p.pose.collapse << '\n';
++}
++
++void actionSnapshot(const Game& game) {
++    const auto& state=game.state();
++    const auto p=PlayerActionPresentationSnapshot::from(state);
++    std::cout << "MELEE," << state.frame << ',' << p.sequence << ',' << p.comboIndex << ','
++              << p.variant << ',' << p.visualTimer << ',' << p.visualDuration << ','
++              << p.normalizedPhase << ',' << p.range << ',' << p.hitRadius << ',' << p.damage << ','
++              << p.origin.x << ',' << p.origin.y << ',' << p.origin.z << ','
++              << p.direction.x << ',' << p.direction.y << ',' << p.direction.z << ','
++              << p.impact.x << ',' << p.impact.y << ',' << p.impact.z << ','
++              << p.visualHit << ',' << p.hitMask << ',' << p.locomotionLunge << ','
++              << p.airLungePending << ',' << p.airLungeLandingPending << ','
++              << p.airLungeTimer << ',' << p.airLungeRotation << ','
++              << p.landingRecovery << ',' << p.landingPosePitch << ','
++              << p.playerPosition.x << ',' << p.playerPosition.y << ',' << p.playerPosition.z << ','
++              << p.playerVelocity.x << ',' << p.playerVelocity.y << ',' << p.playerVelocity.z << '\n';
+ }
+ }
+ 
+@@ -120,6 +161,16 @@ int main() {
+         game.update(1.0f / 60.0f);
+         if ((tick + 1) % 30 == 0) snapshot(game);
+     }
++    Game melee;
++    melee.reset();
++    actionSnapshot(melee);
++    submit(melee,0,0,0,0,false,false,false,true,false,false);
++    melee.update(1.0f/60.0f);
++    actionSnapshot(melee);
++    for(int i=0;i<5;++i){submit(melee,0,0,0,0,false,false,false,false,false,false);melee.update(1.0f/60.0f);}
++    actionSnapshot(melee);
++    for(int i=0;i<9;++i){submit(melee,0,0,0,0,false,false,false,false,false,false);melee.update(1.0f/60.0f);}
++    actionSnapshot(melee);
+     Game rally;
+     rally.reset();
+     rally.debugStartRallyLab();
+@@ -170,5 +221,81 @@ int main() {
+             interaction.state().frame == 960 || interaction.state().frame == 1020 ||
+             interaction.state().frame == 1050) interactionSnapshot(interaction, interactionTarget);
+     }
++
++    Game communication;
++    communication.reset();
++    communication.setCommSignal(3);
++    communication.update(1.0f / 60.0f);
++    std::cout << "SIGNAL," << communication.state().frame << ','
++              << communication.state().player.commSignal << ','
++              << communication.state().player.commSignalTimer << '\n';
++    for (int i = 0; i < 60; ++i) communication.update(1.0f / 60.0f);
++    std::cout << "SIGNAL," << communication.state().frame << ','
++              << communication.state().player.commSignal << ','
++              << communication.state().player.commSignalTimer << '\n';
++    for (int i = 0; i < 90; ++i) communication.update(1.0f / 60.0f);
++    std::cout << "SIGNAL," << communication.state().frame << ','
++              << communication.state().player.commSignal << ','
++              << communication.state().player.commSignalTimer << '\n';
++
++    Game pause;
++    pause.reset();
++    for (int i = 0; i < 30; ++i) {
++        pause.setTouchControls(0, 1, 0, 0, false, false, false, false, false, false);
++        pause.update(1.0f / 60.0f);
++    }
++    std::cout << "PAUSE," << pause.state().frame << ',' << (pause.state().uiPaused ? 1 : 0) << ','
++              << pause.state().time << ',' << pause.state().player.pos.x << ','
++              << pause.state().player.pos.y << ',' << pause.state().player.pos.z << '\n';
++    pause.setUiPaused(true);
++    for (int i = 0; i < 60; ++i) {
++        pause.setTouchControls(0, 1, 0, 0, false, false, false, false, false, false);
++        pause.update(1.0f / 60.0f);
++    }
++    std::cout << "PAUSE," << pause.state().frame << ',' << (pause.state().uiPaused ? 1 : 0) << ','
++              << pause.state().time << ',' << pause.state().player.pos.x << ','
++              << pause.state().player.pos.y << ',' << pause.state().player.pos.z << '\n';
++    pause.setUiPaused(false);
++    for (int i = 0; i < 30; ++i) {
++        pause.setTouchControls(0, 1, 0, 0, false, false, false, false, false, false);
++        pause.update(1.0f / 60.0f);
++    }
++    std::cout << "PAUSE," << pause.state().frame << ',' << (pause.state().uiPaused ? 1 : 0) << ','
++              << pause.state().time << ',' << pause.state().player.pos.x << ','
++              << pause.state().player.pos.y << ',' << pause.state().player.pos.z << '\n';
++
++    Game room;
++    room.reset();
++    const auto roomSnapshot = RoomPresentationSnapshot::from(
++        room.state(), room.state().topology.currentTileIndex);
++    std::cout << "ROOM," << roomSnapshot.roomSeed << ',' << roomSnapshot.roomIndex << ','
++              << roomSnapshot.tileIndex << ',' << roomSnapshot.currentTileIndex << ','
++              << roomSnapshot.setting << ',' << roomSnapshot.form << ',' << roomSnapshot.scale << ','
++              << roomSnapshot.condition << ',' << roomSnapshot.traversalIntent << ','
++              << (roomSnapshot.roomClear ? 1 : 0) << ',' << (roomSnapshot.advancing ? 1 : 0) << ','
++              << (roomSnapshot.grass ? 1 : 0) << ',' << (roomSnapshot.sidewalks ? 1 : 0) << ','
++              << roomSnapshot.grassAmount << ',' << roomSnapshot.structures.size() << ','
++              << roomSnapshot.objects.size() << '\n';
++    for (const auto& structure : roomSnapshot.structures) {
++        std::cout << "ROOMSTRUCT," << structure.id << ',' << static_cast<int>(structure.kind) << ','
++                  << structure.center.x << ',' << structure.center.y << ',' << structure.center.z << ','
++                  << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
++                  << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
++                  << structure.material.baseColor.b << ',' << static_cast<int>(structure.material.shading) << ','
++                  << structure.material.opacity << ',' << (structure.material.fog ? 1 : 0) << ','
++                  << static_cast<int>(structure.material.texture) << ',' << structure.material.textureWorldScale << ','
++                  << structure.material.specular.r << ',' << structure.material.specular.g << ','
++                  << structure.material.specular.b << ',' << structure.material.shininess << ','
++                  << structure.material.emission.r << ',' << structure.material.emission.g << ','
++                  << structure.material.emission.b << '\n';
++    }
++    for (const auto& object : roomSnapshot.objects) {
++        std::cout << "ROOMOBJ," << object.id << ',' << object.tileIndex << ',' << object.propIndex << ','
++                  << object.partIndex << ',' << static_cast<int>(object.primitive) << ','
++                  << static_cast<int>(object.role) << ',' << static_cast<int>(object.geometry) << ','
++                  << static_cast<int>(object.part) << ',' << object.center.x << ',' << object.center.y << ','
++                  << object.center.z << ',' << object.size.x << ',' << object.size.y << ',' << object.size.z << ','
++                  << object.yaw << ',' << static_cast<int>(object.surface) << ',' << (object.physical ? 1 : 0) << '\n';
++    }
+     return 0;
+ }
+diff --git a/tests/verify.ps1 b/tests/verify.ps1
+index aeafcb6..6b587bf 100644
+--- a/tests/verify.ps1
++++ b/tests/verify.ps1
+@@ -13,6 +13,12 @@ try {
+     if ($LASTEXITCODE -ne 0) { throw "Headless smoke failed with exit code $LASTEXITCODE" }
+     & $GodotExe --headless --path godot --script res://tests/phone_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "phone-presentation.log")
+     if ($LASTEXITCODE -ne 0) { throw "Phone presentation contract failed with exit code $LASTEXITCODE" }
++    & $GodotExe --headless --path godot --script res://tests/room_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "room-presentation.log")
++    if ($LASTEXITCODE -ne 0) { throw "Room presentation contract failed with exit code $LASTEXITCODE" }
++    & $GodotExe --headless --path godot --script res://tests/human_model_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "human-model-presentation.log")
++    if ($LASTEXITCODE -ne 0) { throw "Human model presentation contract failed with exit code $LASTEXITCODE" }
++    & $GodotExe --headless --path godot --script res://tests/playable_encounter.gd 2>&1 | Set-Content (Join-Path $evidence "playable-encounter.log")
++    if ($LASTEXITCODE -ne 0) { throw "Godot playable encounter test failed with exit code $LASTEXITCODE" }
+     & $GodotExe --headless --path godot --quit-after 2 2>&1 | Set-Content (Join-Path $evidence "godot-startup.log")
+     if ($LASTEXITCODE -ne 0) { throw "Godot startup failed with exit code $LASTEXITCODE" }
+     & "$PSScriptRoot/compare_parity.ps1" -GodotExe $GodotExe 2>&1 | Set-Content (Join-Path $evidence "parity-result.log")

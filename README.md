@@ -1,8 +1,10 @@
-# Digital Breakdown → Godot: first native integration spike
+# Digital Breakdown → Godot migration
 
-**Status: GDExtension build, headless Godot startup, deterministic input checks, and fixed-scenario parent parity are verified. Visual presentation remains unverified.**
+**Status: The default Godot scene runs the original C++ gameplay simulation through GDExtension, with Godot providing input and presentation.**
 
-This project keeps the original parent `Game.cpp` and `Game.hpp` and their gameplay headers unchanged. A tiny C++ `ParentBridge` calls `Game::setTouchControls`, `Game::update(1/60)`, and reads `Game::state()` directly. `ParentGameNode` exposes the original state to Godot. Godot draws *temporary primitive* phone/enemy meshes; this is not the parent OpenGL renderer or an original asset conversion.
+The default Godot scene forwards input to the original `Game` and advances it at its fixed 60 Hz simulation step. Godot presents native player, target, room, phone, and HUD state. The isolated `playable_runtime.tscn` is an exploratory Godot-owned encounter; it is not authoritative, not wired into the default launch, and must not be treated as a faithful port of original gameplay.
+
+The complete subsystem ownership map and dependency order are maintained in `MIGRATION_MATRIX.md`. Native room presentation exposes deterministic room-plan metadata, structural records, material definitions, and stable computed-scene object records. Godot now renders the initial tile's native floor, door frames, selected traversal surface, and the native box-geometry lawn-fragment family. Other computed prop families and generated texture pixels remain unported.
 
 ## Build on Windows
 
@@ -10,18 +12,18 @@ This project keeps the original parent `Game.cpp` and `Game.hpp` and their gamep
 2. From this folder, run:
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DGODOT_CPP_DIR="C:/path/to/godot-cpp"
-cmake --build build --config Release --parallel
+cmake -S . -B build-godot47 "-DGODOT_CPP_DIR=C:/Users/indro/Projects/godot-cpp" "-DGODOTCPP_DEFAULT_API_VERSION=4.7"
+cmake --build build-godot47 --config Release --parallel
 ```
 
 3. Open the `godot/` directory in the Godot editor and run the main scene. If Godot fails to load the extension, check the compiled DLL, ABI compatibility, and the `.gdextension` library path.
 
-## Initial controls
+## Play the game
 
-WASD movement, Shift sprint, Space jump, E vacuum, F melee, Q shoot, C camera toggle, and captured mouse-look. Original asset import, full HUD/audio, and scene-authoring parity are not implemented.
+Run `godot_console.exe --path godot` from PowerShell, or open `godot/project.godot` in Godot 4.7.2 and press F6/F5. Controls: WASD move, Shift sprint, Space jump, captured mouse-look, E vacuum, F melee, Q shoot, C camera toggle, and 1–4 communication signals. Escape pauses; click to resume. This launch path uses the original C++ simulation. Its current Godot visuals are incremental presentation work, not a verified pixel-for-pixel renderer port.
 
 ## Verification
 
-Run `.\tests\verify.ps1` from PowerShell. It configures and builds the extension and direct-parent harness, runs headless behavior/startup checks, and compares structured parent-versus-Godot snapshots. Logs are written under `evidence/`.
+Run `.\tests\verify.ps1` from PowerShell. It configures/builds the extension and independent direct-parent harness, runs native-driven Godot behavior and presentation tests, separately tests the exploratory encounter, checks default-scene startup, and compares structured parent/Godot snapshots. Logs are written under `evidence/`.
 
-The default parent fixture has no stored souls. Parent-owned rally and room-inspector fixtures verify soul consumption, delayed projectile creation, 20 live targets, and deterministic target-state snapshots over neutral ticks. The targets remained stationary in the tested scenario. Target defeat, capture, and soul ingestion remain unsupported because the current fixture does not align a controlled interaction.
+The default parent fixture has no stored souls. Parent-owned rally and room-inspector fixtures verify soul consumption, delayed projectile creation, 20 live targets, and deterministic target-state snapshots over neutral ticks. A controlled 1,050-tick parent-owned interaction also verifies pursuit, armor damage, shell defeat, ingestion, capture, and one stored soul. Communication-signal activation, persistence, and expiry are compared against the direct `Game` harness. These scenarios do not establish parity for every enemy, soul variant, upgrade, or room-progression outcome.

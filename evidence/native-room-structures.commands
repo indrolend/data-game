@@ -1,0 +1,4 @@
+# Capture initial native-driven room structures, then move toward the selected traversal surface.
+observe
+step frames=60 moveX=-0.35 moveZ=1
+quit

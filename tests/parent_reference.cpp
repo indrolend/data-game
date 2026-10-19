@@ -1,4 +1,8 @@
 #include "Game.hpp"
+#include "FacetedRock.hpp"
+#include "PhoneDisplayLayout.hpp"
+#include "room_presentation_snapshot.hpp"
+#include "combat_presentation_snapshot.hpp"
 #include "../native/phone_presentation_snapshot.hpp"
 
 #include <cmath>
@@ -16,6 +20,14 @@ int liveBullets(const GameState& state) {
     int count = 0;
     for (const auto& bullet : state.bullets) if (bullet.alive) ++count;
     return count;
+}
+
+void emitUpgradeSnapshot(const char* stage, const GameState& state) {
+    std::cout << "UPGRADE," << stage << ',' << state.upgradeMenu.active << ',' << state.uiPaused << ','
+        << state.roomIndex << ',' << state.hud.menuSelection << ',' << state.progression.permanent.tokens;
+    for (const int level : state.progression.run.temporaryLevels) std::cout << ',' << level;
+    for (const int level : state.progression.permanent.levels) std::cout << ',' << level;
+    std::cout << '\n';
 }
 
 bool validPhoneSnapshot(const GameState& state, const PhonePresentationSnapshot& p) {
@@ -61,6 +73,34 @@ void phoneSnapshot(const Game& game) {
         <<p.vacuumPower<<','<<p.capturePulse<<'\n';
 }
 
+void phoneMenuSnapshot(const Game& game) {
+    const auto& state = game.state();
+    const auto layout = makePhoneDisplayMenuLayout(state);
+    const int mode = static_cast<int>(state.phoneDisplay.mode);
+    const bool active = (mode >= static_cast<int>(PhoneDisplayMode::MainMenu) &&
+        mode <= static_cast<int>(PhoneDisplayMode::Graphics)) ||
+        mode == static_cast<int>(PhoneDisplayMode::Pause);
+    std::cout << "MENULAYOUT," << layout.logicalW << ',' << layout.logicalH << ','
+              << layout.rowCount << ',' << layout.selectableCount << ','
+              << state.hud.menuSelection << ',' << active << ',' << layout.titlePx << ','
+              << layout.titleCenterY << ',' << layout.scrollOffset << ',' << layout.maxScroll << ','
+              << layout.content.x << ',' << layout.content.y << ',' << layout.content.w << ','
+              << layout.content.h << ',' << layout.title << ',' << layout.navigationHint << '\n';
+    for (int i = 0; i < layout.rowCount; ++i) {
+        const auto& row = layout.rows[i];
+        std::cout << "MENUROW," << i << ',' << static_cast<int>(row.kind) << ','
+                  << static_cast<int>(row.action) << ',' << row.selectableIndex << ','
+                  << row.bindingAction << ',' << static_cast<int>(row.horizontal) << ','
+                  << row.label << ',' << row.value << ',' << row.labelX << ','
+                  << row.valueRightX << ',' << row.baselineY << ',' << row.fontPx << ','
+                  << row.selectable << ',' << row.visible << ',' << row.peek << ','
+                  << row.fixedFooter << ','
+                  << (row.selectable && row.selectableIndex == state.hud.menuSelection) << ','
+                  << static_cast<int>(phoneMenuEmphasis(row.action)) << ','
+                  << phoneMenuVisualAmount(row.action, state.localSettings) << '\n';
+    }
+}
+
 void snapshot(const Game& game) {
     const auto& s = game.state();
     int alive = 0;
@@ -71,8 +111,10 @@ void snapshot(const Game& game) {
               << s.camera.lookTarget.x << ',' << s.camera.lookTarget.y << ',' << s.camera.lookTarget.z << ','
               << s.player.battery << ',' << s.player.souls << ',' << (s.camera.firstPerson ? 1 : 0) << ','
               << (s.player.grounded ? 1 : 0) << ',' << (s.vacuum.active ? 1 : 0) << ','
-              << s.vacuum.power << ',' << s.meleePose << ',' << liveBullets(s) << ',' << alive << '\n';
+              << s.vacuum.power << ',' << s.meleePose << ',' << liveBullets(s) << ',' << alive << ','
+              << s.camera.verticalFovDegrees << '\n';
     phoneSnapshot(game);
+    if (s.frame == 0) phoneMenuSnapshot(game);
 }
 
 int nearestLiveTarget(const GameState& state) {
@@ -97,6 +139,45 @@ void interactionSnapshot(const Game& game, int targetIndex) {
               << target.armor << ',' << (target.slurpable ? 1 : 0) << ','
               << target.ingestProgress << ',' << (target.alive ? 1 : 0) << ','
               << alive << ',' << state.player.souls << ',' << state.player.battery << '\n';
+    const auto p=TargetPresentationSnapshot::from(state,targetIndex);
+    std::cout << "TARGETPOSE," << state.frame << ',' << targetIndex << ','
+              << p.position.x << ',' << p.position.y << ',' << p.position.z << ','
+              << p.velocity.x << ',' << p.velocity.y << ',' << p.velocity.z << ','
+              << p.visualYaw << ',' << p.locomotionAmount << ',' << p.locomotionPhase << ','
+              << p.attackTimer << ',' << p.attackPhase << ',' << p.attackCommitPhase << ','
+              << p.attackEndPhase << ',' << p.attackVariant << ',' << p.attackHit << ','
+              << p.attackDirection.x << ',' << p.attackDirection.y << ',' << p.attackDirection.z << ','
+              << p.grabbedPlayerId << ',' << p.bodyPitch << ',' << p.bodyRoll << ','
+              << p.leftFootContact << ',' << p.rightFootContact << ',' << p.bodyAuthoritative << ','
+              << p.pose.rootBob << ',' << p.pose.torsoPitch << ',' << p.pose.torsoRoll << ','
+              << p.pose.leftArmSwing << ',' << p.pose.rightArmSwing << ','
+              << p.pose.leftLegSwing << ',' << p.pose.rightLegSwing << ','
+              << p.pose.hitLean << ',' << p.pose.collapse << ','
+              << p.headCenter.x << ',' << p.headCenter.y << ',' << p.headCenter.z << ','
+              << p.headRadius << '\n';
+    std::cout << "TETHER," << state.frame << ',' << targetIndex << ',' << p.tetherVisible << ','
+              << p.tetherAnchor.x << ',' << p.tetherAnchor.y << ',' << p.tetherAnchor.z << ','
+              << p.tetherDestination.x << ',' << p.tetherDestination.y << ',' << p.tetherDestination.z << ','
+              << p.tetherWidth << '\n';
+    std::cout << "HIT," << state.frame << ',' << targetIndex << ',' << p.hitAmount << ','
+              << p.hitDirectionLocal << ',' << p.pose.hitLean << ',' << p.pose.collapse << '\n';
+}
+
+void actionSnapshot(const Game& game) {
+    const auto& state=game.state();
+    const auto p=PlayerActionPresentationSnapshot::from(state);
+    std::cout << "MELEE," << state.frame << ',' << p.sequence << ',' << p.comboIndex << ','
+              << p.variant << ',' << p.visualTimer << ',' << p.visualDuration << ','
+              << p.normalizedPhase << ',' << p.range << ',' << p.hitRadius << ',' << p.damage << ','
+              << p.origin.x << ',' << p.origin.y << ',' << p.origin.z << ','
+              << p.direction.x << ',' << p.direction.y << ',' << p.direction.z << ','
+              << p.impact.x << ',' << p.impact.y << ',' << p.impact.z << ','
+              << p.visualHit << ',' << p.hitMask << ',' << p.locomotionLunge << ','
+              << p.airLungePending << ',' << p.airLungeLandingPending << ','
+              << p.airLungeTimer << ',' << p.airLungeRotation << ','
+              << p.landingRecovery << ',' << p.landingPosePitch << ','
+              << p.playerPosition.x << ',' << p.playerPosition.y << ',' << p.playerPosition.z << ','
+              << p.playerVelocity.x << ',' << p.playerVelocity.y << ',' << p.playerVelocity.z << '\n';
 }
 }
 
@@ -120,6 +201,16 @@ int main() {
         game.update(1.0f / 60.0f);
         if ((tick + 1) % 30 == 0) snapshot(game);
     }
+    Game melee;
+    melee.reset();
+    actionSnapshot(melee);
+    submit(melee,0,0,0,0,false,false,false,true,false,false);
+    melee.update(1.0f/60.0f);
+    actionSnapshot(melee);
+    for(int i=0;i<5;++i){submit(melee,0,0,0,0,false,false,false,false,false,false);melee.update(1.0f/60.0f);}
+    actionSnapshot(melee);
+    for(int i=0;i<9;++i){submit(melee,0,0,0,0,false,false,false,false,false,false);melee.update(1.0f/60.0f);}
+    actionSnapshot(melee);
     Game rally;
     rally.reset();
     rally.debugStartRallyLab();
@@ -170,5 +261,191 @@ int main() {
             interaction.state().frame == 960 || interaction.state().frame == 1020 ||
             interaction.state().frame == 1050) interactionSnapshot(interaction, interactionTarget);
     }
+
+    Game communication;
+    communication.reset();
+    communication.setCommSignal(3);
+    communication.update(1.0f / 60.0f);
+    std::cout << "SIGNAL," << communication.state().frame << ','
+              << communication.state().player.commSignal << ','
+              << communication.state().player.commSignalTimer << '\n';
+    for (int i = 0; i < 60; ++i) communication.update(1.0f / 60.0f);
+    std::cout << "SIGNAL," << communication.state().frame << ','
+              << communication.state().player.commSignal << ','
+              << communication.state().player.commSignalTimer << '\n';
+    for (int i = 0; i < 90; ++i) communication.update(1.0f / 60.0f);
+    std::cout << "SIGNAL," << communication.state().frame << ','
+              << communication.state().player.commSignal << ','
+              << communication.state().player.commSignalTimer << '\n';
+
+    Game pause;
+    pause.reset();
+    for (int i = 0; i < 30; ++i) {
+        pause.setTouchControls(0, 1, 0, 0, false, false, false, false, false, false);
+        pause.update(1.0f / 60.0f);
+    }
+    std::cout << "PAUSE," << pause.state().frame << ',' << (pause.state().uiPaused ? 1 : 0) << ','
+              << pause.state().time << ',' << pause.state().player.pos.x << ','
+              << pause.state().player.pos.y << ',' << pause.state().player.pos.z << '\n';
+    pause.setUiPaused(true);
+    for (int i = 0; i < 60; ++i) {
+        pause.setTouchControls(0, 1, 0, 0, false, false, false, false, false, false);
+        pause.update(1.0f / 60.0f);
+    }
+    std::cout << "PAUSE," << pause.state().frame << ',' << (pause.state().uiPaused ? 1 : 0) << ','
+              << pause.state().time << ',' << pause.state().player.pos.x << ','
+              << pause.state().player.pos.y << ',' << pause.state().player.pos.z << '\n';
+    pause.setUiPaused(false);
+    for (int i = 0; i < 30; ++i) {
+        pause.setTouchControls(0, 1, 0, 0, false, false, false, false, false, false);
+        pause.update(1.0f / 60.0f);
+    }
+    std::cout << "PAUSE," << pause.state().frame << ',' << (pause.state().uiPaused ? 1 : 0) << ','
+              << pause.state().time << ',' << pause.state().player.pos.x << ','
+              << pause.state().player.pos.y << ',' << pause.state().player.pos.z << '\n';
+
+    Game room;
+    room.reset();
+    const auto roomSnapshot = RoomPresentationSnapshot::from(
+        room.state(), room.state().topology.currentTileIndex);
+    std::cout << "ROOM," << roomSnapshot.roomSeed << ',' << roomSnapshot.roomIndex << ','
+              << roomSnapshot.tileIndex << ',' << roomSnapshot.currentTileIndex << ','
+              << roomSnapshot.setting << ',' << roomSnapshot.form << ',' << roomSnapshot.scale << ','
+              << roomSnapshot.condition << ',' << roomSnapshot.traversalIntent << ','
+              << (roomSnapshot.roomClear ? 1 : 0) << ',' << (roomSnapshot.advancing ? 1 : 0) << ','
+              << (roomSnapshot.grass ? 1 : 0) << ',' << (roomSnapshot.sidewalks ? 1 : 0) << ','
+              << roomSnapshot.grassAmount << ',' << roomSnapshot.structures.size() << ','
+              << roomSnapshot.objects.size() << '\n';
+    for (const auto& structure : roomSnapshot.structures) {
+        std::cout << "ROOMSTRUCT," << structure.id << ',' << static_cast<int>(structure.kind) << ','
+                  << structure.center.x << ',' << structure.center.y << ',' << structure.center.z << ','
+                  << structure.size.x << ',' << structure.size.y << ',' << structure.size.z << ','
+                  << structure.material.baseColor.r << ',' << structure.material.baseColor.g << ','
+                  << structure.material.baseColor.b << ',' << static_cast<int>(structure.material.shading) << ','
+                  << structure.material.opacity << ',' << (structure.material.fog ? 1 : 0) << ','
+                  << static_cast<int>(structure.material.texture) << ',' << structure.material.textureWorldScale << ','
+                  << structure.material.specular.r << ',' << structure.material.specular.g << ','
+                  << structure.material.specular.b << ',' << structure.material.shininess << ','
+                  << structure.material.emission.r << ',' << structure.material.emission.g << ','
+                  << structure.material.emission.b << '\n';
+    }
+    for (const auto& object : roomSnapshot.objects) {
+        std::cout << "ROOMOBJ," << object.id << ',' << object.tileIndex << ',' << object.propIndex << ','
+                  << object.partIndex << ',' << static_cast<int>(object.primitive) << ','
+                  << static_cast<int>(object.role) << ',' << static_cast<int>(object.geometry) << ','
+                  << static_cast<int>(object.part) << ',' << object.center.x << ',' << object.center.y << ','
+                  << object.center.z << ',' << object.size.x << ',' << object.size.y << ',' << object.size.z << ','
+                  << object.yaw << ',' << static_cast<int>(object.surface) << ',' << (object.physical ? 1 : 0) << '\n';
+        if (object.geometry == computed_scene::GeometryKind::FacetedMesh) {
+            const auto plan = room_environment::roomPlan(roomSnapshot.roomSeed, roomSnapshot.roomIndex);
+            const auto prop = room_environment::environmentProp(plan, roomSnapshot.roomSeed,
+                roomSnapshot.roomIndex, object.propIndex);
+            const auto mesh = faceted_rock::makeVisualMesh(prop, roomSnapshot.roomSeed,
+                roomSnapshot.roomIndex, object.propIndex,
+                static_cast<float>(object.tileIndex) * world::RoomDepth);
+            for (int vertex = 0; vertex < mesh.vertexCount; ++vertex) {
+                const int offset = vertex * 3;
+                std::cout << "ROCKVERTEX," << object.id << ',' << vertex << ','
+                    << mesh.positions[offset] - object.center.x << ','
+                    << mesh.positions[offset + 1] - object.center.y << ','
+                    << mesh.positions[offset + 2] - object.center.z << ','
+                    << mesh.normals[offset] << ',' << mesh.normals[offset + 1] << ','
+                    << mesh.normals[offset + 2] << '\n';
+            }
+        }
+    }
+    Game cityRoom;
+    cityRoom.debugStartGeneratedRoomFixture(
+        room_environment::representativeInspectorSeed(room_environment::RoomPremise::CityCourtyard), 12);
+    const auto citySnapshot = RoomPresentationSnapshot::from(
+        cityRoom.state(), cityRoom.state().topology.currentTileIndex);
+    const auto cityPlan = room_environment::roomPlan(citySnapshot.roomSeed, citySnapshot.roomIndex);
+    for (const auto& object : citySnapshot.objects) {
+        if (object.primitive != room_environment::EnvironmentPrimitive::House) continue;
+        const auto prop = room_environment::environmentProp(cityPlan, citySnapshot.roomSeed,
+            citySnapshot.roomIndex, object.propIndex);
+        const float variation = 0.92f + 0.045f * static_cast<float>((object.partIndex + prop.variant) % 3);
+        VisualColor color{};
+        if (object.surface == 0) color = {0.40f * variation, 0.47f * variation, 0.50f * variation};
+        else if (object.surface == 3) color = {0.035f, 0.045f, 0.048f};
+        else if (object.surface == 1) color = {0.30f * variation, 0.37f * variation, 0.41f * variation};
+        else color = {0.26f * variation, 0.32f * variation, 0.36f * variation};
+        const char* texture = object.surface == 0
+            ? (cityPlan.setting == room_environment::RoomSetting::City ? "metal" : "stone") : "none";
+        std::cout << "HOUSEPART," << object.id << ',' << object.propIndex << ',' << object.partIndex << ','
+                  << static_cast<int>(object.surface) << ',' << object.center.x << ',' << object.center.y << ','
+                  << object.center.z << ',' << object.size.x << ',' << object.size.y << ',' << object.size.z << ','
+                  << object.yaw << ',' << object.physical << ',' << color.r << ',' << color.g << ',' << color.b
+                  << ',' << texture << '\n';
+    }
+    Game sterileRoom;
+    int sterileSeed = room_environment::representativeInspectorSeed(room_environment::RoomPremise::SterileChamber);
+    while (!room_environment::matchesInspectorPremise(
+        room_environment::roomPlan(sterileSeed, 12), room_environment::RoomPremise::SterileChamber)) ++sterileSeed;
+    sterileRoom.debugStartGeneratedRoomFixture(sterileSeed, 12);
+    const auto sterileSnapshot = RoomPresentationSnapshot::from(
+        sterileRoom.state(), sterileRoom.state().topology.currentTileIndex);
+    for (const auto& object : sterileSnapshot.objects) {
+        if (object.primitive != room_environment::EnvironmentPrimitive::MarkerPillar) continue;
+        const VisualColor color = object.surface == 0
+            ? VisualColor{0.70f, 0.76f, 0.78f} : VisualColor{0.72f, 0.90f, 0.94f};
+        std::cout << "MARKERPART," << object.id << ',' << object.partIndex << ',' << static_cast<int>(object.surface) << ','
+                  << object.center.x << ',' << object.center.y << ',' << object.center.z << ','
+                  << object.size.x << ',' << object.size.y << ',' << object.size.z << ','
+                  << (object.physical ? 1 : 0) << ',' << color.r << ',' << color.g << ',' << color.b << ','
+                  << (object.surface == 0 ? "metal" : "none") << '\n';
+    }
+    Game ruinRoom;
+    int ruinSeed = 1;
+    auto ruinPlan = room_environment::roomPlan(ruinSeed, 12);
+    while (ruinPlan.setting != room_environment::RoomSetting::Field || ruinPlan.composition != 2 || ruinPlan.recovery())
+        ruinPlan = room_environment::roomPlan(++ruinSeed, 12);
+    ruinRoom.debugStartGeneratedRoomFixture(ruinSeed, 12);
+    const auto ruinSnapshot = RoomPresentationSnapshot::from(
+        ruinRoom.state(), ruinRoom.state().topology.currentTileIndex);
+    const auto selectedRuinPlan = room_environment::roomPlan(ruinSnapshot.roomSeed, ruinSnapshot.roomIndex);
+    for (const auto& object : ruinSnapshot.objects) {
+        if (object.primitive != room_environment::EnvironmentPrimitive::Ruin) continue;
+        const auto prop = room_environment::environmentProp(selectedRuinPlan,
+            ruinSnapshot.roomSeed, ruinSnapshot.roomIndex, object.propIndex);
+        const float weather = 0.88f + 0.055f * static_cast<float>((object.partIndex + prop.variant) % 3);
+        const VisualColor color = object.surface == 0
+            ? VisualColor{0.84f * weather, 0.82f * weather, 0.72f * weather}
+            : VisualColor{0.70f * weather, 0.70f * weather, 0.66f * weather};
+        const float phase = std::fmod((prop.variant + object.partIndex) * 0.137f, 1.0f);
+        const Vec3 scarCenter = object.center + Vec3{0, -object.size.y * 0.39f, -object.size.z * 0.505f};
+        const Vec3 scarSize{object.size.x * 0.74f, 0.045f, 0.024f};
+        std::cout << "RUINPART," << object.id << ',' << object.partIndex << ',' << static_cast<int>(object.surface) << ','
+                  << object.center.x << ',' << object.center.y << ',' << object.center.z << ','
+                  << object.size.x << ',' << object.size.y << ',' << object.size.z << ','
+                  << (object.physical ? 1 : 0) << ',' << color.r << ',' << color.g << ',' << color.b
+                  << ",stone," << phase << ',' << (object.size.y > 0.42f ? 1 : 0) << ','
+                  << scarCenter.x << ',' << scarCenter.y << ',' << scarCenter.z << ','
+                  << scarSize.x << ',' << scarSize.y << ',' << scarSize.z << '\n';
+    }
+    Game upgradeGame;
+    upgradeGame.debugStartRallyLab();
+    auto& upgradeState = upgradeGame.networkMutableState();
+    upgradeState.upgradeMenu.active = true;
+    upgradeState.uiPaused = true;
+    upgradeState.progression.permanent.tokens = 2;
+    upgradeState.progression.permanent.levels = {{1, 2, 0}};
+    upgradeState.progression.run.temporaryLevels = {{2, 1, 3}};
+    emitUpgradeSnapshot("initial", upgradeGame.state());
+    const auto moveUpgrade = [&](int horizontal, int vertical) {
+        auto& state = upgradeGame.networkMutableState();
+        int selection = std::max(0, std::min(5, state.hud.menuSelection));
+        int row = selection / 3, column = selection % 3;
+        if (horizontal != 0) column = (column + (horizontal > 0 ? 1 : 2)) % 3;
+        if (vertical != 0) row = 1 - row;
+        state.hud.menuSelection = row * 3 + column;
+    };
+    moveUpgrade(1, 0); moveUpgrade(0, 1);
+    emitUpgradeSnapshot("grid", upgradeGame.state());
+    upgradeGame.purchasePermanentUpgrade(upgradeGame.state().hud.menuSelection - 3);
+    emitUpgradeSnapshot("purchase", upgradeGame.state());
+    upgradeGame.networkMutableState().hud.menuSelection = 1;
+    upgradeGame.chooseTemporaryUpgrade(1);
+    emitUpgradeSnapshot("run", upgradeGame.state());
     return 0;
 }

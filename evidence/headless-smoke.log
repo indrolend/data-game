@@ -1,4 +1,4 @@
 Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
 
 PARENT_GAME_NODE_LOADED
-RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting
+RESULT: PASS deterministic movement, sprint, jump, look, camera, vacuum, melee action/pose contracts, enemy body/attack contracts, communication signals, native pause/resume, native room/object contracts, target pursuit/damage/defeat/ingestion/capture, stored-soul shooting

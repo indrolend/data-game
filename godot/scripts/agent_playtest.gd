@@ -22,7 +22,7 @@ func _run() -> void:
         push_error("AGENT_PLAYTEST_ERROR reason=missing_commands")
         quit(2)
         return
-    world = load("res://scenes/main.tscn").instantiate()
+    world = load("res://scenes/parent_reference.tscn").instantiate()
     root.add_child(world)
     await process_frame
     await process_frame
@@ -51,6 +51,91 @@ func _run() -> void:
                     return
             "reset":
                 world.agent_reset()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "city_fixture":
+                world.runtime.start_city_room_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "sterile_fixture":
+                world.runtime.start_sterile_room_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "ruin_fixture":
+                world.runtime.start_ruin_room_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "upgrade_fixture":
+                world.runtime.start_upgrade_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "upgrade_move":
+                world.runtime.move_upgrade_selection(command.horizontal, command.vertical)
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "upgrade_select":
+                world.runtime.set_upgrade_selection(command.index)
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "upgrade_confirm":
+                world.runtime.activate_upgrade_selection()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "pause":
+                world.runtime.set_paused(true)
+                world.runtime.tick()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "menu_move":
+                world.runtime.menu_move_selection(command.direction)
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "menu_adjust":
+                world.runtime.menu_adjust(command.direction)
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "menu_confirm":
+                world.runtime.menu_confirm()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "menu_back":
+                world.runtime.menu_back()
+                world._sync()
                 await process_frame
                 if not await _observe():
                     commands.close()
@@ -119,8 +204,32 @@ func _parse_command(line: String) -> Dictionary:
     if tokens.is_empty():
         return {"error": "empty_command"}
     var verb := tokens[0]
-    if verb in ["observe", "reset", "quit"]:
+    if verb in ["observe", "reset", "city_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
         return {"kind": verb} if tokens.size() == 1 else {"error": "unexpected_argument"}
+    if verb == "upgrade_select":
+        if tokens.size() != 2 or not tokens[1].begins_with("index="):
+            return {"error": "expected_index"}
+        var index_text := tokens[1].trim_prefix("index=")
+        if not index_text.is_valid_int() or int(index_text) < 0 or int(index_text) > 5:
+            return {"error": "invalid_value:index"}
+        return {"kind": verb, "index": int(index_text)}
+    if verb == "upgrade_move":
+        if tokens.size() != 3 or not tokens[1].begins_with("horizontal=") or \
+                not tokens[2].begins_with("vertical="):
+            return {"error": "expected_horizontal_vertical"}
+        var horizontal_text := tokens[1].trim_prefix("horizontal=")
+        var vertical_text := tokens[2].trim_prefix("vertical=")
+        if not horizontal_text.is_valid_int() or int(horizontal_text) < -1 or int(horizontal_text) > 1 or \
+                not vertical_text.is_valid_int() or int(vertical_text) < -1 or int(vertical_text) > 1:
+            return {"error": "invalid_value:upgrade_direction"}
+        return {"kind": verb, "horizontal": int(horizontal_text), "vertical": int(vertical_text)}
+    if verb == "menu_move" or verb == "menu_adjust":
+        if tokens.size() != 2 or not tokens[1].begins_with("direction="):
+            return {"error": "expected_direction"}
+        var direction_text := tokens[1].trim_prefix("direction=")
+        if not direction_text.is_valid_int() or int(direction_text) not in [-1, 1]:
+            return {"error": "invalid_value:direction"}
+        return {"kind": verb, "direction": int(direction_text)}
     if verb != "step":
         return {"error": "unknown_command"}
     var command := {"kind": "step", "frames": 1, "move_x": 0.0, "move_z": 0.0,

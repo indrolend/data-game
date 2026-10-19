@@ -1,0 +1,15 @@
+# Default native gameplay -> phone menu -> settings -> graphics -> resume.
+observe
+step frames=1 camera=true
+pause
+menu_move direction=1
+menu_confirm
+menu_move direction=1
+menu_move direction=1
+menu_confirm
+menu_adjust direction=1
+menu_back
+menu_back
+menu_move direction=-1
+menu_confirm
+quit

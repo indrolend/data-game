@@ -1,0 +1,4 @@
+# Show the original Game's six-choice room-recompile presentation.
+upgrade_fixture
+observe
+quit

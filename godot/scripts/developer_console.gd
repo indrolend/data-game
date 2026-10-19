@@ -1,0 +1,105 @@
+extends Control
+
+var runtime: Node
+var output: RichTextLabel
+var entry: LineEdit
+var history: Array[String] = []
+var history_cursor := 0
+var previous_paused := false
+var previous_mouse_mode := Input.MOUSE_MODE_CAPTURED
+
+func configure(native_runtime: Node) -> void:
+    runtime = native_runtime
+
+func _ready() -> void:
+    visible = false
+    mouse_filter = Control.MOUSE_FILTER_STOP
+    set_anchors_preset(Control.PRESET_TOP_WIDE)
+    offset_left = 12
+    offset_top = 12
+    offset_right = -12
+    offset_bottom = 310
+
+    var background := PanelContainer.new()
+    background.set_anchors_preset(Control.PRESET_FULL_RECT)
+    add_child(background)
+
+    var style := StyleBoxFlat.new()
+    style.bg_color = Color(0.025, 0.035, 0.055, 0.96)
+    style.border_color = Color(0.20, 0.65, 0.85)
+    style.set_border_width_all(1)
+    style.set_content_margin_all(12)
+    background.add_theme_stylebox_override("panel", style)
+
+    var layout := VBoxContainer.new()
+    background.add_child(layout)
+
+    var heading := Label.new()
+    heading.text = "DIGITAL BREAKDOWN // DEVELOPER CONSOLE"
+    layout.add_child(heading)
+
+    output = RichTextLabel.new()
+    output.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    output.scroll_following = true
+    layout.add_child(output)
+
+    entry = LineEdit.new()
+    entry.placeholder_text = "Native command..."
+    entry.text_submitted.connect(_execute)
+    layout.add_child(entry)
+
+    output.append_text("Native DeveloperCodec ready.\nType help.\n")
+
+func open_console() -> void:
+    if visible:
+        return
+    previous_paused = runtime.paused()
+    previous_mouse_mode = Input.mouse_mode
+    visible = true
+    runtime.set_developer_console_open(true)
+    runtime.set_paused(true)
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    entry.grab_focus()
+
+func close_console() -> void:
+    if not visible:
+        return
+    visible = false
+    runtime.set_developer_console_open(false)
+    runtime.set_paused(previous_paused)
+    entry.release_focus()
+    Input.mouse_mode = previous_mouse_mode
+
+func _execute(command: String) -> void:
+    command = command.strip_edges()
+    if command.is_empty():
+        return
+
+    history.append(command)
+    history_cursor = history.size()
+    output.append_text("> " + command + "\n")
+    output.append_text(str(runtime.execute_developer_command(command)) + "\n")
+    entry.clear()
+    entry.grab_focus()
+
+func _input(event: InputEvent) -> void:
+    if not visible:
+        return
+    if event is InputEventKey and event.pressed and not event.echo:
+        match event.keycode:
+            KEY_ESCAPE, KEY_QUOTELEFT:
+                close_console()
+                get_viewport().set_input_as_handled()
+            KEY_UP:
+                if not history.is_empty():
+                    history_cursor = maxi(0, history_cursor - 1)
+                    entry.text = history[history_cursor]
+                    entry.caret_column = entry.text.length()
+                get_viewport().set_input_as_handled()
+            KEY_DOWN:
+                if not history.is_empty():
+                    history_cursor = mini(history.size(), history_cursor + 1)
+                    entry.text = "" if history_cursor == history.size() else history[history_cursor]
+                    entry.caret_column = entry.text.length()
+                get_viewport().set_input_as_handled()
+

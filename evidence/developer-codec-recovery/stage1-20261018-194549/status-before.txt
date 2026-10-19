@@ -1,0 +1,54 @@
+ M AGENTS.md
+ M CMakeLists.txt
+ M README.md
+ M evidence/cmake-configure.log
+ M evidence/godot-parity.log
+ M evidence/headless-smoke.log
+ M evidence/parent-reference.csv
+ M evidence/parity-result.log
+ M evidence/verification.md
+ M godot/project.godot
+ M godot/scenes/main.tscn
+ M godot/scripts/agent_playtest.gd
+ M godot/scripts/main.gd
+ M godot/tests/parent_parity.gd
+ M godot/tests/parent_smoke.gd
+ M godot/tests/phone_presentation.gd
+ M native/parent_bridge.hpp
+ M native/parent_game_node.cpp
+ M native/parent_game_node.hpp
+ M tests/compare_parity.ps1
+ M tests/parent_reference.cpp
+ M tests/verify.ps1
+?? MIGRATION_MATRIX.md
+?? evidence/developer-codec-recovery/
+?? evidence/godot-playable-encounter-final/
+?? evidence/godot-playable-encounter-reviewed/
+?? evidence/godot-playable-encounter-verified/
+?? evidence/godot-playable-encounter/
+?? evidence/human-model-presentation.log
+?? evidence/native-room-structures.commands
+?? evidence/native-room-structures.exit-code
+?? evidence/native-room-structures.log
+?? evidence/native-room-structures/
+?? evidence/playable-encounter.log
+?? evidence/pre-godot-first-baseline/
+?? evidence/room-presentation.log
+?? godot/scenes/enemy.tscn
+?? godot/scenes/parent_reference.tscn
+?? godot/scenes/playable_runtime.tscn
+?? godot/scenes/player.tscn
+?? godot/scripts/enemy_controller.gd
+?? godot/scripts/human_model_adapter.gd
+?? godot/scripts/main.gd.before-soul-lattice
+?? godot/scripts/phone_avatar.gd
+?? godot/scripts/playable_runtime.gd
+?? godot/scripts/player_controller.gd
+?? godot/scripts/room_presentation_adapter.gd
+?? godot/scripts/soul_lattice_adapter.gd
+?? godot/tests/human_model_presentation.gd
+?? godot/tests/playable_encounter.gd
+?? godot/tests/room_presentation.gd
+?? native/combat_presentation_snapshot.hpp
+?? native/developer/
+?? native/room_presentation_snapshot.hpp
