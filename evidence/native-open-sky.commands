@@ -1,0 +1,4 @@
+# Capture the default open-sky Field, then native Coastal and City fixtures.
+observe
+coastal_fixture
+city_fixture

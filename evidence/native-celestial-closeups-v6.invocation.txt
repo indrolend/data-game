@@ -1,0 +1,1 @@
+& C:\Users\indro\AppData\Local\Microsoft\WinGet\Links\godot_console.exe --path godot --script res://tests/lunar_visual_capture.gd -- --agent-playtest

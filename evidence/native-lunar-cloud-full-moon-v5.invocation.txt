@@ -1,0 +1,7 @@
+PowerShell invocation from repository root (GPU rendering; not a headless test):
+$godot = (Get-Command godot_console.exe).Source
+& $godot --path godot --script res://tests/lunar_visual_capture.gd -- --agent-playtest
+
+The capture script advances the actual ParentGameNode for 425232 native fixed
+ticks from the native interaction fixture (no gameplay inputs), waits for the
+GPU frame, and saves the result in native-lunar-cloud-full-moon-v5/full-moon.png.

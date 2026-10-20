@@ -1,0 +1,3 @@
+PowerShell invocation (run from repository root):
+$godot = (Get-Command godot_console.exe).Source
+& $godot --path godot --script res://scripts/agent_playtest.gd -- --agent-playtest --commands=res://../evidence/native-lunar-cloud-v1.commands --capture-dir=res://../evidence/native-lunar-cloud-v1

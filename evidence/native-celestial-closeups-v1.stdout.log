@@ -1,0 +1,5 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+LUNAR_STATE frame=425232 time=7070.785156 daylight=0.000000 moon_visible=true phase_view_lighting=0.993858
+LUNAR_CAPTURE frame=425232 time=7070.785 daylight=0.000000 phase_view_lighting=0.993858 sun_image="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-celestial-closeups-v1/native-sun-disk.png" moon_image="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-celestial-closeups-v1/full-moon.png"

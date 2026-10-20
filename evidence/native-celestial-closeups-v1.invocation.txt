@@ -1,0 +1,8 @@
+PowerShell invocation from repository root (GPU rendering; not a headless test):
+$godot = (Get-Command godot_console.exe).Source
+& $godot --path godot --script res://tests/lunar_visual_capture.gd -- --agent-playtest
+
+The capture script first aims a 5-degree diagnostic camera at the native sun
+direction, then advances the actual ParentGameNode 425232 fixed ticks and aims
+at the near-full Moon. Gameplay retains its native camera FOV. Both GPU frames
+are saved in evidence/native-celestial-closeups-v1/.

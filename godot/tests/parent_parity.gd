@@ -78,6 +78,7 @@ func lighting_snapshot(game: Object, stage: String) -> void:
     var fill_direction: Vector3 = fill.direction
     var fill_color: Color = fill.color
     var fields: Array[String] = ["LIGHTING", stage, str(state.room_index), str(state.setting), str(state.time),
+        str(state.daylight), str(int(state.open_sky)),
         str(background.r), str(background.g), str(background.b), str(ambient.r), str(ambient.g), str(ambient.b),
         str(fog.r), str(fog.g), str(fog.b), str(state.fog_density), str(int(sun.enabled)),
         str(sun_direction.x), str(sun_direction.y), str(sun_direction.z),

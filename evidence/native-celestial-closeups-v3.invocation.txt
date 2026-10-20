@@ -1,0 +1,8 @@
+PowerShell invocation from repository root (GPU rendering; not a headless test):
+$godot = (Get-Command godot_console.exe).Source
+& $godot --path godot --script res://tests/lunar_visual_capture.gd -- --agent-playtest
+
+Captures native-driven sun presentation at 5-degree diagnostic FOV and a
+near-full NASA-textured Moon at 1.5-degree diagnostic FOV. The actual game
+retains the native camera FOV and Moon's real 0.53-degree apparent diameter.
+Frames and process logs are retained in evidence/native-celestial-closeups-v3/.

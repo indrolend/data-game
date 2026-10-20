@@ -1,0 +1,1 @@
+Second graphical capture hung in this session; its process pair was stopped after 90 seconds. First-pass synchronized GPU captures are preserved in evidence/native-open-sky/.

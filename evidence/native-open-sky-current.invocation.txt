@@ -1,0 +1,7 @@
+PowerShell invocation from repository root (GPU rendering; not a headless test):
+$godot = (Get-Command godot_console.exe).Source
+& $godot --path godot --script res://scripts/agent_playtest.gd -- --agent-playtest --commands=res://../evidence/native-open-sky-current.commands --capture-dir=res://../evidence/native-open-sky-current
+
+The runner captures the default Field state, then native Coastal and City
+fixtures. Each ordered frame is synchronized with the corresponding native
+snapshot. See the adjacent logs and exit-code file for process evidence.

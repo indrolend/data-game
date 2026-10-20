@@ -1,0 +1,7 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+AGENT_PLAYTEST_READY schema=2 fixed_dt=0.016666667 max_step_frames=120 persistent_save=DISABLED
+AGENT_STATE schema=2 frame=11 pos=0.000000,0.080000,15.500000 battery=100.000000 souls=0 grounded=1 first_person=0 vacuum=0 nearest_target=7 nearest_distance=23.000000 frame_capture=1 frame_file="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-sky-diagnostic/frame-000-tick-000011.png"
+AGENT_STATE schema=2 frame=14 pos=0.000000,0.080000,15.500000 battery=100.000000 souls=0 grounded=1 first_person=0 vacuum=0 nearest_target=7 nearest_distance=23.000000 frame_capture=1 frame_file="C:/Users/indro/Projects/DigitalBreakdown-Godot-Migration/godot/../evidence/native-sky-diagnostic/frame-001-tick-000014.png"
+AGENT_PLAYTEST_QUIT frame=14

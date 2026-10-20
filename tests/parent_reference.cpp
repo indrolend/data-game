@@ -38,7 +38,8 @@ void emitLightingSnapshot(const char* stage, const GameState& state) {
     const auto snapshot = LightingPresentationSnapshot::from(state);
     const auto& lighting = snapshot.lighting;
     std::cout << "LIGHTING," << stage << ',' << snapshot.roomIndex << ',' << snapshot.setting << ','
-        << snapshot.time << ',' << snapshot.background.r << ',' << snapshot.background.g << ','
+        << snapshot.time << ',' << snapshot.daylight << ',' << snapshot.openSky << ','
+        << snapshot.background.r << ',' << snapshot.background.g << ','
         << snapshot.background.b << ',' << lighting.ambient.r << ',' << lighting.ambient.g << ','
         << lighting.ambient.b << ',' << lighting.fog.color.r << ',' << lighting.fog.color.g << ','
         << lighting.fog.color.b << ',' << lighting.fog.density << ',' << lighting.sun.enabled << ','

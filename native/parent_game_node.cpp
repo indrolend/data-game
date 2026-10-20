@@ -519,6 +519,8 @@ Dictionary ParentGameNode::lighting_presentation_snapshot() const {
     result["room_index"] = snapshot.roomIndex;
     result["setting"] = snapshot.setting;
     result["time"] = snapshot.time;
+    result["daylight"] = snapshot.daylight;
+    result["open_sky"] = snapshot.openSky;
     result["background"] = Color(snapshot.background.r, snapshot.background.g, snapshot.background.b);
     result["ambient"] = Color(lighting.ambient.r, lighting.ambient.g, lighting.ambient.b);
     result["fog_color"] = Color(lighting.fog.color.r, lighting.fog.color.g, lighting.fog.color.b);

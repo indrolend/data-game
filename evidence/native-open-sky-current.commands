@@ -1,0 +1,3 @@
+# Agent runner performs one initial observation before reading these commands.
+coastal_fixture
+city_fixture

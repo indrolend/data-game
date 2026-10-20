@@ -1,0 +1,8 @@
+PowerShell invocation from repository root (GPU rendering; not a headless test):
+$godot = (Get-Command godot_console.exe).Source
+& $godot --path godot --script res://tests/lunar_visual_capture.gd -- --agent-playtest
+
+This render uses the current NASA LRO/LOLA Moon material and latest relief
+strength. It advances 425232 original fixed ticks and saves native sun and
+near-full Moon close-ups in evidence/native-celestial-closeups-v2/. The 5-degree
+camera FOV is diagnostic only; normal gameplay retains the native camera FOV.

@@ -8,6 +8,8 @@ const NativeParticlePresentationAdapter = preload("res://scripts/native_particle
 const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
 const DeveloperConsole = preload("res://scripts/developer_console.gd")
 const HudPresentationAdapter = preload("res://scripts/hud_presentation_adapter.gd")
+const SkyDomeShader = preload("res://shaders/open_sky_dome.gdshader")
+const MoonSurfaceShader = preload("res://shaders/moon_surface.gdshader")
 var runtime: Node
 var developer_console: Control
 var hud_adapter: Control
@@ -17,6 +19,16 @@ var room_adapter: Node
 var camera: Camera3D
 var world_environment: WorldEnvironment
 var scene_environment: Environment
+var sky_resource: Sky
+var sky_material: ProceduralSkyMaterial
+var sky_dome: MeshInstance3D
+var sky_dome_material: ShaderMaterial
+var moon: MeshInstance3D
+var moon_material: ShaderMaterial
+var moon_albedo: Texture2D
+var moon_elevation: Texture2D
+var _sky_update_bucket := -1
+var _sky_update_setting := -1
 var sun_light: DirectionalLight3D
 var fill_light: DirectionalLight3D
 var native_point_lights: Array[OmniLight3D] = []
@@ -40,8 +52,46 @@ func _ready() -> void:
     scene_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     scene_environment.ambient_light_energy = 1.0
     scene_environment.fog_enabled = true
+    sky_material = ProceduralSkyMaterial.new()
+    sky_material.use_debanding = true
+    sky_material.sky_curve = 0.24
+    sky_material.ground_curve = 0.18
+    sky_resource = Sky.new()
+    sky_resource.sky_material = sky_material
+    sky_resource.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+    sky_resource.radiance_size = Sky.RADIANCE_SIZE_64
     world_environment.environment = scene_environment
     add_child(world_environment)
+    get_viewport().world_3d.environment = scene_environment
+    sky_dome = MeshInstance3D.new()
+    sky_dome.name = "NativeOpenSkyPresentation"
+    var sky_sphere := SphereMesh.new()
+    sky_sphere.radius = 400.0
+    sky_sphere.height = 800.0
+    sky_sphere.radial_segments = 32
+    sky_sphere.rings = 16
+    sky_dome.mesh = sky_sphere
+    sky_dome_material = ShaderMaterial.new()
+    sky_dome_material.shader = SkyDomeShader
+    sky_dome_material.render_priority = -128
+    sky_dome.material_override = sky_dome_material
+    add_child(sky_dome)
+    moon = MeshInstance3D.new()
+    moon.name = "NASA_LRO_Moon_Presentation"
+    var moon_sphere := SphereMesh.new()
+    moon_sphere.radius = 1.67
+    moon_sphere.height = 3.34
+    moon_sphere.radial_segments = 64
+    moon_sphere.rings = 32
+    moon.mesh = moon_sphere
+    moon_albedo = load("res://models/moon_lroc_color_2k.jpg")
+    moon_elevation = load("res://models/moon_lola_elevation_1k.jpg")
+    moon_material = ShaderMaterial.new()
+    moon_material.shader = MoonSurfaceShader
+    moon_material.set_shader_parameter("moon_albedo", moon_albedo)
+    moon_material.set_shader_parameter("moon_elevation", moon_elevation)
+    moon.material_override = moon_material
+    add_child(moon)
     sun_light = DirectionalLight3D.new()
     sun_light.name = "NativeSun"
     add_child(sun_light)
@@ -76,6 +126,7 @@ func _ready() -> void:
     camera = Camera3D.new()
     camera.current = true
     camera.keep_aspect = Camera3D.KEEP_HEIGHT
+    camera.environment = scene_environment
     add_child(camera)
     var hud := CanvasLayer.new()
     add_child(hud)
@@ -243,7 +294,8 @@ func agent_reset() -> void:
     pending_comm_signal = 0
     _sync()
 func _sync() -> void:
-    _sync_lighting(runtime.lighting_presentation_snapshot())
+    var lighting_snapshot: Dictionary = runtime.lighting_presentation_snapshot()
+    _sync_lighting(lighting_snapshot)
     var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     var grass_key := "%d:%d:%d:%d" % [int(room_snapshot.room_seed), int(room_snapshot.room_index),
         int(room_snapshot.tile_index), int(room_snapshot.grass)]
@@ -257,6 +309,9 @@ func _sync() -> void:
     camera.position = runtime.camera_position()
     camera.look_at(runtime.camera_target(), Vector3.UP)
     camera.fov = runtime.camera_fov_degrees()
+    sky_dome.position = camera.position
+    sky_dome_material.set_shader_parameter("sky_origin", camera.position)
+    _sync_moon(lighting_snapshot)
     phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera)
     particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
     var hud_targets: Array[Dictionary] = []
@@ -272,7 +327,14 @@ func _sync() -> void:
         runtime.comm_signal_timer(), runtime.simulation_time())
 
 func _sync_lighting(snapshot: Dictionary) -> void:
-    scene_environment.background_color = snapshot.background
+    var open_sky := bool(snapshot.open_sky)
+    sky_dome.visible = open_sky
+    scene_environment.background_mode = Environment.BG_SKY if open_sky else Environment.BG_COLOR
+    scene_environment.sky = sky_resource if open_sky else null
+    if open_sky:
+        _sync_open_sky(snapshot)
+    else:
+        scene_environment.background_color = snapshot.background
     scene_environment.ambient_light_color = snapshot.ambient
     scene_environment.fog_light_color = snapshot.fog_color
     scene_environment.fog_density = float(snapshot.fog_density)
@@ -301,6 +363,63 @@ func _sync_lighting(snapshot: Dictionary) -> void:
         point.light_energy = energy
         var quadratic := float(source.quadratic_attenuation)
         point.omni_range = clampf(1.0 / sqrt(quadratic), 1.5, 30.0) if quadratic > 0.0001 else 4.5
+
+func _sync_open_sky(snapshot: Dictionary) -> void:
+    # The shader has no engine TIME dependency and updates its uniforms only
+    # once per native simulation second. This keeps the radiance cubemap on
+    # Godot's incremental 64px path instead of invalidating it every frame.
+    var setting := int(snapshot.setting)
+    var time_bucket := int(floor(float(snapshot.time)))
+    if setting == _sky_update_setting and time_bucket == _sky_update_bucket:
+        return
+    _sky_update_setting = setting
+    _sky_update_bucket = time_bucket
+    sky_material.sky_top_color = snapshot.background
+    sky_material.sky_horizon_color = snapshot.fog_color
+    sky_material.ground_horizon_color = snapshot.fog_color
+    sky_material.ground_bottom_color = snapshot.ambient
+    sky_material.sky_energy_multiplier = lerpf(0.55, 1.0, float(snapshot.daylight))
+    sky_material.ground_energy_multiplier = lerpf(0.45, 1.0, float(snapshot.daylight))
+    sky_dome_material.set_shader_parameter("zenith_color", snapshot.background)
+    sky_dome_material.set_shader_parameter("horizon_color", snapshot.fog_color)
+    sky_dome_material.set_shader_parameter("ground_color", snapshot.ambient)
+    sky_dome_material.set_shader_parameter("sun_color", snapshot.sun.color)
+    sky_dome_material.set_shader_parameter("sun_direction", snapshot.sun.direction.normalized())
+    sky_dome_material.set_shader_parameter("daylight", float(snapshot.daylight))
+    sky_dome_material.set_shader_parameter("cloud_seed", float(snapshot.room_index) * 0.37 + float(setting))
+    sky_dome_material.set_shader_parameter("cloud_phase", float(snapshot.time) * 0.003)
+    sky_dome_material.set_shader_parameter("sky_origin", camera.position)
+    moon_material.set_shader_parameter("sun_direction", snapshot.sun.direction.normalized())
+    match setting:
+        0: # Field: thin, high cirrus.
+            sky_material.sky_curve = 0.26
+            sky_dome_material.set_shader_parameter("cloud_form", 0.0)
+            sky_dome_material.set_shader_parameter("cloud_coverage", 0.40)
+            sky_dome_material.set_shader_parameter("cloud_opacity", 0.27)
+        1: # City: more broken cloud and urban haze.
+            sky_material.sky_curve = 0.34
+            sky_dome_material.set_shader_parameter("cloud_form", 1.0)
+            sky_dome_material.set_shader_parameter("cloud_coverage", 0.46)
+            sky_dome_material.set_shader_parameter("cloud_opacity", 0.23)
+        3: # Coastal: broader cloud shapes over the open horizon.
+            sky_material.sky_curve = 0.22
+            sky_dome_material.set_shader_parameter("cloud_form", 2.0)
+            sky_dome_material.set_shader_parameter("cloud_coverage", 0.54)
+            sky_dome_material.set_shader_parameter("cloud_opacity", 0.34)
+
+func _sync_moon(snapshot: Dictionary) -> void:
+    var open_sky := bool(snapshot.open_sky)
+    var day_seconds := 480.0
+    var synodic_days := 29.53059
+    var sun_angle := TAU * (float(snapshot.time) / day_seconds + 0.20)
+    var lunar_offset := TAU * float(snapshot.time) / (day_seconds * synodic_days)
+    var nodal_phase := TAU * (float(snapshot.time) / (day_seconds * 173.31) + 0.23)
+    var orbital_inclination := sin(nodal_phase) * 8.0
+    var moon_angle := sun_angle - lunar_offset
+    var moon_direction := Vector3(cos(moon_angle) * 54.0,
+        sin(moon_angle) * 62.0, cos(lunar_offset) * 28.0 + orbital_inclination).normalized()
+    moon.visible = open_sky and moon_direction.y > 0.0
+    moon.position = camera.position + moon_direction * 360.0
 
 func _sync_directional_light(light: DirectionalLight3D, source: Dictionary) -> void:
     light.visible = bool(source.enabled)

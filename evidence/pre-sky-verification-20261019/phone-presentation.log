@@ -1,0 +1,18 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+SCRIPT ERROR: Parse Error: Used tab character for indentation instead of space as used before in the file.
+   at: GDScript::reload (res://scripts/main.gd:339)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/phone_presentation.gd:14)
+ERROR: Failed to load script "res://scripts/main.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript_resource_format.cpp:46)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/phone_presentation.gd:14)
+ERROR: Node not found: "PhonePresentationAdapter" (relative to "/root/DigitalBreakdownParentReference").
+   at: get_node (scene/main/node.cpp:1975)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/phone_presentation.gd:20)
+SCRIPT ERROR: Invalid call. Nonexistent function 'phone_presentation_snapshot' in base 'Nil'.
+   at: _run (res://tests/phone_presentation.gd:21)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/phone_presentation.gd:21)
