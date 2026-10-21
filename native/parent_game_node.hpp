@@ -31,6 +31,8 @@ public:
     void set_upgrade_selection(int selection);
     bool activate_upgrade_selection();
     void start_rally_fixture();
+    void start_field_island_fixture();
+    bool prepare_capture_shot_fixture();
     void start_target_fixture();
     void start_target_interaction_fixture();
     void start_city_room_fixture();
@@ -49,6 +51,7 @@ public:
     Dictionary phone_menu_layout_snapshot() const;
     Dictionary hud_presentation_snapshot() const;
     Dictionary upgrade_presentation_snapshot() const;
+    Dictionary gameplay_loop_snapshot() const;
     Dictionary room_presentation_snapshot(int tile_index) const;
     PackedByteArray field_grass_texture_pixels() const;
     PackedByteArray city_asphalt_texture_pixels() const;

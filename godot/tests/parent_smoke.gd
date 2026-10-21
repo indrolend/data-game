@@ -127,24 +127,28 @@ func _initialize() -> void:
     var room_snapshot_again: Dictionary = room.room_presentation_snapshot(0)
     check(int(room_snapshot.room_seed) == 12345, "room presentation uses native room seed")
     check(int(room_snapshot.room_index) == 1, "room presentation uses native room index")
-    check((room_snapshot.structures as Array).size() == 8,
-        "native open-field room produces floor, two complete door frames, and selected traversal surface")
+    check(bool(room_snapshot.field_island.enabled),
+        "starting native Field room enables the finite island contract")
+    check((room_snapshot.structures as Array).size() == 14,
+        "native Field island produces core, finite top, bridge, abyss, two door frames, and traversal surface")
     check((room_snapshot.objects as Array).size() > 0, "native room produces computed scene objects")
     check((room_snapshot.objects as Array).size() == (room_snapshot_again.objects as Array).size(),
         "native computed room object count is deterministic")
     if (room_snapshot.objects as Array).size() > 0:
         check(str((room_snapshot.objects as Array)[0].id) == str((room_snapshot_again.objects as Array)[0].id),
             "native computed room object IDs are stable")
-    check(str((room_snapshot.structures as Array)[0].id) == "room/0/structure/floor",
+    check(str((room_snapshot.structures as Array)[1].id) == "room/0/structure/floor",
         "native room structure IDs are stable")
-    var floor_material: Dictionary = (room_snapshot.structures as Array)[0].material
+    var floor_material: Dictionary = (room_snapshot.structures as Array)[1].material
     var floor_color: Color = floor_material.base_color
     check(absf(floor_color.r - 63.0 / 255.0) <= 0.000001,
         "native field floor material carries VisualIdentity field color")
     check(int(floor_material.texture) == 1,
         "native field floor material carries field-grass texture identity")
-    check(str((room_snapshot.structures as Array)[7].id) == "room/0/structure/traversal/4",
-        "native room exposes selected traversal surface by stable graph index")
+    var has_traversal_4 := false
+    for structure in room_snapshot.structures as Array:
+        has_traversal_4 = has_traversal_4 or str(structure.id) == "room/0/structure/traversal/4"
+    check(has_traversal_4, "native room exposes selected traversal surface by stable graph index")
     room.free()
 
     var rally := new_game()

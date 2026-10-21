@@ -62,6 +62,49 @@ func _run() -> void:
                 if not await _observe():
                     commands.close()
                     return
+            "field_island_fixture":
+                world.runtime.start_field_island_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "soul_spawn":
+                var response: String = world.runtime.execute_developer_command("soul spawn")
+                if response != "SOUL SPAWNED":
+                    print("AGENT_PLAYTEST_ERROR reason=soul_spawn_failed response=\"%s\"" % response)
+                    commands.close()
+                    quit(2)
+                    return
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "battery_full", "enemies_off":
+                var developer_command := "battery full" if command.kind == "battery_full" else "enemies off"
+                var response: String = world.runtime.execute_developer_command(developer_command)
+                if response.begins_with("INVALID") or response.begins_with("UNKNOWN"):
+                    print("AGENT_PLAYTEST_ERROR reason=developer_fixture_failed response=\"%s\"" % response)
+                    commands.close()
+                    quit(2)
+                    return
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "capture_shot_fixture":
+                if not world.runtime.prepare_capture_shot_fixture():
+                    print("AGENT_PLAYTEST_ERROR reason=capture_shot_fixture_failed")
+                    commands.close()
+                    quit(2)
+                    return
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
             "coastal_fixture":
                 world.runtime.start_coastal_room_fixture()
                 world._sync()
@@ -196,8 +239,12 @@ func _observe() -> bool:
             if distance < nearest_distance:
                 nearest_distance = distance
                 nearest = index
-    print("AGENT_STATE schema=%d frame=%d pos=%.6f,%.6f,%.6f battery=%.6f souls=%d grounded=%d first_person=%d vacuum=%d nearest_target=%d nearest_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
-        SCHEMA, world.runtime.frame(), player.x, player.y, player.z,
+    var loop: Dictionary = world.runtime.gameplay_loop_snapshot()
+    print("AGENT_STATE schema=%d frame=%d room=%d heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f battery=%.6f souls=%d grounded=%d first_person=%d vacuum=%d nearest_target=%d nearest_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
+        SCHEMA, world.runtime.frame(), int(loop.room_index), float(loop.room_heat),
+        int(loop.room_captures), int(loop.deposited_souls), int(loop.required_souls),
+        int(loop.room_clear), int(loop.tokens), int(loop.upgrade_active),
+        player.x, player.y, player.z,
         world.runtime.battery(), world.runtime.souls(), int(world.runtime.grounded()),
         int(world.runtime.first_person()), int(world.runtime.vacuum_active()), nearest,
         nearest_distance, int(capture_error == OK), ProjectSettings.globalize_path(frame_path)])
@@ -211,7 +258,7 @@ func _parse_command(line: String) -> Dictionary:
     if tokens.is_empty():
         return {"error": "empty_command"}
     var verb := tokens[0]
-    if verb in ["observe", "reset", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
+    if verb in ["observe", "reset", "field_island_fixture", "soul_spawn", "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
         return {"kind": verb} if tokens.size() == 1 else {"error": "unexpected_argument"}
     if verb == "upgrade_select":
         if tokens.size() != 2 or not tokens[1].begins_with("index="):

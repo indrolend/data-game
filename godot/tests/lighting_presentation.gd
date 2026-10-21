@@ -48,6 +48,11 @@ func _run() -> void:
 		"Field sky selects the thin cirrus presentation profile")
 	check(float(native.fog_density) > 0.0 and native.sun.enabled and native.fill.enabled,
 		"outdoor native room resolves atmosphere, sun, fill, and fog")
+	check((-scene.sun_light.global_basis.z).normalized().dot(
+		-native.sun.direction.normalized()) > 0.99999 and
+		(-scene.fill_light.global_basis.z).normalized().dot(
+		-native.fill.direction.normalized()) > 0.99999,
+		"Godot directional rays oppose the native OpenGL vector-toward-light convention")
 	check(scene.scene_environment.ambient_light_color == native.ambient and
 		scene.scene_environment.fog_light_color == native.fog_color and
 		is_equal_approx(scene.scene_environment.fog_density, native.fog_density),

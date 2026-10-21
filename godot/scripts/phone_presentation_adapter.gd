@@ -88,6 +88,10 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 		var view_position: Vector3 = camera.global_position + camera_basis * Vector3(0.22, -0.17, -0.72)
 		phone_root.global_transform = Transform3D(camera_basis, view_position)
 		phone_root.scale = Vector3.ONE * 1.5
+		# Use the native pause framing: centered and large enough to read at 720p.
+		view_position = camera.global_position + camera_basis * Vector3(0.10, -0.14, -0.70)
+		phone_root.global_transform = Transform3D(camera_basis, view_position)
+		phone_root.scale = Vector3.ONE * 1.9
 	else:
 		phone_root.set_as_top_level(false)
 		phone_root.position = snapshot.position

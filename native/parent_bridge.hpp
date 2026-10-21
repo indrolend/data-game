@@ -136,6 +136,8 @@ public:
     }
     // Verification fixture delegates setup to the original Game debug scenario.
     void startRallyFixture() { game.debugStartRallyLab(); }
+    void startFieldIslandFixture() { game.debugStartFieldIslandFixture(); }
+    bool prepareCaptureShotFixture() { return game.debugPrepareCaptureShot(); }
     void startTargetFixture() { game.debugStartRoomInspector(); game.debugToggleRoomInspectorEnemies(); }
     void startTargetInteractionFixture() { game.reset(); }
     void startCityRoomFixture() {

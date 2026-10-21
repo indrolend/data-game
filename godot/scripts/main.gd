@@ -426,7 +426,10 @@ func _sync_directional_light(light: DirectionalLight3D, source: Dictionary) -> v
     if not light.visible:
         return
     var direction: Vector3 = source.direction.normalized()
-    light.look_at(direction, Vector3.UP)
+    # OpenGL's directional-light position stores the direction toward the
+    # light. Godot emits a DirectionalLight3D along local -Z, so its emitted
+    # ray must point in the opposite direction.
+    light.look_at(-direction, Vector3.UP)
     var source_color: Color = source.color
     var energy := maxf(source_color.r, maxf(source_color.g, source_color.b))
     light.light_color = source_color / maxf(energy, 0.0001)

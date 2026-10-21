@@ -11,6 +11,7 @@
 #include "gameplay/VacuumGeometry.hpp"
 #include "RoomEnvironment.hpp"
 #include "CoastalWater.hpp"
+#include "FieldIsland.hpp"
 #include "world/RoomGeometry.hpp"
 #include "world/RoomCoordinates.hpp"
 
@@ -613,6 +614,31 @@ void Game::debugStartGeneratedRoomFixture(int roomSeed,int roomIndex){
     buildRoomColliders();
 }
 
+void Game::debugStartFieldIslandFixture(){
+    reset();
+    state_.player.pos={field_island::MainHalfWidth-0.55f,GROUND_Y,0.0f};
+    state_.player.vel={6.0f,0.0f,0.0f};
+    state_.player.jumpVel=0.0f;
+    state_.player.grounded=true;
+    state_.camera.yaw=0.0f;
+    state_.camera.pitch=-0.08f;
+}
+
+bool Game::debugPrepareCaptureShot(){
+    int slot=-1;
+    for(int i=0;i<state_.requiredSouls;++i)if(!state_.captures[i].filled){slot=i;break;}
+    if(slot<0)return false;
+    const float tileOrigin=getRoomTileOriginZ(state_.topology.currentTileIndex);
+    const Vec3 goal=state_.captures[slot].pos+Vec3{0,0,tileOrigin};
+    state_.player.pos={goal.x,GROUND_Y,goal.z+4.0f};
+    state_.player.vel={};state_.player.jumpVel=0.0f;state_.player.grounded=true;
+    state_.camera.firstPerson=true;state_.camera.yaw=0.0f;
+    state_.camera.pitch=std::atan2(goal.y-0.95f,4.0f);
+    state_.player.yaw=state_.player.targetYaw=state_.camera.yaw;
+    updatePhoneTransform();updateCamera(0.0f);
+    return true;
+}
+
 void Game::debugStartRoomInspector(){
     reset();state_.roomInspector=true;state_.roomInspectorPremise=room_environment::RoomPremise::FieldOpen;state_.roomInspectorEnemies=false;
     debugStepRoomInspector(0,false);
@@ -1209,6 +1235,22 @@ void Game::clearPlayerLifecycleActions(){
     state_.player.grabbedByTarget=-1;
     state_.player.grabEscape=0.0f;
     clearInputState();
+}
+
+void Game::recoverPlayerFromAbyss(){
+    PlayerState& player=state_.player;
+    ++player.abyssRecoveryCount;
+    clearPlayerLifecycleActions();
+    player.pos={0.0f,GROUND_Y,ROOM_START_Z};
+    player.vel={};
+    player.jumpVel=0.0f;
+    player.grounded=true;
+    player.supportIdentity={SupportSource::Ground,-1};
+    player.airJumpsRemaining=1;
+    player.coyoteTimer=COYOTE_TIME;
+    player.jumpBufferTimer=0.0f;
+    player.targetYaw=player.yaw;
+    setEnergyTicker("SIGNAL RECOVERED",2);
 }
 
 float Game::seededRoomValue(float offset) const {
@@ -1911,7 +1953,21 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
     return support;
 }
 
-WorldSupportSample Game::getPlayerSupport(float x,float z) const {return getWorldSupport(x,z,PLAYER_SUPPORT_RADIUS);}
+bool Game::isFieldIslandActive() const {
+    return !state_.rallyLab&&!state_.traversalLab&&!state_.slopeLab&&!state_.roomInspector&&
+        field_island::active(state_.roomSeed,state_.roomIndex);
+}
+
+WorldSupportSample Game::getPlayerSupport(float x,float z) const {
+    WorldSupportSample support=getWorldSupport(x,z,PLAYER_SUPPORT_RADIUS);
+    if(isFieldIslandActive()&&
+       support.identity.source==SupportSource::Ground&&
+       !field_island::hasGroundSupport(x,wrapZ(z),PLAYER_SUPPORT_RADIUS)){
+        support.available=false;
+        support.height=-std::numeric_limits<float>::infinity();
+    }
+    return support;
+}
 
 static void adoptSupportIdentity(PlayerState& player,const WorldSupportSample& support){if(support.identity.source!=SupportSource::Ground||player.supportIdentity.source==SupportSource::Ground)player.supportIdentity=support.identity;}
 
@@ -2461,8 +2517,9 @@ void Game::updatePlayer(float dt) {
         applyWallClimb(dt);
         p.pos.y += p.jumpVel * dt;
         if (p.pos.y > getPlayerCeilingLimit()) { p.pos.y = getPlayerCeilingLimit(); if (p.jumpVel > 0) p.jumpVel = 0; }
-        const float support = getPlayerSupportY(p.pos.x, p.pos.z);
-        if (p.pos.y <= support) {
+        const WorldSupportSample supportSample=getPlayerSupport(p.pos.x,p.pos.z);
+        const float support=supportSample.height;
+        if (supportSample.available&&p.pos.y <= support) {
             const float impactSpeed=std::max(0.0f,-p.jumpVel);
             p.pos.y = support; p.jumpVel = 0; p.grounded = true; p.coyoteTimer = COYOTE_TIME; p.airJumpsRemaining = 1;adoptSupportIdentity(p,getPlayerSupport(p.pos.x,p.pos.z));
             state_.phonePose.doubleJumpTimer = 0.0f;
@@ -2477,19 +2534,23 @@ void Game::updatePlayer(float dt) {
     if(simulationPlayerId_==0) updateRoomTopology(previousZ, p.pos.z);
     if (p.pos.y > getPlayerCeilingLimit()) { p.pos.y = getPlayerCeilingLimit(); if (p.jumpVel > 0) p.jumpVel = 0; }
     const bool caughtLedge=tryBeginLedgeHang();
-    const float supportAfter = getPlayerSupportY(p.pos.x, p.pos.z);
+    const WorldSupportSample supportAfterSample=getPlayerSupport(p.pos.x,p.pos.z);
+    const float supportAfter=supportAfterSample.height;
     if (!caughtLedge&&p.grounded) {
-        if (p.pos.y > supportAfter + 0.12f) p.grounded = false; else {p.pos.y = supportAfter;adoptSupportIdentity(p,getPlayerSupport(p.pos.x,p.pos.z));}
-    } else if (!caughtLedge&&p.jumpVel <= 0 && p.pos.y <= supportAfter) {
+        if (!supportAfterSample.available||p.pos.y > supportAfter + 0.12f) p.grounded = false; else {p.pos.y = supportAfter;adoptSupportIdentity(p,supportAfterSample);}
+    } else if (!caughtLedge&&supportAfterSample.available&&p.jumpVel <= 0 && p.pos.y <= supportAfter) {
         const float impactSpeed=std::max(0.0f,-p.jumpVel);
         p.pos.y = supportAfter; p.jumpVel = 0; p.grounded = true; p.coyoteTimer = COYOTE_TIME; p.airJumpsRemaining = 1;adoptSupportIdentity(p,getPlayerSupport(p.pos.x,p.pos.z));
         state_.phonePose.doubleJumpTimer = 0.0f;
         if(lunge.airLungeLandingPending)finishAirLungeLanding(impactSpeed);
         else beginLandingSkid(impactSpeed);
     }
-    const float minX = -ROOM_WIDTH * 0.5f + 1.1f, maxX = ROOM_WIDTH * 0.5f - 1.1f;
-    if (p.pos.x < minX) { p.pos.x = minX; if (p.vel.x < 0) p.vel.x = 0; p.vel.z *= WALL_SLIDE_RETENTION; }
-    else if (p.pos.x > maxX) { p.pos.x = maxX; if (p.vel.x > 0) p.vel.x = 0; p.vel.z *= WALL_SLIDE_RETENTION; }
+    if(!isFieldIslandActive()){
+        const float minX = -ROOM_WIDTH * 0.5f + 1.1f, maxX = ROOM_WIDTH * 0.5f - 1.1f;
+        if (p.pos.x < minX) { p.pos.x = minX; if (p.vel.x < 0) p.vel.x = 0; p.vel.z *= WALL_SLIDE_RETENTION; }
+        else if (p.pos.x > maxX) { p.pos.x = maxX; if (p.vel.x > 0) p.vel.x = 0; p.vel.z *= WALL_SLIDE_RETENTION; }
+    }
+    if(isFieldIslandActive()&&p.pos.y<field_island::AbyssRecoveryY)recoverPlayerFromAbyss();
     const bool activeSkid=p.grounded&&lunge.landingRecovery>0.0f&&horizontalLength(p.vel)>SKID_MIN_HORIZONTAL_SPEED;
     if(activeSkid&&(state_.frame%3)==0){
         const Vec3 travel=p.vel*(1.0f/std::max(0.001f,horizontalLength(p.vel)));

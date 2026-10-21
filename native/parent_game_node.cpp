@@ -27,6 +27,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_upgrade_selection","selection"),&ParentGameNode::set_upgrade_selection);
     ClassDB::bind_method(D_METHOD("activate_upgrade_selection"),&ParentGameNode::activate_upgrade_selection);
     ClassDB::bind_method(D_METHOD("start_rally_fixture"),&ParentGameNode::start_rally_fixture);
+    ClassDB::bind_method(D_METHOD("start_field_island_fixture"),&ParentGameNode::start_field_island_fixture);
+    ClassDB::bind_method(D_METHOD("prepare_capture_shot_fixture"),&ParentGameNode::prepare_capture_shot_fixture);
     ClassDB::bind_method(D_METHOD("start_target_fixture"),&ParentGameNode::start_target_fixture);
     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
     ClassDB::bind_method(D_METHOD("start_city_room_fixture"),&ParentGameNode::start_city_room_fixture);
@@ -45,6 +47,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("phone_menu_layout_snapshot"),&ParentGameNode::phone_menu_layout_snapshot);
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("upgrade_presentation_snapshot"),&ParentGameNode::upgrade_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("gameplay_loop_snapshot"),&ParentGameNode::gameplay_loop_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
     ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
@@ -96,6 +99,8 @@ void ParentGameNode::move_upgrade_selection(int horizontal,int vertical){bridge.
 void ParentGameNode::set_upgrade_selection(int selection){bridge.setUpgradeSelection(selection);}
 bool ParentGameNode::activate_upgrade_selection(){return bridge.activateUpgradeSelection();}
 void ParentGameNode::start_rally_fixture(){bridge.startRallyFixture();}
+void ParentGameNode::start_field_island_fixture(){bridge.startFieldIslandFixture();}
+bool ParentGameNode::prepare_capture_shot_fixture(){return bridge.prepareCaptureShotFixture();}
 void ParentGameNode::start_target_fixture(){bridge.startTargetFixture();}
 void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();}
 void ParentGameNode::start_city_room_fixture(){bridge.startCityRoomFixture();}
@@ -219,6 +224,42 @@ Dictionary ParentGameNode::upgrade_presentation_snapshot() const {
     result["permanent_available"] = permanent_available;
     return result;
 }
+
+Dictionary ParentGameNode::gameplay_loop_snapshot() const {
+    const GameState& state=bridge.state();
+    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    int liveEnemies=0;
+    for(const auto& target:state.targets)if(target.alive)++liveEnemies;
+    Dictionary result;
+    result["room_seed"]=state.roomSeed;
+    result["room_index"]=state.roomIndex;
+    result["setting"]=static_cast<int>(plan.setting);
+    result["form"]=static_cast<int>(plan.form);
+    result["scale"]=static_cast<int>(plan.scale);
+    result["condition"]=static_cast<int>(plan.condition);
+    result["room_heat"]=state.progression.run.roomHeat;
+    result["room_elapsed"]=state.progression.run.roomElapsed;
+    result["room_captures"]=state.progression.run.roomCaptures;
+    result["battery"]=state.player.battery;
+    result["battery_regen_lock"]=state.progression.run.batteryRegenLock;
+    result["stored_souls"]=state.player.souls;
+    result["deposited_souls"]=state.depositedSouls;
+    result["required_souls"]=state.requiredSouls;
+    result["room_clear"]=state.roomClear;
+    result["live_enemies"]=liveEnemies;
+    result["required_slot_stacks"]=state.runRules.requiredSlotStacks;
+    result["crowded_room_stacks"]=state.runRules.crowdedRoomStacks;
+    result["faster_slurp_stacks"]=state.runRules.fasterSlurpStacks;
+    result["last_added_rule"]=state.runRules.lastAdded;
+    Array temporaryLevels;
+    Array permanentLevels;
+    for(int i=0;i<3;++i){temporaryLevels.push_back(state.progression.run.temporaryLevels[i]);permanentLevels.push_back(state.progression.permanent.levels[i]);}
+    result["temporary_levels"]=temporaryLevels;
+    result["permanent_levels"]=permanentLevels;
+    result["tokens"]=static_cast<int64_t>(state.progression.permanent.tokens);
+    result["upgrade_active"]=state.upgradeMenu.active;
+    return result;
+}
 Dictionary ParentGameNode::phone_presentation_snapshot() const {
     const PhonePresentationSnapshot snapshot = PhonePresentationSnapshot::from(bridge.state());
     Dictionary result;
@@ -328,6 +369,16 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
     result["grass"] = snapshot.grass;
     result["sidewalks"] = snapshot.sidewalks;
     result["grass_amount"] = snapshot.grassAmount;
+    result["presentation_time"] = snapshot.presentationTime;
+    Dictionary field_island;
+    field_island["enabled"] = snapshot.fieldIsland;
+    field_island["main_half_width"] = snapshot.fieldIslandMainHalfWidth;
+    field_island["main_half_depth"] = snapshot.fieldIslandMainHalfDepth;
+    field_island["bridge_half_width"] = snapshot.fieldIslandBridgeHalfWidth;
+    field_island["bridge_half_depth"] = snapshot.fieldIslandBridgeHalfDepth;
+    field_island["abyss_recovery_y"] = snapshot.abyssRecoveryY;
+    field_island["recovery_count"] = snapshot.abyssRecoveryCount;
+    result["field_island"] = field_island;
     Dictionary coastal_water;
     coastal_water["enabled"] = snapshot.coastalWater;
     coastal_water["shore_x"] = coastal_water::ShoreX;
@@ -351,6 +402,18 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         structures.push_back(item);
     }
     result["structures"] = structures;
+    Array capture_points;
+    for(const auto& capture:snapshot.capturePoints){
+        Dictionary item;
+        item["id"]=capture.id.c_str();
+        item["position"]=v(capture.position);
+        item["filled"]=capture.filled;
+        item["surround_material"]=material_dictionary(capture.surroundMaterial);
+        item["recess_material"]=material_dictionary(capture.recessMaterial);
+        item["soul_material"]=material_dictionary(capture.soulMaterial);
+        capture_points.push_back(item);
+    }
+    result["capture_points"]=capture_points;
     Array city_facade_modules;
     for (const auto& module : snapshot.cityFacadeModules) {
         Dictionary item;
@@ -362,6 +425,20 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         city_facade_modules.push_back(item);
     }
     result["city_facade_modules"] = city_facade_modules;
+    Array field_backdrop_trees;
+    for (const auto& tree : snapshot.fieldBackdropTrees) {
+        Dictionary item;
+        item["id"] = tree.id.c_str();
+        item["model"] = tree.model.c_str();
+        item["origin"] = v(tree.origin);
+        item["scale"] = v(tree.scale);
+        item["pitch"] = tree.pitch;
+        item["yaw"] = tree.yaw;
+        item["roll"] = tree.roll;
+        item["physical"] = false;
+        field_backdrop_trees.push_back(item);
+    }
+    result["field_backdrop_trees"] = field_backdrop_trees;
     Array objects;
     const auto roomPlan = room_environment::roomPlan(snapshot.roomSeed, snapshot.roomIndex);
     for (const auto& object : snapshot.objects) {
@@ -379,6 +456,14 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         item["yaw"] = object.yaw;
         item["surface"] = static_cast<int>(object.surface);
         item["physical"] = object.physical;
+        if (object.primitive == room_environment::EnvironmentPrimitive::LawnFragment) {
+            const auto prop = room_environment::environmentProp(
+                roomPlan, snapshot.roomSeed, snapshot.roomIndex, object.propIndex);
+            item["visual_color"] = Color(0.72f, 0.84f, 0.70f);
+            item["visual_texture"] = "field_grass";
+            item["visual_texture_world_scale"] = 1.45f;
+            item["visual_texture_phase"] = std::fmod(prop.variant * 0.219f, 1.0f);
+        }
         if (object.primitive == room_environment::EnvironmentPrimitive::House) {
             const auto prop = room_environment::environmentProp(
                 roomPlan, snapshot.roomSeed, snapshot.roomIndex, object.propIndex);
@@ -487,6 +572,7 @@ Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
         item["height"] = blade.height;
         item["width"] = blade.width;
         item["phase"] = blade.phase;
+        item["tone"] = 0.82f + room_environment::unit(static_cast<unsigned int>(index * 17 + tile_index * 131)) * 0.22f;
         result[index] = item;
     }
     return result;

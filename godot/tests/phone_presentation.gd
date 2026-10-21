@@ -122,10 +122,10 @@ func _run() -> void:
 	snapshot = runtime.phone_presentation_snapshot()
 	check(bool(snapshot.first_person), "native camera toggle changes phone snapshot mode")
 	var camera: Camera3D = world.get("camera")
-	var expected_view_position: Vector3 = camera.global_position + camera.global_basis * Vector3(0.22, -0.17, -0.72)
+	var expected_view_position: Vector3 = camera.global_position + camera.global_basis * Vector3(0.10, -0.14, -0.70)
 	check(phone_root.global_position.distance_to(expected_view_position) <= 0.00001,
 		"first-person view model is positioned relative to the presentation camera")
-	check(phone_root.scale.is_equal_approx(Vector3.ONE * 1.5),
+	check(phone_root.scale.is_equal_approx(Vector3.ONE * 1.9),
 		"first-person phone legibility scale is render-only and camera-relative")
 	check(body.visible and screen.visible,
 		"phone body and screen remain visible in first-person presentation")

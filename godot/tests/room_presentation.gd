@@ -38,7 +38,36 @@ func _initialize() -> void:
     snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(int(snapshot.tile_index))
     snapshot["grass_tips"] = runtime.grass_blade_tip_presentation_snapshot(int(snapshot.tile_index))
     adapter.sync_snapshot(snapshot)
+    var capture_records: Array = snapshot.get("capture_points", [])
+    check(capture_records.size() == 5 and adapter.capture_point_count() == capture_records.size(),
+        "native objective state supplies and Godot renders all five Field capture points")
+    if not capture_records.is_empty():
+        var capture_record: Dictionary = capture_records[0]
+        var capture_node: Node3D = adapter.capture_point(str(capture_record.id))
+        check(capture_node != null and capture_node.position == capture_record.position and
+            not bool(capture_node.get_meta("native_filled")),
+            "capture-point stable ID, transform, and empty state come from the native snapshot")
+        if capture_node != null:
+            check((capture_node.get_node("Surround") as MeshInstance3D).mesh is BoxMesh and
+                ((capture_node.get_node("Surround") as MeshInstance3D).mesh as BoxMesh).size == Vector3(0.72, 0.72, 0.06) and
+                ((capture_node.get_node("Recess") as MeshInstance3D).mesh as BoxMesh).size == Vector3(0.52, 0.52, 0.08) and
+                not (capture_node.get_node("Soul") as MeshInstance3D).visible,
+                "Godot recovers the desktop capture surround/recess dimensions and hides an unfilled soul")
     var lawn_records: Array = []
+    var backdrop_trees: Array = snapshot.get("field_backdrop_trees", [])
+    check(backdrop_trees.size() == 9,
+        "native Field snapshot supplies the nine desktop perimeter tree records")
+    check(adapter.field_backdrop_tree_count() == backdrop_trees.size(),
+        "Godot materializes every native Field backdrop tree as render-only mesh geometry")
+    if not backdrop_trees.is_empty():
+        var first_backdrop: Dictionary = backdrop_trees[0]
+        var first_backdrop_node: MeshInstance3D = adapter.field_backdrop_tree(str(first_backdrop.id))
+        check(first_backdrop_node != null and first_backdrop_node.mesh is ArrayMesh and
+            first_backdrop_node.position.distance_to(first_backdrop.origin) <= 0.000001 and
+            first_backdrop_node.scale.distance_to(first_backdrop.scale) <= 0.000001 and
+            str(first_backdrop_node.get_meta("native_model")) == str(first_backdrop.model) and
+            not bool(first_backdrop_node.get_meta("native_physical")),
+            "Field backdrop tree keeps its native mesh family, transform, and render-only ownership")
     var rock_records: Array = []
     for object in snapshot.objects as Array:
         if int(object.primitive) == 2 and int(object.geometry) == 0:
@@ -145,8 +174,13 @@ func _initialize() -> void:
                 "lawn mesh uses native center")
             check(absf(lawn_node.rotation.y - float(lawn_record.yaw)) <= 0.000001,
                 "lawn mesh uses native yaw")
-            check(lawn_node.material_override == adapter.structure("room/0/structure/floor").material_override,
-                "lawn fragment reuses the native room floor material")
+            var lawn_material := lawn_node.material_override as StandardMaterial3D
+            check(lawn_material.albedo_texture == adapter.native_material_texture("field_grass") and
+                lawn_material.albedo_color.is_equal_approx(lawn_record.visual_color) and
+                lawn_material.uv1_triplanar and
+                absf(lawn_material.uv1_scale.x - 1.0 / float(lawn_record.visual_texture_world_scale)) <= 0.000001 and
+                absf(lawn_material.uv1_offset.x - float(lawn_record.visual_texture_phase)) <= 0.000001,
+                "lawn fragment uses native grass pixels, tint, world scale, and variant phase")
             check(lawn_node.get_class() == "MeshInstance3D",
                 "render-only lawn node introduces no Godot collision")
     var floor: MeshInstance3D = adapter.structure("room/0/structure/floor")
@@ -156,8 +190,8 @@ func _initialize() -> void:
             field_floor_definition = structure_record.material
     check(floor != null, "adapter preserves native stable floor ID")
     if floor != null:
-        check((floor.mesh as BoxMesh).size == Vector3(84.0, 0.08, 42.0),
-            "adapter uses native floor dimensions")
+        check((floor.mesh as BoxMesh).size == Vector3(26.0, 0.08, 35.0),
+            "adapter uses the authoritative finite Field-island top dimensions")
         var material := floor.material_override as StandardMaterial3D
         var field_shininess := float(field_floor_definition.shininess)
         var field_specular: Color = field_floor_definition.specular

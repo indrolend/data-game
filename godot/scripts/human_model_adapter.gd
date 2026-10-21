@@ -62,6 +62,20 @@ func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array) -> voi
     var arrays := []
     arrays.resize(Mesh.ARRAY_MAX)
     arrays[Mesh.ARRAY_VERTEX] = vertices
+    # The desktop renderer supplies one source-equivalent face normal for
+    # every skinned triangle. ArrayMesh does not synthesize these normals, so
+    # omitting them makes StandardMaterial3D lighting undefined/black.
+    var normals := PackedVector3Array()
+    normals.resize(vertices.size())
+    for triangle in range(0, vertices.size(), 3):
+        if triangle + 2 >= vertices.size():
+            break
+        var normal := (vertices[triangle + 1] - vertices[triangle]).cross(
+            vertices[triangle + 2] - vertices[triangle]).normalized()
+        normals[triangle] = normal
+        normals[triangle + 1] = normal
+        normals[triangle + 2] = normal
+    arrays[Mesh.ARRAY_NORMAL] = normals
     var model_mesh := ArrayMesh.new()
     model_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
     mesh_instance.mesh = model_mesh

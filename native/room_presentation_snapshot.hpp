@@ -5,9 +5,11 @@
 #include "CityStreetGrammar.hpp"
 #include "CoastalWater.hpp"
 #include "Game.hpp"
+#include "FieldIsland.hpp"
 #include "MaterialResponse.hpp"
 
 #include <vector>
+#include <utility>
 
 enum class RoomStructureKind : unsigned char {
     Floor,
@@ -20,7 +22,9 @@ enum class RoomStructureKind : unsigned char {
     CitySkylineMass,
     CitySkylineWindow,
     CityStreetFixture,
-    CityServiceFixture
+    CityServiceFixture,
+    FieldIslandCore,
+    Abyss
 };
 
 struct RoomStructureRecord {
@@ -37,6 +41,27 @@ struct CityFacadeModuleRecord {
     Vec3 origin;
     Vec3 scale{1, 1, 1};
     float yaw = 0.0f;
+};
+
+// Render-only Field framing recovered from DesktopRenderer::drawFieldBackdrop.
+// These meshes intentionally have no collider or gameplay identity.
+struct FieldBackdropTreeRecord {
+    std::string id;
+    std::string model;
+    Vec3 origin;
+    Vec3 scale{1, 1, 1};
+    float pitch = 0.0f;
+    float yaw = 0.0f;
+    float roll = 0.0f;
+};
+
+struct CapturePointPresentationRecord {
+    std::string id;
+    Vec3 position;
+    bool filled = false;
+    render_contract::MaterialDefinition surroundMaterial;
+    render_contract::MaterialDefinition recessMaterial;
+    render_contract::MaterialDefinition soulMaterial;
 };
 
 // Read-only room presentation data derived from the same native generation
@@ -57,6 +82,13 @@ struct RoomPresentationSnapshot {
     bool grass = false;
     bool sidewalks = false;
     bool coastalWater = false;
+    bool fieldIsland = false;
+    float fieldIslandMainHalfWidth = 0.0f;
+    float fieldIslandMainHalfDepth = 0.0f;
+    float fieldIslandBridgeHalfWidth = 0.0f;
+    float fieldIslandBridgeHalfDepth = 0.0f;
+    float abyssRecoveryY = 0.0f;
+    int abyssRecoveryCount = 0;
     float grassAmount = 0.0f;
     float presentationTime = 0.0f;
     Vec3 waterSourcePosition;
@@ -64,6 +96,8 @@ struct RoomPresentationSnapshot {
     bool waterSourceActive = false;
     std::vector<RoomStructureRecord> structures;
     std::vector<CityFacadeModuleRecord> cityFacadeModules;
+    std::vector<FieldBackdropTreeRecord> fieldBackdropTrees;
+    std::vector<CapturePointPresentationRecord> capturePoints;
     std::vector<computed_scene::Object> objects;
 
     static RoomPresentationSnapshot from(const GameState& state, int tileIndex) {
@@ -88,6 +122,14 @@ struct RoomPresentationSnapshot {
         snapshot.sidewalks = plan.sidewalks;
         snapshot.grassAmount = plan.grassAmount;
         snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
+        snapshot.fieldIsland = !state.rallyLab && !state.traversalLab && !state.slopeLab &&
+            !state.roomInspector && field_island::active(state.roomSeed, state.roomIndex);
+        snapshot.fieldIslandMainHalfWidth = field_island::MainHalfWidth;
+        snapshot.fieldIslandMainHalfDepth = field_island::MainHalfDepth;
+        snapshot.fieldIslandBridgeHalfWidth = field_island::DoorBridgeHalfWidth;
+        snapshot.fieldIslandBridgeHalfDepth = field_island::DoorBridgeHalfDepth;
+        snapshot.abyssRecoveryY = field_island::AbyssRecoveryY;
+        snapshot.abyssRecoveryCount = state.player.abyssRecoveryCount;
         snapshot.presentationTime = state.time;
         snapshot.waterSourcePosition = state.player.pos;
         snapshot.waterSourceSpeed = std::sqrt(state.player.vel.x * state.player.vel.x +
@@ -129,9 +171,41 @@ struct RoomPresentationSnapshot {
             plan.setting, state.roomInspector).color;
         const auto traversalMaterial = semanticMaterial(SemanticSurface::Default,
             {traversalColor.x, traversalColor.y, traversalColor.z});
-        addStructure("floor", RoomStructureKind::Floor, {0, -0.04f, z0},
-            {openNatural ? world::RoomWidth * 2.8f : world::RoomWidth, 0.08f, world::RoomDepth},
-            floorMaterial);
+        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
+            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
+        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
+        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
+        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
+            const auto& capture=state.captures[captureIndex];
+            snapshot.capturePoints.push_back({
+                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
+                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
+        }
+        if(snapshot.fieldIsland){
+            const auto islandCoreMaterial=semanticMaterial(SemanticSurface::Default,
+                VisualColor{0.12f,0.10f,0.075f});
+            const auto abyssMaterial=semanticMaterial(SemanticSurface::Default,
+                VisualColor{0.008f,0.018f,0.024f});
+            addStructure("island/core",RoomStructureKind::FieldIslandCore,{0,-0.60f,z0},
+                {field_island::MainHalfWidth*2.0f,1.2f,field_island::MainHalfDepth*2.0f},islandCoreMaterial);
+            addStructure("floor",RoomStructureKind::Floor,{0,0.04f,z0},
+                {field_island::MainHalfWidth*2.0f,0.08f,field_island::MainHalfDepth*2.0f},floorMaterial);
+            const float bridgeSegmentDepth=field_island::DoorBridgeHalfDepth-field_island::MainHalfDepth;
+            const float bridgeSegmentCenter=field_island::MainHalfDepth+bridgeSegmentDepth*0.5f;
+            for(const auto& bridge : {std::pair<const char*,float>{"front",bridgeSegmentCenter},
+                                      std::pair<const char*,float>{"back",-bridgeSegmentCenter}}){
+                addStructure((std::string("island/bridge-core/")+bridge.first).c_str(),RoomStructureKind::FieldIslandCore,
+                    {0,-0.42f,z0+bridge.second},{field_island::DoorBridgeHalfWidth*2.0f,0.84f,bridgeSegmentDepth},islandCoreMaterial);
+                addStructure((std::string("island/bridge-top/")+bridge.first).c_str(),RoomStructureKind::Floor,
+                    {0,0.04f,z0+bridge.second},{field_island::DoorBridgeHalfWidth*2.0f,0.08f,bridgeSegmentDepth},floorMaterial);
+            }
+            addStructure("abyss",RoomStructureKind::Abyss,{0,field_island::AbyssRecoveryY-1.5f,z0},
+                {world::RoomWidth*5.0f,0.05f,world::RoomDepth*3.0f},abyssMaterial);
+        }else{
+            addStructure("floor", RoomStructureKind::Floor, {0, -0.04f, z0},
+                {openNatural ? world::RoomWidth * 2.8f : world::RoomWidth, 0.08f, world::RoomDepth},
+                floorMaterial);
+        }
         if (sterile) addStructure("ceiling", RoomStructureKind::Ceiling,
             {0, world::RoomWallHeight + 0.08f, z0},
             {world::RoomWidth, 0.16f, world::RoomDepth}, wallMaterial);
@@ -416,6 +490,43 @@ struct RoomPresentationSnapshot {
                         {faceX + inward * 0.035f, obstacle.bottomY + obstacle.height, bayZ},
                         {facade.bayWidth * 0.25f, facade.crownHeight, 0.18f});
                 }
+            }
+        }
+        // Match the renderer's non-physical Field perimeter dressing. The
+        // generated records are presentation-only, not collision objects.
+        if (field) {
+            const unsigned int key = room_environment::roomKey(state.roomSeed, state.roomIndex) ^
+                static_cast<unsigned int>((tileIndex + 5) * 0x9e3779b9u);
+            const float driftA = (room_environment::unit(key + 1u) - 0.5f) * 2.4f;
+            const float driftB = (room_environment::unit(key + 2u) - 0.5f) * 2.8f;
+            struct Dressing { float x, z, height, yaw, widthCorrection; unsigned char family; const char* model; };
+            const Dressing group[] = {
+                {-14.15f, -15.0f + driftA, 7.6f,  0.10f, 0.78f, 0, "pine-tree"},
+                {-13.65f,  -7.4f + driftB, 5.4f, -0.18f, 0.94f, 1, "common-tree"},
+                { 14.20f,   4.8f - driftA, 6.7f,  0.36f, 0.82f, 2, "twisted-tree"},
+                { 13.80f,  13.6f - driftB, 8.4f, -0.12f, 0.76f, 0, "pine-tree"},
+                {-13.95f,  15.7f + driftA, 4.1f,  0.58f, 0.88f, 2, "dead-tree"},
+                { -8.60f, -20.2f + driftB, 3.8f,  0.28f, 0.72f, 0, "pine-tree"},
+                { -2.40f, -21.6f - driftA, 3.1f, -0.36f, 0.82f, 1, "common-tree"},
+                {  4.80f, -20.7f + driftA, 4.4f,  0.12f, 0.70f, 0, "pine-tree"},
+                { 10.40f, -21.9f - driftB, 3.5f, -0.46f, 0.74f, 2, "twisted-tree"},
+            };
+            for (int treeIndex = 0; treeIndex < 9; ++treeIndex) {
+                const auto& tree = group[treeIndex];
+                const unsigned int treeKey = key + static_cast<unsigned int>((tree.z + 20.0f) * 17.0f) +
+                    static_cast<unsigned int>(treeIndex) * 97u;
+                const float height = tree.height * (0.92f + room_environment::unit(treeKey) * 0.16f);
+                const room_environment::EnvironmentPropSpec proxy{
+                    room_environment::EnvironmentPrimitive::Tree, room_environment::EnvironmentRole::Detail,
+                    {tree.x, 0, z0 + tree.z}, {height * tree.widthCorrection, height, height * tree.widthCorrection},
+                    tree.yaw, tree.family};
+                const auto variation = tree_geometry::authoredVariant(proxy, treeKey);
+                snapshot.fieldBackdropTrees.push_back({
+                    "room/" + std::to_string(tileIndex) + "/field-backdrop/tree/" + std::to_string(treeIndex),
+                    tree.model, {tree.x, 0.006f, z0 + tree.z},
+                    {height * tree.widthCorrection * variation.widthScale, height,
+                     height * tree.widthCorrection * variation.depthScale},
+                    variation.pitch, tree.yaw + variation.yawJitter, variation.roll});
             }
         }
         snapshot.objects = computed_scene::environmentObjects(

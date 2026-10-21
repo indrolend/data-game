@@ -36,6 +36,16 @@ func _run() -> void:
         check(model.mesh is ArrayMesh, "Godot builds an ArrayMesh from native-skinned vertices")
         if model.mesh != null:
             check(model.mesh.get_surface_count() == 1, "human model has one native triangle surface")
+            var model_arrays: Array = model.mesh.surface_get_arrays(0)
+            var normals: PackedVector3Array = model_arrays[Mesh.ARRAY_NORMAL]
+            check(normals.size() == vertices.size() and not normals.is_empty(),
+                "Godot human mesh preserves one source-equivalent flat normal per native vertex")
+            if normals.size() >= 3:
+                var expected_normal := (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]).normalized()
+                check(normals[0].dot(expected_normal) > 0.99999 and
+                    normals[1].dot(expected_normal) > 0.99999 and
+                    normals[2].dot(expected_normal) > 0.99999,
+                    "human triangle normals match the native desktop face-normal calculation")
         check(adapter.find_children("*", "CollisionObject3D", true, false).is_empty(),
             "human presentation creates no Godot gameplay collision authority")
         var before: PackedVector3Array = vertices

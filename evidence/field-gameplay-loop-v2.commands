@@ -1,0 +1,31 @@
+enemies_off
+battery_full
+soul_spawn
+capture_shot_fixture
+step frames=1 shoot=true
+step frames=24
+battery_full
+soul_spawn
+capture_shot_fixture
+step frames=1 shoot=true
+step frames=24
+battery_full
+soul_spawn
+capture_shot_fixture
+step frames=1 shoot=true
+step frames=24
+battery_full
+soul_spawn
+capture_shot_fixture
+step frames=1 shoot=true
+step frames=24
+battery_full
+soul_spawn
+capture_shot_fixture
+step frames=1 shoot=true
+step frames=30
+step frames=90 moveZ=1 sprint=true
+upgrade_select index=1
+upgrade_confirm
+step frames=12
+quit

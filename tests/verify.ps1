@@ -13,8 +13,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Headless smoke failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/phone_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "phone-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Phone presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/menu_navigation.gd 2>&1 | Set-Content (Join-Path $evidence "menu-navigation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Actual-scene menu navigation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/room_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "room-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Room presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/field_island_traversal.gd 2>&1 | Set-Content (Join-Path $evidence "field-island-traversal.log")
+    if ($LASTEXITCODE -ne 0) { throw "Field island traversal contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/gameplay_loop.gd 2>&1 | Set-Content (Join-Path $evidence "gameplay-loop.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native Field gameplay-loop contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/all_room_gameplay_loops.gd 2>&1 | Set-Content (Join-Path $evidence "all-room-gameplay-loops.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native all-room gameplay-loop contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/human_model_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "human-model-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Human model presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/hud_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "hud-presentation.log")
