@@ -25,10 +25,13 @@ soul_spawn
 capture_shot_fixture
 step frames=1 shoot=true
 step frames=36
+assert room=12 deposited=5 required=5 clear=1 tokens=5 upgrade=0 souls=0
 step frames=100 moveZ=1 sprint=true
+assert room=13 deposited=0 clear=0 tokens=5 upgrade=1 souls=0
 upgrade_select index=0
 upgrade_confirm
 step frames=12
+assert room=13 clear=0 tokens=5 upgrade=0 souls=0
 coastal_fixture
 enemies_off
 battery_full
@@ -56,10 +59,13 @@ soul_spawn
 capture_shot_fixture
 step frames=1 shoot=true
 step frames=36
+assert room=12 deposited=5 required=5 clear=1 tokens=10 upgrade=0 souls=0
 step frames=100 moveZ=1 sprint=true
+assert room=13 deposited=0 clear=0 tokens=10 upgrade=1 souls=0
 upgrade_select index=0
 upgrade_confirm
 step frames=12
+assert room=13 clear=0 tokens=10 upgrade=0 souls=0
 sterile_fixture
 enemies_off
 battery_full
@@ -87,8 +93,11 @@ soul_spawn
 capture_shot_fixture
 step frames=1 shoot=true
 step frames=36
+assert room=12 deposited=5 required=5 clear=1 tokens=15 upgrade=0 souls=0
 step frames=100 moveZ=1 sprint=true
+assert room=13 deposited=0 clear=0 tokens=15 upgrade=1 souls=0
 upgrade_select index=0
 upgrade_confirm
 step frames=12
+assert room=13 clear=0 tokens=15 upgrade=0 souls=0
 quit

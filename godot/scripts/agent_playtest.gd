@@ -1,13 +1,15 @@
 extends SceneTree
 
-const SCHEMA := 2
+const SCHEMA := 3
 const MAX_STEP_FRAMES := 120
 const MAX_COMMAND_BYTES := 1024
 
 var world: Node3D
 var observation := 0
-var capture_dir := "res://../evidence/agent-playtest"
+var capture_dir := "res://../evidence/generated/agent-playtest"
 var commands_path := ""
+var authentic_playthrough := false
+var allow_existing_captures := false
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -18,15 +20,26 @@ func _run() -> void:
             capture_dir = argument.trim_prefix("--capture-dir=")
         elif argument.begins_with("--commands="):
             commands_path = argument.trim_prefix("--commands=")
+        elif argument == "--authentic-playthrough":
+            authentic_playthrough = true
+        elif argument == "--allow-existing-captures":
+            allow_existing_captures = true
     if commands_path.is_empty():
         push_error("AGENT_PLAYTEST_ERROR reason=missing_commands")
         quit(2)
         return
+    var absolute_capture_dir := ProjectSettings.globalize_path(capture_dir)
+    if not allow_existing_captures and DirAccess.dir_exists_absolute(absolute_capture_dir):
+        var existing := DirAccess.get_files_at(absolute_capture_dir)
+        if not existing.is_empty():
+            print("AGENT_PLAYTEST_ERROR reason=capture_directory_not_empty path=\"%s\"" % absolute_capture_dir)
+            quit(2)
+            return
     world = load("res://scenes/parent_reference.tscn").instantiate()
     root.add_child(world)
     await process_frame
     await process_frame
-    print("AGENT_PLAYTEST_READY schema=%d fixed_dt=0.016666667 max_step_frames=%d persistent_save=DISABLED" % [SCHEMA, MAX_STEP_FRAMES])
+    print("AGENT_PLAYTEST_READY schema=%d fixed_dt=0.016666667 max_step_frames=%d persistent_save=DISABLED authentic=%d" % [SCHEMA, MAX_STEP_FRAMES, int(authentic_playthrough)])
     if not await _observe():
         return
     var commands := FileAccess.open(commands_path, FileAccess.READ)
@@ -41,6 +54,13 @@ func _run() -> void:
         var command := _parse_command(line)
         if command.has("error"):
             print("AGENT_PLAYTEST_ERROR reason=%s" % command.error)
+            commands.close()
+            quit(2)
+            return
+        if authentic_playthrough and command.kind in ["field_island_fixture", "soul_spawn",
+                "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture",
+                "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture"]:
+            print("AGENT_PLAYTEST_ERROR reason=authentic_mode_rejects command=%s" % command.kind)
             commands.close()
             quit(2)
             return
@@ -194,6 +214,11 @@ func _run() -> void:
                 print("AGENT_PLAYTEST_QUIT frame=%d" % world.runtime.frame())
                 quit(0)
                 return
+            "assert":
+                if not _assert_state(command.expectations):
+                    commands.close()
+                    return
+                print("AGENT_ASSERT_PASS frame=%d expectations=\"%s\"" % [world.runtime.frame(), command.raw])
             "step":
                 world.agent_step(command.frames, command.move_x, command.move_z,
                     command.look_x, command.look_y, command.vacuum, command.sprint,
@@ -251,6 +276,28 @@ func _observe() -> bool:
     observation += 1
     return true
 
+func _assert_state(expectations: Dictionary) -> bool:
+    var loop: Dictionary = world.runtime.gameplay_loop_snapshot()
+    var actual := {
+        "room": int(loop.room_index),
+        "deposited": int(loop.deposited_souls),
+        "required": int(loop.required_souls),
+        "clear": int(loop.room_clear),
+        "tokens": int(loop.tokens),
+        "upgrade": int(loop.upgrade_active),
+        "souls": int(loop.stored_souls),
+        "grounded": int(world.runtime.grounded()),
+        "first_person": int(world.runtime.first_person()),
+        "vacuum": int(world.runtime.vacuum_active()),
+    }
+    for key in expectations:
+        if not actual.has(key) or actual[key] != expectations[key]:
+            print("AGENT_PLAYTEST_ERROR reason=assertion_failed key=%s expected=%s actual=%s frame=%d" % [
+                key, expectations[key], actual.get(key, "unsupported"), world.runtime.frame()])
+            quit(4)
+            return false
+    return true
+
 func _parse_command(line: String) -> Dictionary:
     if line.length() > MAX_COMMAND_BYTES:
         return {"error": "command_too_long"}
@@ -260,6 +307,25 @@ func _parse_command(line: String) -> Dictionary:
     var verb := tokens[0]
     if verb in ["observe", "reset", "field_island_fixture", "soul_spawn", "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
         return {"kind": verb} if tokens.size() == 1 else {"error": "unexpected_argument"}
+    if verb == "assert":
+        if tokens.size() < 2:
+            return {"error": "assert_requires_expectations"}
+        var expectations := {}
+        var raw_parts: PackedStringArray = []
+        for token in tokens.slice(1):
+            var equals := token.find("=")
+            if equals <= 0 or equals == token.length() - 1:
+                return {"error": "assert_expected_key_value"}
+            var key := token.left(equals)
+            var value := token.substr(equals + 1)
+            if key not in ["room", "deposited", "required", "clear", "tokens", "upgrade",
+                    "souls", "grounded", "first_person", "vacuum"]:
+                return {"error": "assert_unknown_key:%s" % key}
+            if expectations.has(key) or not value.is_valid_int():
+                return {"error": "assert_invalid_value:%s" % key}
+            expectations[key] = int(value)
+            raw_parts.append(token)
+        return {"kind": verb, "expectations": expectations, "raw": " ".join(raw_parts)}
     if verb == "upgrade_select":
         if tokens.size() != 2 or not tokens[1].begins_with("index="):
             return {"error": "expected_index"}
