@@ -61,6 +61,12 @@ func _initialize() -> void:
     check(float(advanced.room_heat) < 0.01 and int(advanced.room_captures) == 0 and
         int(advanced.deposited_souls) == 0 and int(advanced.stored_souls) == 0,
         "new-room initialization resets room-local heat/captures while preserving run authority")
+    var rule_stacks := int(advanced.required_slot_stacks) + int(advanced.crowded_room_stacks) + \
+        int(advanced.faster_slurp_stacks)
+    check(rule_stacks == 1 and int(advanced.last_added_rule) in [0, 1, 2],
+        "native room advancement deterministically adds one difficulty rule")
+    check(int(advanced.required_souls) == mini(9, 5 + int(advanced.required_slot_stacks)),
+        "native required-slot scaling owns the next room objective count")
     var before_level := int((advanced.temporary_levels as Array)[1])
     runtime.set_upgrade_selection(1)
     check(runtime.activate_upgrade_selection(), "native temporary upgrade selection succeeds")

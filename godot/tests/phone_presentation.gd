@@ -23,26 +23,40 @@ func _run() -> void:
 	var body: MeshInstance3D = phone_root.get_node("Body")
 	var screen: MeshInstance3D = phone_root.get_node("Screen")
 	var screen_text: Label3D = phone_root.get_node("ScreenText")
+	var lens: MeshInstance3D = phone_root.get_node("CameraLens")
 	var screen_light: OmniLight3D = phone_root.get_node("NativePhoneScreenLight")
 	var screen_material: StandardMaterial3D = screen.material_override
-	var body_mesh: BoxMesh = body.mesh
+	var body_mesh: ArrayMesh = body.mesh
 	var screen_mesh: BoxMesh = screen.mesh
-	var expected_body_size: Vector3 = snapshot.body_size * snapshot.body_scale
 	check(not snapshot.first_person, "default fixture starts in third-person mode")
 	check(phone_root.global_position.distance_to(snapshot.position) <= 0.00001,
 		"third-person adapter follows native phone position")
 	check(phone_root.quaternion.is_equal_approx(snapshot.orientation),
 		"third-person adapter follows native phone orientation")
-	check(body_mesh.size.distance_to(expected_body_size) <= 0.00001,
-		"phone body dimensions come from native snapshot")
+	var native_vertex_count := 0
+	for surface_index in range(body_mesh.get_surface_count()):
+		native_vertex_count += body_mesh.surface_get_array_len(surface_index)
+	check(body_mesh.get_surface_count() == 7 and native_vertex_count == 11820 and
+		body_mesh.get_aabb().size.distance_to(Vector3(0.07915, 0.16, 0.01214)) <= 0.00002 and
+		body.scale.distance_to(snapshot.body_scale) <= 0.00001,
+		"phone body uses the original seven-batch native mesh, bounds, and native pose scale")
+	check(body.material_override == null,
+		"native phone body retains non-emissive per-batch materials")
 	check(screen_mesh.size.distance_to(snapshot.screen_size) <= 0.00001,
 		"screen dimensions come from native snapshot")
 	check(screen.position.distance_to(snapshot.screen_center_offset) <= 0.00001,
 		"screen position comes from native screen transform")
-	check(screen_text.text.contains("BAT %03d" % roundi(snapshot.battery)),
-		"screen indicator reflects native battery state")
-	check(screen_text.text.contains("SOUL %02d" % int(snapshot.souls)),
-		"screen indicator reflects native soul inventory")
+	check(screen_text.text.contains("ROOM %02d" % int(snapshot.room_index)) and
+		screen_text.text.contains("T %02d" % int(snapshot.tokens)),
+		"gameplay screen identifies the authoritative native room and token economy")
+	check(screen_text.text.contains("GOAL %02d/%02d" % [int(snapshot.filled_goals),
+		int(snapshot.required_goals)]) and
+		screen_text.text.contains("CHARGE %03d" % roundi(snapshot.battery)),
+		"gameplay screen reflects native goal and battery state")
+	check(screen_text.text.contains("SOUL %02d/%02d" % [int(snapshot.souls),
+		int(snapshot.soul_capacity)]) and screen_text.text.contains("MEMORY %d/3" %
+		int(snapshot.unlocked_material_memories)),
+		"gameplay screen reflects native soul capacity and material-memory progression")
 	check(screen_light.light_color.is_equal_approx(snapshot.screen_light_color) and
 		absf(screen_light.light_energy - float(snapshot.screen_light_intensity) *
 			(1.0 + clampf(float(snapshot.screen_light_pulse), 0.0, 1.0) * 0.25)) <= 0.00001 and
@@ -51,8 +65,23 @@ func _run() -> void:
 	check(screen_light.position.distance_to(snapshot.screen_center_offset + Vector3(0.0, 0.0,
 		float(snapshot.screen_light_forward_offset))) <= 0.00001,
 		"phone screen light is placed at the native display-light forward offset")
+	check(screen_light.light_cull_mask == 1 and body.layers == 2 and screen.layers == 2 and lens.layers == 2,
+		"screen light illuminates the world while the phone assembly remains a non-emissive receiver")
+	var duplicate_scene_phone_light := false
+	for resolved_light: OmniLight3D in world.native_point_lights:
+		duplicate_scene_phone_light = duplicate_scene_phone_light or resolved_light.visible
+	check(not duplicate_scene_phone_light,
+		"default Field scene has one screen-attached phone light, not a duplicate resolved omni source")
 	check(absf(screen_material.emission_energy_multiplier - float(snapshot.emission_strength)) <= 0.00001,
 		"screen material emission strength is copied directly from native display state")
+	var tint: Color = snapshot.screen_tint
+	var base := Color(0.025 + tint.r * 0.18, 0.045 + tint.g * 0.16,
+		0.060 + tint.b * 0.15, 1.0)
+	var expected_background := base.lerp(Color(0.03, 0.55, 0.62, 1.0),
+		clampf(0.10 + float(snapshot.screen_brightness) * 0.08, 0.0, 1.0))
+	check(screen_material.albedo_color.is_equal_approx(expected_background) and
+		screen_material.emission.is_equal_approx(expected_background),
+		"screen substrate follows the native phone-display background formula")
 	var gameplay_screen_energy := screen_light.light_energy
 	var menu: Dictionary = snapshot.menu_layout
 	check(not bool(menu.active), "gameplay display is not mistaken for an interactive phone menu")
@@ -74,6 +103,9 @@ func _run() -> void:
 	check(int(phone_root.get_meta("native_menu_row_count", 0)) == 3 and
 		phone_root.get_node("MenuRow00").text == "Resume",
 		"Godot screen adapter renders rows from the native layout snapshot")
+	check((phone_root.get_node("MenuRow00") as Label3D).material_override == null and
+		(phone_root.get_node("MenuRow01") as Label3D).material_override == null,
+		"phone menu preserves Label3D font-atlas rendering instead of solid glyph quads")
 	var native_row: Dictionary = menu_rows[0]
 	var rendered_row: Label3D = phone_root.get_node("MenuRow00")
 	var expected_row_position: Vector3 = snapshot.screen_center_offset + Vector3(
@@ -82,6 +114,11 @@ func _run() -> void:
 		snapshot.screen_size.z * 0.5 + 0.0003)
 	check(rendered_row.position.distance_to(expected_row_position) <= 0.00001,
 		"Godot menu text uses the native PhoneDisplayLayout coordinates")
+	check(absf(rendered_row.scale.x - 0.84) <= 0.00001 and
+		absf(rendered_row.scale.y - 1.0) <= 0.00001,
+		"Godot menu glyph footprint uses the native phone-stencil horizontal scale")
+	check(not lens.visible,
+		"interactive phone menu hides the fallback lens sphere from the display surface")
 	runtime.menu_move_selection(1)
 	world.call("_sync")
 	menu = runtime.phone_menu_layout_snapshot()

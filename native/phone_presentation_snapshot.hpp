@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Game.hpp"
+#include "GameplayPhoneModel.hpp"
 
 // A bounded, read-only projection of existing GameState for render adapters.
 // Values describe the native phone and its current semantic display state;
@@ -33,6 +34,17 @@ struct PhonePresentationSnapshot {
     bool vacuumActive = false;
     float vacuumPower = 0.0f;
     float capturePulse = 0.0f;
+    float damagePulse = 0.0f;
+    int roomIndex = 0;
+    long long tokens = 0;
+    int filledGoals = 0;
+    int requiredGoals = 0;
+    bool roomClear = false;
+    int soulCapacity = 0;
+    int unlockedMaterialMemories = 0;
+    bool supplementalActive = false;
+    float supplementalFill = 0.0f;
+    int flowerStacks = 0;
 
     static PhonePresentationSnapshot from(const GameState& state) {
         PhonePresentationSnapshot snapshot;
@@ -70,6 +82,18 @@ struct PhonePresentationSnapshot {
         snapshot.vacuumActive = state.vacuum.active;
         snapshot.vacuumPower = state.vacuum.power;
         snapshot.capturePulse = state.phoneDisplay.capturePulse;
+        snapshot.damagePulse = state.phoneDisplay.damagePulse;
+        const GameplayPhoneModel gameplay = makeGameplayPhoneModel(state);
+        snapshot.roomIndex = gameplay.roomIndex;
+        snapshot.tokens = static_cast<long long>(gameplay.tokens);
+        snapshot.filledGoals = gameplay.filledGoals;
+        snapshot.requiredGoals = gameplay.requiredGoals;
+        snapshot.roomClear = gameplay.roomClear;
+        snapshot.soulCapacity = gameplay.soulCapacity;
+        snapshot.unlockedMaterialMemories = gameplay.unlockedMaterialMemories;
+        snapshot.supplementalActive = gameplay.supplementalActive;
+        snapshot.supplementalFill = gameplay.supplementalFill;
+        snapshot.flowerStacks = gameplay.flowerStacks;
         return snapshot;
     }
 };

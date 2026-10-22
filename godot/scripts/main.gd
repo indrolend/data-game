@@ -42,6 +42,7 @@ var pending_shoot := false
 var pending_camera_toggle := false
 var pending_comm_signal := 0
 var agent_playtest := false
+const WORLD_AND_PHONE_RECEIVER_LAYERS := 3
 func _ready() -> void:
     agent_playtest = "--agent-playtest" in OS.get_cmdline_user_args()
     runtime = ClassDB.instantiate("ParentGameNode")
@@ -94,13 +95,16 @@ func _ready() -> void:
     add_child(moon)
     sun_light = DirectionalLight3D.new()
     sun_light.name = "NativeSun"
+    sun_light.light_cull_mask = WORLD_AND_PHONE_RECEIVER_LAYERS
     add_child(sun_light)
     fill_light = DirectionalLight3D.new()
     fill_light.name = "NativeSkyFill"
+    fill_light.light_cull_mask = WORLD_AND_PHONE_RECEIVER_LAYERS
     add_child(fill_light)
     for light_index in range(6):
         var point_light := OmniLight3D.new()
         point_light.name = "NativeResolvedLight_%d" % light_index
+        point_light.light_cull_mask = WORLD_AND_PHONE_RECEIVER_LAYERS
         add_child(point_light)
         native_point_lights.append(point_light)
     room_adapter = RoomPresentationAdapter.new()
@@ -341,7 +345,9 @@ func _sync_lighting(snapshot: Dictionary) -> void:
     _sync_directional_light(sun_light, snapshot.sun)
     _sync_directional_light(fill_light, snapshot.fill)
     var sources: Array = snapshot.local_lights
-    sources.append(snapshot.phone)
+    # The screen-attached light is materialized by PhonePresentationAdapter.
+    # Adding the older resolved `snapshot.phone` here creates a second omni
+    # source and makes the entire fallback phone appear emissive.
     sources.append(snapshot.shot)
     sources.append(snapshot.exit)
     for index in range(native_point_lights.size()):

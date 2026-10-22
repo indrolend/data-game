@@ -10,6 +10,7 @@ var capture_dir := "res://../evidence/generated/agent-playtest"
 var commands_path := ""
 var authentic_playthrough := false
 var allow_existing_captures := false
+var follow_commands := false
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -24,6 +25,8 @@ func _run() -> void:
             authentic_playthrough = true
         elif argument == "--allow-existing-captures":
             allow_existing_captures = true
+        elif argument == "--follow-commands":
+            follow_commands = true
     if commands_path.is_empty():
         push_error("AGENT_PLAYTEST_ERROR reason=missing_commands")
         quit(2)
@@ -37,6 +40,9 @@ func _run() -> void:
             return
     world = load("res://scenes/parent_reference.tscn").instantiate()
     root.add_child(world)
+    # This script owns every fixed tick. Deliberation or command-file polling must
+    # never advance the authoritative simulation in real wall-clock time.
+    world.agent_playtest = true
     await process_frame
     await process_frame
     print("AGENT_PLAYTEST_READY schema=%d fixed_dt=0.016666667 max_step_frames=%d persistent_save=DISABLED authentic=%d" % [SCHEMA, MAX_STEP_FRAMES, int(authentic_playthrough)])
@@ -47,19 +53,35 @@ func _run() -> void:
         push_error("AGENT_PLAYTEST_ERROR reason=commands_open_failed")
         quit(2)
         return
-    while not commands.eof_reached():
+    var waiting_for_command := false
+    while true:
+        if commands.eof_reached():
+            if not follow_commands:
+                break
+            var resume_offset := commands.get_position()
+            commands.close()
+            if not waiting_for_command:
+                print("AGENT_WAITING frame=%d command_offset=%d" % [world.runtime.frame(), resume_offset])
+                waiting_for_command = true
+            await create_timer(0.05).timeout
+            commands = FileAccess.open(commands_path, FileAccess.READ)
+            if commands == null:
+                print("AGENT_PLAYTEST_ERROR reason=commands_reopen_failed")
+                quit(2)
+                return
+            commands.seek(resume_offset)
+            continue
         var line: String = commands.get_line().strip_edges()
         if line.is_empty() or line.begins_with("#"):
             continue
+        waiting_for_command = false
         var command := _parse_command(line)
         if command.has("error"):
             print("AGENT_PLAYTEST_ERROR reason=%s" % command.error)
             commands.close()
             quit(2)
             return
-        if authentic_playthrough and command.kind in ["field_island_fixture", "soul_spawn",
-                "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture",
-                "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture"]:
+        if authentic_playthrough and _is_authentic_fixture(command.kind):
             print("AGENT_PLAYTEST_ERROR reason=authentic_mode_rejects command=%s" % command.kind)
             commands.close()
             quit(2)
@@ -141,6 +163,34 @@ func _run() -> void:
                     return
             "ruin_fixture":
                 world.runtime.start_ruin_room_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "room_inspector":
+                world.runtime.start_room_inspector()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "room_next":
+                world.runtime.step_room_inspector(1, false)
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "room_reroll":
+                world.runtime.step_room_inspector(0, true)
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
+            "room_enemies":
+                world.runtime.toggle_room_inspector_enemies()
                 world._sync()
                 await process_frame
                 if not await _observe():
@@ -258,23 +308,75 @@ func _observe() -> bool:
     var player: Vector3 = world.runtime.player_position()
     var nearest := -1
     var nearest_distance := INF
+    var nearest_snapshot := {}
     for index in range(world.runtime.target_count()):
-        if world.runtime.target_alive(index):
-            var distance: float = player.distance_to(world.runtime.target_position(index))
+        var target: Dictionary = world.runtime.target_presentation_snapshot(index)
+        if bool(target.get("alive", false)) or bool(target.get("slurpable", false)):
+            var distance: float = player.distance_to(target.position)
             if distance < nearest_distance:
                 nearest_distance = distance
                 nearest = index
+                nearest_snapshot = target
+    var objective := -1
+    var objective_position := Vector3.ZERO
+    var objective_distance := INF
+    var room_snapshot: Dictionary = world.runtime.room_presentation_snapshot(-1)
+    var capture_points: Array = room_snapshot.get("capture_points", [])
+    for index in range(capture_points.size()):
+        var capture: Dictionary = capture_points[index]
+        if bool(capture.get("filled", false)):
+            continue
+        var distance: float = player.distance_to(capture.position)
+        if distance < objective_distance:
+            objective_distance = distance
+            objective = index
+            objective_position = capture.position
     var loop: Dictionary = world.runtime.gameplay_loop_snapshot()
-    print("AGENT_STATE schema=%d frame=%d room=%d heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f battery=%.6f souls=%d grounded=%d first_person=%d vacuum=%d nearest_target=%d nearest_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
-        SCHEMA, world.runtime.frame(), int(loop.room_index), float(loop.room_heat),
+    print("AGENT_STATE schema=%d frame=%d room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
+        SCHEMA, world.runtime.frame(), int(loop.room_index), int(loop.room_seed),
+        str(loop.setting_name), str(loop.form_name), float(loop.room_heat),
         int(loop.room_captures), int(loop.deposited_souls), int(loop.required_souls),
         int(loop.room_clear), int(loop.tokens), int(loop.upgrade_active),
-        player.x, player.y, player.z,
-        world.runtime.battery(), world.runtime.souls(), int(world.runtime.grounded()),
-        int(world.runtime.first_person()), int(world.runtime.vacuum_active()), nearest,
-        nearest_distance, int(capture_error == OK), ProjectSettings.globalize_path(frame_path)])
+        player.x, player.y, player.z, float(loop.camera_yaw), float(loop.camera_pitch),
+        world.runtime.battery(), world.runtime.souls(), int(loop.live_enemies), int(loop.loose_souls),
+        int(loop.projectiles), _agent_action(loop), int(world.runtime.vacuum_active()),
+        int(loop.vacuum_target), float(loop.vacuum_lock), float(loop.loose_commitment),
+        int(loop.dead), int(loop.downed), int(world.runtime.grounded()),
+        int(world.runtime.first_person()), nearest,
+        nearest_distance, float(nearest_snapshot.get("position", Vector3.ZERO).x),
+        float(nearest_snapshot.get("position", Vector3.ZERO).y),
+        float(nearest_snapshot.get("position", Vector3.ZERO).z),
+        int(nearest_snapshot.get("alive", false)), int(nearest_snapshot.get("slurpable", false)),
+        float(nearest_snapshot.get("armor", 0.0)), float(nearest_snapshot.get("health", 0.0)),
+        float(nearest_snapshot.get("shell_crack_amount", 0.0)),
+        int(nearest_snapshot.get("attack_active", false)),
+        float(nearest_snapshot.get("attack_phase", 0.0)), objective,
+        objective_position.x, objective_position.y, objective_position.z, objective_distance,
+        int(capture_error == OK), ProjectSettings.globalize_path(frame_path)])
+    var inspector: Dictionary = world.runtime.room_inspector_snapshot()
+    if bool(inspector.get("active", false)):
+        print("ROOM_INSPECTOR frame=%d premise=%s seed=%d room=%d setting=%s form=%s scale=%s condition=%s traversal=%s route_valid=%d seed_valid=%d surfaces=%d edges=%d required_edges=%d colliders=%d props=%d enemies=%d visible_estimate=%d draw_bucket=%d" % [
+            world.runtime.frame(), str(inspector.premise_name), int(inspector.seed),
+            int(inspector.room_index), str(inspector.setting_name), str(inspector.form_name),
+            str(inspector.scale_name), str(inspector.condition_name), str(inspector.traversal_intent),
+            int(inspector.route_valid), int(inspector.seed_valid), int(inspector.surface_count),
+            int(inspector.edge_count), int(inspector.required_edge_count), int(inspector.collider_count),
+            int(inspector.presentation_prop_count), int(inspector.enemy_count),
+            int(inspector.visible_primitive_estimate), int(inspector.draw_call_bucket)])
     observation += 1
     return true
+
+func _agent_action(loop: Dictionary) -> String:
+    if bool(loop.dead):
+        return "dead"
+    if bool(loop.downed):
+        return "downed"
+    if world.runtime.vacuum_active():
+        return "vacuum"
+    if int(loop.projectiles) > 0:
+        return "projectile"
+    var velocity: Vector3 = loop.player_velocity
+    return "move" if Vector2(velocity.x, velocity.z).length_squared() > 0.01 else "idle"
 
 func _assert_state(expectations: Dictionary) -> bool:
     var loop: Dictionary = world.runtime.gameplay_loop_snapshot()
@@ -305,7 +407,7 @@ func _parse_command(line: String) -> Dictionary:
     if tokens.is_empty():
         return {"error": "empty_command"}
     var verb := tokens[0]
-    if verb in ["observe", "reset", "field_island_fixture", "soul_spawn", "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
+    if verb in ["observe", "reset", "field_island_fixture", "soul_spawn", "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "room_inspector", "room_next", "room_reroll", "room_enemies", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
         return {"kind": verb} if tokens.size() == 1 else {"error": "unexpected_argument"}
     if verb == "assert":
         if tokens.size() < 2:
@@ -394,3 +496,9 @@ func _parse_bool(value: String) -> Variant:
     if value in ["0", "false", "off"]:
         return false
     return null
+
+func _is_authentic_fixture(kind: String) -> bool:
+    return kind in ["reset", "field_island_fixture", "soul_spawn", "battery_full",
+        "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture",
+        "sterile_fixture", "ruin_fixture", "upgrade_fixture", "room_inspector",
+        "room_next", "room_reroll", "room_enemies"]

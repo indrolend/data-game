@@ -3,6 +3,10 @@ extends Node3D
 ## First-person placement is a Godot view-model transform; it never feeds input
 ## or gameplay back into the native simulation.
 
+const NATIVE_STENCIL_HORIZONTAL_SCALE := 0.84
+const WORLD_LIGHT_LAYER := 1
+const PHONE_RECEIVER_LAYER := 2
+
 var phone_root: Node3D
 var body: MeshInstance3D
 var glass: MeshInstance3D
@@ -11,10 +15,10 @@ var lens: MeshInstance3D
 var screen_light: OmniLight3D
 var _body_material: StandardMaterial3D
 var _screen_material: StandardMaterial3D
-var _text_material: StandardMaterial3D
 var _menu_title: Label3D
 var _menu_hint: Label3D
 var _menu_row_labels: Array[Label3D] = []
+var _native_body_loaded := false
 
 func _ready() -> void:
 	phone_root = Node3D.new()
@@ -23,12 +27,16 @@ func _ready() -> void:
 
 	body = MeshInstance3D.new()
 	body.name = "Body"
-	body.mesh = BoxMesh.new()
-	_body_material = StandardMaterial3D.new()
-	_body_material.albedo_color = Color("#172530")
-	_body_material.metallic = 0.72
-	_body_material.roughness = 0.24
-	body.material_override = _body_material
+	body.mesh = _load_native_phone_mesh("res://../parent/models/phone.dbmesh")
+	_native_body_loaded = body.mesh != null
+	if not _native_body_loaded:
+		body.mesh = BoxMesh.new()
+		_body_material = StandardMaterial3D.new()
+		_body_material.albedo_color = Color("#172530")
+		_body_material.metallic = 0.72
+		_body_material.roughness = 0.24
+		body.material_override = _body_material
+	body.layers = PHONE_RECEIVER_LAYER
 	phone_root.add_child(body)
 
 	glass = MeshInstance3D.new()
@@ -41,22 +49,25 @@ func _ready() -> void:
 	_screen_material.emission = Color("#164a59")
 	_screen_material.emission_energy_multiplier = 0.45
 	glass.material_override = _screen_material
+	glass.layers = PHONE_RECEIVER_LAYER
 	phone_root.add_child(glass)
 	screen_light = OmniLight3D.new()
 	screen_light.name = "NativePhoneScreenLight"
 	screen_light.shadow_enabled = false
 	screen_light.light_specular = 0.35
+	# The display illuminates the world, not its own metal/glass assembly.
+	screen_light.light_cull_mask = WORLD_LIGHT_LAYER
 	phone_root.add_child(screen_light)
 
 	screen_text = Label3D.new()
 	screen_text.name = "ScreenText"
-	screen_text.font_size = 64
-	screen_text.pixel_size = 0.0002
+	screen_text.font_size = 52
+	screen_text.pixel_size = 0.00011
 	screen_text.line_spacing = 0.0
-	screen_text.outline_size = 8
-	_text_material = StandardMaterial3D.new()
-	_text_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	screen_text.material_override = _text_material
+	screen_text.outline_size = 5
+	screen_text.scale = Vector3(NATIVE_STENCIL_HORIZONTAL_SCALE, 1.0, 1.0)
+	# Label3D owns a font-atlas shader. A StandardMaterial override turns each
+	# glyph quad into a solid rectangle and makes native menu text unreadable.
 	phone_root.add_child(screen_text)
 	_menu_title = _new_menu_label("MenuTitle")
 	_menu_hint = _new_menu_label("MenuHint")
@@ -74,6 +85,7 @@ func _ready() -> void:
 	lens_material.metallic = 0.45
 	lens_material.roughness = 0.16
 	lens.material_override = lens_material
+	lens.layers = PHONE_RECEIVER_LAYER
 	phone_root.add_child(lens)
 
 func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
@@ -100,7 +112,11 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 
 	var body_size: Vector3 = snapshot.body_size
 	var body_scale: Vector3 = snapshot.body_scale
-	(body.mesh as BoxMesh).size = body_size * body_scale
+	if _native_body_loaded:
+		body.scale = body_scale
+	else:
+		(body.mesh as BoxMesh).size = body_size * body_scale
+		body.scale = Vector3.ONE
 	body.visible = bool(snapshot.body_visible) or first_person
 
 	var screen_size: Vector3 = snapshot.screen_size
@@ -117,18 +133,17 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	screen_text.position = snapshot.screen_center_offset + Vector3(0.0, 0.0, screen_size.z * 0.5 + 0.0002)
 	screen_text.visible = glass.visible
 	lens.position = Vector3(0.0, body_size.y * body_scale.y * 0.39, body_size.z * body_scale.z * 0.5 + 0.0004)
-	lens.visible = body.visible
+	# The fallback lens is a third-person body detail. Unlike the authored native
+	# phone mesh, its sphere protrudes over a camera-facing menu and reads as an orb.
+	lens.visible = body.visible and not _native_body_loaded and not first_person and not bool(snapshot.interactive)
 
 	var tint: Color = snapshot.screen_tint
 	var brightness: float = float(snapshot.screen_brightness)
-	var glow: float = float(snapshot.screen_glow)
-	_screen_material.albedo_color = Color(0.008, 0.018, 0.024).lerp(tint, 0.14)
-	_screen_material.emission = tint
+	var native_background := _native_display_background(tint, brightness)
+	_screen_material.albedo_color = native_background
+	_screen_material.emission = native_background
 	_screen_material.emission_energy_multiplier = maxf(0.0, float(snapshot.emission_strength))
-	_text_material.albedo_color = tint.lightened(0.38)
-	_text_material.emission = tint
-	_text_material.emission_enabled = true
-	_text_material.emission_energy_multiplier = maxf(0.65, float(snapshot.emission_strength) * 0.65)
+	screen_text.modulate = tint.lightened(0.38)
 	var menu_layout: Dictionary = snapshot.get("menu_layout", {})
 	var opacity := clampf(float(snapshot.content_opacity), 0.0, 1.0)
 	var show_menu := bool(menu_layout.get("active", false)) and glass.visible
@@ -140,13 +155,77 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	phone_root.set_meta("native_menu_row_count", int(menu_layout.get("row_count", 0)))
 	phone_root.set_meta("native_menu_selection", int(menu_layout.get("selection", -1)))
 
+func _native_display_background(tint: Color, brightness: float) -> Color:
+	# Mirrors DesktopRenderer::renderPhoneDisplayPixels' clear and full-canvas
+	# signal wash. Godot still draws labels separately, but the display substrate
+	# now has the same state-derived color instead of an arbitrary dark glass.
+	var base := Color(0.025 + tint.r * 0.18, 0.045 + tint.g * 0.16,
+		0.060 + tint.b * 0.15, 1.0)
+	var wash_alpha := clampf(0.10 + brightness * 0.08, 0.0, 1.0)
+	return base.lerp(Color(0.03, 0.55, 0.62, 1.0), wash_alpha)
+
+func _load_native_phone_mesh(path: String) -> ArrayMesh:
+	var file := FileAccess.open(ProjectSettings.globalize_path(path), FileAccess.READ)
+	if file == null:
+		push_error("Could not open native phone mesh: " + path)
+		return null
+	var bytes := file.get_buffer(file.get_length())
+	file.close()
+	if bytes.size() < 12 or bytes.slice(0, 4).get_string_from_ascii() != "DBM1":
+		push_error("Invalid native phone mesh header")
+		return null
+	var vertex_count := int(bytes.decode_u32(4))
+	var batch_count := int(bytes.decode_u32(8))
+	var expected_size := 12 + vertex_count * 12 + batch_count * 24
+	if vertex_count <= 0 or vertex_count > 1000000 or batch_count <= 0 or \
+		batch_count > 1024 or bytes.size() != expected_size:
+		push_error("Invalid native phone mesh dimensions")
+		return null
+	var vertex_offset := 12
+	var batch_offset := vertex_offset + vertex_count * 12
+	var mesh := ArrayMesh.new()
+	for batch_index in range(batch_count):
+		var batch_at := batch_offset + batch_index * 24
+		var first_vertex := int(bytes.decode_u32(batch_at))
+		var batch_vertices := int(bytes.decode_u32(batch_at + 4))
+		if batch_vertices <= 0 or batch_vertices % 3 != 0 or \
+			first_vertex + batch_vertices > vertex_count:
+			push_error("Invalid native phone mesh batch")
+			return null
+		var vertices := PackedVector3Array()
+		var normals := PackedVector3Array()
+		vertices.resize(batch_vertices)
+		normals.resize(batch_vertices)
+		for vertex_index in range(batch_vertices):
+			var source_at := vertex_offset + (first_vertex + vertex_index) * 12
+			vertices[vertex_index] = Vector3(bytes.decode_float(source_at),
+				bytes.decode_float(source_at + 4), bytes.decode_float(source_at + 8))
+		for triangle in range(0, batch_vertices, 3):
+			var normal := (vertices[triangle + 1] - vertices[triangle]).cross(
+				vertices[triangle + 2] - vertices[triangle]).normalized()
+			normals[triangle] = normal
+			normals[triangle + 1] = normal
+			normals[triangle + 2] = normal
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = vertices
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(bytes.decode_float(batch_at + 8),
+			bytes.decode_float(batch_at + 12), bytes.decode_float(batch_at + 16),
+			bytes.decode_float(batch_at + 20))
+		material.metallic = 0.72
+		material.roughness = 0.24
+		mesh.surface_set_material(mesh.get_surface_count() - 1, material)
+	return mesh
+
 func _new_menu_label(label_name: String) -> Label3D:
 	var label := Label3D.new()
 	label.name = label_name
 	label.font_size = 48
 	label.pixel_size = 0.0001
 	label.outline_size = 5
-	label.material_override = _text_material
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	label.visible = false
 	phone_root.add_child(label)
@@ -231,6 +310,10 @@ func _configure_menu_label(label: Label3D, text: String, x: float, baseline_y: f
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	label.font_size = maxi(1, roundi(font_px))
 	label.pixel_size = pixel_size
+	# DesktopRenderer's phone stencil compresses glyphs horizontally before
+	# drawing from this same native label_x. Match that footprint so rows do not
+	# drift right merely because Godot uses a different font renderer.
+	label.scale = Vector3(NATIVE_STENCIL_HORIZONTAL_SCALE, 1.0, 1.0)
 	label.position = screen_center + Vector3(
 		(x / logical_width - 0.5) * screen_size.x,
 		(0.5 - baseline_y / logical_height) * screen_size.y,
@@ -239,15 +322,28 @@ func _configure_menu_label(label: Label3D, text: String, x: float, baseline_y: f
 	label.visible = not text.is_empty()
 
 func _screen_status(snapshot: Dictionary) -> String:
-	var line_four := "GAME"
+	var battery_percent := clampi(roundi(float(snapshot.battery)), 0, 100)
+	var required := maxi(0, int(snapshot.get("required_goals", 0)))
+	var filled := clampi(int(snapshot.get("filled_goals", 0)), 0, required)
+	var state_label := _mode_label(int(snapshot.screen_mode))
 	if bool(snapshot.low_battery):
-		line_four = "LOW BAT"
+		state_label = "LOW BAT"
 	elif bool(snapshot.vacuum_active):
-		line_four = "VAC %02d" % roundi(float(snapshot.vacuum_power) * 99.0)
-	else:
-		line_four = _mode_label(int(snapshot.screen_mode))
-	return "D.BREAK\nBAT %03d\nSOUL %02d\n%s" % [
-		roundi(float(snapshot.battery)), int(snapshot.souls), line_four]
+		state_label = "VAC %02d" % roundi(float(snapshot.vacuum_power) * 99.0)
+	elif bool(snapshot.get("room_clear", false)):
+		state_label = "ROOM CLEAR"
+	var lines: Array[String] = [
+		"ROOM %02d  T %02d" % [int(snapshot.get("room_index", 0)), int(snapshot.get("tokens", 0))],
+		"GOAL %02d/%02d" % [filled, required],
+		"CHARGE %03d" % battery_percent,
+		"SOUL %02d/%02d" % [int(snapshot.souls), int(snapshot.get("soul_capacity", 30))],
+		"MEMORY %d/3" % int(snapshot.get("unlocked_material_memories", 0)),
+		state_label
+	]
+	if bool(snapshot.get("supplemental_active", false)):
+		lines.append("POWER %d  %03d%%" % [int(snapshot.get("flower_stacks", 0)),
+			roundi(float(snapshot.get("supplemental_fill", 0.0)) * 100.0)])
+	return "\n".join(lines)
 
 func _mode_label(mode: int) -> String:
 	match mode:

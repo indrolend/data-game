@@ -84,6 +84,8 @@ func _run() -> void:
     var found_shell_shards := false
     var verified_particle_mesh := false
     var verified_shell_to_cube_handoff := false
+    var maximum_capture_pulse := 0.0
+    var maximum_phone_light_pulse := 0.0
     var damage_adapter = HumanModelAdapter.new()
     damage_adapter.configure(interaction_target, interaction.target_model_color(interaction_target))
     get_root().add_child(damage_adapter)
@@ -98,6 +100,10 @@ func _run() -> void:
         interaction.submit_input(0, 0, 120.0 if step == 960 else 0.0, 0,
             step > 960, false, false, melee, false, false)
         interaction.tick()
+        var phone_state: Dictionary = interaction.phone_presentation_snapshot()
+        maximum_capture_pulse = maxf(maximum_capture_pulse, float(phone_state.capture_pulse))
+        maximum_phone_light_pulse = maxf(maximum_phone_light_pulse,
+            float(phone_state.screen_light_pulse))
         var damaged_target: Dictionary = interaction.target_presentation_snapshot(interaction_target)
         if float(damaged_target.shell_crack_amount) > 0.0:
             found_native_cracks = true
@@ -153,6 +159,8 @@ func _run() -> void:
     check(verified_shell_to_cube_handoff,
         "controlled native combat observes an intermediate cracked-shell-to-soul morph")
     check(verified_particle_mesh, "Godot particle adapter consumes native simulation snapshots")
+    check(maximum_capture_pulse > 0.0 and maximum_phone_light_pulse >= maximum_capture_pulse,
+        "native ingestion/capture activity drives the character phone light pulse")
     check(not tether_snapshot.is_empty() and bool(tether_snapshot.tether_visible),
         "native capture lifecycle produces an authoritative visible vacuum tether")
     if not tether_snapshot.is_empty():

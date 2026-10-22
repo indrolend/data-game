@@ -25,6 +25,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Native all-room gameplay-loop contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/agent_playtest_hardening.gd 2>&1 | Set-Content (Join-Path $evidence "agent-playtest-hardening-headless.log")
     if ($LASTEXITCODE -ne 0) { throw "Agent playtest hardening contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/damage_probe.gd 2>&1 | Set-Content (Join-Path $evidence "native-damage-phone-light.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native enemy damage and phone-light response contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/diagnostic_utilities.gd 2>&1 | Set-Content (Join-Path $evidence "diagnostic-utilities.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native diagnostic utilities contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/human_model_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "human-model-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Human model presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/hud_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "hud-presentation.log")

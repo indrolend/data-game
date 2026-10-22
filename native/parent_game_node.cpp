@@ -27,10 +27,20 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_upgrade_selection","selection"),&ParentGameNode::set_upgrade_selection);
     ClassDB::bind_method(D_METHOD("activate_upgrade_selection"),&ParentGameNode::activate_upgrade_selection);
     ClassDB::bind_method(D_METHOD("start_rally_fixture"),&ParentGameNode::start_rally_fixture);
+    ClassDB::bind_method(D_METHOD("start_traversal_fixture"),&ParentGameNode::start_traversal_fixture);
+    ClassDB::bind_method(D_METHOD("start_slope_fixture"),&ParentGameNode::start_slope_fixture);
     ClassDB::bind_method(D_METHOD("start_field_island_fixture"),&ParentGameNode::start_field_island_fixture);
     ClassDB::bind_method(D_METHOD("prepare_capture_shot_fixture"),&ParentGameNode::prepare_capture_shot_fixture);
     ClassDB::bind_method(D_METHOD("start_target_fixture"),&ParentGameNode::start_target_fixture);
+    ClassDB::bind_method(D_METHOD("start_room_inspector"),&ParentGameNode::start_room_inspector);
+    ClassDB::bind_method(D_METHOD("step_room_inspector","delta","reroll"),&ParentGameNode::step_room_inspector);
+    ClassDB::bind_method(D_METHOD("toggle_room_inspector_enemies"),&ParentGameNode::toggle_room_inspector_enemies);
+    ClassDB::bind_method(D_METHOD("room_inspector_snapshot"),&ParentGameNode::room_inspector_snapshot);
+    ClassDB::bind_method(D_METHOD("room_review_line","rating"),&ParentGameNode::room_review_line);
+    ClassDB::bind_method(D_METHOD("player_support_snapshot","x","z"),&ParentGameNode::player_support_snapshot);
+    ClassDB::bind_method(D_METHOD("world_support_snapshot","x","z","radius"),&ParentGameNode::world_support_snapshot);
     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
+    ClassDB::bind_method(D_METHOD("start_damage_fixture"),&ParentGameNode::start_damage_fixture);
     ClassDB::bind_method(D_METHOD("start_city_room_fixture"),&ParentGameNode::start_city_room_fixture);
     ClassDB::bind_method(D_METHOD("start_coastal_room_fixture"),&ParentGameNode::start_coastal_room_fixture);
     ClassDB::bind_method(D_METHOD("start_sterile_room_fixture"),&ParentGameNode::start_sterile_room_fixture);
@@ -99,10 +109,61 @@ void ParentGameNode::move_upgrade_selection(int horizontal,int vertical){bridge.
 void ParentGameNode::set_upgrade_selection(int selection){bridge.setUpgradeSelection(selection);}
 bool ParentGameNode::activate_upgrade_selection(){return bridge.activateUpgradeSelection();}
 void ParentGameNode::start_rally_fixture(){bridge.startRallyFixture();}
+void ParentGameNode::start_traversal_fixture(){bridge.startTraversalFixture();}
+void ParentGameNode::start_slope_fixture(){bridge.startSlopeFixture();}
 void ParentGameNode::start_field_island_fixture(){bridge.startFieldIslandFixture();}
 bool ParentGameNode::prepare_capture_shot_fixture(){return bridge.prepareCaptureShotFixture();}
 void ParentGameNode::start_target_fixture(){bridge.startTargetFixture();}
+void ParentGameNode::start_room_inspector(){bridge.startRoomInspector();}
+void ParentGameNode::step_room_inspector(int delta,bool reroll){bridge.stepRoomInspector(delta,reroll);}
+void ParentGameNode::toggle_room_inspector_enemies(){bridge.toggleRoomInspectorEnemies();}
+Dictionary ParentGameNode::room_inspector_snapshot() const {
+    const auto& state=bridge.state();
+    const auto& report=state.roomInspectorReport;
+    Dictionary result;
+    result["active"]=state.roomInspector;
+    result["enemies"]=state.roomInspectorEnemies;
+    result["premise"]=static_cast<int>(report.premise);
+    result["premise_name"]=room_environment::premiseName(report.premise);
+    result["setting_name"]=room_environment::settingName(report.setting);
+    result["form_name"]=room_environment::formName(report.form);
+    result["scale_name"]=room_environment::scaleName(report.scale);
+    result["condition_name"]=room_environment::conditionName(report.condition);
+    result["traversal_intent"]=room_environment::traversalIntentName(report.traversalIntent);
+    result["seed"]=report.seed;
+    result["room_index"]=report.roomIndex;
+    result["surface_count"]=report.traversalSurfaceCount;
+    result["edge_count"]=report.traversalEdgeCount;
+    result["required_edge_count"]=report.requiredEdgeCount;
+    result["collider_count"]=report.colliderCount;
+    result["presentation_prop_count"]=report.presentationPropCount;
+    result["enemy_budget"]=report.enemyBudget;
+    result["enemy_count"]=report.enemyCount;
+    result["transparent_primitive_count"]=report.transparentPrimitiveCount;
+    result["visible_primitive_estimate"]=report.visiblePrimitiveEstimate;
+    result["draw_call_bucket"]=report.drawCallBucket;
+    result["route_valid"]=report.requiredRouteValid;
+    result["seed_valid"]=report.seedSelectionValid;
+    return result;
+}
+String ParentGameNode::room_review_line(int rating) const {
+    const int bounded=std::max(0,std::min(3,rating));
+    return String::utf8(bridge.roomReviewLine(static_cast<RoomReviewRating>(bounded)).c_str());
+}
+static Dictionary support_dictionary(const WorldSupportSample& support) {
+    Dictionary result;
+    result["available"]=support.available;
+    result["height"]=support.height;
+    result["normal"]=Vector3(support.normal.x,support.normal.y,support.normal.z);
+    result["classification"]=static_cast<int>(support.classification);
+    result["source"]=static_cast<int>(support.identity.source);
+    result["index"]=support.identity.index;
+    return result;
+}
+Dictionary ParentGameNode::player_support_snapshot(float x,float z) const{return support_dictionary(bridge.playerSupportAt(x,z));}
+Dictionary ParentGameNode::world_support_snapshot(float x,float z,float radius) const{return support_dictionary(bridge.worldSupportAt(x,z,radius));}
 void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();}
+void ParentGameNode::start_damage_fixture(){bridge.startDamageFixture();}
 void ParentGameNode::start_city_room_fixture(){bridge.startCityRoomFixture();}
 void ParentGameNode::start_coastal_room_fixture(){bridge.startCoastalRoomFixture();}
 void ParentGameNode::start_sterile_room_fixture(){bridge.startSterileRoomFixture();}
@@ -228,8 +289,13 @@ Dictionary ParentGameNode::upgrade_presentation_snapshot() const {
 Dictionary ParentGameNode::gameplay_loop_snapshot() const {
     const GameState& state=bridge.state();
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
-    int liveEnemies=0;
-    for(const auto& target:state.targets)if(target.alive)++liveEnemies;
+    int liveEnemies=0,looseSouls=0,projectiles=0;
+    float looseCommitment=0.0f;
+    for(const auto& target:state.targets){
+        if(target.alive)++liveEnemies;
+        else if(target.slurpable){++looseSouls;looseCommitment=std::max(looseCommitment,std::max(target.capture,target.ingestProgress));}
+    }
+    for(const auto& bullet:state.bullets)if(bullet.alive)++projectiles;
     Dictionary result;
     result["room_seed"]=state.roomSeed;
     result["room_index"]=state.roomIndex;
@@ -247,6 +313,18 @@ Dictionary ParentGameNode::gameplay_loop_snapshot() const {
     result["required_souls"]=state.requiredSouls;
     result["room_clear"]=state.roomClear;
     result["live_enemies"]=liveEnemies;
+    result["loose_souls"]=looseSouls;
+    result["projectiles"]=projectiles;
+    result["loose_commitment"]=looseCommitment;
+    result["vacuum_target"]=state.vacuum.target;
+    result["vacuum_lock"]=state.vacuum.lockStrength;
+    result["dead"]=state.dead;
+    result["downed"]=state.player.downed;
+    result["camera_yaw"]=state.camera.yaw;
+    result["camera_pitch"]=state.camera.pitch;
+    result["player_velocity"]=v(state.player.vel);
+    result["setting_name"]=room_environment::settingName(plan.setting);
+    result["form_name"]=room_environment::formName(plan.form);
     result["required_slot_stacks"]=state.runRules.requiredSlotStacks;
     result["crowded_room_stacks"]=state.runRules.crowdedRoomStacks;
     result["faster_slurp_stacks"]=state.runRules.fasterSlurpStacks;
@@ -290,6 +368,17 @@ Dictionary ParentGameNode::phone_presentation_snapshot() const {
     result["vacuum_active"] = snapshot.vacuumActive;
     result["vacuum_power"] = snapshot.vacuumPower;
     result["capture_pulse"] = snapshot.capturePulse;
+    result["damage_pulse"] = snapshot.damagePulse;
+    result["room_index"] = snapshot.roomIndex;
+    result["tokens"] = static_cast<std::int64_t>(snapshot.tokens);
+    result["filled_goals"] = snapshot.filledGoals;
+    result["required_goals"] = snapshot.requiredGoals;
+    result["room_clear"] = snapshot.roomClear;
+    result["soul_capacity"] = snapshot.soulCapacity;
+    result["unlocked_material_memories"] = snapshot.unlockedMaterialMemories;
+    result["supplemental_active"] = snapshot.supplementalActive;
+    result["supplemental_fill"] = snapshot.supplementalFill;
+    result["flower_stacks"] = snapshot.flowerStacks;
     result["menu_layout"] = phone_menu_layout_snapshot();
     return result;
 }

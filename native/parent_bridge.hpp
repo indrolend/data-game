@@ -136,10 +136,29 @@ public:
     }
     // Verification fixture delegates setup to the original Game debug scenario.
     void startRallyFixture() { game.debugStartRallyLab(); }
+    void startTraversalFixture() { game.debugStartTraversalLab(); }
+    void startSlopeFixture() { game.debugStartSlopeLab(); }
     void startFieldIslandFixture() { game.debugStartFieldIslandFixture(); }
     bool prepareCaptureShotFixture() { return game.debugPrepareCaptureShot(); }
     void startTargetFixture() { game.debugStartRoomInspector(); game.debugToggleRoomInspectorEnemies(); }
+    void startRoomInspector() { game.debugStartRoomInspector(); }
+    void stepRoomInspector(int delta, bool reroll) { game.debugStepRoomInspector(delta, reroll); }
+    void toggleRoomInspectorEnemies() { game.debugToggleRoomInspectorEnemies(); }
+    std::string roomReviewLine(RoomReviewRating rating) const { return game.debugRoomReviewLine(rating); }
+    WorldSupportSample playerSupportAt(float x, float z) const { return game.debugPlayerSupportAt(x, z); }
+    WorldSupportSample worldSupportAt(float x, float z, float radius) const { return game.debugWorldSupportAt(x, z, radius); }
     void startTargetInteractionFixture() { game.reset(); }
+    void startDamageFixture() {
+        game.reset();
+        auto& state=game.networkMutableState();
+        state.player.pos={0.0f,0.08f,0.0f};state.player.vel={};state.player.battery=100.0f;
+        state.camera.yaw=0.0f;state.camera.pitch=0.0f;
+        for(int i=1;i<TARGET_COUNT;++i)state.targets[i]=TargetState{};
+        auto& target=state.targets[0];
+        target.pos={0.0f,0.08f,-0.9f};target.vel={};target.walkTarget=state.player.pos;
+        target.attackTimer=0.0f;target.attackCooldown=0.0f;target.attackHit=false;
+        target.attackDirection={0.0f,0.0f,1.0f};target.attackTargetPlayerId=0;
+    }
     void startCityRoomFixture() {
         game.debugStartGeneratedRoomFixture(
             room_environment::representativeInspectorSeed(room_environment::RoomPremise::CityCourtyard), 12);

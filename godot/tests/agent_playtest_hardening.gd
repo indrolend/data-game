@@ -20,7 +20,21 @@ func _initialize() -> void:
         "assertions reject unsupported snapshot keys")
     check(script._parse_command("assert room=1 room=2").has("error"),
         "assertions reject duplicate keys")
+    check(script._parse_command("room_inspector").kind == "room_inspector" and
+        script._parse_command("room_next").kind == "room_next" and
+        script._parse_command("room_reroll").kind == "room_reroll",
+        "agent protocol exposes bounded native room-inspector navigation")
+    check(script._is_authentic_fixture("reset") and script._is_authentic_fixture("battery_full") and
+        not script._is_authentic_fixture("observe"),
+        "authentic play rejects debug reset and resource fixtures but permits observation")
     script.free()
+    var runtime = ClassDB.instantiate("ParentGameNode")
+    var observation: Dictionary = runtime.gameplay_loop_snapshot()
+    for key in ["room_seed", "setting_name", "form_name", "player_velocity", "live_enemies",
+            "loose_souls", "projectiles", "vacuum_target", "vacuum_lock",
+            "loose_commitment", "dead", "downed", "camera_yaw", "camera_pitch"]:
+        check(observation.has(key), "agent observation exposes native field: %s" % key)
+    runtime.free()
     if not failures.is_empty():
         print("RESULT: FAIL count=", failures.size())
         quit(2)
