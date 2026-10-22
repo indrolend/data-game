@@ -24,6 +24,46 @@ func selected_label(menu: Dictionary) -> String:
 			return str(row.label)
 	return ""
 
+func row_center(menu: Dictionary, label: String) -> Vector2:
+	for row in menu.rows:
+		if str(row.label) == label:
+			var visual: Dictionary = row.visual
+			return Vector2(float(visual.x) + float(visual.w) * 0.5,
+				float(visual.y) + float(visual.h) * 0.5)
+	return Vector2(-1.0, -1.0)
+
+func logical_to_viewport(world: Node, logical: Vector2, layout: Dictionary) -> Vector2:
+	var adapter: Node3D = world.get("phone_adapter")
+	var camera: Camera3D = world.get("camera")
+	var phone_root: Node3D = adapter.get("phone_root")
+	var screen: MeshInstance3D = adapter.get("glass")
+	var screen_size: Vector3 = (screen.mesh as BoxMesh).size
+	var logical_width := float(layout.logical_width)
+	var logical_height := float(layout.logical_height)
+	var local_point := screen.position + Vector3(
+		(logical.x / logical_width - 0.5) * screen_size.x,
+		(0.5 - logical.y / logical_height) * screen_size.y,
+		screen_size.z * 0.5)
+	return camera.unproject_position(phone_root.to_global(local_point))
+
+func dispatch_mouse_motion(position: Vector2, relative := Vector2.ZERO) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = position
+	event.global_position = position
+	event.relative = relative
+	Input.parse_input_event(event)
+	await process_frame
+
+func dispatch_left_click(position: Vector2) -> void:
+	for pressed in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.position = position
+		event.global_position = position
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		await process_frame
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -40,6 +80,27 @@ func _run() -> void:
 	var menu: Dictionary = runtime.phone_menu_layout_snapshot()
 	check(bool(runtime.hud_presentation_snapshot().started),
 		"native gameplay fixture is active before menu input")
+	check(not bool(runtime.phone_presentation_snapshot().first_person),
+		"third-person pause regression begins from the native third-person camera")
+	# The original pause phone is a readable camera composition even when gameplay
+	# was in third person. Verify that the presentation adapter cannot regress to
+	# an unobservably small world-space handset.
+	send_key(world, KEY_ESCAPE)
+	menu = runtime.phone_menu_layout_snapshot()
+	check(bool(menu.active) and bool(runtime.hud_presentation_snapshot().ui_paused),
+		"Escape opens the native pause menu from third-person gameplay")
+	var third_person_phone_root: Node3D = world.get("phone_adapter").get("phone_root")
+	check(third_person_phone_root.is_set_as_top_level(),
+		"third-person pause presents the native menu as a camera-anchored handset")
+	send_key(world, KEY_ESCAPE)
+	check(not bool(runtime.hud_presentation_snapshot().ui_paused),
+		"Escape resumes native gameplay after third-person pause presentation")
+	# Exercise the actual first-person PhoneRoot transform used for the pause UI.
+	runtime.submit_input(0, 0, 0, 0, false, false, false, false, false, true)
+	runtime.tick()
+	world.call("_sync")
+	check(bool(runtime.phone_presentation_snapshot().first_person),
+		"pointer test uses the native first-person camera state")
 
 	# Exercise the same key-event handler used by player input, not bridge shortcuts.
 	send_key(world, KEY_ESCAPE)
@@ -47,6 +108,92 @@ func _run() -> void:
 	check(bool(menu.active) and bool(runtime.hud_presentation_snapshot().ui_paused),
 		"Escape opens the native pause menu during gameplay")
 	check(selected_label(menu) == "Resume", "pause menu initially selects Resume")
+	var adapter: Node3D = world.get("phone_adapter")
+	var camera: Camera3D = world.get("camera")
+	var phone_root: Node3D = adapter.get("phone_root")
+	check(phone_root.is_set_as_top_level(),
+		"pause pointer proof uses the actual camera-anchored PhoneRoot")
+
+	var resume_logical := row_center(menu, "Resume")
+	var settings_logical := row_center(menu, "Settings")
+	var resume_viewport := logical_to_viewport(world, resume_logical, menu)
+	var recovered = adapter.call("viewport_to_phone_logical", resume_viewport, camera, menu)
+	check(recovered != null and (recovered as Vector2).distance_to(resume_logical) <= 0.25,
+		"transformed PhoneRoot display projection round-trips native logical coordinates")
+	var original_viewport_size: Vector2i = root.size
+	for test_viewport_size in [Vector2i(640, 720), Vector2i(1280, 720)]:
+		root.size = test_viewport_size
+		await process_frame
+		world.call("_sync")
+		var resized_viewport := logical_to_viewport(world, resume_logical, menu)
+		var resized_recovered = adapter.call(
+			"viewport_to_phone_logical", resized_viewport, camera, menu)
+		check(resized_recovered != null and
+			(resized_recovered as Vector2).distance_to(resume_logical) <= 0.25,
+			"phone projection round-trips at viewport %dx%d" % [
+				test_viewport_size.x, test_viewport_size.y])
+	root.size = original_viewport_size
+	await process_frame
+	world.call("_sync")
+	resume_viewport = logical_to_viewport(world, resume_logical, menu)
+	var outside_logical := Vector2(-20.0, float(menu.logical_height) * 0.5)
+	var outside_viewport := logical_to_viewport(world, outside_logical, menu)
+	check(adapter.call("viewport_to_phone_logical", outside_viewport, camera, menu) == null,
+		"inverse projection rejects points outside the physical phone display")
+
+	# Hover and click through Godot's input dispatcher and the real scene handler;
+	# native hit rectangles remain the only selection/activation authority.
+	await dispatch_mouse_motion(resume_viewport)
+	check(selected_label(runtime.phone_menu_layout_snapshot()) == "Resume",
+		"engine-dispatched Resume hover selects native Resume")
+	var settings_viewport := logical_to_viewport(world, settings_logical, menu)
+	await dispatch_mouse_motion(settings_viewport)
+	check(selected_label(runtime.phone_menu_layout_snapshot()) == "Settings",
+		"engine-dispatched Settings hover selects native Settings")
+	await dispatch_left_click(outside_viewport)
+	check(bool(runtime.hud_presentation_snapshot().ui_paused) and
+		selected_label(runtime.phone_menu_layout_snapshot()) == "Settings",
+		"outside-phone click neither activates nor dismisses the native menu")
+	var nonselectable_logical := Vector2(18.0, 18.0)
+	check(int(runtime.menu_item_at(nonselectable_logical.x, nonselectable_logical.y)) == -1,
+		"inside-display point outside native rows is nonselectable")
+	await dispatch_left_click(logical_to_viewport(world, nonselectable_logical, menu))
+	check(bool(runtime.hud_presentation_snapshot().ui_paused) and
+		selected_label(runtime.phone_menu_layout_snapshot()) == "Settings",
+		"nonselectable phone-area click performs no action")
+	await dispatch_left_click(settings_viewport)
+	menu = runtime.phone_menu_layout_snapshot()
+	check(bool(menu.active) and menu.rows.size() == 3 and str(menu.rows[0].label) == "Controls",
+		"clicking Settings opens the authoritative native Settings page")
+	# Keyboard remains routed to the same native model after pointer activation.
+	send_key(world, KEY_ESCAPE)
+	check(selected_label(runtime.phone_menu_layout_snapshot()) == "Settings",
+		"keyboard Back still returns from pointer-opened Settings")
+	menu = runtime.phone_menu_layout_snapshot()
+	resume_logical = row_center(menu, "Resume")
+	resume_viewport = logical_to_viewport(world, resume_logical, menu)
+	await dispatch_mouse_motion(resume_viewport)
+	await dispatch_left_click(resume_viewport)
+	check(not bool(runtime.hud_presentation_snapshot().ui_paused),
+		"clicking Resume immediately clears native pause")
+	check(bool(world.call("_gameplay_pointer_active")),
+		"Resume click immediately returns pointer routing to gameplay")
+	if DisplayServer.get_name() != "headless":
+		check(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED,
+			"Resume click immediately captures the platform mouse")
+	var gameplay_motion := Vector2(7.0, -4.0)
+	var camera_target_before: Vector3 = runtime.camera_target()
+	await dispatch_mouse_motion(Vector2(320.0, 240.0), gameplay_motion)
+	var queued_or_applied: bool = (world.get("pending_look") as Vector2).is_equal_approx(gameplay_motion) or \
+		runtime.camera_target().distance_to(camera_target_before) > 0.00001
+	check(queued_or_applied,
+		"first post-Resume mouse motion reaches gameplay without a second click")
+	world.set("pending_look", Vector2.ZERO)
+
+	# Reopen and retain the existing keyboard-navigation regression sequence.
+	send_key(world, KEY_ESCAPE)
+	check(bool(runtime.hud_presentation_snapshot().ui_paused),
+		"keyboard can reopen pause after pointer Resume")
 
 	send_key(world, KEY_DOWN)
 	check(selected_label(runtime.phone_menu_layout_snapshot()) == "Settings",

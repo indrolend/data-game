@@ -3,6 +3,7 @@
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/variant/quaternion.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/rect2.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include "phone_presentation_snapshot.hpp"
 #include "PhoneDisplayLayout.hpp"
@@ -19,6 +20,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_comm_signal","signal"),&ParentGameNode::set_comm_signal);
     ClassDB::bind_method(D_METHOD("set_paused","paused"),&ParentGameNode::set_paused);
     ClassDB::bind_method(D_METHOD("menu_move_selection","direction"),&ParentGameNode::menu_move_selection);
+    ClassDB::bind_method(D_METHOD("menu_item_at","logical_x","logical_y"),&ParentGameNode::menu_item_at);
+    ClassDB::bind_method(D_METHOD("set_menu_selection","selection"),&ParentGameNode::set_menu_selection);
     ClassDB::bind_method(D_METHOD("menu_adjust","direction"),&ParentGameNode::menu_adjust);
     ClassDB::bind_method(D_METHOD("menu_confirm"),&ParentGameNode::menu_confirm);
     ClassDB::bind_method(D_METHOD("menu_back"),&ParentGameNode::menu_back);
@@ -41,6 +44,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("world_support_snapshot","x","z","radius"),&ParentGameNode::world_support_snapshot);
     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
     ClassDB::bind_method(D_METHOD("start_damage_fixture"),&ParentGameNode::start_damage_fixture);
+    ClassDB::bind_method(D_METHOD("start_death_fixture"),&ParentGameNode::start_death_fixture);
     ClassDB::bind_method(D_METHOD("start_city_room_fixture"),&ParentGameNode::start_city_room_fixture);
     ClassDB::bind_method(D_METHOD("start_coastal_room_fixture"),&ParentGameNode::start_coastal_room_fixture);
     ClassDB::bind_method(D_METHOD("start_sterile_room_fixture"),&ParentGameNode::start_sterile_room_fixture);
@@ -56,6 +60,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("phone_presentation_snapshot"),&ParentGameNode::phone_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("phone_menu_layout_snapshot"),&ParentGameNode::phone_menu_layout_snapshot);
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("restart_menu_presentation_snapshot","viewport_width","viewport_height"),&ParentGameNode::restart_menu_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("restart_menu_item_at","viewport_x","viewport_y","viewport_width","viewport_height"),&ParentGameNode::restart_menu_item_at);
     ClassDB::bind_method(D_METHOD("upgrade_presentation_snapshot"),&ParentGameNode::upgrade_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("gameplay_loop_snapshot"),&ParentGameNode::gameplay_loop_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
@@ -101,6 +107,8 @@ void ParentGameNode::tick(){bridge.tick();}
 void ParentGameNode::set_comm_signal(int signal){bridge.setCommSignal(signal);}
 void ParentGameNode::set_paused(bool paused){bridge.setPaused(paused);}
 void ParentGameNode::menu_move_selection(int direction){bridge.menuMoveSelection(direction);}
+int ParentGameNode::menu_item_at(float logical_x,float logical_y) const{return bridge.menuItemAt(logical_x,logical_y);}
+void ParentGameNode::set_menu_selection(int selection){bridge.setMenuSelection(selection);}
 bool ParentGameNode::menu_adjust(int direction){return bridge.menuAdjust(direction);}
 bool ParentGameNode::menu_confirm(){return bridge.menuConfirm();}
 bool ParentGameNode::menu_back(){return bridge.menuBack();}
@@ -164,6 +172,7 @@ Dictionary ParentGameNode::player_support_snapshot(float x,float z) const{return
 Dictionary ParentGameNode::world_support_snapshot(float x,float z,float radius) const{return support_dictionary(bridge.worldSupportAt(x,z,radius));}
 void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();}
 void ParentGameNode::start_damage_fixture(){bridge.startDamageFixture();}
+void ParentGameNode::start_death_fixture(){bridge.startDeathFixture();}
 void ParentGameNode::start_city_room_fixture(){bridge.startCityRoomFixture();}
 void ParentGameNode::start_coastal_room_fixture(){bridge.startCoastalRoomFixture();}
 void ParentGameNode::start_sterile_room_fixture(){bridge.startSterileRoomFixture();}
@@ -257,6 +266,35 @@ Dictionary ParentGameNode::hud_presentation_snapshot() const {
     result["upgrade"] = upgrade_presentation_snapshot();
 
     return result;
+}
+Dictionary ParentGameNode::restart_menu_presentation_snapshot(float viewport_width, float viewport_height) const {
+    const auto menu = bridge.deathMenuPresentation(viewport_width, viewport_height);
+    Dictionary result;
+    result["active"] = menu.active;
+    result["ui_scale"] = menu.uiScale;
+    result["canvas_width"] = menu.canvasWidth;
+    result["canvas_height"] = menu.canvasHeight;
+    result["fade"] = menu.fade;
+    result["awaken"] = menu.awaken;
+    result["pulse"] = menu.pulse;
+    result["selection"] = menu.selection;
+    Array rows;
+    for (const auto& row : menu.rows) {
+        Dictionary item;
+        item["label"] = row.label;
+        item["selection"] = row.selection;
+        item["center_x"] = row.centerX;
+        item["baseline_y"] = row.baselineY;
+        item["text_scale"] = row.textScale;
+        item["hit"] = Rect2(row.hit.x, row.hit.y, row.hit.w, row.hit.h);
+        rows.push_back(item);
+    }
+    result["rows"] = rows;
+    return result;
+}
+int ParentGameNode::restart_menu_item_at(float viewport_x, float viewport_y,
+                                         float viewport_width, float viewport_height) const {
+    return bridge.deathMenuItemAt(viewport_x, viewport_y, viewport_width, viewport_height);
 }
 Dictionary ParentGameNode::upgrade_presentation_snapshot() const {
     const auto& state = bridge.state();

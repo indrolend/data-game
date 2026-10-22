@@ -1,0 +1,24 @@
+{
+  "schema": 2,
+  "created_utc": "2026-10-22T15:03:03.0017339Z",
+  "repository": "C:\\Users\\indro\\Projects\\DigitalBreakdown-Godot-Migration",
+  "git_sha": "842ba69988299246ab52fda92764ef02e13a5546",
+  "git_dirty": true,
+  "framebuffer_renderer": "godot",
+  "simulation_authority": "native-cpp",
+  "scenario": "restart-menu-death",
+  "state_id": "tick-000045",
+  "state_correspondence": "approximate",
+  "godot_version": "4.7.2.stable.official.ed1daf0bf",
+  "runtime_executable": "C:\\Users\\indro\\AppData\\Local\\Microsoft\\WinGet\\Links\\godot_console.exe",
+  "runtime_executable_sha256": "C8F0A6BC45A19B33541501E57F6F7CD972AB18453743266339D495CBBE846643",
+  "command_stream": "evidence/godot-842ba69-dirty-restart-menu/capture.commands.txt",
+  "command_stream_sha256": "EE589914A6F7A69736D5794043992D41165B75C371EF73E3639E912354CCCDB1",
+  "exit_code": 0,
+  "selected_frames": [
+    {
+      "path": "evidence/godot-842ba69-dirty-restart-menu/godot-842ba69-dirty-restart-menu-death-tick-000045.png",
+      "sha256": "A36DB33FF1CE4CE79C91A4FE3E0FB48D3B46C5AF4F2A440DB42CD644CEE65866"
+    }
+  ]
+}

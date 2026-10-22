@@ -12,6 +12,7 @@ const WARM_GOLD := Color(0.882353, 0.721569, 0.498039)
 const TARGET_GLYPHS := "01ABCDEFHIKMNPRSTXYZ+-/:"
 
 var snapshot: Dictionary = {}
+var restart_menu: Dictionary = {}
 var target_snapshots: Array[Dictionary] = []
 var gameplay_camera: Camera3D
 var player_position := Vector3.ZERO
@@ -23,10 +24,12 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-func sync_snapshot(next_snapshot: Dictionary, next_targets: Array[Dictionary], camera: Camera3D,
+func sync_snapshot(next_snapshot: Dictionary, next_restart_menu: Dictionary,
+        next_targets: Array[Dictionary], camera: Camera3D,
 		native_player_position: Vector3, native_comm_signal: int, native_comm_signal_timer: float,
 		native_time: float) -> void:
 	snapshot = next_snapshot
+	restart_menu = next_restart_menu
 	target_snapshots = next_targets
 	gameplay_camera = camera
 	player_position = native_player_position
@@ -36,7 +39,12 @@ func sync_snapshot(next_snapshot: Dictionary, next_targets: Array[Dictionary], c
 	queue_redraw()
 
 func _draw() -> void:
-	if snapshot.is_empty() or not bool(snapshot.get("started", false)):
+	if snapshot.is_empty():
+		return
+	if bool(restart_menu.get("active", false)):
+		_draw_restart_menu()
+		return
+	if not bool(snapshot.get("started", false)):
 		return
 	# Match the original renderer's bounded logical HUD canvas.
 	var hud_scale := clampf(minf(size.x / 1280.0, size.y / 720.0), 1.0, 2.5)
@@ -55,6 +63,68 @@ func _draw() -> void:
 	_draw_critical_pulse(width, height)
 	_draw_energy_ticker(width)
 	_draw_native_reticle(width, height)
+
+func _draw_restart_menu() -> void:
+	var ui_scale := float(restart_menu.get("ui_scale", 1.0))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * ui_scale)
+	var width := float(restart_menu.get("canvas_width", size.x))
+	var height := float(restart_menu.get("canvas_height", size.y))
+	var fade := clampf(float(restart_menu.get("fade", 0.0)), 0.0, 1.0)
+	draw_rect(Rect2(0.0, 0.0, width, height), Color(0.0, 0.0, 0.0, 0.18 * fade))
+	var pulse := clampf(float(restart_menu.get("pulse", 0.5)), 0.0, 1.0)
+	var selection := int(restart_menu.get("selection", 0))
+	for row in restart_menu.get("rows", []):
+		var label := str(row.get("label", ""))
+		var selected := int(row.get("selection", -1)) == selection
+		var text_scale := float(row.get("text_scale", 1.0))
+		var center_x := float(row.get("center_x", width * 0.5))
+		var baseline_y := float(row.get("baseline_y", height * 0.56))
+		# DesktopRenderer advances every bitmap character by six source pixels,
+		# including unsupported punctuation such as the question mark in Again?.
+		var text_width := label.length() * 6.0 * text_scale
+		var color := Color(1.0, 1.0, 1.0, (0.98 if selected else 0.54) * fade)
+		if not selected:
+			color = Color(0.70, 0.88, 1.0, 0.54 * fade)
+		if selected:
+			var hit: Rect2 = row.get("hit", Rect2())
+			draw_rect(Rect2(hit.position.x + 10.0, baseline_y + 3.5 * text_scale,
+				7.0, 7.0), Color(CYAN, (0.78 + 0.16 * pulse) * fade))
+		_draw_native_bitmap_text(label,
+			Vector2(center_x - text_width * 0.5, baseline_y), text_scale, color, fade)
+
+func _native_bitmap_glyph(character: String) -> Array[int]:
+	# Exact rows from parent/game/BitmapFont.hpp for the restart vocabulary.
+	# Unknown glyphs intentionally remain blank while retaining their advance.
+	match character.to_upper():
+		"A": return [14, 17, 17, 31, 17, 17, 17]
+		"G": return [14, 17, 16, 23, 17, 17, 15]
+		"I": return [31, 4, 4, 4, 4, 4, 31]
+		"N": return [17, 25, 21, 19, 17, 17, 17]
+		"Q": return [14, 17, 17, 17, 21, 18, 13]
+		"T": return [31, 4, 4, 4, 4, 4, 4]
+		"U": return [17, 17, 17, 17, 17, 17, 14]
+		_: return [0, 0, 0, 0, 0, 0, 0]
+
+func _draw_native_bitmap_text(value: String, origin: Vector2, glyph_scale: float,
+		color: Color, overlay_alpha: float) -> void:
+	var pen_x := origin.x
+	for character in value:
+		var rows := _native_bitmap_glyph(character)
+		for row_index in range(7):
+			var bits: int = rows[row_index]
+			for column in range(5):
+				if (bits & (1 << (4 - column))) == 0:
+					continue
+				var pixel := Rect2(pen_x + column * glyph_scale,
+					origin.y + row_index * glyph_scale, glyph_scale, glyph_scale)
+				if overlay_alpha < 0.999:
+					var shadow := Color(0.0, 0.0, 0.0, color.a)
+					draw_rect(Rect2(pixel.position + Vector2(-1.0, 0.0), pixel.size), shadow)
+					draw_rect(Rect2(pixel.position + Vector2(1.0, 0.0), pixel.size), shadow)
+					draw_rect(Rect2(pixel.position + Vector2(0.0, -1.0), pixel.size), shadow)
+					draw_rect(Rect2(pixel.position + Vector2(0.0, 1.0), pixel.size), shadow)
+				draw_rect(pixel, color)
+		pen_x += 6.0 * glyph_scale
 
 func _draw_upgrade_menu(width: float, height: float, upgrade: Dictionary) -> void:
 	var reveal := smoothstep(0.0, 0.42, float(upgrade.get("presentation_time", 0.0)))

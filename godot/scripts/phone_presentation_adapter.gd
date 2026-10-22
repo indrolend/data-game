@@ -90,20 +90,22 @@ func _ready() -> void:
 
 func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	var first_person: bool = snapshot.first_person
-	if first_person:
-		# Native first-person hides its world-space phone body. Present the same
-		# native body/screen state as a camera-anchored view model in Godot.
+	var menu_layout: Dictionary = snapshot.get("menu_layout", {})
+	var menu_active := bool(menu_layout.get("active", false))
+	# A gameplay phone is a native world-space object. The desktop pause/menu is
+	# instead composed as a readable handset in the camera frame. Preserve the
+	# native transform and alter only this render-only presentation placement.
+	var camera_presented := first_person or menu_active
+	if camera_presented:
+		# Native first-person hides the world body; active menus use that same
+		# camera-anchored presentation so third-person pause is not microscopic.
 		phone_root.set_as_top_level(true)
 		var camera_basis: Basis = camera.global_basis
-		# The original phone is physically small; enlarge and move the render-only
-		# view model inward so its native menu remains readable at normal window size.
-		var view_position: Vector3 = camera.global_position + camera_basis * Vector3(0.22, -0.17, -0.72)
+		# Match the native pause composition at 1280x720: the complete handset is
+		# centered, readable, and occupies roughly three quarters of the frame.
+		var view_position := camera.global_position + camera_basis * Vector3(0.0, 0.05, -0.70)
 		phone_root.global_transform = Transform3D(camera_basis, view_position)
-		phone_root.scale = Vector3.ONE * 1.5
-		# Use the native pause framing: centered and large enough to read at 720p.
-		view_position = camera.global_position + camera_basis * Vector3(0.10, -0.14, -0.70)
-		phone_root.global_transform = Transform3D(camera_basis, view_position)
-		phone_root.scale = Vector3.ONE * 1.9
+		phone_root.scale = Vector3.ONE * 3.4
 	else:
 		phone_root.set_as_top_level(false)
 		phone_root.position = snapshot.position
@@ -144,7 +146,6 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	_screen_material.emission = native_background
 	_screen_material.emission_energy_multiplier = maxf(0.0, float(snapshot.emission_strength))
 	screen_text.modulate = tint.lightened(0.38)
-	var menu_layout: Dictionary = snapshot.get("menu_layout", {})
 	var opacity := clampf(float(snapshot.content_opacity), 0.0, 1.0)
 	var show_menu := bool(menu_layout.get("active", false)) and glass.visible
 	screen_text.visible = glass.visible and not show_menu
@@ -154,6 +155,34 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	phone_root.set_meta("native_screen_mode", int(snapshot.screen_mode))
 	phone_root.set_meta("native_menu_row_count", int(menu_layout.get("row_count", 0)))
 	phone_root.set_meta("native_menu_selection", int(menu_layout.get("selection", -1)))
+
+
+func viewport_to_phone_logical(viewport_position: Vector2, camera: Camera3D, layout: Dictionary):
+	if phone_root == null or glass == null or camera == null or not bool(layout.get("active", false)):
+		return null
+	var screen_size: Vector3 = (glass.mesh as BoxMesh).size
+	if screen_size.x <= 0.0 or screen_size.y <= 0.0:
+		return null
+	var screen_center: Vector3 = glass.position
+	var plane_local_z := screen_center.z + screen_size.z * 0.5
+	var plane_point := phone_root.to_global(Vector3(screen_center.x, screen_center.y, plane_local_z))
+	var plane_normal := (phone_root.global_transform.basis * Vector3(0.0, 0.0, 1.0)).normalized()
+	var ray_origin := camera.project_ray_origin(viewport_position)
+	var ray_direction := camera.project_ray_normal(viewport_position).normalized()
+	var denominator := plane_normal.dot(ray_direction)
+	if absf(denominator) <= 0.000001:
+		return null
+	var distance := plane_normal.dot(plane_point - ray_origin) / denominator
+	if distance <= 0.0:
+		return null
+	var local_hit := phone_root.to_local(ray_origin + ray_direction * distance)
+	var local_x := local_hit.x - screen_center.x
+	var local_y := local_hit.y - screen_center.y
+	if absf(local_x) > screen_size.x * 0.5 or absf(local_y) > screen_size.y * 0.5:
+		return null
+	var logical_width := float(maxi(1, int(layout.get("logical_width", 720))))
+	var logical_height := float(maxi(1, int(layout.get("logical_height", 1280))))
+	return Vector2((local_x / screen_size.x + 0.5) * logical_width, (0.5 - local_y / screen_size.y) * logical_height)
 
 func _native_display_background(tint: Color, brightness: float) -> Color:
 	# Mirrors DesktopRenderer::renderPhoneDisplayPixels' clear and full-canvas

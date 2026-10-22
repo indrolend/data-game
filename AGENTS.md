@@ -2,6 +2,15 @@
 
 Goal: use Godot for rendering, input, scene organization, and presentation while cherry-picking the original C++ game as the behavioral source. Keep the original `Game` simulation authoritative wherever it already works. Port only missing or engine-specific pieces; document intentional omissions and later improvements instead of inventing replacement mechanics.
 
+## Visual acceptance
+
+- Follow `VISUAL_ACCEPTANCE.md`. Track behavior proof, presentation-contract proof, and visual acceptance independently in `evidence/visual-acceptance/ledger.json`.
+- Headless tests, snapshot parity, source-byte equality, and a successfully saved PNG do not establish visual acceptance.
+- Do not call visual work fixed, restored, final, verified, or parity-complete unless `tests/check_visual_acceptance.ps1` accepts a ledger case whose visual status is `accepted`.
+- A Godot framebuffer driven by native state is still Godot evidence. New evidence names must identify the framebuffer renderer and must not use `native-*`, `final`, `ok`, `verified`, or `readable` as quality labels.
+- Review the whole frame and record obvious defects before reporting the intended local change. An unresolved P0/P1 visual defect requires visual status `rejected` even if behavior and adapter contracts pass.
+- Historical evidence directories are retained unchanged and their names confer no acceptance status.
+
 ## Architecture
 
 - `godot/scenes/main.tscn` is the normal launch path and runs `main.gd` over the original C++ `Game` via `ParentGameNode`/`ParentBridge`. The original simulation remains the sole gameplay authority on this path; bridge ticks advance exactly `1.0f / 60.0f`.

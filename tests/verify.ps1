@@ -5,16 +5,27 @@ $evidence = Join-Path $root "evidence"
 New-Item -ItemType Directory -Force $evidence | Out-Null
 Push-Location $root
 try {
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     & cmake -S . -B build-godot47 "-DGODOT_CPP_DIR=C:/Users/indro/Projects/godot-cpp" "-DGODOTCPP_DEFAULT_API_VERSION=4.7" 2>&1 | Set-Content (Join-Path $evidence "cmake-configure.log")
-    if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE" }
+    $cmakeConfigureExit = $LASTEXITCODE
+    $ErrorActionPreference = $oldEap
+    if ($cmakeConfigureExit -ne 0) { throw "CMake configure failed with exit code $cmakeConfigureExit" }
+
     & cmake --build build-godot47 --config Release --parallel 2>&1 | Set-Content (Join-Path $evidence "native-build.log")
     if ($LASTEXITCODE -ne 0) { throw "Native build failed with exit code $LASTEXITCODE" }
+    & (Join-Path $root "build-godot47/Release/phone_pointer_contract.exe") 2>&1 | Set-Content (Join-Path $evidence "phone-pointer-native.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native phone pointer contract failed with exit code $LASTEXITCODE" }
+    & (Join-Path $root "build-godot47/Release/restart_menu_contract.exe") 2>&1 | Set-Content (Join-Path $evidence "restart-menu-native.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native restart menu contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/parent_smoke.gd 2>&1 | Set-Content (Join-Path $evidence "headless-smoke.log")
     if ($LASTEXITCODE -ne 0) { throw "Headless smoke failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/phone_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "phone-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Phone presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/menu_navigation.gd 2>&1 | Set-Content (Join-Path $evidence "menu-navigation.log")
     if ($LASTEXITCODE -ne 0) { throw "Actual-scene menu navigation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/restart_menu.gd 2>&1 | Set-Content (Join-Path $evidence "restart-menu.log")
+    if ($LASTEXITCODE -ne 0) { throw "Restart menu contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/room_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "room-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Room presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/field_island_traversal.gd 2>&1 | Set-Content (Join-Path $evidence "field-island-traversal.log")

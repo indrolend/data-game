@@ -21,6 +21,9 @@ try {
         throw "Generated evidence is staged: $($generatedStaged -join ', ')"
     }
 
+    & "$PSScriptRoot\check_visual_acceptance.ps1"
+    if ($LASTEXITCODE -ne 0) { throw "Visual acceptance claim validation failed" }
+
     if (-not $SkipFullVerify) {
         & "$PSScriptRoot\verify.ps1" -GodotExe $GodotExe
         if ($LASTEXITCODE -ne 0) { throw "Full verification failed" }

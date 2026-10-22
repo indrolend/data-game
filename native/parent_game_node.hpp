@@ -23,6 +23,8 @@ public:
     void set_comm_signal(int signal);
     void set_paused(bool paused);
     void menu_move_selection(int direction);
+    int menu_item_at(float logical_x, float logical_y) const;
+    void set_menu_selection(int selection);
     bool menu_adjust(int direction);
     bool menu_confirm();
     bool menu_back();
@@ -45,6 +47,7 @@ public:
     Dictionary world_support_snapshot(float x, float z, float radius) const;
     void start_target_interaction_fixture();
     void start_damage_fixture();
+    void start_death_fixture();
     void start_city_room_fixture();
     void start_coastal_room_fixture();
     void start_sterile_room_fixture();
@@ -60,6 +63,9 @@ public:
     Dictionary phone_presentation_snapshot() const;
     Dictionary phone_menu_layout_snapshot() const;
     Dictionary hud_presentation_snapshot() const;
+    Dictionary restart_menu_presentation_snapshot(float viewport_width, float viewport_height) const;
+    int restart_menu_item_at(float viewport_x, float viewport_y,
+                             float viewport_width, float viewport_height) const;
     Dictionary upgrade_presentation_snapshot() const;
     Dictionary gameplay_loop_snapshot() const;
     Dictionary room_presentation_snapshot(int tile_index) const;

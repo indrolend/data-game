@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "policy": "VISUAL_ACCEPTANCE.md",
+  "history_note": "Legacy directory names such as native-*, final, ok, readable, restored, and verified are not acceptance claims. Many native-* frames were rendered by Godot from native state.",
+  "cases": [
+    {
+      "id": "phone-menu",
+      "scope": "Playable-character phone screen and native pause/settings menu",
+      "behavior": {
+        "status": "verified",
+        "evidence": ["tests/phone_pointer_contract.cpp", "godot/tests/menu_navigation.gd"]
+      },
+      "presentation_contract": {
+        "status": "partial",
+        "evidence": ["evidence/phone-presentation.log", "evidence/visual-fidelity-recovery/phone-character-runtime-review.md"]
+      },
+      "visual": {
+        "status": "rejected",
+        "reference_kind": "native_renderer",
+        "state_correspondence": "approximate",
+        "evidence": [
+          "evidence/phone-menu-readable-gpu-20261020/frame-001-tick-000024.png",
+          "evidence/visual-fidelity-recovery/native-phone-pause.png"
+        ],
+        "review": {
+          "whole_frame": true,
+          "reviewer": "Codex retrospective audit",
+          "reviewed_utc": "2026-10-22T00:00:00Z",
+          "blockers": [
+            "Menu typography remains a block-glyph approximation rather than the native phone display treatment.",
+            "Projected phone scale and composition are not established by an exact matched-state pair.",
+            "Screen-local illumination has contract proof but no accepted whole-sequence visual comparison."
+          ]
+        }
+      },
+      "claim": "Phone behavior is verified and its presentation contract is partial; visual acceptance is rejected."
+    },
+    {
+      "id": "restart-menu",
+      "scope": "Native-derived Again/Quit death overlay",
+      "behavior": {
+        "status": "verified",
+        "evidence": ["tests/restart_menu_contract.cpp", "godot/tests/restart_menu.gd"]
+      },
+      "presentation_contract": {
+        "status": "partial",
+        "evidence": ["godot/tests/restart_menu.gd", "native/death_menu_presentation.hpp"]
+      },
+      "visual": {
+        "status": "rejected",
+        "reference_kind": "native_renderer",
+        "state_correspondence": "approximate",
+        "evidence": [
+          "evidence/godot-842ba69-dirty-restart-menu/godot-842ba69-dirty-restart-menu-death-tick-000045.png"
+        ],
+        "review": {
+          "whole_frame": true,
+          "reviewer": "Codex retrospective audit",
+          "reviewed_utc": "2026-10-22T00:00:00Z",
+          "blockers": [
+            "Source-equivalent bitmap glyphs and selection geometry are present, but the composition remains small and weakly separated from the scene.",
+            "No exact matched-state C++ framebuffer exists to accept the complete overlay visually.",
+            "Foreground lawn geometry and dark scene compete with the overlay."
+          ]
+        }
+      },
+      "claim": "Restart behavior is verified and the overlay adapter is partial; visual acceptance is rejected."
+    },
+    {
+      "id": "field-lighting-and-composition",
+      "scope": "Field daylight world visibility, materials, and composition",
+      "behavior": {
+        "status": "verified",
+        "evidence": ["evidence/lighting-presentation.log"]
+      },
+      "presentation_contract": {
+        "status": "partial",
+        "evidence": ["evidence/visual-fidelity-recovery/experiment-results.md"]
+      },
+      "visual": {
+        "status": "unverified",
+        "reference_kind": "native_renderer",
+        "state_correspondence": "approximate",
+        "evidence": ["evidence/native-field-coastal-sterile-final/frame-000-tick-000010.png"],
+        "review": {
+          "whole_frame": true,
+          "reviewer": "Codex retrospective audit",
+          "reviewed_utc": "2026-10-22T00:00:00Z",
+          "blockers": [
+            "No exact native/Godot matched-state framebuffer pair exists.",
+            "The world remains sparse and visually flatter than later native renderer evidence."
+          ]
+        }
+      },
+      "claim": "Field lighting inputs are behavior-verified and partially adapted; visual acceptance is unverified."
+    },
+    {
+      "id": "combat-humans-and-particles",
+      "scope": "Enemy surface cracking, damage response, digital blood, ingestion, and particles",
+      "behavior": {
+        "status": "verified",
+        "evidence": ["godot/tests/human_model_presentation.gd", "godot/tests/damage_probe.gd"]
+      },
+      "presentation_contract": {
+        "status": "partial",
+        "evidence": ["evidence/human-model-presentation.log"]
+      },
+      "visual": {
+        "status": "rejected",
+        "reference_kind": "native_renderer",
+        "state_correspondence": "approximate",
+        "evidence": ["evidence/native-supplemental-effects-verified/frame-014-tick-000982.png"],
+        "review": {
+          "whole_frame": true,
+          "reviewer": "Codex retrospective audit",
+          "reviewed_utc": "2026-10-22T00:00:00Z",
+          "blockers": [
+            "Particle families still share simplified sphere-based Godot presentation.",
+            "Enemy cracking and translucency lack an exact native-renderer sequence comparison.",
+            "The selected frame proves rendering but not mature visual equivalence."
+          ]
+        }
+      },
+      "claim": "Combat state and damage contracts are verified; human and particle presentation is partial and visual acceptance is rejected."
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include "Game.hpp"
 #include "PhoneDisplayLayout.hpp"
+#include "death_menu_presentation.hpp"
 #include "developer/DeveloperCodec.hpp"
 #include <iomanip>
 #include <sstream>
@@ -19,6 +20,14 @@ public:
     void menuMoveSelection(int direction) {
         if (direction == 0) return;
         auto& state = game.networkMutableState();
+        if (state.dead) {
+            const int next = std::max(0, std::min(1,
+                state.cinematic.deathChoice + (direction > 0 ? 1 : -1)));
+            state.hud.menuSelection = next;
+            state.cinematic.deathChoice = next;
+            state.cinematic.textInteraction = std::max(state.cinematic.textInteraction, 0.22f);
+            return;
+        }
         const auto page = makePhoneMenuPageModel(state);
         const int count = page.selectableCount;
         if (count <= 0) return;
@@ -30,6 +39,31 @@ public:
         state.hud.menuSelection = next;
         const auto layout = makePhoneDisplayMenuLayout(state);
         state.localSettings.menuScroll = phoneDisplayScrollForSelection(layout, next);
+        state.cinematic.menuPaintGesture = 0;
+        state.cinematic.textInteraction = std::max(state.cinematic.textInteraction, 0.22f);
+    }
+    int menuItemAt(float logicalX, float logicalY) const {
+        if (!phoneMenuActive()) return -1;
+        const auto layout = makePhoneDisplayMenuLayout(game.state());
+        return phoneDisplayItemAt(layout, logicalX, logicalY);
+    }
+    void setMenuSelection(int selection) {
+        auto& state = game.networkMutableState();
+        if (state.dead) {
+            if (selection < 0 || selection > 1) return;
+            state.hud.menuSelection = selection;
+            state.cinematic.deathChoice = selection;
+            state.cinematic.textInteraction = std::max(state.cinematic.textInteraction, 0.22f);
+            return;
+        }
+        if (!phoneMenuActive()) return;
+        const auto page = makePhoneMenuPageModel(state);
+        if (page.selectableCount <= 0) return;
+        if (selection < 0 || selection >= page.selectableCount) return;
+        if (selection == state.hud.menuSelection) return;
+        state.hud.menuSelection = selection;
+        const auto layout = makePhoneDisplayMenuLayout(state);
+        state.localSettings.menuScroll = phoneDisplayScrollForSelection(layout, selection);
         state.cinematic.menuPaintGesture = 0;
         state.cinematic.textInteraction = std::max(state.cinematic.textInteraction, 0.22f);
     }
@@ -48,16 +82,19 @@ public:
     }
     bool menuConfirm() {
         auto& state = game.networkMutableState();
+        if (state.dead) {
+            const int selection = std::max(0, std::min(1, state.cinematic.deathChoice));
+            state.cinematic.menuPaintGesture = 1;
+            state.cinematic.textInteraction = 0.42f;
+            if (selection == 0) game.restart();
+            else game.prepareStartScreen();
+            return true;
+        }
         const auto page = makePhoneMenuPageModel(state);
         const auto* row = phoneMenuElementForSelection(page, state.hud.menuSelection);
         if (!row) return false;
         state.cinematic.menuPaintGesture = 1;
         state.cinematic.textInteraction = 0.42f;
-        if (state.dead) {
-            if (row->action == PhoneMenuAction::Restart) game.restart();
-            else game.prepareStartScreen();
-            return true;
-        }
         if (state.started && state.uiPaused) {
             if (row->action == PhoneMenuAction::Resume) game.setUiPaused(false);
             else if (row->action == PhoneMenuAction::ExitRun) game.prepareStartScreen();
@@ -85,7 +122,11 @@ public:
     }
     bool menuBack() {
         auto& state = game.networkMutableState();
-        if (state.dead) return false;
+        if (state.dead) {
+            state.hud.menuSelection = 1;
+            state.cinematic.deathChoice = 1;
+            return true;
+        }
         if (state.localSettings.menuHistoryDepth > 0) {
             const auto entry = state.localSettings.menuHistory[--state.localSettings.menuHistoryDepth];
             state.localSettings.menuPage = entry.page;
@@ -158,6 +199,17 @@ public:
         target.pos={0.0f,0.08f,-0.9f};target.vel={};target.walkTarget=state.player.pos;
         target.attackTimer=0.0f;target.attackCooldown=0.0f;target.attackHit=false;
         target.attackDirection={0.0f,0.0f,1.0f};target.attackTargetPlayerId=0;
+    }
+    void startDeathFixture() {
+        startDamageFixture();
+        game.networkMutableState().player.battery = 1.0f;
+        for (int frame = 0; frame < 600 && !game.state().dead; ++frame) game.update(1.0f / 60.0f);
+    }
+    DeathMenuPresentation deathMenuPresentation(float width, float height) const {
+        return makeDeathMenuPresentation(game.state(), width, height);
+    }
+    int deathMenuItemAt(float x, float y, float width, float height) const {
+        return ::deathMenuItemAt(deathMenuPresentation(width, height), x, y);
     }
     void startCityRoomFixture() {
         game.debugStartGeneratedRoomFixture(
@@ -342,6 +394,14 @@ public:
     }
     const GameState& state() const { return game.state(); }
 private:
+    bool phoneMenuActive() const {
+        const auto& state = game.state();
+        const auto mode = state.phoneDisplay.mode;
+        const bool presentationMode =
+            (mode >= PhoneDisplayMode::MainMenu && mode <= PhoneDisplayMode::Graphics) ||
+            mode == PhoneDisplayMode::Pause;
+        return presentationMode && (!state.started || state.uiPaused);
+    }
     void pushMenuPage(LocalMenuPage page) {
         auto& state = game.networkMutableState();
         auto& settings = state.localSettings;

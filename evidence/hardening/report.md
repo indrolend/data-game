@@ -7,7 +7,7 @@
 - `--authentic-playthrough` rejects soul spawning, battery refill, enemy disabling, direct capture aiming, and generated-room fixtures.
 - Capture output defaults to ignored `evidence/generated/agent-playtest/`.
 - A nonempty capture directory is rejected unless `--allow-existing-captures` is explicit, preventing mixed runs.
-- `tests/write_evidence_manifest.ps1` records Git revision/dirty state, Godot version, command-stream hash, exit code, and selected-frame hashes.
+- `tests/write_evidence_manifest.ps1` records Git revision/dirty state, framebuffer renderer separately from simulation authority, scenario/state correspondence, Godot/runtime identity, command-stream hash, exit code, and selected-frame hashes. Its required provenance fields prevent a native-driven Godot frame from being mislabeled as a C++ framebuffer.
 - `tests/check_parent_drift.ps1` compares authoritative `data-game/game` files with the embedded `parent/game` copies without modifying either checkout.
 - `tests/prepush.ps1` combines drift, working/staged diff, generated-evidence staging, and optional full verification checks.
 - The Field and all-room retained command streams now contain semantic milestone assertions.

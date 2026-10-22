@@ -1,0 +1,1 @@
+godot_console.exe --path godot --script res://tests/restart_menu.gd -- --evidence-dir=res://../evidence/godot-842ba69-dirty-restart-menu --evidence-file=godot-842ba69-dirty-restart-menu-death-tick-000045.png

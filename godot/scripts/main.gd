@@ -140,7 +140,7 @@ func _ready() -> void:
     developer_console = DeveloperConsole.new()
     developer_console.configure(runtime)
     hud.add_child(developer_console)
-    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _phone_menu_active() or _upgrade_active() else Input.MOUSE_MODE_CAPTURED
+    _sync_mouse_mode()
     _sync()
 func _input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
@@ -156,6 +156,44 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
     if developer_console.visible:
+        return
+    if _restart_menu_active():
+        if event is InputEventKey and event.pressed and not event.echo:
+            match event.keycode:
+                KEY_UP, KEY_W:
+                    runtime.menu_move_selection(-1)
+                KEY_DOWN, KEY_S:
+                    runtime.menu_move_selection(1)
+                KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+                    runtime.menu_confirm()
+                KEY_ESCAPE, KEY_BACKSPACE:
+                    runtime.menu_back()
+                _:
+                    return
+            _sync_mouse_mode()
+            _sync()
+            get_viewport().set_input_as_handled()
+        elif event is InputEventMouseMotion:
+            var viewport_size := get_viewport().get_visible_rect().size
+            var item := int(runtime.restart_menu_item_at(event.position.x, event.position.y,
+                viewport_size.x, viewport_size.y))
+            if item >= 0:
+                runtime.set_menu_selection(item)
+                _sync()
+            get_viewport().set_input_as_handled()
+        elif event is InputEventMouseButton and event.pressed:
+            if event.button_index == MOUSE_BUTTON_LEFT:
+                var viewport_size := get_viewport().get_visible_rect().size
+                var item := int(runtime.restart_menu_item_at(event.position.x, event.position.y,
+                    viewport_size.x, viewport_size.y))
+                if item >= 0:
+                    runtime.set_menu_selection(item)
+                    runtime.menu_confirm()
+            elif event.button_index == MOUSE_BUTTON_RIGHT:
+                runtime.menu_back()
+            _sync_mouse_mode()
+            _sync()
+            get_viewport().set_input_as_handled()
         return
     if _upgrade_active():
         if event is InputEventKey and event.pressed and not event.echo:
@@ -196,21 +234,32 @@ func _unhandled_input(event: InputEvent) -> void:
                     runtime.menu_back()
                 _:
                     return
-            if not _phone_menu_active() and bool(runtime.hud_presentation_snapshot().get("started", false)):
-                Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+            _sync_mouse_mode()
             _sync()
+            get_viewport().set_input_as_handled()
+        elif event is InputEventMouseMotion:
+            var logical = phone_adapter.call("viewport_to_phone_logical", event.position, camera, runtime.phone_menu_layout_snapshot())
+            if logical != null:
+                var item := int(runtime.menu_item_at(logical.x, logical.y))
+                if item >= 0:
+                    runtime.set_menu_selection(item)
+                    _sync()
             get_viewport().set_input_as_handled()
         elif event is InputEventMouseButton and event.pressed:
             if event.button_index == MOUSE_BUTTON_LEFT:
-                runtime.menu_confirm()
+                var logical = phone_adapter.call("viewport_to_phone_logical", event.position, camera, runtime.phone_menu_layout_snapshot())
+                if logical != null:
+                    var item := int(runtime.menu_item_at(logical.x, logical.y))
+                    if item >= 0:
+                        runtime.set_menu_selection(item)
+                        runtime.menu_confirm()
             elif event.button_index == MOUSE_BUTTON_RIGHT:
                 runtime.menu_back()
-            if not _phone_menu_active() and bool(runtime.hud_presentation_snapshot().get("started", false)):
-                Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+            _sync_mouse_mode()
             _sync()
             get_viewport().set_input_as_handled()
         return
-    if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+    if event is InputEventMouseMotion and _gameplay_pointer_active():
         pending_look += event.relative
     elif event is InputEventKey and event.pressed and not event.echo:
         match event.keycode:
@@ -231,10 +280,7 @@ func _unhandled_input(event: InputEvent) -> void:
             KEY_1, KEY_2, KEY_3, KEY_4:
                 pending_comm_signal = int(event.keycode - KEY_1) + 1
     elif event is InputEventMouseButton and event.pressed:
-        if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-            runtime.set_paused(false)
-            Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-        elif event.button_index == MOUSE_BUTTON_RIGHT:
+        if _gameplay_pointer_active() and event.button_index == MOUSE_BUTTON_RIGHT:
             pending_melee = true
 func _physics_process(_delta: float) -> void:
     if agent_playtest:
@@ -326,7 +372,9 @@ func _sync() -> void:
             runtime.target_model_vertices(i))
         souls[i].call("sync_from_native", runtime.target_soul_presentation_snapshot(i),
             runtime.target_soul_lattice(i))
-    hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(), hud_targets,
+    var viewport_size := get_viewport().get_visible_rect().size
+    hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(),
+        runtime.restart_menu_presentation_snapshot(viewport_size.x, viewport_size.y), hud_targets,
         camera, runtime.player_position(), runtime.comm_signal(),
         runtime.comm_signal_timer(), runtime.simulation_time())
 
@@ -441,8 +489,29 @@ func _sync_directional_light(light: DirectionalLight3D, source: Dictionary) -> v
     light.light_color = source_color / maxf(energy, 0.0001)
     light.light_energy = energy
 
+func _sync_mouse_mode() -> void:
+    if runtime == null:
+        return
+    if _restart_menu_active() or _phone_menu_active() or _upgrade_active():
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    elif bool(runtime.hud_presentation_snapshot().get("started", false)):
+        Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _gameplay_pointer_active() -> bool:
+    return runtime != null and bool(runtime.hud_presentation_snapshot().get("started", false)) \
+        and not _restart_menu_active() and not _phone_menu_active() and not _upgrade_active()
+
+func _restart_menu_active() -> bool:
+    return runtime != null and bool(runtime.hud_presentation_snapshot().get("dead", false))
+
 func _phone_menu_active() -> bool:
-    return runtime != null and bool(runtime.phone_menu_layout_snapshot().get("active", false))
+    if runtime == null or not bool(runtime.phone_menu_layout_snapshot().get("active", false)):
+        return false
+    # Native menu semantics, rather than a one-tick-old presentation mode,
+    # decide whether pointer input still belongs to the phone. Resume clears
+    # ui_paused synchronously, so camera capture is restored on that click.
+    var hud: Dictionary = runtime.hud_presentation_snapshot()
+    return not bool(hud.get("started", false)) or bool(hud.get("ui_paused", false))
 
 func _upgrade_active() -> bool:
     return runtime != null and bool(runtime.upgrade_menu_active())
