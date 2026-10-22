@@ -408,6 +408,10 @@ if(MSVC)
     target_link_options(SlopeTraversalFixtureTest PRIVATE /STACK:8388608)
 endif()
 
+add_executable(FieldIslandTraversalTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/field_island_traversal_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(FieldIslandTraversalTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(FieldIslandTraversalTest PRIVATE cxx_std_17)
+
 add_executable(RenderContractsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/render_contracts_test.cpp")
 target_include_directories(RenderContractsTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RenderContractsTest PRIVATE cxx_std_17)
@@ -546,6 +550,7 @@ add_test(NAME SlopeTraversalFixtureTest COMMAND SlopeTraversalFixtureTest)
 add_test(NAME SlopeTraversalCheck COMMAND SlopeTraversalFixtureTest --check)
 set_tests_properties(SlopeTraversalFixtureTest SlopeTraversalCheck PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:SlopeTraversalFixtureTest>")
+add_test(NAME FieldIslandTraversalTest COMMAND FieldIslandTraversalTest)
 add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
 add_test(NAME SceneLightingResponseTest COMMAND SceneLightingResponseTest)
 add_test(NAME ExpressiveVisualTest COMMAND ExpressiveVisualTest)

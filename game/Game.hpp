@@ -150,6 +150,7 @@ struct PlayerState {
     float treeClimbCooldown = 0.0f;
     int commSignal = 0;
     float commSignalTimer = 0.0f;
+    int abyssRecoveryCount = 0;
 };
 
 enum class AudioCue : unsigned char {
@@ -421,6 +422,7 @@ struct SoulColliderHit {
 };
 
 struct WorldSupportSample {
+    bool available=true;
     float height=0.08f;
     Vec3 normal{0.0f,1.0f,0.0f};
     SupportClassification classification=SupportClassification::Ordinary;
@@ -800,6 +802,7 @@ public:
     void debugStartRallyLab();
     void debugStartTraversalLab();
     void debugStartSlopeLab();
+    void debugStartFieldIslandFixture();
     void debugStartGeneratedRoomFixture(int roomSeed,int roomIndex);
     void debugStartRoomInspector();
     bool debugSpawnStoredSoul();
@@ -954,6 +957,7 @@ private:
     void updateBattery(float dt);
     void triggerRunDeath();
     void clearPlayerLifecycleActions();
+    void recoverPlayerFromAbyss();
     void emitAudio(AudioCue cue, float volume);
     void updateSlurpAudio();
     void updateBatteryAudio(float beforeValue);
@@ -980,6 +984,7 @@ private:
     float getPlayerCeilingLimit() const;
     WorldSupportSample getWorldSupport(float x,float z,float radius) const;
     WorldSupportSample getPlayerSupport(float x, float z) const;
+    bool isFieldIslandActive() const;
     float getPlayerSupportY(float x, float z) const { return getPlayerSupport(x,z).height; }
     void resolvePlayerObstacleCollisions(float previousX, float previousZ);
     void resolveDoorwayCollisions(float previousX, float previousZ);
