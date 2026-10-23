@@ -1012,19 +1012,20 @@ void Game::updateParticles(float dt) {
                 setParticleSurface(particle,support.normal,true);
                 const float settle=std::exp(-16.0f*dt);particle.vel.x*=settle;particle.vel.z*=settle;
                 if(reclaimed)particle.life=std::max(0.0f,particle.life-dt*1.25f);
-                if(residue&&state_.vacuum.active&&state_.player.battery<99.95f){
-                    const Vec3 delta=state_.phoneTransform.vacuumPullPoint-particle.pos;
-                    const float distance=length(delta);
-                    if(distance<=signal_residue::AttractionRadius){
-                        if(distance<=signal_residue::CaptureRadius){
-                            gainBattery(signal_residue::ChargePerFragment);
-                            particle.life=0.0f;
-                            continue;
-                        }
-                        particle.vel=normalized(delta)*signal_residue::PullSpeed;
-                        particle.surfaceFlags&=static_cast<std::uint8_t>(~1u);
-                    }
+
+            }
+        }
+        if(residue&&state_.vacuum.active&&state_.player.battery<99.95f){
+            const Vec3 delta=state_.phoneTransform.vacuumPullPoint-particle.pos;
+            const float distance=length(delta);
+            if(distance<=signal_residue::AttractionRadius){
+                if(distance<=signal_residue::CaptureRadius){
+                    gainBattery(signal_residue::ChargePerFragment);
+                    particle.life=0.0f;
+                    continue;
                 }
+                particle.vel=normalized(delta)*signal_residue::PullSpeed;
+                particle.surfaceFlags&=static_cast<std::uint8_t>(~1u);
             }
         }
         particle.life=std::max(0.0f,particle.life-dt);
