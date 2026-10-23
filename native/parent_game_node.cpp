@@ -64,6 +64,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("restart_menu_item_at","viewport_x","viewport_y","viewport_width","viewport_height"),&ParentGameNode::restart_menu_item_at);
     ClassDB::bind_method(D_METHOD("upgrade_presentation_snapshot"),&ParentGameNode::upgrade_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("gameplay_loop_snapshot"),&ParentGameNode::gameplay_loop_snapshot);
+    ClassDB::bind_method(D_METHOD("door_transition_presentation_snapshot"),&ParentGameNode::door_transition_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("projectile_presentation_snapshot"),&ParentGameNode::projectile_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
@@ -375,6 +376,17 @@ Dictionary ParentGameNode::gameplay_loop_snapshot() const {
     result["permanent_levels"]=permanentLevels;
     result["tokens"]=static_cast<int64_t>(state.progression.permanent.tokens);
     result["upgrade_active"]=state.upgradeMenu.active;
+    return result;
+}
+Dictionary ParentGameNode::door_transition_presentation_snapshot() const {
+    const DoorTransitionState& transition=bridge.state().doorTransition;
+    Dictionary result;
+    result["stable_id"]="native-door-transition";
+    result["active"]=transition.active;
+    result["progress"]=transition.progress;
+    result["distance_travelled"]=transition.distanceTravelled;
+    result["last_player_position"]=v(transition.lastPlayerPos);
+    result["frame_motion"]=v(transition.frameMotion);
     return result;
 }
 Array ParentGameNode::projectile_presentation_snapshot() const {

@@ -122,6 +122,39 @@
         }
       },
       "claim": "Combat state and damage contracts are verified; human and particle presentation is partial and visual acceptance is rejected."
+    },
+    {
+      "id": "door-transition-datamosh-v3",
+      "scope": "Native-driven doorway room-transition datamosh",
+      "behavior": {
+        "status": "verified",
+        "evidence": ["godot/tests/room_transition.gd"]
+      },
+      "presentation_contract": {
+        "status": "verified",
+        "evidence": ["godot/tests/room_transition.gd", "native/parent_game_node.cpp", "godot/scripts/door_transition_presentation.gd"]
+      },
+      "visual": {
+        "status": "unverified",
+        "reference_kind": "native_renderer",
+        "state_correspondence": "approximate",
+        "evidence": [
+          "evidence/visual-recovery-v3/captures/00-before-door-transition.png",
+          "evidence/visual-recovery-v3/captures/01-native-transition-strength-1.png",
+          "evidence/visual-recovery-v3/captures/02-native-transition-peel.png"
+        ],
+        "review": {
+          "whole_frame": true,
+          "reviewer": "Codex V3 whole-frame review",
+          "reviewed_utc": "2026-10-23T22:00:00Z",
+          "blockers": [
+            "No exact matched-state desktop framebuffer sequence exists for comparison.",
+            "The Godot Compatibility shader samples the current framebuffer rather than retaining the prior room framebuffer.",
+            "The maximum-strength frame is intentionally dark and requires a native matched-state reference before acceptance."
+          ]
+        }
+      },
+      "claim": "Door-transition behavior and the presentation contract are verified; visual acceptance remains unverified."
     }
   ]
 }

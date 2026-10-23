@@ -113,6 +113,13 @@ func _run() -> void:
                 if not await _observe():
                     commands.close()
                     return
+            "room_transition_fixture":
+                world.runtime.start_room_transition_fixture()
+                world._sync()
+                await process_frame
+                if not await _observe():
+                    commands.close()
+                    return
             "soul_spawn":
                 var response: String = world.runtime.execute_developer_command("soul spawn")
                 if response != "SOUL SPAWNED":
@@ -368,8 +375,10 @@ func _observe() -> bool:
                 nearest_camera_alpha = float(row.camera_alpha)
                 break
     var native_target_position: Vector3 = nearest_snapshot.get("position", Vector3.ZERO)
+    var native_transition: Dictionary = world.runtime.door_transition_presentation_snapshot()
+    var godot_transition: Dictionary = presentation.door_transition
     var command_id := "uncommanded" if current_command_sequence < 0 else "cmd-%04d" % current_command_sequence
-    print("AGENT_STATE schema=%d command_id=%s frame=%d room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f camera_pos=%.6f,%.6f,%.6f camera_target=%.6f,%.6f,%.6f camera_fov=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d projectile_id=%s projectile_pos=%.6f,%.6f,%.6f projectile_vel=%.6f,%.6f,%.6f godot_projectile_node=%s godot_projectile_pos=%.6f,%.6f,%.6f projectile_visible=%d projectile_transform_error=%.6f action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d camera_obstruction_fade=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f nearest_node=%s nearest_godot_pos=%.6f,%.6f,%.6f nearest_camera_alpha=%.6f nearest_transform_error=%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
+    print("AGENT_STATE schema=%d command_id=%s frame=%d room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f camera_pos=%.6f,%.6f,%.6f camera_target=%.6f,%.6f,%.6f camera_fov=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d projectile_id=%s projectile_pos=%.6f,%.6f,%.6f projectile_vel=%.6f,%.6f,%.6f godot_projectile_node=%s godot_projectile_pos=%.6f,%.6f,%.6f projectile_visible=%d projectile_transform_error=%.6f action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d camera_obstruction_fade=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f nearest_node=%s nearest_godot_pos=%.6f,%.6f,%.6f nearest_camera_alpha=%.6f nearest_transform_error=%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f transition_id=%s transition_active=%d transition_progress=%.6f transition_motion=%.6f,%.6f,%.6f transition_visible=%d transition_progress_error=%.6f frame_capture=%d frame_file=\"%s\"" % [
         SCHEMA, command_id, world.runtime.frame(), int(loop.room_index), int(loop.room_seed),
         str(loop.setting_name), str(loop.form_name), float(loop.room_heat),
         int(loop.room_captures), int(loop.deposited_souls), int(loop.required_souls),
@@ -398,6 +407,11 @@ func _observe() -> bool:
         int(nearest_snapshot.get("attack_active", false)),
         float(nearest_snapshot.get("attack_phase", 0.0)), objective,
         objective_position.x, objective_position.y, objective_position.z, objective_distance,
+        str(native_transition.stable_id), int(native_transition.active),
+        float(native_transition.progress), float(native_transition.frame_motion.x),
+        float(native_transition.frame_motion.y), float(native_transition.frame_motion.z),
+        int(godot_transition.visible),
+        absf(float(native_transition.progress) - float(godot_transition.progress)),
         int(capture_error == OK), ProjectSettings.globalize_path(frame_path)])
     var inspector: Dictionary = world.runtime.room_inspector_snapshot()
     if bool(inspector.get("active", false)):
@@ -453,7 +467,7 @@ func _parse_command(line: String) -> Dictionary:
     if tokens.is_empty():
         return {"error": "empty_command"}
     var verb := tokens[0]
-    if verb in ["observe", "reset", "field_island_fixture", "soul_spawn", "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "room_inspector", "room_next", "room_reroll", "room_enemies", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
+    if verb in ["observe", "reset", "field_island_fixture", "room_transition_fixture", "soul_spawn", "battery_full", "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture", "sterile_fixture", "ruin_fixture", "upgrade_fixture", "room_inspector", "room_next", "room_reroll", "room_enemies", "upgrade_confirm", "quit", "pause", "menu_confirm", "menu_back"]:
         return {"kind": verb} if tokens.size() == 1 else {"error": "unexpected_argument"}
     if verb == "assert":
         if tokens.size() < 2:
@@ -544,7 +558,7 @@ func _parse_bool(value: String) -> Variant:
     return null
 
 func _is_authentic_fixture(kind: String) -> bool:
-    return kind in ["reset", "field_island_fixture", "soul_spawn", "battery_full",
+    return kind in ["reset", "field_island_fixture", "room_transition_fixture", "soul_spawn", "battery_full",
         "enemies_off", "capture_shot_fixture", "city_fixture", "coastal_fixture",
         "sterile_fixture", "ruin_fixture", "upgrade_fixture", "room_inspector",
         "room_next", "room_reroll", "room_enemies"]

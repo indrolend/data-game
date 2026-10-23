@@ -1,6 +1,6 @@
 param(
     [ValidateSet('run','ingest','verify','pack','diagnose')][string]$Operation = 'run',
-    [ValidateSet('capture-shoot-v2')][string]$Scenario = 'capture-shoot-v2',
+    [ValidateSet('capture-shoot-v2','door-transition')][string]$Scenario = 'capture-shoot-v2',
     [string]$Source,
     [string]$Output,
     [string]$GodotExe = 'godot_console.exe',
@@ -184,7 +184,7 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
                 simulation_frame=[long]$s.frame; simulation_time_seconds=([double]$s.frame / 60.0)
                 source_subsystem='native-cpp-via-godot-bridge'; evidence_class='observed'; command_id=$commandId
                 native_state=$s
-                godot_presentation=[ordered]@{ evidence_class='observed'; framebuffer_capture=$frameRel; capture_succeeded=([int]$s.frame_capture -eq 1); adapter_sync='same-agent-observation'; camera=[ordered]@{position=$s.camera_pos;target=$s.camera_target;fov=$s.camera_fov;obstruction_fade_enabled=$s.camera_obstruction_fade}; visual_verification='not_performed' }
+                godot_presentation=[ordered]@{ evidence_class='observed'; framebuffer_capture=$frameRel; capture_succeeded=([int]$s.frame_capture -eq 1); adapter_sync='same-agent-observation'; camera=[ordered]@{position=$s.camera_pos;target=$s.camera_target;fov=$s.camera_fov;obstruction_fade_enabled=$s.camera_obstruction_fade}; door_transition=[ordered]@{stable_id=$s.transition_id;visible=$s.transition_visible;progress=$s.transition_progress;progress_error=$s.transition_progress_error}; visual_verification='not_performed' }
                 source_schema=[int]$s.schema
             }
             $states.Add($stateRow)
@@ -193,6 +193,9 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
             }
             if ($s.projectile_id -and $s.projectile_id -ne 'unavailable') {
                 $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id=$s.projectile_id; object_type='soul-projectile'; source_subsystem='native-cpp+godot'; evidence_class='observed'; native_transform=[ordered]@{position=$s.projectile_pos;velocity=$s.projectile_vel}; godot_transform=[ordered]@{status=if([int]$s.projectile_visible -eq 1){'observed'}else{'unavailable'};node=$s.godot_projectile_node;position=$s.godot_projectile_pos;error=$s.projectile_transform_error}; presentation=[ordered]@{visible=([int]$s.projectile_visible -eq 1)}; geometry_export=[ordered]@{status='unsupported';reason='runtime presentation uses a generated SphereMesh; no GLB exporter contract'} })
+            }
+            if ([int]$s.transition_active -eq 1) {
+                $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id=$s.transition_id; object_type='door-transition-effect'; source_subsystem='native-cpp+godot'; evidence_class='observed'; native_state=[ordered]@{active=$true;progress=$s.transition_progress;frame_motion=$s.transition_motion}; godot_presentation=[ordered]@{visible=([int]$s.transition_visible -eq 1);progress=$s.transition_progress;progress_error=$s.transition_progress_error}; geometry_export=[ordered]@{status='unsupported';reason='screen-space framebuffer effect has no portable geometry'} })
             }
             if ([int]$s.objective -ge 0) {
                 $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id="capture-goal-$($s.objective)"; object_type='capture-goal'; source_subsystem='native-cpp'; evidence_class='observed'; native_transform=[ordered]@{ position="$($s.objective_pos)" }; godot_transform=[ordered]@{ status='unavailable'; reason='agent protocol v3 does not emit adapter global transform' }; geometry_export=[ordered]@{ status='unsupported' }; state=[ordered]@{ deposited=$s.deposited; required=$s.required } })
@@ -212,15 +215,32 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
         $capture = @($states | Where-Object { [int]$_.native_state.souls -gt 0 }).Count -gt 0
         $projectile = @($states | Where-Object { [int]$_.native_state.projectiles -gt 0 }).Count -gt 0
         $deposit = ([int]$states[-1].native_state.deposited -gt [int]$states[0].native_state.deposited) -and ([int]$states[-1].native_state.tokens -gt [int]$states[0].native_state.tokens)
-        $assertionRows = @(
-            [ordered]@{ id='authoritative-state-present'; status=if($states.Count -gt 0){'pass'}else{'fail'}; evidence='states.ndjson' },
-            [ordered]@{ id='native-soul-captured'; status=if($capture){'pass'}else{'fail'}; evidence='observed souls counter > 0' },
-            [ordered]@{ id='native-projectile-created'; status=if($projectile){'pass'}else{'fail'}; evidence='observed projectiles counter > 0' },
-            [ordered]@{ id='deposit-objective-achieved'; status=if($deposit){'pass'}else{'not_achieved'}; evidence='requires deposited and token counters both increase' },
-            [ordered]@{ id='godot-frames-captured'; status=if(@(Get-ChildItem (Join-Path $outFull 'frames') -File).Count -gt 0){'pass'}else{'unavailable'}; evidence='frames/' },
-            [ordered]@{ id='visual-quality-verified'; status='not_performed'; evidence='capture is not visual acceptance' }
-        )
-        $assertions = [ordered]@{ schema_version=$schema; run_id=$RunId; objective='capture-and-shoot'; objective_achieved=($capture -and $projectile); deposit_objective_achieved=$deposit; assertions=$assertionRows }
+        $transitionStates = @($states | Where-Object { [int]$_.native_state.transition_active -eq 1 })
+        $transitionObserved = $transitionStates.Count -gt 0
+        $transitionPresented = $transitionObserved -and @($transitionStates | Where-Object { [int]$_.native_state.transition_visible -ne 1 }).Count -eq 0
+        $transitionCorrelated = $transitionObserved -and @($transitionStates | Where-Object { [double]$_.native_state.transition_progress_error -gt 0.000001 }).Count -eq 0
+        if ($Scenario -eq 'door-transition') {
+            $assertionRows = @(
+                [ordered]@{ id='authoritative-state-present'; status='pass'; evidence='states.ndjson' },
+                [ordered]@{ id='native-door-transition-active'; status=if($transitionObserved){'pass'}else{'fail'}; evidence='transition_active=1' },
+                [ordered]@{ id='godot-door-transition-visible'; status=if($transitionPresented){'pass'}else{'fail'}; evidence='transition_visible=1 for active observations' },
+                [ordered]@{ id='transition-progress-correlated'; status=if($transitionCorrelated){'pass'}else{'fail'}; evidence='transition_progress_error <= 0.000001' },
+                [ordered]@{ id='godot-frames-captured'; status=if(@(Get-ChildItem (Join-Path $outFull 'frames') -File).Count -gt 0){'pass'}else{'unavailable'}; evidence='frames/' },
+                [ordered]@{ id='visual-quality-verified'; status='not_performed'; evidence='capture is not visual acceptance' }
+            )
+            $objectiveAchieved = $transitionObserved -and $transitionPresented -and $transitionCorrelated
+        } else {
+            $assertionRows = @(
+                [ordered]@{ id='authoritative-state-present'; status='pass'; evidence='states.ndjson' },
+                [ordered]@{ id='native-soul-captured'; status=if($capture){'pass'}else{'fail'}; evidence='observed souls counter > 0' },
+                [ordered]@{ id='native-projectile-created'; status=if($projectile){'pass'}else{'fail'}; evidence='observed projectiles counter > 0' },
+                [ordered]@{ id='deposit-objective-achieved'; status=if($deposit){'pass'}else{'not_achieved'}; evidence='requires deposited and token counters both increase' },
+                [ordered]@{ id='godot-frames-captured'; status=if(@(Get-ChildItem (Join-Path $outFull 'frames') -File).Count -gt 0){'pass'}else{'unavailable'}; evidence='frames/' },
+                [ordered]@{ id='visual-quality-verified'; status='not_performed'; evidence='capture is not visual acceptance' }
+            )
+            $objectiveAchieved = $capture -and $projectile
+        }
+        $assertions = [ordered]@{ schema_version=$schema; run_id=$RunId; objective=$Scenario; objective_achieved=$objectiveAchieved; deposit_objective_achieved=$deposit; assertions=$assertionRows }
         Write-Json (Join-Path $outFull 'assertions.json') $assertions
         $status = @(& git -C $root status --porcelain=v1)
         $godotVersion = (& $GodotExe --version 2>$null | Select-Object -First 1)
@@ -230,7 +250,7 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
         foreach ($file in Get-ChildItem $outFull -Recurse -File | Where-Object { $_.Name -ne 'manifest.json' }) {
             $files.Add([ordered]@{ path=Get-Relative $outFull $file.FullName; bytes=$file.Length; sha256=(Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() })
         }
-        $manifest = [ordered]@{ schema_version=$schema; compatibility=[ordered]@{ reads=@('agent-playtest/schema-3','capture-shoot-v2/schema-1'); missing_fields='explicitly unavailable/unsupported'; forward_compatible=$false }; run_id=$RunId; created_utc=[DateTime]::UtcNow.ToString('o'); scenario=$Scenario; outcome=if($capture -and $projectile){'objective_achieved'}else{'objective_not_achieved'}; capture_status='captured'; visual_verification='not_performed'; repository=$root; source_revision=[ordered]@{ git_head=(& git -C $root rev-parse HEAD).Trim(); dirty=($status.Count -gt 0); status=$status }; runtime=[ordered]@{ godot_version="$godotVersion".Trim(); fixed_dt=1.0/60.0 }; replay=[ordered]@{ inputs_retained=$true; deterministic_replay_verified=$false; reason='historical controller uses a live policy and protocol lacks a full initial-state snapshot' }; source_evidence=Get-Relative $root $sourceFull; files=$files }
+        $manifest = [ordered]@{ schema_version=$schema; compatibility=[ordered]@{ reads=@('agent-playtest/schema-3','agent-playtest/schema-4','capture-shoot-v2/schema-1'); missing_fields='explicitly unavailable/unsupported'; forward_compatible=$false }; run_id=$RunId; created_utc=[DateTime]::UtcNow.ToString('o'); scenario=$Scenario; outcome=if($objectiveAchieved){'objective_achieved'}else{'objective_not_achieved'}; capture_status='captured'; visual_verification='not_performed'; repository=$root; source_revision=[ordered]@{ git_head=(& git -C $root rev-parse HEAD).Trim(); dirty=($status.Count -gt 0); status=$status }; runtime=[ordered]@{ godot_version="$godotVersion".Trim(); fixed_dt=1.0/60.0 }; replay=[ordered]@{ inputs_retained=$true; deterministic_replay_verified=$false; reason='historical controller uses a live policy and protocol lacks a full initial-state snapshot' }; source_evidence=Get-Relative $root $sourceFull; files=$files }
         Write-Json (Join-Path $outFull 'manifest.json') $manifest
         $finalized = $true
     } finally {

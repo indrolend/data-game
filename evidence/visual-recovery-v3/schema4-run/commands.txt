@@ -1,0 +1,5 @@
+room_transition_fixture
+step frames=14 moveZ=1
+upgrade_confirm
+step frames=8 moveZ=1
+quit

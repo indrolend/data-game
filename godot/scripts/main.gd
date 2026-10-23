@@ -8,11 +8,13 @@ const NativeParticlePresentationAdapter = preload("res://scripts/native_particle
 const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
 const DeveloperConsole = preload("res://scripts/developer_console.gd")
 const HudPresentationAdapter = preload("res://scripts/hud_presentation_adapter.gd")
+const DoorTransitionPresentation = preload("res://scripts/door_transition_presentation.gd")
 const SkyDomeShader = preload("res://shaders/open_sky_dome.gdshader")
 const MoonSurfaceShader = preload("res://shaders/moon_surface.gdshader")
 var runtime: Node
 var developer_console: Control
 var hud_adapter: Control
+var door_transition_adapter: CanvasLayer
 var phone_adapter: Node
 var particle_adapter: Node
 var room_adapter: Node
@@ -148,7 +150,11 @@ func _ready() -> void:
     camera.keep_aspect = Camera3D.KEEP_HEIGHT
     camera.environment = scene_environment
     add_child(camera)
+    door_transition_adapter = DoorTransitionPresentation.new()
+    door_transition_adapter.name = "DoorTransitionPresentation"
+    add_child(door_transition_adapter)
     var hud := CanvasLayer.new()
+    hud.layer = 10
     add_child(hud)
     hud_adapter = HudPresentationAdapter.new()
     hud_adapter.name = "NativeHudPresentation"
@@ -391,6 +397,8 @@ func _sync() -> void:
             runtime.target_soul_lattice(i))
     _sync_projectiles(runtime.projectile_presentation_snapshot())
     var viewport_size := get_viewport().get_visible_rect().size
+    door_transition_adapter.call("sync_snapshot",
+        runtime.door_transition_presentation_snapshot(), viewport_size)
     hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(),
         runtime.restart_menu_presentation_snapshot(viewport_size.x, viewport_size.y), hud_targets,
         camera, runtime.player_position(), runtime.comm_signal(),
@@ -447,6 +455,12 @@ func presentation_observation_snapshot() -> Dictionary:
         "targets": target_rows,
         "projectiles": projectile_rows,
         "camera_obstruction_fade_enabled": camera_obstruction_fade_enabled,
+        "door_transition": {
+            "stable_id": "native-door-transition",
+            "visible": door_transition_adapter.overlay.visible,
+            "progress": float(door_transition_adapter.overlay.get_meta("native_progress", 0.0)),
+            "motion_pixels": door_transition_adapter.overlay.get_meta("native_motion_pixels", Vector2.ZERO),
+        },
     }
 
 func _sync_lighting(snapshot: Dictionary) -> void:

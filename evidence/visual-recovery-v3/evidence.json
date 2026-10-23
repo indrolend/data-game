@@ -1,0 +1,15 @@
+{
+  "schema_version": "digital-breakdown.visual-recovery/v3",
+  "baseline_revision": "de26438d2639536741c05d2511f8b2ba65edb7db",
+  "renderer": "godot-4.7.2-compatibility",
+  "gpu": "NVIDIA GeForce RTX 3060",
+  "scenario": "native-room-door-transition",
+  "stable_object_id": "native-door-transition",
+  "state_correspondence": "native-state-exact/pixels-adapted",
+  "visual_verification": "inspected-unverified-parity",
+  "captures": [
+    {"path":"captures/00-before-door-transition.png","bytes":173811,"sha256":"acdea4da936ed3b85fe9748026d3b20b71c0abfb3a58c62bf863fb8b1d364ae3","state":"inactive"},
+    {"path":"captures/01-native-transition-strength-1.png","bytes":142494,"sha256":"dda1cc5fd9ce992fb22955fc41d728994ba58a57184e21f1a65a4f57a39dc96c","state":"active-strength-1"},
+    {"path":"captures/02-native-transition-peel.png","bytes":339533,"sha256":"e960710c9a8e6aa42118b9093da55aebd31cdec5e6ceddc9b4338d3dd5e207b4","state":"active-mid-peel"}
+  ]
+}

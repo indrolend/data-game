@@ -24,6 +24,8 @@ func _initialize() -> void:
         script._parse_command("room_next").kind == "room_next" and
         script._parse_command("room_reroll").kind == "room_reroll",
         "agent protocol exposes bounded native room-inspector navigation")
+    check(script._parse_command("room_transition_fixture").kind == "room_transition_fixture",
+        "agent protocol exposes the native doorway transition fixture")
     check(script._is_authentic_fixture("reset") and script._is_authentic_fixture("battery_full") and
         not script._is_authentic_fixture("observe"),
         "authentic play rejects debug reset and resource fixtures but permits observation")

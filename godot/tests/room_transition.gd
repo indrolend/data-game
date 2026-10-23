@@ -17,8 +17,10 @@ func _run() -> void:
 	var runtime = scene.runtime
 	runtime.start_room_transition_fixture()
 	var before: Dictionary = runtime.upgrade_presentation_snapshot()
+	var before_transition: Dictionary = runtime.door_transition_presentation_snapshot()
 	check(not bool(before.active) and int(before.room_index) == 1,
 		"native rally fixture starts cleared in room one before door crossing")
+	check(not bool(before_transition.active), "door datamosh begins inactive")
 	var frames_to_transition := -1
 	for frame in range(120):
 		runtime.submit_input(0.0, 1.0, 0.0, 0.0, false, false, false, false, false, false)
@@ -36,6 +38,14 @@ func _run() -> void:
 		"door transition occurs within bounded native movement input")
 	var transitioned_room: Dictionary = runtime.room_presentation_snapshot(-1)
 	scene._sync()
+	var native_transition: Dictionary = runtime.door_transition_presentation_snapshot()
+	var presented_transition: Dictionary = scene.presentation_observation_snapshot().door_transition
+	check(bool(native_transition.active) and float(native_transition.progress) > 0.018,
+		"authoritative native doorway transition exposes active datamosh strength")
+	check(bool(presented_transition.visible),
+		"Godot presents the active native doorway datamosh")
+	check(absf(float(presented_transition.progress) - float(native_transition.progress)) <= 0.000001,
+		"Godot datamosh strength exactly follows the native transition")
 	check(int(scene.room_adapter.get_meta("native_room_index")) == int(transitioned_room.room_index),
 		"main presentation synchronizes the room index after native doorway progression")
 	var transitioned_floor_id := "room/%d/structure/floor" % int(transitioned_room.tile_index)

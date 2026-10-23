@@ -1,0 +1,39 @@
+{
+  "schema_version": "digital-breakdown.unified-evidence/v2",
+  "run_id": "door-transition-20261023-164831-708",
+  "objective": "door-transition",
+  "objective_achieved": true,
+  "deposit_objective_achieved": false,
+  "assertions": [
+    {
+      "id": "authoritative-state-present",
+      "status": "pass",
+      "evidence": "states.ndjson"
+    },
+    {
+      "id": "native-door-transition-active",
+      "status": "pass",
+      "evidence": "transition_active=1"
+    },
+    {
+      "id": "godot-door-transition-visible",
+      "status": "pass",
+      "evidence": "transition_visible=1 for active observations"
+    },
+    {
+      "id": "transition-progress-correlated",
+      "status": "pass",
+      "evidence": "transition_progress_error <= 0.000001"
+    },
+    {
+      "id": "godot-frames-captured",
+      "status": "pass",
+      "evidence": "frames/"
+    },
+    {
+      "id": "visual-quality-verified",
+      "status": "not_performed",
+      "evidence": "capture is not visual acceptance"
+    }
+  ]
+}
