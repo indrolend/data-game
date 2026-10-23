@@ -31,6 +31,7 @@ var _sky_update_bucket := -1
 var _sky_update_setting := -1
 var sun_light: DirectionalLight3D
 var fill_light: DirectionalLight3D
+var drama_spotlight: SpotLight3D
 var native_point_lights: Array[OmniLight3D] = []
 var _grass_snapshot_key := ""
 var targets: Array[Node3D] = []
@@ -101,6 +102,18 @@ func _ready() -> void:
     fill_light.name = "NativeSkyFill"
     fill_light.light_cull_mask = WORLD_AND_PHONE_RECEIVER_LAYERS
     add_child(fill_light)
+    # Render-only theatrical follow spot: it consumes native day/event state and
+    # never feeds back into the authoritative simulation.
+    drama_spotlight = SpotLight3D.new()
+    drama_spotlight.name = "GodotDramaSpotlight"
+    drama_spotlight.light_cull_mask = WORLD_AND_PHONE_RECEIVER_LAYERS
+    drama_spotlight.light_color = Color(1.0, 0.91, 0.72)
+    drama_spotlight.light_energy = 3.2
+    drama_spotlight.spot_range = 18.0
+    drama_spotlight.spot_angle = 24.0
+    drama_spotlight.shadow_enabled = true
+    drama_spotlight.visible = false
+    add_child(drama_spotlight)
     for light_index in range(6):
         var point_light := OmniLight3D.new()
         point_light.name = "NativeResolvedLight_%d" % light_index
@@ -392,6 +405,7 @@ func _sync_lighting(snapshot: Dictionary) -> void:
     scene_environment.fog_density = float(snapshot.fog_density)
     _sync_directional_light(sun_light, snapshot.sun)
     _sync_directional_light(fill_light, snapshot.fill)
+    _sync_drama_spotlight(snapshot)
     var sources: Array = snapshot.local_lights
     # The screen-attached light is materialized by PhonePresentationAdapter.
     # Adding the older resolved `snapshot.phone` here creates a second omni
@@ -417,6 +431,18 @@ func _sync_lighting(snapshot: Dictionary) -> void:
         point.light_energy = energy
         var quadratic := float(source.quadratic_attenuation)
         point.omni_range = clampf(1.0 / sqrt(quadratic), 1.5, 30.0) if quadratic > 0.0001 else 4.5
+
+func _sync_drama_spotlight(snapshot: Dictionary) -> void:
+    var loop: Dictionary = runtime.gameplay_loop_snapshot()
+    var special_event := int(loop.projectiles) > 0 or int(loop.room_captures) > 0 or bool(loop.upgrade_active)
+    var night := bool(snapshot.open_sky) and float(snapshot.daylight) < 0.22
+    drama_spotlight.visible = night or special_event
+    if not drama_spotlight.visible:
+        return
+    var player: Vector3 = runtime.player_position()
+    drama_spotlight.position = player + Vector3(0.0, 10.5, 1.5)
+    drama_spotlight.look_at(player + Vector3(0.0, 0.8, 0.0), Vector3.FORWARD)
+    drama_spotlight.light_energy = 4.2 if special_event else 2.6
 
 func _sync_open_sky(snapshot: Dictionary) -> void:
     # The shader has no engine TIME dependency and updates its uniforms only

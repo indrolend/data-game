@@ -57,6 +57,8 @@ func _run() -> void:
 		scene.scene_environment.fog_light_color == native.fog_color and
 		is_equal_approx(scene.scene_environment.fog_density, native.fog_density),
 		"Godot Environment consumes native atmosphere values without local mood constants")
+	check(scene.drama_spotlight is SpotLight3D and not scene.drama_spotlight.visible,
+		"render-only dramatic follow spot remains disabled during ordinary daylight")
 	var day_before := float(native.daylight)
 	var moon_before: Vector3 = scene.moon.position
 	for _tick in range(14400):
@@ -72,6 +74,9 @@ func _run() -> void:
 		scene.moon_material.get_shader_parameter("sun_direction") == night.sun.direction.normalized() and
 		not scene.moon.visible and not scene.moon.position.is_equal_approx(moon_before),
 		"sky and accelerated lunar position follow native state while lunar sunlight remains independent of ground daylight")
+	check(scene.drama_spotlight.visible and
+		scene.drama_spotlight.position.distance_to(scene.runtime.player_position()) > 9.0,
+		"native night state enables the render-only overhead dramatic follow spot")
 	scene.runtime.start_city_room_fixture()
 	scene._sync()
 	var city: Dictionary = scene.runtime.lighting_presentation_snapshot()
