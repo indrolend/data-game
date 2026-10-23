@@ -36,6 +36,8 @@ var native_point_lights: Array[OmniLight3D] = []
 var _grass_snapshot_key := ""
 var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
+var projectile_nodes := {}
+var camera_obstruction_fade_enabled := true
 var pending_look := Vector2.ZERO
 var pending_jump := false
 var pending_melee := false
@@ -46,6 +48,7 @@ var agent_playtest := false
 const WORLD_AND_PHONE_RECEIVER_LAYERS := 3
 func _ready() -> void:
     agent_playtest = "--agent-playtest" in OS.get_cmdline_user_args()
+    camera_obstruction_fade_enabled = OS.get_environment("DB_DISABLE_CAMERA_OBSTRUCTION_FADE") != "1"
     runtime = ClassDB.instantiate("ParentGameNode")
     add_child(runtime)
     world_environment = WorldEnvironment.new()
@@ -382,14 +385,69 @@ func _sync() -> void:
         var target_snapshot: Dictionary = runtime.target_presentation_snapshot(i)
         hud_targets.append(target_snapshot)
         targets[i].call("sync_from_native", target_snapshot,
-            runtime.target_model_vertices(i))
+            runtime.target_model_vertices(i), camera.global_position, runtime.camera_target(),
+            camera_obstruction_fade_enabled and not runtime.first_person())
         souls[i].call("sync_from_native", runtime.target_soul_presentation_snapshot(i),
             runtime.target_soul_lattice(i))
+    _sync_projectiles(runtime.projectile_presentation_snapshot())
     var viewport_size := get_viewport().get_visible_rect().size
     hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(),
         runtime.restart_menu_presentation_snapshot(viewport_size.x, viewport_size.y), hud_targets,
         camera, runtime.player_position(), runtime.comm_signal(),
         runtime.comm_signal_timer(), runtime.simulation_time())
+
+func _sync_projectiles(snapshots: Array) -> void:
+    var active := {}
+    for snapshot: Dictionary in snapshots:
+        var stable_id := str(snapshot.stable_id)
+        active[stable_id] = true
+        if not projectile_nodes.has(stable_id):
+            var node := MeshInstance3D.new()
+            node.name = stable_id
+            var mesh := SphereMesh.new()
+            mesh.radius = 0.18
+            mesh.height = 0.36
+            node.mesh = mesh
+            var material := StandardMaterial3D.new()
+            material.albedo_color = Color(0.35, 0.9, 1.0)
+            material.emission_enabled = true
+            material.emission = Color(0.2, 0.75, 1.0)
+            material.emission_energy_multiplier = 4.0
+            node.material_override = material
+            add_child(node)
+            projectile_nodes[stable_id] = node
+        var projectile: MeshInstance3D = projectile_nodes[stable_id]
+        projectile.visible = true
+        projectile.global_position = snapshot.position
+        projectile.rotation.y = float(snapshot.spin)
+    for stable_id in projectile_nodes:
+        if not active.has(stable_id):
+            projectile_nodes[stable_id].visible = false
+
+func presentation_observation_snapshot() -> Dictionary:
+    var target_rows: Array[Dictionary] = []
+    for index in range(targets.size()):
+        target_rows.append({
+            "stable_id": "native-target-%d" % index,
+            "node_name": targets[index].name,
+            "position": targets[index].global_position,
+            "visible": targets[index].visible,
+            "camera_alpha": float(targets[index].camera_visibility_alpha),
+        })
+    var projectile_rows: Array[Dictionary] = []
+    for stable_id in projectile_nodes:
+        var projectile: MeshInstance3D = projectile_nodes[stable_id]
+        if projectile.visible:
+            projectile_rows.append({"stable_id": stable_id, "node_name": projectile.name,
+                "position": projectile.global_position, "visible": true})
+    return {
+        "camera_position": camera.global_position,
+        "camera_target": runtime.camera_target(),
+        "camera_fov": camera.fov,
+        "targets": target_rows,
+        "projectiles": projectile_rows,
+        "camera_obstruction_fade_enabled": camera_obstruction_fade_enabled,
+    }
 
 func _sync_lighting(snapshot: Dictionary) -> void:
     var open_sky := bool(snapshot.open_sky)

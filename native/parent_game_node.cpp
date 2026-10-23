@@ -64,6 +64,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("restart_menu_item_at","viewport_x","viewport_y","viewport_width","viewport_height"),&ParentGameNode::restart_menu_item_at);
     ClassDB::bind_method(D_METHOD("upgrade_presentation_snapshot"),&ParentGameNode::upgrade_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("gameplay_loop_snapshot"),&ParentGameNode::gameplay_loop_snapshot);
+    ClassDB::bind_method(D_METHOD("projectile_presentation_snapshot"),&ParentGameNode::projectile_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
     ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
@@ -374,6 +375,25 @@ Dictionary ParentGameNode::gameplay_loop_snapshot() const {
     result["permanent_levels"]=permanentLevels;
     result["tokens"]=static_cast<int64_t>(state.progression.permanent.tokens);
     result["upgrade_active"]=state.upgradeMenu.active;
+    return result;
+}
+Array ParentGameNode::projectile_presentation_snapshot() const {
+    const GameState& state=bridge.state();
+    Array result;
+    for(int index=0;index<static_cast<int>(state.bullets.size());++index){
+        const auto& bullet=state.bullets[index];
+        if(!bullet.alive)continue;
+        Dictionary item;
+        item["stable_id"]=String("native-projectile-")+String::num_int64(index);
+        item["slot"]=index;
+        item["position"]=v(bullet.pos);
+        item["velocity"]=v(bullet.vel);
+        item["life"]=bullet.life;
+        item["spin"]=bullet.spin;
+        item["brute"]=bullet.brute;
+        item["dropped"]=bullet.dropped;
+        result.push_back(item);
+    }
     return result;
 }
 Dictionary ParentGameNode::phone_presentation_snapshot() const {

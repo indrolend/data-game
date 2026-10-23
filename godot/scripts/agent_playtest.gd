@@ -1,11 +1,12 @@
 extends SceneTree
 
-const SCHEMA := 3
+const SCHEMA := 4
 const MAX_STEP_FRAMES := 120
 const MAX_COMMAND_BYTES := 1024
 
 var world: Node3D
 var observation := 0
+var current_command_sequence := -1
 var capture_dir := "res://../evidence/generated/agent-playtest"
 var commands_path := ""
 var authentic_playthrough := false
@@ -86,6 +87,7 @@ func _run() -> void:
             commands.close()
             quit(2)
             return
+        current_command_sequence += 1
         match command.kind:
             "observe":
                 if not await _observe():
@@ -332,20 +334,64 @@ func _observe() -> bool:
             objective = index
             objective_position = capture.position
     var loop: Dictionary = world.runtime.gameplay_loop_snapshot()
-    print("AGENT_STATE schema=%d frame=%d room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
-        SCHEMA, world.runtime.frame(), int(loop.room_index), int(loop.room_seed),
+    var camera_position: Vector3 = world.runtime.camera_position()
+    var camera_target: Vector3 = world.runtime.camera_target()
+    var camera_fov: float = world.runtime.camera_fov_degrees()
+    var presentation: Dictionary = world.presentation_observation_snapshot()
+    var native_projectiles: Array = world.runtime.projectile_presentation_snapshot()
+    var projectile_id := "unavailable"
+    var projectile_position := Vector3.ZERO
+    var projectile_velocity := Vector3.ZERO
+    var godot_projectile_node := "unavailable"
+    var godot_projectile_position := Vector3.ZERO
+    var projectile_visible := false
+    if not native_projectiles.is_empty():
+        var projectile: Dictionary = native_projectiles[0]
+        projectile_id = str(projectile.stable_id)
+        projectile_position = projectile.position
+        projectile_velocity = projectile.velocity
+        for row: Dictionary in presentation.projectiles:
+            if str(row.stable_id) == projectile_id:
+                godot_projectile_node = str(row.node_name)
+                godot_projectile_position = row.position
+                projectile_visible = bool(row.visible)
+                break
+    var nearest_node := "unavailable"
+    var nearest_godot_position := Vector3.ZERO
+    var nearest_camera_alpha := 1.0
+    if nearest >= 0:
+        var nearest_id := "native-target-%d" % nearest
+        for row: Dictionary in presentation.targets:
+            if str(row.stable_id) == nearest_id:
+                nearest_node = str(row.node_name)
+                nearest_godot_position = row.position
+                nearest_camera_alpha = float(row.camera_alpha)
+                break
+    var native_target_position: Vector3 = nearest_snapshot.get("position", Vector3.ZERO)
+    var command_id := "uncommanded" if current_command_sequence < 0 else "cmd-%04d" % current_command_sequence
+    print("AGENT_STATE schema=%d command_id=%s frame=%d room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f camera_pos=%.6f,%.6f,%.6f camera_target=%.6f,%.6f,%.6f camera_fov=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d projectile_id=%s projectile_pos=%.6f,%.6f,%.6f projectile_vel=%.6f,%.6f,%.6f godot_projectile_node=%s godot_projectile_pos=%.6f,%.6f,%.6f projectile_visible=%d projectile_transform_error=%.6f action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d camera_obstruction_fade=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f nearest_node=%s nearest_godot_pos=%.6f,%.6f,%.6f nearest_camera_alpha=%.6f nearest_transform_error=%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f frame_capture=%d frame_file=\"%s\"" % [
+        SCHEMA, command_id, world.runtime.frame(), int(loop.room_index), int(loop.room_seed),
         str(loop.setting_name), str(loop.form_name), float(loop.room_heat),
         int(loop.room_captures), int(loop.deposited_souls), int(loop.required_souls),
         int(loop.room_clear), int(loop.tokens), int(loop.upgrade_active),
         player.x, player.y, player.z, float(loop.camera_yaw), float(loop.camera_pitch),
+        camera_position.x, camera_position.y, camera_position.z,
+        camera_target.x, camera_target.y, camera_target.z, camera_fov,
         world.runtime.battery(), world.runtime.souls(), int(loop.live_enemies), int(loop.loose_souls),
-        int(loop.projectiles), _agent_action(loop), int(world.runtime.vacuum_active()),
+        int(loop.projectiles), projectile_id,
+        projectile_position.x, projectile_position.y, projectile_position.z,
+        projectile_velocity.x, projectile_velocity.y, projectile_velocity.z,
+        godot_projectile_node, godot_projectile_position.x, godot_projectile_position.y,
+        godot_projectile_position.z, int(projectile_visible),
+        projectile_position.distance_to(godot_projectile_position) if projectile_visible else -1.0,
+        _agent_action(loop), int(world.runtime.vacuum_active()),
         int(loop.vacuum_target), float(loop.vacuum_lock), float(loop.loose_commitment),
         int(loop.dead), int(loop.downed), int(world.runtime.grounded()),
-        int(world.runtime.first_person()), nearest,
-        nearest_distance, float(nearest_snapshot.get("position", Vector3.ZERO).x),
-        float(nearest_snapshot.get("position", Vector3.ZERO).y),
-        float(nearest_snapshot.get("position", Vector3.ZERO).z),
+        int(world.runtime.first_person()), int(presentation.camera_obstruction_fade_enabled), nearest,
+        nearest_distance, native_target_position.x, native_target_position.y, native_target_position.z,
+        nearest_node, nearest_godot_position.x, nearest_godot_position.y, nearest_godot_position.z,
+        nearest_camera_alpha,
+        native_target_position.distance_to(nearest_godot_position) if nearest >= 0 else -1.0,
         int(nearest_snapshot.get("alive", false)), int(nearest_snapshot.get("slurpable", false)),
         float(nearest_snapshot.get("armor", 0.0)), float(nearest_snapshot.get("health", 0.0)),
         float(nearest_snapshot.get("shell_crack_amount", 0.0)),

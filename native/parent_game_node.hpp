@@ -68,6 +68,7 @@ public:
                              float viewport_width, float viewport_height) const;
     Dictionary upgrade_presentation_snapshot() const;
     Dictionary gameplay_loop_snapshot() const;
+    Array projectile_presentation_snapshot() const;
     Dictionary room_presentation_snapshot(int tile_index) const;
     PackedByteArray field_grass_texture_pixels() const;
     PackedByteArray city_asphalt_texture_pixels() const;

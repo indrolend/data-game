@@ -36,6 +36,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Native all-room gameplay-loop contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/agent_playtest_hardening.gd 2>&1 | Set-Content (Join-Path $evidence "agent-playtest-hardening-headless.log")
     if ($LASTEXITCODE -ne 0) { throw "Agent playtest hardening contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/projectile_observation.gd 2>&1 | Set-Content (Join-Path $evidence "projectile-observation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Synchronized projectile observation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/damage_probe.gd 2>&1 | Set-Content (Join-Path $evidence "native-damage-phone-light.log")
     if ($LASTEXITCODE -ne 0) { throw "Native enemy damage and phone-light response contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/diagnostic_utilities.gd 2>&1 | Set-Content (Join-Path $evidence "diagnostic-utilities.log")

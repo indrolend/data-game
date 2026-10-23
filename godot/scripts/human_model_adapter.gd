@@ -9,6 +9,7 @@ var material: StandardMaterial3D
 var base_color := Color.WHITE
 var tether_instance: MeshInstance3D
 var tether_material: StandardMaterial3D
+var camera_visibility_alpha := 1.0
 
 func configure(index: int, color: Color) -> void:
     target_index = index
@@ -41,7 +42,9 @@ func configure(index: int, color: Color) -> void:
     tether_instance.set_as_top_level(true)
     add_child(tether_instance)
 
-func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array) -> void:
+func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array,
+        camera_position: Variant = null, camera_target: Variant = null,
+        obstruction_fade_enabled := false) -> void:
     visible = bool(snapshot.alive)
     _sync_tether(snapshot)
     if not visible or vertices.is_empty():
@@ -51,6 +54,15 @@ func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array) -> voi
     var morph := clampf(float(snapshot.pose.soul_morph), 0.0, 1.0)
     var morph_eased := morph * morph * (3.0 - 2.0 * morph)
     hit_color.a = 1.0 - morph_eased
+    camera_visibility_alpha = 1.0
+    if obstruction_fade_enabled and camera_position is Vector3 and camera_target is Vector3:
+        var view: Vector3 = camera_target - camera_position
+        var center: Vector3 = snapshot.position + Vector3.UP * 0.75
+        var along := clampf((center - camera_position).dot(view) / maxf(view.length_squared(), 0.0001), 0.0, 1.0)
+        var view_distance := center.distance_to(camera_position + view * along)
+        if along > 0.02 and along < 0.98:
+            camera_visibility_alpha = clampf(inverse_lerp(0.35, 1.25, view_distance), 0.18, 1.0)
+            hit_color.a *= camera_visibility_alpha
     material.albedo_color = hit_color
     # Collapse the skinned shell toward the native soul-lattice center instead
     # of shrinking it into the floor. The lattice grows from this same pivot.

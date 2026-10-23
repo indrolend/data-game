@@ -6,13 +6,18 @@ if (-not (Test-Path -LiteralPath $fixturePath)) {
     Write-Output "UNIFIED_EVIDENCE_TEST SKIP fixture_not_found=$fixturePath"
     exit 0
 }
-$out = "evidence\generated\unified-test-$([Guid]::NewGuid().ToString('N'))"
+$out = "evidence\generated\unified test $([Guid]::NewGuid().ToString('N'))"
 & "$root\tools\invoke-unified-evidence-v1.ps1" -Operation ingest -Source $Fixture -Output $out
 if ($LASTEXITCODE -ne 0) { throw "ingest exited $LASTEXITCODE" }
 & "$root\tools\invoke-unified-evidence-v1.ps1" -Operation verify -Source $out
 if ($LASTEXITCODE -ne 0) { throw "verify exited $LASTEXITCODE" }
+$absolutePackage = [IO.Path]::GetFullPath((Join-Path $root $out))
+& "$root\tools\invoke-unified-evidence-v1.ps1" -Operation verify -Source $absolutePackage
+if ($LASTEXITCODE -ne 0) { throw "absolute verify exited $LASTEXITCODE" }
 & "$root\tools\invoke-unified-evidence-v1.ps1" -Operation diagnose -Source $out
 if ($LASTEXITCODE -ne 0) { throw "diagnose exited $LASTEXITCODE" }
+& "$root\tools\invoke-unified-evidence-v1.ps1" -Operation pack -Source $absolutePackage
+if ($LASTEXITCODE -ne 0) { throw "absolute pack exited $LASTEXITCODE" }
 $package = Join-Path $root $out
 $assertions = Get-Content -Raw (Join-Path $package 'assertions.json') | ConvertFrom-Json
 if (-not $assertions.objective_achieved) { throw 'V2 objective was not independently classified as achieved' }

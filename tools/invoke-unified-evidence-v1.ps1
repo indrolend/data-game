@@ -9,10 +9,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..").Path
-$schema = 'digital-breakdown.unified-evidence/v1'
+$schema = 'digital-breakdown.unified-evidence/v2'
+$supportedSchemas = @('digital-breakdown.unified-evidence/v1', $schema)
 
 function Resolve-InRoot([string]$Path) {
-    $full = [IO.Path]::GetFullPath((Join-Path $root $Path))
+    $full = if ([IO.Path]::IsPathRooted($Path)) {
+        [IO.Path]::GetFullPath($Path)
+    } else {
+        [IO.Path]::GetFullPath((Join-Path $root $Path))
+    }
     if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw "Path escapes repository: $Path" }
     return $full
 }
@@ -39,7 +44,7 @@ function Get-Relative([string]$Base, [string]$Path) { [IO.Path]::GetRelativePath
 function Test-Package([string]$PackagePath) {
     $package = Resolve-Path $PackagePath
     $manifest = Get-Content -Raw (Join-Path $package 'manifest.json') | ConvertFrom-Json
-    if ($manifest.schema_version -ne $schema) { throw "Unsupported schema: $($manifest.schema_version)" }
+    if ($manifest.schema_version -notin $supportedSchemas) { throw "Unsupported schema: $($manifest.schema_version)" }
     $states = @(Get-Content (Join-Path $package 'states.ndjson') | Where-Object { $_ } | ConvertFrom-Json)
     $lastFrame = -1
     $ids = @{}
@@ -117,11 +122,11 @@ function Invoke-PackageDiagnosis([string]$PackagePath) {
         if ([double]$state.native_state.nearest_distance -lt 0.75) {
             $findings.Add([ordered]@{ id="camera-crowding-$($state.observation_id)"; severity='P2'; classification='automated_suspicion'; category='camera'; simulation_frame=$state.simulation_frame; summary='Native target is within 0.75 units of player; inspect for camera occlusion/clipping'; evidence=$relative })
         }
-        if ([int]$state.native_state.projectiles -gt 0) {
+        if ([int]$state.native_state.projectiles -gt 0 -and (-not $state.native_state.projectile_id -or $state.native_state.projectile_id -eq 'unavailable')) {
             $findings.Add([ordered]@{ id="projectile-correlation-$($state.observation_id)"; severity='P1'; classification='unsupported_correlation'; category='missing-observation'; simulation_frame=$state.simulation_frame; summary='Native projectile exists, but protocol lacks projectile transform/velocity and Godot presentation identity'; evidence=$relative })
         }
     }
-    if (@($states | Where-Object { $_.native_state.camera_yaw -ne $null }).Count -gt 0) {
+    if (@($states | Where-Object { $_.native_state.camera_yaw -ne $null -and -not $_.native_state.camera_pos }).Count -gt 0) {
         $findings.Add([ordered]@{ id='camera-transform-gap'; severity='P2'; classification='unavailable'; category='missing-observation'; summary='Protocol records camera yaw/pitch but not synchronized camera position, target, or projection result'; evidence='states.ndjson' })
     }
     $diagnostics = [ordered]@{ schema_version='digital-breakdown.visual-diagnostics/v1'; run_id=$states[0].run_id; created_utc=[DateTime]::UtcNow.ToString('o'); review_status='automated_only'; rules=[ordered]@{ exposure='signalstats thresholds'; frozen='byte-identical adjacent PNG with advancing native frame'; crowding='nearest native target distance < 0.75'; correlation='required presentation identity unavailable' }; finding_count=$findings.Count; findings=$findings; frame_metrics=$metrics }
@@ -173,18 +178,21 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
             $sourceFrame = Join-Path $sourceFull "frames\$frameName"
             $frameRel = $null
             if (Test-Path $sourceFrame) { Copy-Item $sourceFrame (Join-Path $outFull "frames\$frameName"); $frameRel = "frames/$frameName" }
-            $commandId = if ($observation -eq 0 -or $commands.Count -eq 0) { $null } else { $commands[[Math]::Min($observation - 1, $commands.Count - 1)].command_id }
+            $commandId = if ($s.command_id -and $s.command_id -ne 'uncommanded') { [string]$s.command_id } elseif ($observation -eq 0 -or $commands.Count -eq 0) { $null } else { $commands[[Math]::Min($observation - 1, $commands.Count - 1)].command_id }
             $stateRow = [ordered]@{
                 schema_version=$schema; run_id=$RunId; observation_id="obs-{0:d4}" -f $observation
                 simulation_frame=[long]$s.frame; simulation_time_seconds=([double]$s.frame / 60.0)
                 source_subsystem='native-cpp-via-godot-bridge'; evidence_class='observed'; command_id=$commandId
                 native_state=$s
-                godot_presentation=[ordered]@{ evidence_class='observed'; framebuffer_capture=$frameRel; capture_succeeded=([int]$s.frame_capture -eq 1); adapter_sync='same-agent-observation'; visual_verification='not_performed' }
+                godot_presentation=[ordered]@{ evidence_class='observed'; framebuffer_capture=$frameRel; capture_succeeded=([int]$s.frame_capture -eq 1); adapter_sync='same-agent-observation'; camera=[ordered]@{position=$s.camera_pos;target=$s.camera_target;fov=$s.camera_fov;obstruction_fade_enabled=$s.camera_obstruction_fade}; visual_verification='not_performed' }
                 source_schema=[int]$s.schema
             }
             $states.Add($stateRow)
             if ([int]$s.nearest_target -ge 0) {
-                $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id="native-target-$($s.nearest_target)"; object_type='enemy'; source_subsystem='native-cpp'; evidence_class='observed'; native_transform=[ordered]@{ position="$($s.target_pos)" }; godot_transform=[ordered]@{ status='unavailable'; reason='agent protocol v3 does not emit adapter global transform' }; geometry_export=[ordered]@{ status='unsupported'; reason='no runtime mesh export contract' }; state=[ordered]@{ alive=$s.target_alive; slurpable=$s.target_slurpable; armor=$s.target_armor; health=$s.target_health } })
+                $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id="native-target-$($s.nearest_target)"; object_type='enemy'; source_subsystem='native-cpp+godot'; evidence_class='observed'; native_transform=[ordered]@{ position="$($s.target_pos)" }; godot_transform=[ordered]@{ status=if($s.nearest_node -and $s.nearest_node -ne 'unavailable'){'observed'}else{'unavailable'}; node=$s.nearest_node; position=$s.nearest_godot_pos; error=$s.nearest_transform_error }; presentation=[ordered]@{camera_alpha=$s.nearest_camera_alpha}; geometry_export=[ordered]@{ status='unsupported'; reason='no runtime mesh export contract' }; state=[ordered]@{ alive=$s.target_alive; slurpable=$s.target_slurpable; armor=$s.target_armor; health=$s.target_health } })
+            }
+            if ($s.projectile_id -and $s.projectile_id -ne 'unavailable') {
+                $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id=$s.projectile_id; object_type='soul-projectile'; source_subsystem='native-cpp+godot'; evidence_class='observed'; native_transform=[ordered]@{position=$s.projectile_pos;velocity=$s.projectile_vel}; godot_transform=[ordered]@{status=if([int]$s.projectile_visible -eq 1){'observed'}else{'unavailable'};node=$s.godot_projectile_node;position=$s.godot_projectile_pos;error=$s.projectile_transform_error}; presentation=[ordered]@{visible=([int]$s.projectile_visible -eq 1)}; geometry_export=[ordered]@{status='unsupported';reason='runtime presentation uses a generated SphereMesh; no GLB exporter contract'} })
             }
             if ([int]$s.objective -ge 0) {
                 $objects.Add([ordered]@{ schema_version=$schema; run_id=$RunId; observation_id=$stateRow.observation_id; simulation_frame=[long]$s.frame; stable_object_id="capture-goal-$($s.objective)"; object_type='capture-goal'; source_subsystem='native-cpp'; evidence_class='observed'; native_transform=[ordered]@{ position="$($s.objective_pos)" }; godot_transform=[ordered]@{ status='unavailable'; reason='agent protocol v3 does not emit adapter global transform' }; geometry_export=[ordered]@{ status='unsupported' }; state=[ordered]@{ deposited=$s.deposited; required=$s.required } })
@@ -216,7 +224,7 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
         Write-Json (Join-Path $outFull 'assertions.json') $assertions
         $status = @(& git -C $root status --porcelain=v1)
         $godotVersion = (& $GodotExe --version 2>$null | Select-Object -First 1)
-        $report = @("# Unified evidence report",'',"- Run: ``$RunId``","- Scenario: ``$Scenario``","- Authoritative observations: $($states.Count)","- Commands retained: $($commands.Count)","- Native soul captured: $capture","- Native projectile observed: $projectile","- Deposit/token transition: $deposit","- Godot frames captured: $(@(Get-ChildItem (Join-Path $outFull 'frames') -File).Count)",'- Visual quality verified: no (capture only)','','## Compatibility and limitations','','This package ingests agent protocol schema 3. Command correlation is ordered best-effort because the historical protocol does not emit command IDs. Native target and capture-goal identities are stable within the run. Godot adapter global transforms, projectile vectors, GLB export, and deterministic replay verification are unavailable in this source protocol and are not fabricated.') -join "`n"
+        $report = @("# Unified evidence report",'',"- Run: ``$RunId``","- Scenario: ``$Scenario``","- Authoritative observations: $($states.Count)","- Commands retained: $($commands.Count)","- Native soul captured: $capture","- Native projectile observed: $projectile","- Deposit/token transition: $deposit","- Godot frames captured: $(@(Get-ChildItem (Join-Path $outFull 'frames') -File).Count)",'- Visual quality verified: no (capture only)','','## Compatibility and limitations','','Agent protocol schema 4 supplies explicit command IDs, synchronized camera state, native projectile vectors, and matching Godot presentation transforms. Schema 3 inputs remain readable with unavailable fields preserved. Runtime mesh GLB export and deterministic replay verification remain unsupported and are not fabricated.') -join "`n"
         [IO.File]::WriteAllText((Join-Path $outFull 'report.md'), $report + "`n", [Text.UTF8Encoding]::new($false))
         $files = [Collections.Generic.List[object]]::new()
         foreach ($file in Get-ChildItem $outFull -Recurse -File | Where-Object { $_.Name -ne 'manifest.json' }) {

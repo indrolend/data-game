@@ -1,4 +1,4 @@
-# Unified evidence V1
+# Unified evidence V2
 
 The unified pipeline keeps four claims separate:
 
@@ -24,7 +24,9 @@ PowerShell controller
   -> optional human visual review
 ```
 
-The V1 historical protocol correlates commands in order because it does not emit command IDs. It exposes player/counter/nearest-target state but not projectile transforms, camera position, or Godot adapter transforms. Those omissions appear as unsupported or unavailable; they are never inferred as successful presentation.
+Protocol schema 4 emits command IDs, authoritative camera and projectile vectors, and matching Godot node identities/transforms. A zero transform error demonstrates correlation, not visual quality. Historical schema 3 remains ingestible; its absent fields stay explicitly unavailable.
+
+Third-person enemy presentation also has a camera-ray obstruction correction. It changes only material alpha and can be disabled for a controlled ablation with `DB_DISABLE_CAMERA_OBSTRUCTION_FADE=1`; native simulation state is unchanged.
 
 ## Commands
 
@@ -65,3 +67,9 @@ Against `capture-shoot-v2-20261023-004949-598`, the unmodified evidence had no b
 | Remove tick 810 | `missing-frame-file-obs-0017` |
 
 The real run still has presentation risks that pixel statistics alone cannot decide. Human review rejected the placeholder-like white goal marker, unclear projectile presentation, crowded enemy silhouettes, and weak action-banner legibility. Native state independently verifies soul capture and projectile creation; it does not verify those visuals.
+
+## V2 controlled comparison
+
+The same protected V2 controller was run with obstruction fading disabled and enabled. Both runs reached soul capture at tick 870 and firing at tick 873 with matching authoritative state. At tick 600 the nearest enemy's presentation alpha changed from `1.0` to `0.18`, clearing an opaque foreground obstruction. At tick 873 `native-projectile-0` was observed in both subsystems at `1.165676,0.926169,-11.699404` with transform error `0`; the rendered frame visibly contains the generated projectile.
+
+The implementation remains deliberately narrow: generated projectile geometry is identified as a `SphereMesh`, but no GLB is claimed; deterministic replay is not claimed; automated diagnostics remain triage rather than visual acceptance.
