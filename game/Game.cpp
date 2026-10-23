@@ -1050,6 +1050,7 @@ bool Game::spendBattery(float amount,BatteryReason reason) {
     if (!player.alive) return false;
     const float before=player.battery;
     if(reason==BatteryReason::Hit){
+        state_.phoneDisplay.damagePulse=1.0f;
         const int survival=survivalSynergyTier();
         const float guard=state_.progression.run.impactGuardTimer>0.0f?0.42f:1.0f;
         amount*=guard*std::max(0.35f,1.0f-0.11f*static_cast<float>(survival));
@@ -3642,6 +3643,7 @@ void Game::captureSoul(int index) {
     const Vec3 capturedAt=t.pos;
     if(t.soul.id==0)t.soul=makeSoulRecord(t.brute,state_.roomIndex);
     storeSoul(state_.player,t.soul);
+    state_.phoneDisplay.capturePulse=1.0f;
     ++state_.progression.run.roomCaptures;
     state_.progression.run.roomHeat=clampf(state_.progression.run.roomHeat+0.045f,0.0f,1.0f);
     gainBattery(signal_residue::ImmediateCaptureCharge,BatteryReason::Ingest);
@@ -4351,6 +4353,8 @@ void Game::updateVacuum(float dt) {
                 t.ingestProgress=clampf(t.ingestProgress+dt*v.power*(0.38f+sealEase*0.55f+pressureEase*0.85f+popEase*2.25f)*slurpRate/soulMass,0.0f,1.0f);
                 t.health-=VACUUM_DAMAGE*v.power*dt*0.10f;
             }
+            state_.phoneDisplay.capturePulse=std::max(state_.phoneDisplay.capturePulse,
+                0.22f+0.68f*clampf(t.ingestProgress,0.0f,1.0f));
             t.captureCollapseAmount=t.ingestProgress; syncTargetReactionVisual(t);
             if (t.ingestProgress>=SOUL_CAPTURE_COMMIT_PHASE || t.health<=0.0f) queueSoulCapture(i);
         }
