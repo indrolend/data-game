@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "baseline": "95cc63d6365b2e624b22800f5eb1d153da8c0f55",
+  "feature": "native-phone-bitmap-raster",
+  "behavior_status": "verified",
+  "presentation_status": "verified",
+  "visual_status": "unverified",
+  "visual_review": "whole-frame-inspected",
+  "parity_snapshots": 454,
+  "parity_tolerance": 0.00001,
+  "commandhud": {
+    "failed_search_run": "20261023220350-891c",
+    "verification_run": "20261023220725-1e06",
+    "verification_wall_ms": 21475.17,
+    "verification_child_ms": 20223,
+    "verification_evidence_bytes": 90339
+  },
+  "direct_verification_wall_ms": 19881.26,
+  "captures": [
+    { "path": "captures/00-pause-resume-selected.png", "sha256": "98D5F1A14AA1B3C72E326B4508DDF8FA4FEF4910BB32B3DFD6A35D4C6CD8B188" },
+    { "path": "captures/01-pause-settings-selected.png", "sha256": "E448CE1C5202CF6AB6E236E372BFEF117A5876FC014C58C3B0C8937444EB641E" },
+    { "path": "captures/02-settings-page.png", "sha256": "CA7B8A8FC91B30DEC75ACA9C31D2E48FB3AE6C9DB4EC5E16B956FBF75A39F275" }
+  ],
+  "limitations": [
+    "No exact matched-state desktop framebuffer pair.",
+    "Desktop Source Sans stencil reveal and paint splatter are not implemented.",
+    "Gameplay meter and soul-cell raster remains on the existing semantic presentation path."
+  ]
+}

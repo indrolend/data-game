@@ -62,6 +62,8 @@ public:
     Vector3 player_position() const;
     Dictionary phone_presentation_snapshot() const;
     Dictionary phone_menu_layout_snapshot() const;
+    int64_t phone_display_raster_revision() const;
+    PackedByteArray phone_display_raster_pixels() const;
     Dictionary hud_presentation_snapshot() const;
     Dictionary restart_menu_presentation_snapshot(float viewport_width, float viewport_height) const;
     int restart_menu_item_at(float viewport_x, float viewport_y,

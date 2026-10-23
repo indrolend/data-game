@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/project_settings.hpp>
 #include "phone_presentation_snapshot.hpp"
 #include "PhoneDisplayLayout.hpp"
+#include "BitmapFont.hpp"
 #include "room_presentation_snapshot.hpp"
 #include "lighting_presentation_snapshot.hpp"
 #include "combat_presentation_snapshot.hpp"
@@ -59,6 +60,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("player_position"),&ParentGameNode::player_position);
     ClassDB::bind_method(D_METHOD("phone_presentation_snapshot"),&ParentGameNode::phone_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("phone_menu_layout_snapshot"),&ParentGameNode::phone_menu_layout_snapshot);
+    ClassDB::bind_method(D_METHOD("phone_display_raster_revision"),&ParentGameNode::phone_display_raster_revision);
+    ClassDB::bind_method(D_METHOD("phone_display_raster_pixels"),&ParentGameNode::phone_display_raster_pixels);
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("restart_menu_presentation_snapshot","viewport_width","viewport_height"),&ParentGameNode::restart_menu_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("restart_menu_item_at","viewport_x","viewport_y","viewport_width","viewport_height"),&ParentGameNode::restart_menu_item_at);
@@ -508,6 +511,121 @@ Dictionary ParentGameNode::phone_menu_layout_snapshot() const {
         rows.push_back(item);
     }
     result["rows"] = rows;
+    return result;
+}
+namespace {
+constexpr int PhoneRasterWidth = PhoneDisplayState::LogicalWidth;
+constexpr int PhoneRasterHeight = PhoneDisplayState::LogicalHeight;
+
+void phone_raster_rect(uint8_t* pixels, int x, int y, int width, int height,
+                       float r, float g, float b, float alpha) {
+    const int x0 = std::max(0, x), y0 = std::max(0, y);
+    const int x1 = std::min(PhoneRasterWidth, x + width);
+    const int y1 = std::min(PhoneRasterHeight, y + height);
+    const float a = clampf(alpha, 0.0f, 1.0f);
+    for (int py = y0; py < y1; ++py) for (int px = x0; px < x1; ++px) {
+        const int at = (py * PhoneRasterWidth + px) * 4;
+        pixels[at] = static_cast<uint8_t>(pixels[at] * (1.0f - a) + 255.0f * clampf(r, 0.0f, 1.0f) * a);
+        pixels[at + 1] = static_cast<uint8_t>(pixels[at + 1] * (1.0f - a) + 255.0f * clampf(g, 0.0f, 1.0f) * a);
+        pixels[at + 2] = static_cast<uint8_t>(pixels[at + 2] * (1.0f - a) + 255.0f * clampf(b, 0.0f, 1.0f) * a);
+        pixels[at + 3] = 255;
+    }
+}
+
+int phone_bitmap_text_width(const std::string& text, float font_px) {
+    const int scale = std::max(1, static_cast<int>(std::round(font_px / 8.0f)));
+    return text.empty() ? 0 : static_cast<int>(text.size()) * scale * 6 - scale;
+}
+
+void phone_bitmap_text(uint8_t* pixels, const std::string& text, float x, float baseline,
+                       float font_px, float r, float g, float b, float alpha,
+                       bool centered = false, bool right = false) {
+    const int scale = std::max(1, static_cast<int>(std::round(font_px / 8.0f)));
+    int pen = static_cast<int>(std::round(x));
+    const int width = phone_bitmap_text_width(text, font_px);
+    if (centered) pen -= width / 2;
+    if (right) pen -= width;
+    const int top = static_cast<int>(std::round(baseline)) - 7 * scale;
+    for (char character : text) {
+        const auto rows = bitmapGlyph(character);
+        for (int row = 0; row < 7; ++row) for (int column = 0; column < 5; ++column) {
+            if ((rows[row] & (1u << (4 - column))) == 0) continue;
+            phone_raster_rect(pixels, pen + column * scale, top + row * scale,
+                              scale, scale, r, g, b, alpha);
+        }
+        pen += 6 * scale;
+    }
+}
+
+void hash_phone_text(uint64_t& hash, const std::string& text) {
+    for (unsigned char value : text) { hash ^= value; hash *= 1099511628211ull; }
+    hash ^= 0xffu; hash *= 1099511628211ull;
+}
+}
+
+int64_t ParentGameNode::phone_display_raster_revision() const {
+    const auto& state = bridge.state();
+    const auto layout = makePhoneDisplayMenuLayout(state);
+    uint64_t hash = 1469598103934665603ull;
+    hash ^= static_cast<uint64_t>(state.phoneDisplay.mode); hash *= 1099511628211ull;
+    hash ^= static_cast<uint64_t>(state.hud.menuSelection + 1); hash *= 1099511628211ull;
+    hash_phone_text(hash, layout.title);
+    hash_phone_text(hash, layout.navigationHint);
+    for (int i = 0; i < layout.rowCount; ++i) {
+        const auto& row = layout.rows[i];
+        hash_phone_text(hash, row.label); hash_phone_text(hash, row.value);
+        hash ^= static_cast<uint64_t>(row.visible) | (static_cast<uint64_t>(row.peek) << 1u);
+        hash *= 1099511628211ull;
+    }
+    return static_cast<int64_t>(hash & 0x7fffffffffffffffull);
+}
+
+PackedByteArray ParentGameNode::phone_display_raster_pixels() const {
+    PackedByteArray result;
+    result.resize(PhoneRasterWidth * PhoneRasterHeight * 4);
+    uint8_t* pixels = result.ptrw();
+    const auto& state = bridge.state();
+    const Vec3 tint = state.phoneDisplay.screenTint;
+    const uint8_t red = static_cast<uint8_t>(255.0f * clampf(0.025f + tint.x * 0.18f, 0.0f, 1.0f));
+    const uint8_t green = static_cast<uint8_t>(255.0f * clampf(0.045f + tint.y * 0.16f, 0.0f, 1.0f));
+    const uint8_t blue = static_cast<uint8_t>(255.0f * clampf(0.060f + tint.z * 0.15f, 0.0f, 1.0f));
+    for (int i = 0; i < PhoneRasterWidth * PhoneRasterHeight; ++i) {
+        pixels[i * 4] = red; pixels[i * 4 + 1] = green;
+        pixels[i * 4 + 2] = blue; pixels[i * 4 + 3] = 255;
+    }
+    phone_raster_rect(pixels, 0, 0, PhoneRasterWidth, PhoneRasterHeight,
+                      0.03f, 0.55f, 0.62f, 0.10f + state.phoneDisplay.brightness * 0.08f);
+    const auto layout = makePhoneDisplayMenuLayout(state);
+    phone_bitmap_text(pixels, layout.title, layout.logicalW * 0.5f,
+                      layout.titleCenterY + layout.titlePx * 0.34f, layout.titlePx,
+                      0.90f, 0.97f, 1.0f, 0.96f, true);
+    for (int i = 0; i < layout.rowCount; ++i) {
+        const auto& row = layout.rows[i];
+        if (!row.visible || row.peek) continue;
+        const bool selected = row.selectable && row.selectableIndex == state.hud.menuSelection;
+        if (selected) {
+            phone_raster_rect(pixels, static_cast<int>(row.visual.x), static_cast<int>(row.visual.y),
+                              static_cast<int>(row.visual.w), static_cast<int>(row.visual.h),
+                              0.30f, 0.92f, 0.86f, 0.13f);
+        }
+        const bool section = row.kind == PhoneMenuRowKind::Section;
+        const auto emphasis = phoneMenuEmphasis(row.action);
+        const VisualColor color = section ? VisualIdentity::MetallicTeal :
+            emphasis == PhoneMenuEmphasis::Destructive ? VisualIdentity::Copper :
+            selected && emphasis == PhoneMenuEmphasis::Primary ? VisualIdentity::AcidChartreuse :
+            VisualColor{selected ? 1.0f : 0.70f, selected ? 1.0f : 0.88f, 1.0f};
+        phone_bitmap_text(pixels, row.label, row.labelX, row.baselineY, row.fontPx,
+                          color.r, color.g, color.b, section ? 0.62f : selected ? 1.0f : 0.72f);
+        if (row.kind == PhoneMenuRowKind::TwoColumn) {
+            const VisualColor valueColor = selected ? VisualIdentity::ElectricCyan : VisualIdentity::MetallicTeal;
+            phone_bitmap_text(pixels, row.value, row.valueRightX, row.baselineY, row.fontPx,
+                              valueColor.r, valueColor.g, valueColor.b, selected ? 0.98f : 0.78f,
+                              false, true);
+        }
+    }
+    phone_bitmap_text(pixels, layout.navigationHint, layout.logicalW * 0.5f,
+                      layout.logicalH - 66.0f, 26.0f, VisualIdentity::ElectricCyan.r,
+                      VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, 0.62f, true);
     return result;
 }
 Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {

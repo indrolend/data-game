@@ -10,15 +10,18 @@ const PHONE_RECEIVER_LAYER := 2
 var phone_root: Node3D
 var body: MeshInstance3D
 var glass: MeshInstance3D
+var screen_raster: MeshInstance3D
 var screen_text: Label3D
 var lens: MeshInstance3D
 var screen_light: OmniLight3D
 var _body_material: StandardMaterial3D
 var _screen_material: StandardMaterial3D
+var _raster_material: StandardMaterial3D
 var _menu_title: Label3D
 var _menu_hint: Label3D
 var _menu_row_labels: Array[Label3D] = []
 var _native_body_loaded := false
+var _raster_revision := -1
 
 func _ready() -> void:
 	phone_root = Node3D.new()
@@ -51,6 +54,17 @@ func _ready() -> void:
 	glass.material_override = _screen_material
 	glass.layers = PHONE_RECEIVER_LAYER
 	phone_root.add_child(glass)
+	screen_raster = MeshInstance3D.new()
+	screen_raster.name = "NativeDisplayRaster"
+	screen_raster.mesh = QuadMesh.new()
+	_raster_material = StandardMaterial3D.new()
+	_raster_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_raster_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_raster_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_raster_material.emission_enabled = true
+	_raster_material.emission_energy_multiplier = 1.0
+	screen_raster.material_override = _raster_material
+	phone_root.add_child(screen_raster)
 	screen_light = OmniLight3D.new()
 	screen_light.name = "NativePhoneScreenLight"
 	screen_light.shadow_enabled = false
@@ -88,7 +102,7 @@ func _ready() -> void:
 	lens.layers = PHONE_RECEIVER_LAYER
 	phone_root.add_child(lens)
 
-func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
+func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = null) -> void:
 	var first_person: bool = snapshot.first_person
 	var menu_layout: Dictionary = snapshot.get("menu_layout", {})
 	var menu_active := bool(menu_layout.get("active", false))
@@ -103,7 +117,7 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 		var camera_basis: Basis = camera.global_basis
 		# Match the native pause composition at 1280x720: the complete handset is
 		# centered, readable, and occupies roughly three quarters of the frame.
-		var view_position := camera.global_position + camera_basis * Vector3(0.0, 0.05, -0.70)
+		var view_position := camera.global_position + camera_basis * Vector3(0.0, -0.04, -0.70)
 		phone_root.global_transform = Transform3D(camera_basis, view_position)
 		phone_root.scale = Vector3.ONE * 3.4
 	else:
@@ -125,6 +139,9 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	(glass.mesh as BoxMesh).size = screen_size
 	glass.position = snapshot.screen_center_offset
 	glass.visible = bool(snapshot.screen_visible) or first_person
+	(screen_raster.mesh as QuadMesh).size = Vector2(screen_size.x, screen_size.y)
+	screen_raster.position = snapshot.screen_center_offset + Vector3(0.0, 0.0,
+		screen_size.z * 0.5 + 0.00015)
 	screen_light.position = snapshot.screen_center_offset + Vector3(0.0, 0.0,
 		float(snapshot.screen_light_forward_offset))
 	screen_light.visible = glass.visible and float(snapshot.screen_light_intensity) > 0.0001
@@ -148,13 +165,26 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D) -> void:
 	screen_text.modulate = tint.lightened(0.38)
 	var opacity := clampf(float(snapshot.content_opacity), 0.0, 1.0)
 	var show_menu := bool(menu_layout.get("active", false)) and glass.visible
+	if show_menu and runtime != null:
+		var next_revision := int(runtime.phone_display_raster_revision())
+		if next_revision != _raster_revision:
+			var pixels: PackedByteArray = runtime.phone_display_raster_pixels()
+			if pixels.size() == 720 * 1280 * 4:
+				var image := Image.create_from_data(720, 1280, false, Image.FORMAT_RGBA8, pixels)
+				var texture := ImageTexture.create_from_image(image)
+				_raster_material.albedo_texture = texture
+				_raster_material.emission_texture = texture
+				_raster_revision = next_revision
+	screen_raster.visible = show_menu and _raster_material.albedo_texture != null
 	screen_text.visible = glass.visible and not show_menu
 	screen_text.modulate.a = opacity
 	screen_text.text = _screen_status(snapshot)
-	_sync_menu_layout(menu_layout, screen_size, snapshot.screen_center_offset, show_menu, opacity)
+	_sync_menu_layout(menu_layout, screen_size, snapshot.screen_center_offset,
+		show_menu and not screen_raster.visible, opacity)
 	phone_root.set_meta("native_screen_mode", int(snapshot.screen_mode))
 	phone_root.set_meta("native_menu_row_count", int(menu_layout.get("row_count", 0)))
 	phone_root.set_meta("native_menu_selection", int(menu_layout.get("selection", -1)))
+	phone_root.set_meta("native_raster_revision", _raster_revision)
 
 
 func viewport_to_phone_logical(viewport_position: Vector2, camera: Camera3D, layout: Dictionary):

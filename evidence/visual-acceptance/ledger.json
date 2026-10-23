@@ -155,6 +155,39 @@
         }
       },
       "claim": "Door-transition behavior and the presentation contract are verified; visual acceptance remains unverified."
+    },
+    {
+      "id": "phone-native-bitmap-raster-v4",
+      "scope": "Native-owned pause and settings menu raster on the Godot phone screen",
+      "behavior": {
+        "status": "verified",
+        "evidence": ["godot/tests/phone_presentation.gd"]
+      },
+      "presentation_contract": {
+        "status": "verified",
+        "evidence": ["godot/tests/phone_presentation.gd", "native/parent_game_node.cpp", "godot/scripts/phone_presentation_adapter.gd"]
+      },
+      "visual": {
+        "status": "unverified",
+        "reference_kind": "native_renderer",
+        "state_correspondence": "approximate",
+        "evidence": [
+          "evidence/visual-recovery-v4/captures/00-pause-resume-selected.png",
+          "evidence/visual-recovery-v4/captures/01-pause-settings-selected.png",
+          "evidence/visual-recovery-v4/captures/02-settings-page.png"
+        ],
+        "review": {
+          "whole_frame": true,
+          "reviewer": "Codex V4 whole-frame review",
+          "reviewed_utc": "2026-10-23T22:10:00Z",
+          "blockers": [
+            "The frames are readable and the complete handset is visible, but no exact matched-state desktop framebuffer was produced.",
+            "The shared native 5x7 BitmapFont is used instead of DesktopRenderer's Source Sans stencil raster.",
+            "Desktop per-glyph stencil reveal and paint splatter remain unsupported in this bounded slice."
+          ]
+        }
+      },
+      "claim": "Native menu behavior, bitmap raster bytes, Godot texture upload, and inspected readability are verified; exact desktop appearance remains unverified."
     }
   ]
 }

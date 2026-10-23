@@ -384,7 +384,7 @@ func _sync() -> void:
     sky_dome.position = camera.position
     sky_dome_material.set_shader_parameter("sky_origin", camera.position)
     _sync_moon(lighting_snapshot)
-    phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera)
+    phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera, runtime)
     particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
     var hud_targets: Array[Dictionary] = []
     for i in range(targets.size()):

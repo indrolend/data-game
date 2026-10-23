@@ -22,6 +22,7 @@ func _run() -> void:
 	var phone_root: Node3D = adapter.get_node("PhoneRoot")
 	var body: MeshInstance3D = phone_root.get_node("Body")
 	var screen: MeshInstance3D = phone_root.get_node("Screen")
+	var screen_raster: MeshInstance3D = phone_root.get_node("NativeDisplayRaster")
 	var screen_text: Label3D = phone_root.get_node("ScreenText")
 	var lens: MeshInstance3D = phone_root.get_node("CameraLens")
 	var screen_light: OmniLight3D = phone_root.get_node("NativePhoneScreenLight")
@@ -100,23 +101,17 @@ func _run() -> void:
 		menu_rows[1].label == "Settings" and menu_rows[2].label == "Exit Run",
 		"pause labels and ordering come from the parent PhoneMenuModel")
 	check(bool(menu_rows[0].selected), "native menu selection is reflected in its layout row")
-	check(int(phone_root.get_meta("native_menu_row_count", 0)) == 3 and
-		phone_root.get_node("MenuRow00").text == "Resume",
-		"Godot screen adapter renders rows from the native layout snapshot")
-	check((phone_root.get_node("MenuRow00") as Label3D).material_override == null and
-		(phone_root.get_node("MenuRow01") as Label3D).material_override == null,
-		"phone menu preserves Label3D font-atlas rendering instead of solid glyph quads")
-	var native_row: Dictionary = menu_rows[0]
-	var rendered_row: Label3D = phone_root.get_node("MenuRow00")
-	var expected_row_position: Vector3 = snapshot.screen_center_offset + Vector3(
-		(float(native_row.label_x) / float(menu.logical_width) - 0.5) * snapshot.screen_size.x,
-		(0.5 - float(native_row.baseline_y) / float(menu.logical_height)) * snapshot.screen_size.y,
-		snapshot.screen_size.z * 0.5 + 0.0003)
-	check(rendered_row.position.distance_to(expected_row_position) <= 0.00001,
-		"Godot menu text uses the native PhoneDisplayLayout coordinates")
-	check(absf(rendered_row.scale.x - 0.84) <= 0.00001 and
-		absf(rendered_row.scale.y - 1.0) <= 0.00001,
-		"Godot menu glyph footprint uses the native phone-stencil horizontal scale")
+	var raster_revision := int(runtime.phone_display_raster_revision())
+	var raster_pixels: PackedByteArray = runtime.phone_display_raster_pixels()
+	var raster_hash := hash(raster_pixels)
+	check(raster_pixels.size() == 720 * 1280 * 4 and raster_hash != 0,
+		"native bridge produces a complete deterministic 720x1280 RGBA phone raster")
+	check(screen_raster.visible and screen_raster.material_override.albedo_texture != null and
+		int(phone_root.get_meta("native_raster_revision", -1)) == raster_revision,
+		"Godot uploads the current native raster revision to the phone screen")
+	check(not (phone_root.get_node("MenuRow00") as Label3D).visible and
+		not (phone_root.get_node("MenuRow01") as Label3D).visible,
+		"native raster replaces the prior Label3D menu typography")
 	check(not lens.visible,
 		"interactive phone menu hides the fallback lens sphere from the display surface")
 	runtime.menu_move_selection(1)
@@ -124,6 +119,9 @@ func _run() -> void:
 	menu = runtime.phone_menu_layout_snapshot()
 	check(int(menu.selection) == 1 and bool(menu.rows[1].selected),
 		"semantic menu navigation updates native selection")
+	check(int(runtime.phone_display_raster_revision()) != raster_revision and
+		hash(runtime.phone_display_raster_pixels() as PackedByteArray) != raster_hash,
+		"native selection changes both raster revision and display bytes")
 	check(runtime.menu_confirm(), "native settings menu action is handled")
 	menu = runtime.phone_menu_layout_snapshot()
 	check(str(menu.rows[0].label) == "Controls" and
@@ -159,7 +157,7 @@ func _run() -> void:
 	snapshot = runtime.phone_presentation_snapshot()
 	check(bool(snapshot.first_person), "native camera toggle changes phone snapshot mode")
 	var camera: Camera3D = world.get("camera")
-	var expected_view_position: Vector3 = camera.global_position + camera.global_basis * Vector3(0.0, 0.05, -0.70)
+	var expected_view_position: Vector3 = camera.global_position + camera.global_basis * Vector3(0.0, -0.04, -0.70)
 	check(phone_root.global_position.distance_to(expected_view_position) <= 0.00001,
 		"first-person view model is positioned relative to the presentation camera")
 	check(phone_root.scale.is_equal_approx(Vector3.ONE * 3.4),
