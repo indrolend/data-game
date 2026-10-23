@@ -32,6 +32,15 @@ func _run() -> void:
         check(float(snapshot.shell_crack_amount) == 0.0,
             "undamaged native target begins with an intact shell contract")
         adapter.sync_from_native(snapshot, vertices)
+        var model_center: Vector3 = snapshot.position + Vector3.UP * 0.75
+        adapter.sync_from_native(snapshot, vertices, model_center + Vector3.BACK * 3.0,
+            model_center + Vector3.FORWARD * 10.0, true)
+        check(adapter.camera_visibility_alpha <= 0.181,
+            "presentation-only obstruction correction fades a target on the camera ray")
+        adapter.sync_from_native(snapshot, vertices, model_center + Vector3.BACK * 3.0,
+            model_center + Vector3.FORWARD * 10.0, false)
+        check(adapter.camera_visibility_alpha == 1.0,
+            "camera obstruction ablation disables the presentation correction")
         var model := adapter.get_node("SkinnedModel") as MeshInstance3D
         check(model.mesh is ArrayMesh, "Godot builds an ArrayMesh from native-skinned vertices")
         if model.mesh != null:
