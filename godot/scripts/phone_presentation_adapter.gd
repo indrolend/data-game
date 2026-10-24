@@ -7,6 +7,12 @@ const NATIVE_STENCIL_HORIZONTAL_SCALE := 0.84
 const WORLD_LIGHT_LAYER := 1
 const PHONE_RECEIVER_LAYER := 2
 
+# Compatibility mode remains the default until the semantic renderer has
+# captured visual evidence. Toggle at runtime to compare identical native state.
+@export_enum("Native bitmap compatibility", "Godot semantic labels") var menu_renderer: int = 0
+@export_file("*.ttf", "*.otf", "*.tres", "*.res") var menu_font_path: String = ""
+var _menu_font: Font
+
 var phone_root: Node3D
 var body: MeshInstance3D
 var glass: MeshInstance3D
@@ -24,6 +30,8 @@ var _native_body_loaded := false
 var _raster_revision := -1
 
 func _ready() -> void:
+	if not menu_font_path.is_empty() and ResourceLoader.exists(menu_font_path):
+		_menu_font = load(menu_font_path) as Font
 	phone_root = Node3D.new()
 	phone_root.name = "PhoneRoot"
 	add_child(phone_root)
@@ -167,7 +175,7 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 	screen_text.modulate = tint.lightened(0.38)
 	var opacity := clampf(float(snapshot.content_opacity), 0.0, 1.0)
 	var show_menu := bool(menu_layout.get("active", false)) and glass.visible
-	if show_menu and runtime != null:
+	if show_menu and runtime != null and menu_renderer == 0:
 		var next_revision := int(runtime.phone_display_raster_revision())
 		if next_revision != _raster_revision or _raster_material.albedo_texture == null:
 			var pixels: PackedByteArray = runtime.phone_display_raster_pixels()
@@ -188,7 +196,7 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 				_raster_material.albedo_texture = null
 				_raster_material.emission_texture = null
 				_raster_revision = -1
-	screen_raster.visible = show_menu and runtime != null and _raster_material.albedo_texture != null
+	screen_raster.visible = show_menu and menu_renderer == 0 and runtime != null and _raster_material.albedo_texture != null
 	screen_text.visible = glass.visible and not show_menu
 	screen_text.modulate.a = opacity
 	screen_text.text = _screen_status(snapshot)
@@ -198,6 +206,7 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 	phone_root.set_meta("native_menu_row_count", int(menu_layout.get("row_count", 0)))
 	phone_root.set_meta("native_menu_selection", int(menu_layout.get("selection", -1)))
 	phone_root.set_meta("native_raster_revision", _raster_revision)
+	phone_root.set_meta("menu_renderer", menu_renderer)
 
 
 func viewport_to_phone_logical(viewport_position: Vector2, camera: Camera3D, layout: Dictionary):
@@ -296,6 +305,8 @@ func _load_native_phone_mesh(path: String) -> ArrayMesh:
 
 func _new_menu_label(label_name: String) -> Label3D:
 	var label := Label3D.new()
+	if _menu_font != null:
+		label.font = _menu_font
 	label.name = label_name
 	label.font_size = 48
 	label.pixel_size = 0.0001
