@@ -9,12 +9,14 @@ const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
 const DeveloperConsole = preload("res://scripts/developer_console.gd")
 const HudPresentationAdapter = preload("res://scripts/hud_presentation_adapter.gd")
 const DoorTransitionPresentation = preload("res://scripts/door_transition_presentation.gd")
+const MusicPresentationAdapter = preload("res://scripts/music_presentation_adapter.gd")
 const SkyDomeShader = preload("res://shaders/open_sky_dome.gdshader")
 const MoonSurfaceShader = preload("res://shaders/moon_surface.gdshader")
 var runtime: Node
 var developer_console: Control
 var hud_adapter: Control
 var door_transition_adapter: CanvasLayer
+var music_adapter: Node
 var phone_adapter: Node
 var particle_adapter: Node
 var room_adapter: Node
@@ -133,6 +135,9 @@ func _ready() -> void:
     phone_adapter = PhonePresentationAdapter.new()
     phone_adapter.name = "PhonePresentationAdapter"
     add_child(phone_adapter)
+    music_adapter = MusicPresentationAdapter.new()
+    music_adapter.name = "NativeMusicPresentation"
+    add_child(music_adapter)
     particle_adapter = NativeParticlePresentationAdapter.new()
     particle_adapter.name = "NativeParticlePresentationAdapter"
     add_child(particle_adapter)
@@ -385,6 +390,7 @@ func _sync() -> void:
     sky_dome_material.set_shader_parameter("sky_origin", camera.position)
     _sync_moon(lighting_snapshot)
     phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera, runtime)
+    music_adapter.call("sync_snapshot", runtime.music_presentation_snapshot())
     particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
     var hud_targets: Array[Dictionary] = []
     for i in range(targets.size()):

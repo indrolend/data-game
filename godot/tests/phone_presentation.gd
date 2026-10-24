@@ -104,6 +104,8 @@ func _run() -> void:
 	var raster_revision := int(runtime.phone_display_raster_revision())
 	var raster_pixels: PackedByteArray = runtime.phone_display_raster_pixels()
 	var raster_hash := hash(raster_pixels)
+	check(runtime.phone_display_uses_source_sans(),
+		"native phone raster loads the authoritative Source Sans semibold face")
 	check(raster_pixels.size() == 720 * 1280 * 4 and raster_hash != 0,
 		"native bridge produces a complete deterministic 720x1280 RGBA phone raster")
 	check(screen_raster.visible and screen_raster.material_override.albedo_texture != null and
@@ -157,17 +159,21 @@ func _run() -> void:
 	snapshot = runtime.phone_presentation_snapshot()
 	check(bool(snapshot.first_person), "native camera toggle changes phone snapshot mode")
 	var camera: Camera3D = world.get("camera")
-	var expected_view_position: Vector3 = camera.global_position + camera.global_basis * Vector3(0.0, -0.04, -0.70)
+	var expected_view_position: Vector3 = camera.global_position + camera.global_basis * Vector3(0.0, 0.003, -0.69)
 	check(phone_root.global_position.distance_to(expected_view_position) <= 0.00001,
 		"first-person view model is positioned relative to the presentation camera")
-	check(phone_root.scale.is_equal_approx(Vector3.ONE * 3.4),
+	check(phone_root.scale.is_equal_approx(Vector3.ONE * 2.9),
 		"first-person phone legibility scale is render-only and camera-relative")
 	check(body.visible and screen.visible,
 		"phone body and screen remain visible in first-person presentation")
+	check((screen_raster.material_override as BaseMaterial3D).no_depth_test,
+		"camera-presented phone raster cannot be occluded by world geometry")
 	check(phone_root.get_meta("native_screen_mode") == int(snapshot.screen_mode),
 		"adapter retains native screen mode without owning it")
 
 	world.free()
+	await process_frame
+	await process_frame
 	if not failures.is_empty():
 		print("RESULT: FAIL count=%d" % failures.size())
 		quit(2)

@@ -117,14 +117,15 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 		var camera_basis: Basis = camera.global_basis
 		# Match the native pause composition at 1280x720: the complete handset is
 		# centered, readable, and occupies roughly three quarters of the frame.
-		var view_position := camera.global_position + camera_basis * Vector3(0.0, -0.04, -0.70)
+		var view_position := camera.global_position + camera_basis * Vector3(0.0, 0.003, -0.69)
 		phone_root.global_transform = Transform3D(camera_basis, view_position)
-		phone_root.scale = Vector3.ONE * 3.4
+		phone_root.scale = Vector3.ONE * 2.9
 	else:
 		phone_root.set_as_top_level(false)
 		phone_root.position = snapshot.position
 		phone_root.quaternion = snapshot.orientation
 		phone_root.scale = Vector3.ONE
+	_set_camera_presented_depth(camera_presented)
 
 	var body_size: Vector3 = snapshot.body_size
 	var body_scale: Vector3 = snapshot.body_scale
@@ -185,6 +186,22 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 	phone_root.set_meta("native_menu_row_count", int(menu_layout.get("row_count", 0)))
 	phone_root.set_meta("native_menu_selection", int(menu_layout.get("selection", -1)))
 	phone_root.set_meta("native_raster_revision", _raster_revision)
+
+
+func _set_camera_presented_depth(camera_presented: bool) -> void:
+	# A pause/menu handset is a view model. World geometry must not cut through it.
+	# The gameplay phone remains normally depth-tested when it returns to the world.
+	_screen_material.no_depth_test = camera_presented
+	_raster_material.no_depth_test = camera_presented
+	if body.material_override is BaseMaterial3D:
+		(body.material_override as BaseMaterial3D).no_depth_test = camera_presented
+	if body.mesh != null:
+		for surface_index in range(body.mesh.get_surface_count()):
+			var material := body.mesh.surface_get_material(surface_index)
+			if material is BaseMaterial3D:
+				(material as BaseMaterial3D).no_depth_test = camera_presented
+	if lens.material_override is BaseMaterial3D:
+		(lens.material_override as BaseMaterial3D).no_depth_test = camera_presented
 
 
 func viewport_to_phone_logical(viewport_position: Vector2, camera: Camera3D, layout: Dictionary):

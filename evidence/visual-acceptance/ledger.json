@@ -182,12 +182,12 @@
           "reviewed_utc": "2026-10-23T22:10:00Z",
           "blockers": [
             "The frames are readable and the complete handset is visible, but no exact matched-state desktop framebuffer was produced.",
-            "The shared native 5x7 BitmapFont is used instead of DesktopRenderer's Source Sans stencil raster.",
+            "Source Sans 3, centered composition, and unobstructed handset framing are inspected, but no exact matched-state desktop framebuffer exists.",
             "Desktop per-glyph stencil reveal and paint splatter remain unsupported in this bounded slice."
           ]
         }
       },
-      "claim": "Native menu behavior, bitmap raster bytes, Godot texture upload, and inspected readability are verified; exact desktop appearance remains unverified."
+      "claim": "Native menu behavior, Source Sans raster bytes, Godot texture upload, and inspected centered readability are verified; exact desktop appearance remains unverified."
     }
   ]
 }

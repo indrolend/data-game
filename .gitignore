@@ -3,3 +3,11 @@
 /godot/.godot/
 /godot/bin/
 /evidence/generated/
+
+# Disposable editor and agent safety copies belong in Git history or an archive,
+# not beside authoritative source files.
+*.bak
+*.orig
+*.rej
+*.before-*
+*~

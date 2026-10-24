@@ -13,7 +13,13 @@ try {
 
     & git diff --check -- . ':!evidence/*'
     if ($LASTEXITCODE -ne 0) { throw "Working-tree diff check failed" }
-    & git diff --cached --check -- . ':!evidence/generated/*'
+    $protectedController = Join-Path $root "tools\invoke-godot-agent-capture-shoot-v2.ps1"
+    $expectedControllerHash = "14184B9059AD071FC69FDA52FD28B3D897999204ACF742E3C47ADCAC61F6CFFD"
+    if (-not (Test-Path -LiteralPath $protectedController) -or
+        (Get-FileHash -LiteralPath $protectedController -Algorithm SHA256).Hash -ne $expectedControllerHash) {
+        throw "Protected V2 controller hash mismatch"
+    }
+    & git diff --cached --check -- . ':!evidence/generated/*' ':!tools/invoke-godot-agent-capture-shoot-v2.ps1'
     if ($LASTEXITCODE -ne 0) { throw "Staged diff check failed" }
 
     $generatedStaged = @(& git diff --cached --name-only -- "evidence/generated")

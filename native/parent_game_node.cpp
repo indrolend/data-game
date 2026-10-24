@@ -5,9 +5,16 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/rect2.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
+#include <fstream>
+#include <iterator>
+#include <vector>
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "third_party/stb/stb_truetype.h"
 #include "phone_presentation_snapshot.hpp"
 #include "PhoneDisplayLayout.hpp"
 #include "BitmapFont.hpp"
+#include "PhoneStencilReveal.hpp"
+#include "MusicDirector.hpp"
 #include "room_presentation_snapshot.hpp"
 #include "lighting_presentation_snapshot.hpp"
 #include "combat_presentation_snapshot.hpp"
@@ -62,6 +69,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("phone_menu_layout_snapshot"),&ParentGameNode::phone_menu_layout_snapshot);
     ClassDB::bind_method(D_METHOD("phone_display_raster_revision"),&ParentGameNode::phone_display_raster_revision);
     ClassDB::bind_method(D_METHOD("phone_display_raster_pixels"),&ParentGameNode::phone_display_raster_pixels);
+    ClassDB::bind_method(D_METHOD("phone_display_uses_source_sans"),&ParentGameNode::phone_display_uses_source_sans);
+    ClassDB::bind_method(D_METHOD("music_presentation_snapshot"),&ParentGameNode::music_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("restart_menu_presentation_snapshot","viewport_width","viewport_height"),&ParentGameNode::restart_menu_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("restart_menu_item_at","viewport_x","viewport_y","viewport_width","viewport_height"),&ParentGameNode::restart_menu_item_at);
@@ -517,6 +526,33 @@ namespace {
 constexpr int PhoneRasterWidth = PhoneDisplayState::LogicalWidth;
 constexpr int PhoneRasterHeight = PhoneDisplayState::LogicalHeight;
 
+struct PhoneRasterFont {
+    std::vector<unsigned char> bytes;
+    stbtt_fontinfo info{};
+    bool attempted = false;
+    bool ready = false;
+
+    void ensure_loaded() {
+        if (attempted) return;
+        attempted = true;
+        const String resolved = ProjectSettings::get_singleton()->globalize_path(
+            "res://fonts/SourceSans3-Semibold.ttf");
+        const CharString path = resolved.utf8();
+        std::ifstream input(path.get_data(), std::ios::binary);
+        if (!input) return;
+        bytes.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        if (bytes.empty()) return;
+        ready = stbtt_InitFont(&info, bytes.data(),
+            stbtt_GetFontOffsetForIndex(bytes.data(), 0)) != 0;
+    }
+};
+
+PhoneRasterFont& phone_source_sans() {
+    static PhoneRasterFont font;
+    font.ensure_loaded();
+    return font;
+}
+
 void phone_raster_rect(uint8_t* pixels, int x, int y, int width, int height,
                        float r, float g, float b, float alpha) {
     const int x0 = std::max(0, x), y0 = std::max(0, y);
@@ -537,9 +573,81 @@ int phone_bitmap_text_width(const std::string& text, float font_px) {
     return text.empty() ? 0 : static_cast<int>(text.size()) * scale * 6 - scale;
 }
 
+float phone_source_sans_width(const std::string& text, float font_px) {
+    auto& font = phone_source_sans();
+    if (!font.ready || text.empty()) return 0.0f;
+    const float scale = stbtt_ScaleForPixelHeight(&font.info, font_px);
+    float width = 0.0f;
+    int previous = 0;
+    for (unsigned char character : text) {
+        int advance = 0, bearing = 0;
+        stbtt_GetCodepointHMetrics(&font.info, character, &advance, &bearing);
+        if (previous) width += static_cast<float>(
+            stbtt_GetCodepointKernAdvance(&font.info, previous, character)) *
+            scale * phone_stencil::HorizontalScale;
+        width += static_cast<float>(advance) * scale * phone_stencil::HorizontalScale;
+        width += font_px * phone_stencil::TrackingEm;
+        previous = character;
+    }
+    return std::max(0.0f, width - font_px * phone_stencil::TrackingEm);
+}
+
+void phone_source_sans_text(uint8_t* pixels, const std::string& text, float x,
+                            float baseline, float font_px, float r, float g,
+                            float b, float alpha, bool centered, bool right) {
+    auto& font = phone_source_sans();
+    if (!font.ready || text.empty()) return;
+    const float scale = stbtt_ScaleForPixelHeight(&font.info, font_px);
+    const float width = phone_source_sans_width(text, font_px);
+    float pen = x - (centered ? width * 0.5f : right ? width : 0.0f);
+    int previous = 0;
+    for (unsigned char character : text) {
+        if (previous) pen += static_cast<float>(
+            stbtt_GetCodepointKernAdvance(&font.info, previous, character)) *
+            scale * phone_stencil::HorizontalScale;
+        int advance = 0, bearing = 0;
+        stbtt_GetCodepointHMetrics(&font.info, character, &advance, &bearing);
+        int bitmap_width = 0, bitmap_height = 0, x_offset = 0, y_offset = 0;
+        unsigned char* bitmap = stbtt_GetCodepointBitmap(&font.info, scale, scale,
+            character, &bitmap_width, &bitmap_height, &x_offset, &y_offset);
+        const int compressed_width = std::max(1, static_cast<int>(std::ceil(
+            static_cast<float>(bitmap_width) * phone_stencil::HorizontalScale)));
+        if (bitmap && bitmap_width > 0 && bitmap_height > 0) {
+            for (int yy = 0; yy < bitmap_height; ++yy) {
+                const int py = static_cast<int>(std::floor(baseline + y_offset + yy));
+                if (py < 0 || py >= PhoneRasterHeight) continue;
+                for (int xx = 0; xx < compressed_width; ++xx) {
+                    const int source_x = std::min(bitmap_width - 1, static_cast<int>(
+                        static_cast<float>(xx) / phone_stencil::HorizontalScale));
+                    const float coverage = static_cast<float>(bitmap[yy * bitmap_width + source_x]) / 255.0f;
+                    const float blended_alpha = coverage * clampf(alpha, 0.0f, 1.0f);
+                    if (blended_alpha <= 0.001f) continue;
+                    const int px = static_cast<int>(std::floor(
+                        pen + static_cast<float>(x_offset) * phone_stencil::HorizontalScale + xx));
+                    if (px < 0 || px >= PhoneRasterWidth) continue;
+                    const int at = (py * PhoneRasterWidth + px) * 4;
+                    pixels[at] = static_cast<uint8_t>(pixels[at] * (1.0f - blended_alpha) + r * 255.0f * blended_alpha);
+                    pixels[at + 1] = static_cast<uint8_t>(pixels[at + 1] * (1.0f - blended_alpha) + g * 255.0f * blended_alpha);
+                    pixels[at + 2] = static_cast<uint8_t>(pixels[at + 2] * (1.0f - blended_alpha) + b * 255.0f * blended_alpha);
+                    pixels[at + 3] = 255;
+                }
+            }
+        }
+        stbtt_FreeBitmap(bitmap, nullptr);
+        pen += static_cast<float>(advance) * scale * phone_stencil::HorizontalScale +
+            font_px * phone_stencil::TrackingEm;
+        previous = character;
+    }
+}
+
 void phone_bitmap_text(uint8_t* pixels, const std::string& text, float x, float baseline,
                        float font_px, float r, float g, float b, float alpha,
                        bool centered = false, bool right = false) {
+    if (phone_source_sans().ready) {
+        phone_source_sans_text(pixels, text, x, baseline, font_px, r, g, b,
+                               alpha, centered, right);
+        return;
+    }
     const int scale = std::max(1, static_cast<int>(std::round(font_px / 8.0f)));
     int pen = static_cast<int>(std::round(x));
     const int width = phone_bitmap_text_width(text, font_px);
@@ -561,6 +669,10 @@ void hash_phone_text(uint64_t& hash, const std::string& text) {
     for (unsigned char value : text) { hash ^= value; hash *= 1099511628211ull; }
     hash ^= 0xffu; hash *= 1099511628211ull;
 }
+}
+
+bool ParentGameNode::phone_display_uses_source_sans() const {
+    return phone_source_sans().ready;
 }
 
 int64_t ParentGameNode::phone_display_raster_revision() const {
@@ -626,6 +738,41 @@ PackedByteArray ParentGameNode::phone_display_raster_pixels() const {
     phone_bitmap_text(pixels, layout.navigationHint, layout.logicalW * 0.5f,
                       layout.logicalH - 66.0f, 26.0f, VisualIdentity::ElectricCyan.r,
                       VisualIdentity::ElectricCyan.g, VisualIdentity::ElectricCyan.b, 0.62f, true);
+    return result;
+}
+
+Dictionary ParentGameNode::music_presentation_snapshot() const {
+    const auto& state = bridge.state();
+    Dictionary result;
+    const float volume = state.localSettings.musicMuted ? 0.0f :
+        clampf(state.localSettings.musicVolume, 0.0f, 1.0f);
+    const bool menu = !state.started || state.attractMode;
+    const bool stage = state.started && !state.attractMode && !state.dead;
+    int theme = -1;
+    String key;
+    if (menu) {
+        const auto selected = music_director::menuTheme(
+            state.localSettings.menuPage != LocalMenuPage::Main);
+        theme = static_cast<int>(selected);
+        key = selected == music_director::MenuTheme::Pensive ? "menu-pensive" : "title";
+    } else if (stage) {
+        const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+        const auto selected = music_director::stageTheme(plan, state.roomIndex);
+        theme = static_cast<int>(selected);
+        switch (selected) {
+            case music_director::StageTheme::Turnt: key = "stage-turnt"; break;
+            case music_director::StageTheme::Wacky: key = "stage-wacky"; break;
+            case music_director::StageTheme::Boss: key = "boss"; break;
+            default: key = "stage-original"; break;
+        }
+    }
+    result["playing"] = (menu || stage) && volume > 0.0001f;
+    result["menu"] = menu;
+    result["theme"] = theme;
+    result["key"] = key;
+    result["volume"] = volume;
+    result["muted"] = state.localSettings.musicMuted;
+    result["room_index"] = state.roomIndex;
     return result;
 }
 Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {

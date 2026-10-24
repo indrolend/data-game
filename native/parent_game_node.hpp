@@ -64,6 +64,8 @@ public:
     Dictionary phone_menu_layout_snapshot() const;
     int64_t phone_display_raster_revision() const;
     PackedByteArray phone_display_raster_pixels() const;
+    bool phone_display_uses_source_sans() const;
+    Dictionary music_presentation_snapshot() const;
     Dictionary hud_presentation_snapshot() const;
     Dictionary restart_menu_presentation_snapshot(float viewport_width, float viewport_height) const;
     int restart_menu_item_at(float viewport_x, float viewport_y,

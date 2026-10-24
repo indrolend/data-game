@@ -55,12 +55,13 @@ func _run() -> void:
     runtime.start_target_interaction_fixture()
     var crack_seen := false
     var capture_seen := false
-    for step in range(1100):
+    var residue_seen := false
+    for step in range(1300):
         if step == 960:
             runtime.refill_target_interaction_battery()
         var melee := step > 300 and step < 1000 and step % 50 == 0
         runtime.submit_input(0, 0, 120.0 if step == 960 else 0.0, 0,
-            step > 960, false, false, melee, false, false)
+            step > 960 and step < 1048, false, false, melee, false, false)
         runtime.tick()
         if not crack_seen:
             for target in range(runtime.target_count()):
@@ -69,21 +70,31 @@ func _run() -> void:
                     world._sync()
                     await capture_frame("02-shell-crack")
                     break
-        if float(runtime.phone_presentation_snapshot().capture_pulse) > 0.8:
+        if not capture_seen and float(runtime.phone_presentation_snapshot().capture_pulse) > 0.8:
             capture_seen = true
             world._sync()
             await capture_frame("03-capture-phone-light")
+        if capture_seen and not residue_seen:
+            for particle_value in runtime.particle_presentation_snapshot():
+                var particle: Dictionary = particle_value
+                if int(particle.material) == 5 and bool(particle.settled):
+                    residue_seen = true
+                    world._sync()
+                    await capture_frame("04-settled-signal-residue")
+                    break
+        if residue_seen:
             break
     check(crack_seen, "native melee reaches a visible shell-crack checkpoint")
     check(capture_seen and runtime.souls() > 0,
         "native ingestion reaches capture phone-light and stored-soul checkpoints")
+    check(residue_seen, "native capture produces a settled signal-residue visual checkpoint")
 
     runtime.start_target_interaction_fixture()
     runtime.set_paused(true)
     for _frame in range(45):
         runtime.tick()
     world._sync()
-    await capture_frame("04-phone-menu")
+    await capture_frame("05-phone-menu")
     check(bool(runtime.phone_menu_layout_snapshot().active),
         "native pause displays the interactive phone menu")
     world.free()
@@ -91,5 +102,5 @@ func _run() -> void:
         print("RESULT: FAIL count=", failures.size())
         quit(2)
         return
-    print("RESULT: PASS graphical enemy-hit, shell-crack, capture-light, and phone-menu checkpoints")
+    print("RESULT: PASS graphical enemy-hit, shell-crack, capture-light, residue, and phone-menu checkpoints")
     quit(0)

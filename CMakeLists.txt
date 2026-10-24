@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 project(DigitalBreakdownGodot LANGUAGES CXX)
+enable_testing()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -9,6 +10,9 @@ add_executable(phone_pointer_contract tests/phone_pointer_contract.cpp parent/ga
 target_include_directories(phone_pointer_contract PRIVATE parent/game native)
 add_executable(restart_menu_contract tests/restart_menu_contract.cpp parent/game/Game.cpp)
 target_include_directories(restart_menu_contract PRIVATE parent/game native)
+add_test(NAME parent_reference_contract COMMAND parent_reference)
+add_test(NAME phone_pointer_contract COMMAND phone_pointer_contract)
+add_test(NAME restart_menu_contract COMMAND restart_menu_contract)
 # Supply a matching checkout of godot-cpp using -DGODOT_CPP_DIR=...
 if(NOT GODOT_CPP_DIR)
   message(FATAL_ERROR "Set -DGODOT_CPP_DIR to the official godot-cpp checkout matching your Godot 4 version")

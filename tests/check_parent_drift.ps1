@@ -5,24 +5,31 @@ param(
 $ErrorActionPreference = "Stop"
 $migrationRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $nativeRootResolved = (Resolve-Path $NativeRoot).Path
-$pairs = @(
-    @{ Native = "game\Game.cpp"; Embedded = "parent\game\Game.cpp" },
-    @{ Native = "game\Game.hpp"; Embedded = "parent\game\Game.hpp" },
-    @{ Native = "game\FieldIsland.hpp"; Embedded = "parent\game\FieldIsland.hpp" }
-)
-
 $mismatches = @()
-foreach ($pair in $pairs) {
-    $native = Join-Path $nativeRootResolved $pair.Native
-    $embedded = Join-Path $migrationRoot $pair.Embedded
-    if (-not (Test-Path -LiteralPath $native) -or -not (Test-Path -LiteralPath $embedded)) {
-        $mismatches += "$($pair.Native): missing native or embedded file"
+$nativeGame = Join-Path $nativeRootResolved "game"
+$embeddedGame = Join-Path $migrationRoot "parent\game"
+$nativeFiles = @{}
+$embeddedFiles = @{}
+foreach ($file in Get-ChildItem -LiteralPath $nativeGame -Recurse -File) {
+    $relative = [IO.Path]::GetRelativePath($nativeGame, $file.FullName).Replace('\', '/')
+    $nativeFiles[$relative] = $file.FullName
+}
+foreach ($file in Get-ChildItem -LiteralPath $embeddedGame -Recurse -File) {
+    $relative = [IO.Path]::GetRelativePath($embeddedGame, $file.FullName).Replace('\', '/')
+    $embeddedFiles[$relative] = $file.FullName
+}
+$allPaths = @($nativeFiles.Keys) + @($embeddedFiles.Keys) | Sort-Object -Unique
+foreach ($relative in $allPaths) {
+    if (-not $nativeFiles.ContainsKey($relative) -or -not $embeddedFiles.ContainsKey($relative)) {
+        $mismatches += "game/$relative`: missing from native or embedded tree"
         continue
     }
+    $native = $nativeFiles[$relative]
+    $embedded = $embeddedFiles[$relative]
     $nativeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $native).Hash
     $embeddedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $embedded).Hash
     if ($nativeHash -ne $embeddedHash) {
-        $mismatches += "$($pair.Native): native=$nativeHash embedded=$embeddedHash"
+        $mismatches += "game/$relative`: native=$nativeHash embedded=$embeddedHash"
     }
 }
 
@@ -31,5 +38,5 @@ if ($mismatches.Count -gt 0) {
     exit 2
 }
 
-Write-Output "PASS: authoritative native files match the embedded parent copy"
+Write-Output "PASS: authoritative native tree matches the embedded parent copy ($($allPaths.Count) files)"
 exit 0

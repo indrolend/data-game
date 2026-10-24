@@ -4,7 +4,8 @@ param(
     [string]$Source,
     [string]$Output,
     [string]$GodotExe = 'godot_console.exe',
-    [ValidateRange(1,100)][int]$MaximumDecisions = 40
+    [ValidateRange(1,100)][int]$MaximumDecisions = 40,
+    [switch]$SkipClipboard
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +19,12 @@ function Resolve-InRoot([string]$Path) {
     } else {
         [IO.Path]::GetFullPath((Join-Path $root $Path))
     }
-    if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw "Path escapes repository: $Path" }
+    $relative = [IO.Path]::GetRelativePath($root, $full)
+    $parentPrefix = "..$([IO.Path]::DirectorySeparatorChar)"
+    if ([IO.Path]::IsPathRooted($relative) -or $relative -eq '..' -or
+        $relative.StartsWith($parentPrefix, [StringComparison]::Ordinal)) {
+        throw "Path escapes repository: $Path"
+    }
     return $full
 }
 function Write-Ndjson([string]$Path, [object[]]$Rows) {
@@ -263,7 +269,7 @@ function Build-Package([string]$SourcePath, [string]$OutputPath, [string]$RunId)
     Test-Package $outFull
     $zip = "$outFull.zip"
     Compress-Archive -Path (Join-Path $outFull '*') -DestinationPath $zip -CompressionLevel Optimal
-    if ($IsWindows) {
+    if ($IsWindows -and -not $SkipClipboard) {
         try {
             Add-Type -AssemblyName System.Windows.Forms
             $drop = [Collections.Specialized.StringCollection]::new()

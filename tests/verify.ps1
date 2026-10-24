@@ -14,6 +14,8 @@ try {
 
     & cmake --build build-godot47 --config Release --parallel 2>&1 | Set-Content (Join-Path $evidence "native-build.log")
     if ($LASTEXITCODE -ne 0) { throw "Native build failed with exit code $LASTEXITCODE" }
+    & ctest --test-dir build-godot47 -C Release --output-on-failure 2>&1 | Set-Content (Join-Path $evidence "native-ctest.log")
+    if ($LASTEXITCODE -ne 0) { throw "Native CTest contracts failed with exit code $LASTEXITCODE" }
     & (Join-Path $root "build-godot47/Release/phone_pointer_contract.exe") 2>&1 | Set-Content (Join-Path $evidence "phone-pointer-native.log")
     if ($LASTEXITCODE -ne 0) { throw "Native phone pointer contract failed with exit code $LASTEXITCODE" }
     & (Join-Path $root "build-godot47/Release/restart_menu_contract.exe") 2>&1 | Set-Content (Join-Path $evidence "restart-menu-native.log")
@@ -22,6 +24,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Headless smoke failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/phone_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "phone-presentation.log")
     if ($LASTEXITCODE -ne 0) { throw "Phone presentation contract failed with exit code $LASTEXITCODE" }
+    & $GodotExe --headless --path godot --script res://tests/music_presentation.gd 2>&1 | Set-Content (Join-Path $evidence "music-presentation.log")
+    if ($LASTEXITCODE -ne 0) { throw "Music presentation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/menu_navigation.gd 2>&1 | Set-Content (Join-Path $evidence "menu-navigation.log")
     if ($LASTEXITCODE -ne 0) { throw "Actual-scene menu navigation contract failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --script res://tests/restart_menu.gd 2>&1 | Set-Content (Join-Path $evidence "restart-menu.log")
@@ -58,6 +62,27 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Godot startup failed with exit code $LASTEXITCODE" }
     & "$PSScriptRoot/compare_parity.ps1" -GodotExe $GodotExe 2>&1 | Set-Content (Join-Path $evidence "parity-result.log")
     if ($LASTEXITCODE -ne 0) { throw "Parity comparison failed with exit code $LASTEXITCODE" }
+
+    # Godot can exit zero after emitting script/runtime errors (resource leaks did
+    # this previously), so an exit code alone is not a trustworthy test result.
+    # Inspect only this suite's current outputs; historical evidence may retain
+    # intentional failure cases and must not affect present verification.
+    $currentVerificationLogs = @(
+        "native-ctest.log", "headless-smoke.log", "phone-presentation.log", "music-presentation.log",
+        "menu-navigation.log", "restart-menu.log", "room-presentation.log",
+        "field-island-traversal.log", "gameplay-loop.log", "all-room-gameplay-loops.log",
+        "agent-playtest-hardening-headless.log", "projectile-observation.log",
+        "native-damage-phone-light.log", "diagnostic-utilities.log",
+        "human-model-presentation.log", "hud-presentation.log", "lighting-presentation.log",
+        "upgrade-presentation.log", "room-transition.log", "playable-encounter.log",
+        "godot-startup.log", "parity-result.log"
+    )
+    foreach ($logName in $currentVerificationLogs) {
+        $logPath = Join-Path $evidence $logName
+        if (Select-String -Path $logPath -Pattern "SCRIPT ERROR|ERROR:|FAIL:" -Quiet) {
+            throw "Verification log contains an error despite a zero exit code: $logPath"
+        }
+    }
     Write-Output "PASS: configure, native build, headless behaviors, Godot startup, and parent parity"
 } finally {
     Pop-Location

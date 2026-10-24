@@ -18,8 +18,11 @@
 
 ## Capture SHA-256
 
-- `00-pause-resume-selected.png`: `98D5F1A14AA1B3C72E326B4508DDF8FA4FEF4910BB32B3DFD6A35D4C6CD8B188`
-- `01-pause-settings-selected.png`: `E448CE1C5202CF6AB6E236E372BFEF117A5876FC014C58C3B0C8937444EB641E`
-- `02-settings-page.png`: `CA7B8A8FC91B30DEC75ACA9C31D2E48FB3AE6C9DB4EC5E16B956FBF75A39F275`
+- `00-pause-resume-selected.png`: `E41654649F79ABAEFAF2CA5E2B47CB949229B66DBC8A7820AF5A2E8CA7B4AB19`
+- `01-pause-settings-selected.png`: `8D8AA38462DCE8BCB6B9310C47D7FE77C62A2D1F02706FE78C92DE7BCE4A22C8`
+- `02-settings-page.png`: `0A4714B26A4AC5E866B281C3A0C4FE8034B4EC39A9F21FB82E9DD0839707FAFF`
 
-Visual readability is inspected and accepted for this bitmap slice. Exact native desktop parity remains unverified because state correspondence is approximate and the desktop uses a different font/stencil path.
+All three corrected Source Sans frames were reinspected at original resolution:
+the handset and text are centered, readable, and unobstructed. Exact native
+desktop parity remains unverified because state correspondence is approximate
+and the animated stencil/paint path is not yet matched.

@@ -19,9 +19,16 @@ func check(condition: bool, message: String) -> void:
 
 func _run() -> void:
 	var scene = load("res://scenes/main.tscn").instantiate()
-	scene.agent_playtest = true
 	root.add_child(scene)
 	await process_frame
+	var make_dir_error := DirAccess.make_dir_recursive_absolute(
+		ProjectSettings.globalize_path(OUTPUT_DIR))
+	check(make_dir_error == OK or make_dir_error == ERR_ALREADY_EXISTS,
+		"create lunar capture evidence directory")
+	# _ready() derives this flag from command-line arguments, so set it only after
+	# the node enters the tree. Otherwise awaited render frames resume gameplay and
+	# overwrite the diagnostic camera pose with the native gameplay camera.
+	scene.agent_playtest = true
 	scene.runtime.start_target_interaction_fixture()
 	scene._sync()
 	var day_snapshot: Dictionary = scene.runtime.lighting_presentation_snapshot()
@@ -39,15 +46,17 @@ func _run() -> void:
 	if sun_image != null and not sun_image.is_empty():
 		check(sun_image.save_png(ProjectSettings.globalize_path(SUN_FILE)) == OK,
 			"save native-driven sun disk capture")
+	var starting_frame: int = scene.runtime.frame()
 	for _tick in range(FULL_MOON_TICKS):
 		scene.runtime.tick()
 	var snapshot: Dictionary = scene.runtime.lighting_presentation_snapshot()
 	scene._sync()
 	var view_to_camera: Vector3 = (scene.camera.position - scene.moon.position).normalized()
 	var moon_lighting: float = view_to_camera.dot(snapshot.sun.direction.normalized())
-	print("LUNAR_STATE frame=%d time=%.6f daylight=%.6f moon_visible=%s phase_view_lighting=%.6f" % [
-		scene.runtime.frame(), snapshot.time, snapshot.daylight, str(scene.moon.visible), moon_lighting])
-	check(scene.runtime.frame() == FULL_MOON_TICKS and float(snapshot.time) > 7000.0,
+	print("LUNAR_STATE start_frame=%d frame=%d delta=%d time=%.6f daylight=%.6f moon_visible=%s phase_view_lighting=%.6f" % [
+		starting_frame, scene.runtime.frame(), scene.runtime.frame() - starting_frame,
+		snapshot.time, snapshot.daylight, str(scene.moon.visible), moon_lighting])
+	check(scene.runtime.frame() - starting_frame == FULL_MOON_TICKS and float(snapshot.time) > 7000.0,
 		"capture advances the original native simulation by the requested fixed ticks")
 	check(float(snapshot.daylight) < 0.02 and scene.moon.visible and moon_lighting > 0.90,
 		"captured native state is a visible, sunlit near-full Moon during night")
@@ -66,24 +75,40 @@ func _run() -> void:
 	# Looking upward is an ordinary player camera action; retain the native FOV
 	# here to show the Moon at its actual apparent size, not as an enlarged asset.
 	var gameplay_fov: float = scene.camera.fov
-	scene.camera.look_at(scene.moon.position, Vector3.UP)
+	scene.camera.look_at(scene.moon.global_position, Vector3.UP)
 	await process_frame
 	await process_frame
+	var gameplay_forward: Vector3 = -scene.camera.global_basis.z.normalized()
+	var gameplay_to_moon: Vector3 = (scene.moon.global_position - scene.camera.global_position).normalized()
+	print("LUNAR_GAMEPLAY_AIM fov=%.3f visible=%s behind=%s alignment=%.6f screen=%s" % [
+		scene.camera.fov, str(scene.moon.visible),
+		str(scene.camera.is_position_behind(scene.moon.global_position)),
+		gameplay_forward.dot(gameplay_to_moon),
+		str(scene.camera.unproject_position(scene.moon.global_position))])
+	check(gameplay_forward.dot(gameplay_to_moon) > 0.999 and
+		absf(scene.camera.fov - gameplay_fov) < 0.001,
+		"gameplay-FOV lunar capture camera remains aimed at the Moon")
 	var moon_at_gameplay_fov := root.get_texture().get_image()
 	check(moon_at_gameplay_fov != null and not moon_at_gameplay_fov.is_empty(),
 		"capture Moon while looking up at the gameplay camera FOV")
 	if moon_at_gameplay_fov != null and not moon_at_gameplay_fov.is_empty():
 		check(moon_at_gameplay_fov.save_png(ProjectSettings.globalize_path(MOON_GAMEPLAY_FOV_FILE)) == OK,
 			"save actual-apparent-size lunar capture")
-	scene.camera.look_at(scene.moon.position, Vector3.UP)
+	scene.camera.look_at(scene.moon.global_position, Vector3.UP)
 	# Zoom only for surface inspection; the gameplay camera retains its native FOV.
 	scene.camera.fov = 1.5
 	await process_frame
 	await process_frame
-	var make_dir_error := DirAccess.make_dir_recursive_absolute(
-		ProjectSettings.globalize_path(OUTPUT_DIR))
-	check(make_dir_error == OK or make_dir_error == ERR_ALREADY_EXISTS,
-		"create lunar capture evidence directory")
+	var closeup_forward: Vector3 = -scene.camera.global_basis.z.normalized()
+	var closeup_to_moon: Vector3 = (scene.moon.global_position - scene.camera.global_position).normalized()
+	print("LUNAR_CLOSEUP_AIM fov=%.3f visible=%s behind=%s alignment=%.6f screen=%s" % [
+		scene.camera.fov, str(scene.moon.visible),
+		str(scene.camera.is_position_behind(scene.moon.global_position)),
+		closeup_forward.dot(closeup_to_moon),
+		str(scene.camera.unproject_position(scene.moon.global_position))])
+	check(closeup_forward.dot(closeup_to_moon) > 0.999 and
+		absf(scene.camera.fov - 1.5) < 0.001,
+		"close-up lunar capture camera remains aimed and zoomed")
 	var image := root.get_texture().get_image()
 	check(image != null and not image.is_empty(), "capture rendered lunar framebuffer")
 	if failures.is_empty():

@@ -107,6 +107,8 @@ func _run() -> void:
 		scene.native_point_lights[0].visible and scene.native_point_lights[1].visible,
 		"Godot materializes native sterile ceiling fixture lights")
 	scene.free()
+	await process_frame
+	await process_frame
 	if not failures.is_empty():
 		print("RESULT: FAIL count=", failures.size())
 		quit(2)

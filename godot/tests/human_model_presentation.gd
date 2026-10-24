@@ -92,6 +92,9 @@ func _run() -> void:
     var found_digital_blood := false
     var found_shell_shards := false
     var verified_particle_mesh := false
+    var verified_particle_cube := false
+    var verified_residue_surface := false
+    var first_signal_frame := -1
     var verified_shell_to_cube_handoff := false
     var maximum_capture_pulse := 0.0
     var maximum_phone_light_pulse := 0.0
@@ -102,12 +105,12 @@ func _run() -> void:
     get_root().add_child(soul_adapter)
     var effects_adapter = load("res://scripts/native_particle_presentation_adapter.gd").new()
     get_root().add_child(effects_adapter)
-    for step in range(1050):
+    for step in range(1300):
         if step == 960:
             interaction.refill_target_interaction_battery()
         var melee := step > 300 and step < 1000 and step % 50 == 0
         interaction.submit_input(0, 0, 120.0 if step == 960 else 0.0, 0,
-            step > 960, false, false, melee, false, false)
+            step > 960 and step < 1048, false, false, melee, false, false)
         interaction.tick()
         var phone_state: Dictionary = interaction.phone_presentation_snapshot()
         maximum_capture_pulse = maxf(maximum_capture_pulse, float(phone_state.capture_pulse))
@@ -147,10 +150,11 @@ func _run() -> void:
         if not native_particles.is_empty():
             effects_adapter.sync_from_native(native_particles)
             var native_mesh: MultiMeshInstance3D = effects_adapter.get_node("NativeDigitalParticles")
-            check(native_mesh.multimesh.visible_instance_count == native_particles.size() and
-                native_mesh.multimesh.instance_count >= native_particles.size(),
-                "render adapter displays the current native particle count")
+            check(native_mesh.multimesh.mesh is BoxMesh,
+                "native airborne effects use the desktop renderer's rotating digital boxes")
+            verified_particle_cube = true
             verified_particle_mesh = true
+            var settled_residue := 0
             for particle_value in native_particles:
                 var particle: Dictionary = particle_value
                 if int(particle.material) == 1:
@@ -160,6 +164,18 @@ func _run() -> void:
                         "Flesh particle color matches native DigitalBlood material response")
                 if int(particle.material) == 2:
                     found_shell_shards = true
+                if int(particle.material) == 5 and bool(particle.settled):
+                    settled_residue += 1
+                if int(particle.material) == 5 and first_signal_frame < 0:
+                    first_signal_frame = interaction.frame()
+            var counts: Dictionary = effects_adapter.presentation_counts()
+            check(int(counts.airborne) + settled_residue == native_particles.size(),
+                "every native particle maps to an airborne box or settled residue stain")
+            if settled_residue > 0:
+                check(int(counts.residue_lobes) == settled_residue * 4 and
+                    int(counts.residue_glints) == settled_residue * 3,
+                    "settled native signal residue expands into four stain lobes and three embedded glints")
+                verified_residue_surface = true
         if interaction.frame() == 1020:
             tether_snapshot = interaction.target_presentation_snapshot(interaction_target)
     check(found_native_cracks, "native combat sequence reaches visible shell cracking before defeat")
@@ -168,6 +184,9 @@ func _run() -> void:
     check(verified_shell_to_cube_handoff,
         "controlled native combat observes an intermediate cracked-shell-to-soul morph")
     check(verified_particle_mesh, "Godot particle adapter consumes native simulation snapshots")
+    check(verified_particle_cube, "Godot particle geometry matches the native digital-box primitive")
+    check(verified_residue_surface,
+        "controlled native capture observes and presents settled signal residue (first signal frame %d)" % first_signal_frame)
     check(maximum_capture_pulse > 0.0 and maximum_phone_light_pulse >= maximum_capture_pulse,
         "native ingestion/capture activity drives the character phone light pulse")
     check(not tether_snapshot.is_empty() and bool(tether_snapshot.tether_visible),
