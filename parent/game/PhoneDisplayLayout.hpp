@@ -221,7 +221,9 @@ inline bool phoneDisplayHasMoreBelow(const PhoneDisplayMenuLayout& layout) {
 inline int phoneDisplayItemAt(const PhoneDisplayMenuLayout& layout, float x, float y) {
     for (int i = 0; i < layout.rowCount; ++i) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
-        if (!row.selectable) continue;
+        // Hidden and partially clipped rows have an empty hit rectangle.
+        // Without this guard, (0, 0) can select an invisible menu item.
+        if (!row.selectable || row.hit.w <= 0.0f || row.hit.h <= 0.0f) continue;
         if (x >= row.hit.x && x <= row.hit.x + row.hit.w && y >= row.hit.y && y <= row.hit.y + row.hit.h) {
             return row.selectableIndex;
         }

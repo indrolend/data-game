@@ -209,9 +209,17 @@ func _run() -> void:
 	menu = runtime.phone_menu_layout_snapshot()
 	check(str(menu.rows[0].label) == "Movement" and selected_label(menu) == "Forward",
 		"Controls submenu opens with its native movement bindings")
+	var initial_controls_revision := int(runtime.phone_display_raster_revision())
+	var initial_controls_pixels: PackedByteArray = runtime.phone_display_raster_pixels()
 	for _index in range(8):
 		send_key(world, KEY_DOWN)
 	menu = runtime.phone_menu_layout_snapshot()
+	check(int(runtime.phone_display_raster_revision()) != initial_controls_revision and
+		runtime.phone_display_raster_pixels() != initial_controls_pixels,
+		"scrolling Controls invalidates and changes the native phone raster")
+	check(int(phone_root.get_meta("native_raster_revision", -1)) ==
+		int(runtime.phone_display_raster_revision()),
+		"Godot presents the current scrolled phone raster revision")
 	check(selected_label(menu) == "Camera",
 		"Controls list can navigate beyond the initial viewport")
 	check(float(menu.scroll_offset) > 0.0,

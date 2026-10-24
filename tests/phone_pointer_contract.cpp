@@ -31,6 +31,14 @@ int main() {
     assert(hitCenter(bridge, resume) == resume.selectableIndex);
     assert(hitCenter(bridge, settings) == settings.selectableIndex);
     assert(bridge.menuItemAt(2.0f, 2.0f) == -1);
+    // A selectable row with an empty hit rectangle must never match (0, 0).
+    PhoneDisplayMenuLayout empty_hit_layout;
+    PhoneDisplayMenuRow hidden_row;
+    hidden_row.selectable = true;
+    hidden_row.visible = false;
+    addPhoneDisplayRow(empty_hit_layout, hidden_row);
+    assert(phoneDisplayItemAt(empty_hit_layout, 0.0f, 0.0f) == -1);
+    assert(phoneDisplayItemAt(empty_hit_layout, 1.0f, 1.0f) == -1);
 
     bridge.setMenuSelection(settings.selectableIndex);
     assert(bridge.state().hud.menuSelection == settings.selectableIndex);

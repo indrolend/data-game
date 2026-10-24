@@ -7,6 +7,12 @@ const NATIVE_STENCIL_HORIZONTAL_SCALE := 0.84
 const WORLD_LIGHT_LAYER := 1
 const PHONE_RECEIVER_LAYER := 2
 
+# Compatibility mode remains the default until the semantic renderer has
+# captured visual evidence. Toggle at runtime to compare identical native state.
+@export_enum("Native bitmap compatibility", "Godot semantic labels") var menu_renderer: int = 0
+@export var menu_font_path: String = ""
+var _menu_font: Font
+
 var phone_root: Node3D
 var body: MeshInstance3D
 var glass: MeshInstance3D
@@ -20,10 +26,13 @@ var _raster_material: StandardMaterial3D
 var _menu_title: Label3D
 var _menu_hint: Label3D
 var _menu_row_labels: Array[Label3D] = []
+var _menu_selection_highlight: MeshInstance3D
 var _native_body_loaded := false
 var _raster_revision := -1
 
 func _ready() -> void:
+	if not menu_font_path.is_empty() and ResourceLoader.exists(menu_font_path):
+		_menu_font = load(menu_font_path) as Font
 	phone_root = Node3D.new()
 	phone_root.name = "PhoneRoot"
 	add_child(phone_root)
@@ -83,9 +92,22 @@ func _ready() -> void:
 	# Label3D owns a font-atlas shader. A StandardMaterial override turns each
 	# glyph quad into a solid rectangle and makes native menu text unreadable.
 	phone_root.add_child(screen_text)
+	_menu_selection_highlight = MeshInstance3D.new()
+	_menu_selection_highlight.name = "MenuSelectionHighlight"
+	_menu_selection_highlight.mesh = QuadMesh.new()
+	var highlight_material := StandardMaterial3D.new()
+	highlight_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	highlight_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	highlight_material.albedo_color = Color(0.30, 0.92, 0.86, 0.13)
+	highlight_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_menu_selection_highlight.material_override = highlight_material
+	_menu_selection_highlight.visible = false
+	phone_root.add_child(_menu_selection_highlight)
 	_menu_title = _new_menu_label("MenuTitle")
 	_menu_hint = _new_menu_label("MenuHint")
-	for i in range(48):
+	# Most menus are short. Allocate only a small initial pool and grow it
+	# on demand; avoid constructing dozens of Label3D nodes for every phone.
+	for i in range(8):
 		_menu_row_labels.append(_new_menu_label("MenuRow%02d" % i))
 
 	lens = MeshInstance3D.new()
@@ -166,17 +188,28 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 	screen_text.modulate = tint.lightened(0.38)
 	var opacity := clampf(float(snapshot.content_opacity), 0.0, 1.0)
 	var show_menu := bool(menu_layout.get("active", false)) and glass.visible
-	if show_menu and runtime != null:
+	if show_menu and runtime != null and menu_renderer == 0:
 		var next_revision := int(runtime.phone_display_raster_revision())
-		if next_revision != _raster_revision:
+		if next_revision != _raster_revision or _raster_material.albedo_texture == null:
 			var pixels: PackedByteArray = runtime.phone_display_raster_pixels()
 			if pixels.size() == 720 * 1280 * 4:
 				var image := Image.create_from_data(720, 1280, false, Image.FORMAT_RGBA8, pixels)
-				var texture := ImageTexture.create_from_image(image)
-				_raster_material.albedo_texture = texture
-				_raster_material.emission_texture = texture
+				var texture := _raster_material.albedo_texture as ImageTexture
+				if texture == null:
+					texture = ImageTexture.create_from_image(image)
+					_raster_material.albedo_texture = texture
+					_raster_material.emission_texture = texture
+				else:
+					# Reuse the GPU texture; a menu selection should not allocate a new one.
+					texture.update(image)
 				_raster_revision = next_revision
-	screen_raster.visible = show_menu and _raster_material.albedo_texture != null
+			else:
+				# Never display a stale menu texture after an invalid native payload.
+				push_error("Native phone raster size mismatch: %d bytes" % pixels.size())
+				_raster_material.albedo_texture = null
+				_raster_material.emission_texture = null
+				_raster_revision = -1
+	screen_raster.visible = show_menu and menu_renderer == 0 and runtime != null and _raster_material.albedo_texture != null
 	screen_text.visible = glass.visible and not show_menu
 	screen_text.modulate.a = opacity
 	screen_text.text = _screen_status(snapshot)
@@ -186,6 +219,7 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 	phone_root.set_meta("native_menu_row_count", int(menu_layout.get("row_count", 0)))
 	phone_root.set_meta("native_menu_selection", int(menu_layout.get("selection", -1)))
 	phone_root.set_meta("native_raster_revision", _raster_revision)
+	phone_root.set_meta("menu_renderer", menu_renderer)
 
 
 func _set_camera_presented_depth(camera_presented: bool) -> void:
@@ -217,7 +251,9 @@ func viewport_to_phone_logical(viewport_position: Vector2, camera: Camera3D, lay
 	var ray_origin := camera.project_ray_origin(viewport_position)
 	var ray_direction := camera.project_ray_normal(viewport_position).normalized()
 	var denominator := plane_normal.dot(ray_direction)
-	if absf(denominator) <= 0.000001:
+	# The interactive glass is front-facing (+Z). Reject rays from behind
+	# the handset as well as near-parallel rays; back-face clicks are not input.
+	if denominator >= -0.000001:
 		return null
 	var distance := plane_normal.dot(plane_point - ray_origin) / denominator
 	if distance <= 0.0:
@@ -298,6 +334,8 @@ func _load_native_phone_mesh(path: String) -> ArrayMesh:
 
 func _new_menu_label(label_name: String) -> Label3D:
 	var label := Label3D.new()
+	if _menu_font != null:
+		label.font = _menu_font
 	label.name = label_name
 	label.font_size = 48
 	label.pixel_size = 0.0001
@@ -311,6 +349,7 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 		show_menu: bool, opacity: float) -> void:
 	_menu_title.visible = false
 	_menu_hint.visible = false
+	_menu_selection_highlight.visible = false
 	for label in _menu_row_labels:
 		label.visible = false
 	if not show_menu:
@@ -338,6 +377,19 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 			continue
 		var kind := int(row.get("kind", 1))
 		var selected := bool(row.get("selected", false))
+		if selected:
+			var visual: Dictionary = row.get("visual", {})
+			var rect_w := float(visual.get("w", 0.0))
+			var rect_h := float(visual.get("h", 0.0))
+			if rect_w > 0.0 and rect_h > 0.0:
+				(_menu_selection_highlight.mesh as QuadMesh).size = Vector2(
+					rect_w / logical_width * screen_size.x,
+					rect_h / logical_height * screen_size.y)
+				_menu_selection_highlight.position = screen_center + Vector3(
+					(float(visual.get("x", 0.0)) + rect_w * 0.5) / logical_width * screen_size.x - screen_size.x * 0.5,
+					screen_size.y * 0.5 - (float(visual.get("y", 0.0)) + rect_h * 0.5) / logical_height * screen_size.y,
+					screen_size.z * 0.5 + 0.00015)
+				_menu_selection_highlight.visible = true
 		var emphasis := int(row.get("emphasis", 0))
 		var color := Color("#e6edf0")
 		if kind == 0:
@@ -348,13 +400,19 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 			color = Color("#d4ec8e")
 		if not selected and kind != 0:
 			color.a = 0.72
+		# Fallback labels are presentation-only; grow the pool when the native
+		# menu exposes more rows instead of silently truncating the screen.
+		while label_index >= _menu_row_labels.size():
+			_menu_row_labels.append(_new_menu_label("MenuRow%02d" % _menu_row_labels.size()))
 		var row_label := _menu_row_labels[label_index]
 		label_index += 1
 		_configure_menu_label(row_label, str(row.get("label", "")),
 			float(row.get("label_x", 0.0)), float(row.get("baseline_y", 0.0)),
 			float(row.get("font_px", 34.0)), color, logical_width, logical_height,
 			pixel_size, text_z, screen_size, screen_center, opacity)
-		if kind == 2 and label_index < _menu_row_labels.size():
+		if kind == 2:
+			while label_index >= _menu_row_labels.size():
+				_menu_row_labels.append(_new_menu_label("MenuRow%02d" % _menu_row_labels.size()))
 			var value_label := _menu_row_labels[label_index]
 			label_index += 1
 			var value_color := Color("#78d5e1") if selected else Color("#4d7380")

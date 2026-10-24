@@ -681,13 +681,47 @@ int64_t ParentGameNode::phone_display_raster_revision() const {
     uint64_t hash = 1469598103934665603ull;
     hash ^= static_cast<uint64_t>(state.phoneDisplay.mode); hash *= 1099511628211ull;
     hash ^= static_cast<uint64_t>(state.hud.menuSelection + 1); hash *= 1099511628211ull;
+    // The raster background depends on tint and brightness as well as menu rows.
+    // Include those inputs so a state-only color change invalidates the cached texture.
+    const Vec3 tint = state.phoneDisplay.screenTint;
+    const auto hash_color = [&](float value) {
+        const auto quantized = static_cast<int64_t>(std::llround(clampf(value, 0.0f, 1.0f) * 1000000.0f));
+        hash ^= static_cast<uint64_t>(quantized);
+        hash *= 1099511628211ull;
+    };
+    hash_color(tint.x);
+    hash_color(tint.y);
+    hash_color(tint.z);
+    hash_color(state.phoneDisplay.brightness);
     hash_phone_text(hash, layout.title);
     hash_phone_text(hash, layout.navigationHint);
+    // The cached raster must be invalidated by every layout input it draws,
+    // including scrolling and positions even when visible strings are unchanged.
+    const hash_position = [&](float value) {
+        const auto quantized = static_cast<int64_t>(std::llround(value * 1000.0f));
+        hash ^= static_cast<uint64_t>(quantized);
+        hash *= 1099511628211ull;
+    };
+    hash_position(layout.titleCenterY);
+    hash_position(layout.titlePx);
+    hash ^= static_cast<uint64_t>(layout.rowCount); hash *= 1099511628211ull;
     for (int i = 0; i < layout.rowCount; ++i) {
         const auto& row = layout.rows[i];
         hash_phone_text(hash, row.label); hash_phone_text(hash, row.value);
         hash ^= static_cast<uint64_t>(row.visible) | (static_cast<uint64_t>(row.peek) << 1u);
         hash *= 1099511628211ull;
+        hash ^= static_cast<uint64_t>(row.kind); hash *= 1099511628211ull;
+        hash ^= static_cast<uint64_t>(row.selectable); hash *= 1099511628211ull;
+        hash ^= static_cast<uint64_t>(row.action); hash *= 1099511628211ull;
+        hash ^= static_cast<uint64_t>(row.selectableIndex + 1); hash *= 1099511628211ull;
+        hash_position(row.visual.x);
+        hash_position(row.visual.y);
+        hash_position(row.visual.w);
+        hash_position(row.visual.h);
+        hash_position(row.labelX);
+        hash_position(row.valueRightX);
+        hash_position(row.baselineY);
+        hash_position(row.fontPx);
     }
     return static_cast<int64_t>(hash & 0x7fffffffffffffffull);
 }
