@@ -211,7 +211,9 @@ func viewport_to_phone_logical(viewport_position: Vector2, camera: Camera3D, lay
 	var ray_origin := camera.project_ray_origin(viewport_position)
 	var ray_direction := camera.project_ray_normal(viewport_position).normalized()
 	var denominator := plane_normal.dot(ray_direction)
-	if absf(denominator) <= 0.000001:
+	# The interactive glass is front-facing (+Z). Reject rays from behind
+	# the handset as well as near-parallel rays; back-face clicks are not input.
+	if denominator >= -0.000001:
 		return null
 	var distance := plane_normal.dot(plane_point - ray_origin) / denominator
 	if distance <= 0.0:
