@@ -624,6 +624,21 @@ void Game::debugStartFieldIslandFixture(){
     state_.camera.pitch=-0.08f;
 }
 
+bool Game::debugPrepareCaptureShot(){
+    int slot=-1;
+    for(int i=0;i<state_.requiredSouls;++i)if(!state_.captures[i].filled){slot=i;break;}
+    if(slot<0)return false;
+    const float tileOrigin=getRoomTileOriginZ(state_.topology.currentTileIndex);
+    const Vec3 goal=state_.captures[slot].pos+Vec3{0,0,tileOrigin};
+    state_.player.pos={goal.x,GROUND_Y,goal.z+4.0f};
+    state_.player.vel={};state_.player.jumpVel=0.0f;state_.player.grounded=true;
+    state_.camera.firstPerson=true;state_.camera.yaw=0.0f;
+    state_.camera.pitch=std::atan2(goal.y-0.95f,4.0f);
+    state_.player.yaw=state_.player.targetYaw=state_.camera.yaw;
+    updatePhoneTransform();updateCamera(0.0f);
+    return true;
+}
+
 void Game::debugStartRoomInspector(){
     reset();state_.roomInspector=true;state_.roomInspectorPremise=room_environment::RoomPremise::FieldOpen;state_.roomInspectorEnemies=false;
     debugStepRoomInspector(0,false);
@@ -1947,7 +1962,8 @@ bool Game::isFieldIslandActive() const {
 
 WorldSupportSample Game::getPlayerSupport(float x,float z) const {
     WorldSupportSample support=getWorldSupport(x,z,PLAYER_SUPPORT_RADIUS);
-    if(isFieldIslandActive()&&support.identity.source==SupportSource::Ground&&
+    if(isFieldIslandActive()&&
+       support.identity.source==SupportSource::Ground&&
        !field_island::hasGroundSupport(x,wrapZ(z),PLAYER_SUPPORT_RADIUS)){
         support.available=false;
         support.height=-std::numeric_limits<float>::infinity();

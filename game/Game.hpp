@@ -803,6 +803,7 @@ public:
     void debugStartTraversalLab();
     void debugStartSlopeLab();
     void debugStartFieldIslandFixture();
+    bool debugPrepareCaptureShot();
     void debugStartGeneratedRoomFixture(int roomSeed,int roomIndex);
     void debugStartRoomInspector();
     bool debugSpawnStoredSoul();
