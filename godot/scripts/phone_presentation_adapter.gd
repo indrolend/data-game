@@ -10,7 +10,7 @@ const PHONE_RECEIVER_LAYER := 2
 # Compatibility mode remains the default until the semantic renderer has
 # captured visual evidence. Toggle at runtime to compare identical native state.
 @export_enum("Native bitmap compatibility", "Godot semantic labels") var menu_renderer: int = 0
-@export_file("*.ttf", "*.otf", "*.tres", "*.res") var menu_font_path: String = ""
+@export var menu_font_path: String = ""
 var _menu_font: Font
 
 var phone_root: Node3D
