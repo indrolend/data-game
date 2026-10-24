@@ -344,16 +344,19 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 			color = Color("#d4ec8e")
 		if not selected and kind != 0:
 			color.a = 0.72
-		if label_index >= _menu_row_labels.size():
-			push_warning("Phone menu label pool exhausted; remaining rows are hidden")
-			break
+		# Fallback labels are presentation-only; grow the pool when the native
+		# menu exposes more rows instead of silently truncating the screen.
+		while label_index >= _menu_row_labels.size():
+			_menu_row_labels.append(_new_menu_label("MenuRow%02d" % _menu_row_labels.size()))
 		var row_label := _menu_row_labels[label_index]
 		label_index += 1
 		_configure_menu_label(row_label, str(row.get("label", "")),
 			float(row.get("label_x", 0.0)), float(row.get("baseline_y", 0.0)),
 			float(row.get("font_px", 34.0)), color, logical_width, logical_height,
 			pixel_size, text_z, screen_size, screen_center, opacity)
-		if kind == 2 and label_index < _menu_row_labels.size():
+		if kind == 2:
+			while label_index >= _menu_row_labels.size():
+				_menu_row_labels.append(_new_menu_label("MenuRow%02d" % _menu_row_labels.size()))
 			var value_label := _menu_row_labels[label_index]
 			label_index += 1
 			var value_color := Color("#78d5e1") if selected else Color("#4d7380")
