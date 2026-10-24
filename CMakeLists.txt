@@ -101,6 +101,32 @@ find_package(OpenGL REQUIRED)
 
 set(DB_GAME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/game")
 
+option(DB_BUILD_GODOT_PRESENTATION "Build the native-authoritative Godot presentation adapter" OFF)
+if(DB_BUILD_GODOT_PRESENTATION)
+    if(NOT GODOT_CPP_DIR)
+        message(FATAL_ERROR "DB_BUILD_GODOT_PRESENTATION requires -DGODOT_CPP_DIR=<matching godot-cpp checkout>")
+    endif()
+    add_subdirectory("${GODOT_CPP_DIR}" "${CMAKE_BINARY_DIR}/godot-cpp" EXCLUDE_FROM_ALL)
+    add_library(DigitalBreakdownGodot SHARED
+        native/register_types.cpp
+        native/parent_game_node.cpp
+        "${DB_GAME_ROOT}/Game.cpp")
+    target_include_directories(DigitalBreakdownGodot PRIVATE native "${DB_GAME_ROOT}")
+    target_compile_features(DigitalBreakdownGodot PRIVATE cxx_std_17)
+    target_link_libraries(DigitalBreakdownGodot PRIVATE godot-cpp)
+    set_target_properties(DigitalBreakdownGodot PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME "digital_breakdown_parent"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin")
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        string(TOUPPER "${config}" upper_config)
+        set_target_properties(DigitalBreakdownGodot PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${upper_config} "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin"
+            LIBRARY_OUTPUT_DIRECTORY_${upper_config} "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin")
+    endforeach()
+endif()
+
 add_executable(
     DigitalBreakdown
     desktop/main.cpp

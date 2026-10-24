@@ -1,0 +1,14 @@
+config_version=5
+[application]
+config/name="Digital Breakdown"
+run/main_scene="res://scenes/main.tscn"
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+[native_authority]
+source="../game"
+integration="same-repository"
+verified_godot_version="4.7.2.stable.official.ed1daf0bf"
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
