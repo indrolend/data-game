@@ -85,7 +85,9 @@ func _ready() -> void:
 	phone_root.add_child(screen_text)
 	_menu_title = _new_menu_label("MenuTitle")
 	_menu_hint = _new_menu_label("MenuHint")
-	for i in range(48):
+	# Most menus are short. Allocate only a small initial pool and grow it
+	# on demand; avoid constructing dozens of Label3D nodes for every phone.
+	for i in range(8):
 		_menu_row_labels.append(_new_menu_label("MenuRow%02d" % i))
 
 	lens = MeshInstance3D.new()
