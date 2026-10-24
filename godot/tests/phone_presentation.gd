@@ -114,8 +114,15 @@ func _run() -> void:
 		"native raster replaces the prior Label3D menu typography")
 	check(not lens.visible,
 		"interactive phone menu hides the fallback lens sphere from the display surface")
+	var raster_texture: Texture2D = screen_raster.material_override.albedo_texture
+	world.call("_sync")
+	check(screen_raster.material_override.albedo_texture == raster_texture,
+		"unchanged menu revision retains the existing GPU raster texture")
 	runtime.menu_move_selection(1)
 	world.call("_sync")
+	check(screen_raster.material_override.albedo_texture == raster_texture and
+		int(phone_root.get_meta("native_raster_revision", -1)) == int(runtime.phone_display_raster_revision()),
+		"changed menu selection updates the existing GPU raster texture in place")
 	menu = runtime.phone_menu_layout_snapshot()
 	check(int(menu.selection) == 1 and bool(menu.rows[1].selected),
 		"semantic menu navigation updates native selection")
