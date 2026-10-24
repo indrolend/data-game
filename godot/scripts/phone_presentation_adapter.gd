@@ -26,6 +26,7 @@ var _raster_material: StandardMaterial3D
 var _menu_title: Label3D
 var _menu_hint: Label3D
 var _menu_row_labels: Array[Label3D] = []
+var _menu_selection_highlight: MeshInstance3D
 var _native_body_loaded := false
 var _raster_revision := -1
 
@@ -91,6 +92,17 @@ func _ready() -> void:
 	# Label3D owns a font-atlas shader. A StandardMaterial override turns each
 	# glyph quad into a solid rectangle and makes native menu text unreadable.
 	phone_root.add_child(screen_text)
+	_menu_selection_highlight = MeshInstance3D.new()
+	_menu_selection_highlight.name = "MenuSelectionHighlight"
+	_menu_selection_highlight.mesh = QuadMesh.new()
+	var highlight_material := StandardMaterial3D.new()
+	highlight_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	highlight_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	highlight_material.albedo_color = Color(0.30, 0.92, 0.86, 0.13)
+	highlight_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_menu_selection_highlight.material_override = highlight_material
+	_menu_selection_highlight.visible = false
+	phone_root.add_child(_menu_selection_highlight)
 	_menu_title = _new_menu_label("MenuTitle")
 	_menu_hint = _new_menu_label("MenuHint")
 	# Most menus are short. Allocate only a small initial pool and grow it
@@ -320,6 +332,7 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 		show_menu: bool, opacity: float) -> void:
 	_menu_title.visible = false
 	_menu_hint.visible = false
+	_menu_selection_highlight.visible = false
 	for label in _menu_row_labels:
 		label.visible = false
 	if not show_menu:
@@ -347,6 +360,19 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 			continue
 		var kind := int(row.get("kind", 1))
 		var selected := bool(row.get("selected", false))
+		if selected:
+			var visual: Dictionary = row.get("visual", {})
+			var rect_w := float(visual.get("w", 0.0))
+			var rect_h := float(visual.get("h", 0.0))
+			if rect_w > 0.0 and rect_h > 0.0:
+				(_menu_selection_highlight.mesh as QuadMesh).size = Vector2(
+					rect_w / logical_width * screen_size.x,
+					rect_h / logical_height * screen_size.y)
+				_menu_selection_highlight.position = screen_center + Vector3(
+					(float(visual.get("x", 0.0)) + rect_w * 0.5) / logical_width * screen_size.x - screen_size.x * 0.5,
+					screen_size.y * 0.5 - (float(visual.get("y", 0.0)) + rect_h * 0.5) / logical_height * screen_size.y,
+					screen_size.z * 0.5 + 0.00015)
+				_menu_selection_highlight.visible = true
 		var emphasis := int(row.get("emphasis", 0))
 		var color := Color("#e6edf0")
 		if kind == 0:
