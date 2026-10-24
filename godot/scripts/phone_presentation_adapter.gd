@@ -167,15 +167,26 @@ func sync_snapshot(snapshot: Dictionary, camera: Camera3D, runtime: Object = nul
 	var show_menu := bool(menu_layout.get("active", false)) and glass.visible
 	if show_menu and runtime != null:
 		var next_revision := int(runtime.phone_display_raster_revision())
-		if next_revision != _raster_revision:
+		if next_revision != _raster_revision or _raster_material.albedo_texture == null:
 			var pixels: PackedByteArray = runtime.phone_display_raster_pixels()
 			if pixels.size() == 720 * 1280 * 4:
 				var image := Image.create_from_data(720, 1280, false, Image.FORMAT_RGBA8, pixels)
-				var texture := ImageTexture.create_from_image(image)
-				_raster_material.albedo_texture = texture
-				_raster_material.emission_texture = texture
+				var texture := _raster_material.albedo_texture as ImageTexture
+				if texture == null:
+					texture = ImageTexture.create_from_image(image)
+					_raster_material.albedo_texture = texture
+					_raster_material.emission_texture = texture
+				else:
+					# Reuse the GPU texture; a menu selection should not allocate a new one.
+					texture.update(image)
 				_raster_revision = next_revision
-	screen_raster.visible = show_menu and _raster_material.albedo_texture != null
+			else:
+				# Never display a stale menu texture after an invalid native payload.
+				push_error("Native phone raster size mismatch: %d bytes" % pixels.size())
+				_raster_material.albedo_texture = null
+				_raster_material.emission_texture = null
+				_raster_revision = -1
+	screen_raster.visible = show_menu and runtime != null and _raster_material.albedo_texture != null
 	screen_text.visible = glass.visible and not show_menu
 	screen_text.modulate.a = opacity
 	screen_text.text = _screen_status(snapshot)
