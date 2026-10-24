@@ -4,6 +4,22 @@
 
 The default Godot scene forwards input to the original `Game` and advances it at its fixed 60 Hz simulation step. Godot presents native player, target, room, phone, and HUD state. The isolated `playable_runtime.tscn` is an exploratory Godot-owned encounter; it is not authoritative, not wired into the default launch, and must not be treated as a faithful port of original gameplay.
 
+## Developer funnel
+
+Use `Dev.ps1` as the narrow, repository-local entry point for status, clean-checkout
+validation, full verification, pre-push checks, and unified evidence operations:
+
+```powershell
+.\Dev.ps1 status
+.\Dev.ps1 clean-checkout
+.\Dev.ps1 verify
+.\Dev.ps1 prepush
+```
+
+Routine verification logs are written to timestamped, ignored directories under
+`evidence/generated/verification/`. Curated evidence under `evidence/` is never
+overwritten by a normal verification run.
+
 The complete subsystem ownership map and dependency order are maintained in `MIGRATION_MATRIX.md`. Native room presentation exposes deterministic room-plan metadata, structural records, material definitions, and stable computed-scene object records. Godot now renders the initial tile's native floor, door frames, selected traversal surface, and the native box-geometry lawn-fragment family. Other computed prop families and generated texture pixels remain unported.
 
 ## Build on Windows

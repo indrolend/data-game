@@ -1,13 +1,27 @@
-param([string]$GodotExe = "godot_console.exe")
+param(
+    [string]$GodotExe = "godot_console.exe",
+    [string]$OutputDirectory,
+    [string]$GodotCppDirectory = (Join-Path (Split-Path "$PSScriptRoot\.." -Parent) 'godot-cpp')
+)
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path "$PSScriptRoot/..").Path
-$evidence = Join-Path $root "evidence"
+$runId = Get-Date -Format "yyyyMMdd-HHmmss-fff"
+$evidence = if ($OutputDirectory) {
+    if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+        [IO.Path]::GetFullPath($OutputDirectory)
+    } else {
+        [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+    }
+} else {
+    Join-Path $root "evidence\generated\verification\$runId"
+}
 New-Item -ItemType Directory -Force $evidence | Out-Null
 Push-Location $root
 try {
+    Write-Output "VERIFICATION_EVIDENCE=$evidence"
     $oldEap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    & cmake -S . -B build-godot47 "-DGODOT_CPP_DIR=C:/Users/indro/Projects/godot-cpp" "-DGODOTCPP_DEFAULT_API_VERSION=4.7" 2>&1 | Set-Content (Join-Path $evidence "cmake-configure.log")
+    & cmake -S . -B build-godot47 "-DGODOT_CPP_DIR=$GodotCppDirectory" "-DGODOTCPP_DEFAULT_API_VERSION=4.7" 2>&1 | Set-Content (Join-Path $evidence "cmake-configure.log")
     $cmakeConfigureExit = $LASTEXITCODE
     $ErrorActionPreference = $oldEap
     if ($cmakeConfigureExit -ne 0) { throw "CMake configure failed with exit code $cmakeConfigureExit" }
@@ -60,7 +74,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Godot playable encounter test failed with exit code $LASTEXITCODE" }
     & $GodotExe --headless --path godot --quit-after 2 2>&1 | Set-Content (Join-Path $evidence "godot-startup.log")
     if ($LASTEXITCODE -ne 0) { throw "Godot startup failed with exit code $LASTEXITCODE" }
-    & "$PSScriptRoot/compare_parity.ps1" -GodotExe $GodotExe 2>&1 | Set-Content (Join-Path $evidence "parity-result.log")
+    & "$PSScriptRoot/compare_parity.ps1" -GodotExe $GodotExe -OutputDirectory $evidence 2>&1 | Set-Content (Join-Path $evidence "parity-result.log")
     if ($LASTEXITCODE -ne 0) { throw "Parity comparison failed with exit code $LASTEXITCODE" }
 
     # Godot can exit zero after emitting script/runtime errors (resource leaks did
@@ -84,6 +98,7 @@ try {
         }
     }
     Write-Output "PASS: configure, native build, headless behaviors, Godot startup, and parent parity"
+    Write-Output "VERIFICATION_EVIDENCE=$evidence"
 } finally {
     Pop-Location
 }

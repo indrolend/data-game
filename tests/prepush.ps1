@@ -1,6 +1,7 @@
 param(
     [string]$GodotExe = "godot_console.exe",
-    [string]$NativeRoot = "C:\Users\indro\Projects\data-game",
+    [string]$NativeRoot = (Join-Path (Split-Path "$PSScriptRoot\.." -Parent) 'data-game'),
+    [string]$GodotCppDirectory = (Join-Path (Split-Path "$PSScriptRoot\.." -Parent) 'godot-cpp'),
     [switch]$SkipFullVerify
 )
 
@@ -8,6 +9,9 @@ $ErrorActionPreference = "Stop"
 $root = (Resolve-Path "$PSScriptRoot\..").Path
 Push-Location $root
 try {
+    & "$PSScriptRoot\check_clean_checkout.ps1"
+    if ($LASTEXITCODE -ne 0) { throw "Clean-checkout source closure failed" }
+
     & "$PSScriptRoot\check_parent_drift.ps1" -NativeRoot $NativeRoot
     if ($LASTEXITCODE -ne 0) { throw "Native/embedded-parent drift check failed" }
 
@@ -31,7 +35,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Visual acceptance claim validation failed" }
 
     if (-not $SkipFullVerify) {
-        & "$PSScriptRoot\verify.ps1" -GodotExe $GodotExe
+        & "$PSScriptRoot\verify.ps1" -GodotExe $GodotExe -GodotCppDirectory $GodotCppDirectory
         if ($LASTEXITCODE -ne 0) { throw "Full verification failed" }
     }
     Write-Output "PASS: pre-push integrity checks"

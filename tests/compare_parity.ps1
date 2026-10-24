@@ -1,7 +1,20 @@
-param([string]$ReferenceExe = "$PSScriptRoot/../build-godot47/Release/parent_reference.exe", [string]$GodotExe = "godot_console.exe", [double]$Tolerance = 0.00001)
+param(
+    [string]$ReferenceExe = "$PSScriptRoot/../build-godot47/Release/parent_reference.exe",
+    [string]$GodotExe = "godot_console.exe",
+    [double]$Tolerance = 0.00001,
+    [string]$OutputDirectory
+)
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path "$PSScriptRoot/..").Path
-$evidence = Join-Path $root "evidence"
+$evidence = if ($OutputDirectory) {
+    if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+        [IO.Path]::GetFullPath($OutputDirectory)
+    } else {
+        [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+    }
+} else {
+    Join-Path $root "evidence\generated\parity"
+}
 New-Item -ItemType Directory -Force $evidence | Out-Null
 $referenceLog = Join-Path $evidence "parent-reference.csv"
 $godotLog = Join-Path $evidence "godot-parity.log"
