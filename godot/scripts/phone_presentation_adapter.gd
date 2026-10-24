@@ -342,6 +342,9 @@ func _sync_menu_layout(layout: Dictionary, screen_size: Vector3, screen_center: 
 			color = Color("#d4ec8e")
 		if not selected and kind != 0:
 			color.a = 0.72
+		if label_index >= _menu_row_labels.size():
+			push_warning("Phone menu label pool exhausted; remaining rows are hidden")
+			break
 		var row_label := _menu_row_labels[label_index]
 		label_index += 1
 		_configure_menu_label(row_label, str(row.get("label", "")),
