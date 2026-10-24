@@ -101,6 +101,32 @@ find_package(OpenGL REQUIRED)
 
 set(DB_GAME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/game")
 
+option(DB_BUILD_GODOT_PRESENTATION "Build the native-authoritative Godot presentation adapter" OFF)
+if(DB_BUILD_GODOT_PRESENTATION)
+    if(NOT GODOT_CPP_DIR)
+        message(FATAL_ERROR "DB_BUILD_GODOT_PRESENTATION requires -DGODOT_CPP_DIR=<matching godot-cpp checkout>")
+    endif()
+    add_subdirectory("${GODOT_CPP_DIR}" "${CMAKE_BINARY_DIR}/godot-cpp" EXCLUDE_FROM_ALL)
+    add_library(DigitalBreakdownGodot SHARED
+        native/register_types.cpp
+        native/parent_game_node.cpp
+        "${DB_GAME_ROOT}/Game.cpp")
+    target_include_directories(DigitalBreakdownGodot PRIVATE native "${DB_GAME_ROOT}")
+    target_compile_features(DigitalBreakdownGodot PRIVATE cxx_std_17)
+    target_link_libraries(DigitalBreakdownGodot PRIVATE godot-cpp)
+    set_target_properties(DigitalBreakdownGodot PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME "digital_breakdown_parent"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin")
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        string(TOUPPER "${config}" upper_config)
+        set_target_properties(DigitalBreakdownGodot PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${upper_config} "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin"
+            LIBRARY_OUTPUT_DIRECTORY_${upper_config} "${CMAKE_CURRENT_SOURCE_DIR}/godot/bin")
+    endforeach()
+endif()
+
 add_executable(
     DigitalBreakdown
     desktop/main.cpp
@@ -408,6 +434,20 @@ if(MSVC)
     target_link_options(SlopeTraversalFixtureTest PRIVATE /STACK:8388608)
 endif()
 
+add_executable(FieldIslandTraversalTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/field_island_traversal_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(FieldIslandTraversalTest PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(FieldIslandTraversalTest PRIVATE cxx_std_17)
+if(MSVC)
+    target_link_options(FieldIslandTraversalTest PRIVATE /STACK:8388608)
+endif()
+
+add_executable(NdraResidueExperiment "${CMAKE_CURRENT_SOURCE_DIR}/tests/ndra_residue_experiment.cpp" "${DB_GAME_ROOT}/Game.cpp")
+target_include_directories(NdraResidueExperiment PRIVATE "${DB_GAME_ROOT}")
+target_compile_features(NdraResidueExperiment PRIVATE cxx_std_17)
+if(MSVC)
+    target_link_options(NdraResidueExperiment PRIVATE /STACK:8388608)
+endif()
+
 add_executable(RenderContractsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/render_contracts_test.cpp")
 target_include_directories(RenderContractsTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RenderContractsTest PRIVATE cxx_std_17)
@@ -546,6 +586,8 @@ add_test(NAME SlopeTraversalFixtureTest COMMAND SlopeTraversalFixtureTest)
 add_test(NAME SlopeTraversalCheck COMMAND SlopeTraversalFixtureTest --check)
 set_tests_properties(SlopeTraversalFixtureTest SlopeTraversalCheck PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:SlopeTraversalFixtureTest>")
+add_test(NAME FieldIslandTraversalTest COMMAND FieldIslandTraversalTest)
+add_test(NAME NdraResidueExperiment COMMAND NdraResidueExperiment)
 add_test(NAME RenderContractsTest COMMAND RenderContractsTest)
 add_test(NAME SceneLightingResponseTest COMMAND SceneLightingResponseTest)
 add_test(NAME ExpressiveVisualTest COMMAND ExpressiveVisualTest)

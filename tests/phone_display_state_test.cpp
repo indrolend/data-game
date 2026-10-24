@@ -170,6 +170,33 @@ int main() {
     assert(!game.state().phoneDisplay.interactive);
     expectFiniteAndBounded(game.state().phoneDisplay);
 
+    // A native enemy hit must drive the phone's damage-reactive display state;
+    // presentation adapters only consume this signal and must not infer damage.
+    GameState& damageFixture = game.networkMutableState();
+    damageFixture.player.pos = {0.0f, 0.08f, 0.0f};
+    damageFixture.player.vel = {};
+    damageFixture.player.battery = 100.0f;
+    damageFixture.camera.yaw = 0.0f;
+    damageFixture.camera.pitch = 0.0f;
+    for (int i = 1; i < TARGET_COUNT; ++i) damageFixture.targets[i] = TargetState{};
+    TargetState& attacker = damageFixture.targets[0];
+    attacker.pos = {0.0f, 0.08f, -0.9f};
+    attacker.vel = {};
+    attacker.walkTarget = damageFixture.player.pos;
+    attacker.attackTimer = 0.0f;
+    attacker.attackCooldown = 0.0f;
+    attacker.attackHit = false;
+    attacker.attackDirection = {0.0f, 0.0f, 1.0f};
+    attacker.attackTargetPlayerId = 0;
+    bool receivedDamage = false;
+    for (int tick = 0; tick < 600 && !receivedDamage; ++tick) {
+        step(game);
+        receivedDamage = game.state().player.battery < 100.0f;
+    }
+    assert(receivedDamage);
+    assert(game.state().phoneDisplay.damagePulse > 0.0f);
+    expectFiniteAndBounded(game.state().phoneDisplay);
+
     GameState& gameplay = const_cast<GameState&>(game.state());
     gameplay.player.battery = 67.0f;
     gameplay.player.souls = 4;
