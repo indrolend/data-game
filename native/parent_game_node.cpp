@@ -599,6 +599,7 @@ int64_t ParentGameNode::phone_display_raster_revision() const {
         hash ^= static_cast<uint64_t>(row.visible) | (static_cast<uint64_t>(row.peek) << 1u);
         hash *= 1099511628211ull;
         hash ^= static_cast<uint64_t>(row.kind); hash *= 1099511628211ull;
+        hash ^= static_cast<uint64_t>(row.selectable); hash *= 1099511628211ull;
         hash ^= static_cast<uint64_t>(row.action); hash *= 1099511628211ull;
         hash ^= static_cast<uint64_t>(row.selectableIndex + 1); hash *= 1099511628211ull;
         hash_position(row.visual.x);
