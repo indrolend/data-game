@@ -41,9 +41,9 @@ test("codebase truth rejects dropped tests and duplicate authority roots", () =>
     execFileSync("git", ["add", "."], { cwd: fixture });
     execFileSync("git", ["commit", "-m", "baseline"], { cwd: fixture, stdio: "pipe" });
 
-    fs.mkdirSync(path.join(fixture, "native"));
-    fs.writeFileSync(path.join(fixture, "native", "duplicate.cpp"), "int duplicate() { return 1; }\n");
-    fs.writeFileSync(path.join(fixture, "CMakeLists.txt"), "add_executable(App native/duplicate.cpp)\n");
+    fs.mkdirSync(path.join(fixture, "native-desktop"));
+    fs.writeFileSync(path.join(fixture, "native-desktop", "duplicate.cpp"), "int duplicate() { return 1; }\n");
+    fs.writeFileSync(path.join(fixture, "CMakeLists.txt"), "add_executable(App native-desktop/duplicate.cpp)\n");
     const result = spawnSync(process.execPath, [tool, "--root", fixture, "--base", "main", "--json", "--check"], {
       encoding: "utf8",
     });

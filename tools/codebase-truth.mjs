@@ -121,7 +121,9 @@ if (baseHead) {
   };
 }
 
-const legacyRoots = paths.filter((file) => /^(native|native-desktop)\//.test(file));
+// `native/` is the supported Godot GDExtension adapter over the authoritative
+// C++ game. Only the retired parallel desktop authority remains forbidden.
+const legacyRoots = paths.filter((file) => /^native-desktop\//.test(file));
 const issues = [
   ...unregisteredTests.map((file) => ({ severity: "error", code: "unregistered-test-source", detail: file })),
   ...legacyRoots.map((file) => ({ severity: "error", code: "duplicate-authority-root", detail: file })),
