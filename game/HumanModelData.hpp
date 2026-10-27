@@ -118,6 +118,39 @@ struct HumanModelData {
            poses.size() == static_cast<std::size_t>(frameCount) * bones.size();
   }
 
+  void localPose(float animationTime, float attackTimer, int attackVariant,
+                 std::vector<float> &output,
+                 const HumanModelExpressiveness &expressiveness = {}) const {
+    output.clear();
+    if (!valid()) return;
+    const std::size_t boneCount = bones.size();
+    const float frame = std::fmod(std::max(0.0f, animationTime) *
+                                      static_cast<float>(frameCount),
+                                  static_cast<float>(frameCount));
+    const unsigned int f0 = static_cast<unsigned int>(frame) % frameCount;
+    const unsigned int f1 = (f0 + 1) % frameCount;
+    const float blend = frame - static_cast<float>(f0);
+    output.resize(boneCount * 16u);
+    for (std::size_t i = 0; i < boneCount; ++i) {
+      const HumanModelPose &a = poses[static_cast<std::size_t>(f0) * boneCount + i];
+      const HumanModelPose &b = poses[static_cast<std::size_t>(f1) * boneCount + i];
+      float p[3], s[3], q[4];
+      for (int k = 0; k < 3; ++k) {
+        p[k] = a.position[k] + (b.position[k] - a.position[k]) * blend;
+        s[k] = a.scale[k] + (b.scale[k] - a.scale[k]) * blend;
+      }
+      slerp(a.quaternion, b.quaternion, blend, q);
+      if (attackTimer > 0.0f) applyAttack(bones[i], attackTimer, attackVariant, q);
+      applyExpressiveness(bones[i], expressiveness, q);
+      compose(p, q, s, output.data() + i * 16u);
+      if (bones[i].parent < 0) {
+        float root[16];
+        multiply(root, rootParentMatrix, output.data() + i * 16u);
+        std::copy(root, root + 16, output.data() + i * 16u);
+      }
+    }
+  }
+
   void skin(float animationTime, float attackTimer, int attackVariant,
             std::vector<float> &output,
             const HumanModelExpressiveness &expressiveness = {},

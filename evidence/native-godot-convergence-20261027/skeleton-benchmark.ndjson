@@ -1,0 +1,10 @@
+{"variant":"vertices","run":1,"frames":300,"sync_median_us":7923,"sync_p95_us":8225,"enemy_total_median_us":6907,"enemy_bridge_median_us":3088,"enemy_adapter_median_us":3779,"native_tick_median_us":55}
+{"variant":"vertices","run":2,"frames":300,"sync_median_us":8053,"sync_p95_us":8285,"enemy_total_median_us":7027,"enemy_bridge_median_us":3199,"enemy_adapter_median_us":3787,"native_tick_median_us":56}
+{"variant":"vertices","run":3,"frames":300,"sync_median_us":7921,"sync_p95_us":8132,"enemy_total_median_us":6906,"enemy_bridge_median_us":3073,"enemy_adapter_median_us":3792,"native_tick_median_us":55}
+{"variant":"vertices","run":4,"frames":300,"sync_median_us":8045,"sync_p95_us":8181,"enemy_total_median_us":7025,"enemy_bridge_median_us":3202,"enemy_adapter_median_us":3783,"native_tick_median_us":56}
+{"variant":"vertices","run":5,"frames":300,"sync_median_us":7921,"sync_p95_us":8032,"enemy_total_median_us":6898,"enemy_bridge_median_us":3084,"enemy_adapter_median_us":3772,"native_tick_median_us":55}
+{"variant":"skeleton","run":1,"frames":300,"sync_median_us":7683,"sync_p95_us":7819,"enemy_total_median_us":6662,"enemy_bridge_median_us":3238,"enemy_adapter_median_us":3383,"native_tick_median_us":56}
+{"variant":"skeleton","run":2,"frames":300,"sync_median_us":7567,"sync_p95_us":7667,"enemy_total_median_us":6548,"enemy_bridge_median_us":3132,"enemy_adapter_median_us":3378,"native_tick_median_us":55}
+{"variant":"skeleton","run":3,"frames":300,"sync_median_us":7725,"sync_p95_us":7872,"enemy_total_median_us":6697,"enemy_bridge_median_us":3267,"enemy_adapter_median_us":3387,"native_tick_median_us":56}
+{"variant":"skeleton","run":4,"frames":300,"sync_median_us":7575,"sync_p95_us":7805,"enemy_total_median_us":6567,"enemy_bridge_median_us":3143,"enemy_adapter_median_us":3381,"native_tick_median_us":55}
+{"variant":"skeleton","run":5,"frames":300,"sync_median_us":7688,"sync_p95_us":7889,"enemy_total_median_us":6664,"enemy_bridge_median_us":3235,"enemy_adapter_median_us":3388,"native_tick_median_us":56}

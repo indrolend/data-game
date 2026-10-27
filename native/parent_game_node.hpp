@@ -86,6 +86,8 @@ public:
     Dictionary target_soul_presentation_snapshot(int index) const;
     PackedVector3Array target_soul_lattice(int index) const;
     PackedVector3Array target_model_vertices(int index) const;
+    Dictionary human_model_rig() const;
+    Array target_model_pose(int index) const;
     Color target_model_color(int index) const;
     Vector3 camera_position() const;
     Vector3 camera_target() const;

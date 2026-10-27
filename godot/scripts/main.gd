@@ -4,6 +4,7 @@ extends Node3D
 const PhonePresentationAdapter = preload("res://scripts/phone_presentation_adapter.gd")
 const RoomPresentationAdapter = preload("res://scripts/room_presentation_adapter.gd")
 const HumanModelAdapter = preload("res://scripts/human_model_adapter.gd")
+const SkeletonHumanModelAdapter = preload("res://scripts/skeleton_human_model_adapter.gd")
 const NativeParticlePresentationAdapter = preload("res://scripts/native_particle_presentation_adapter.gd")
 const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
 const DeveloperConsole = preload("res://scripts/developer_console.gd")
@@ -42,6 +43,17 @@ var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
 var projectile_nodes := {}
 var camera_obstruction_fade_enabled := true
+var camera_trauma_enabled := false
+var _camera_base_transform := Transform3D.IDENTITY
+var _camera_base_target := Vector3.ZERO
+var _camera_base_fov := 0.0
+var _camera_base_valid := false
+var _camera_trauma_strength := 0.0
+var _camera_trauma_phase := 0
+var performance_profile_enabled := false
+var performance_profile_variant := "baseline"
+var performance_profile_last := {}
+var skeleton_enemy_slice_enabled := false
 var pending_look := Vector2.ZERO
 var pending_jump := false
 var pending_melee := false
@@ -50,9 +62,16 @@ var pending_camera_toggle := false
 var pending_comm_signal := 0
 var agent_playtest := false
 const WORLD_AND_PHONE_RECEIVER_LAYERS := 3
+const CAMERA_TRAUMA_MAX_TRANSLATION := 0.12
+const CAMERA_TRAUMA_MAX_ROTATION_RADIANS := deg_to_rad(1.5)
+const CAMERA_TRAUMA_DECAY_PER_SYNC := 0.08
 func _ready() -> void:
     agent_playtest = "--agent-playtest" in OS.get_cmdline_user_args()
     camera_obstruction_fade_enabled = OS.get_environment("DB_DISABLE_CAMERA_OBSTRUCTION_FADE") != "1"
+    # GGG-CAM-001 is an opt-in presentation experiment. It never mutates the
+    # ParentGameNode or any value used to submit authoritative input.
+    camera_trauma_enabled = OS.get_environment("DB_ENABLE_CAMERA_TRAUMA") == "1"
+    skeleton_enemy_slice_enabled = OS.get_environment("DB_ENABLE_SKELETON_ENEMY_SLICE") == "1"
     runtime = ClassDB.instantiate("ParentGameNode")
     add_child(runtime)
     world_environment = WorldEnvironment.new()
@@ -142,8 +161,14 @@ func _ready() -> void:
     particle_adapter.name = "NativeParticlePresentationAdapter"
     add_child(particle_adapter)
     for i in range(runtime.target_count()):
-        var enemy := HumanModelAdapter.new()
-        enemy.call("configure", i, runtime.target_model_color(i))
+        var enemy: Node3D
+        if skeleton_enemy_slice_enabled and i == 0:
+            enemy = SkeletonHumanModelAdapter.new()
+            enemy.call("configure_from_native", i, runtime.target_model_color(i),
+                runtime.human_model_rig())
+        else:
+            enemy = HumanModelAdapter.new()
+            enemy.call("configure", i, runtime.target_model_color(i))
         add_child(enemy)
         targets.append(enemy)
         var soul := SoulLatticeAdapter.new()
@@ -354,12 +379,15 @@ func _physics_process(_delta: float) -> void:
     _sync()
 func agent_step(frames: int, move_x: float, move_z: float, look_x: float, look_y: float,
         vacuum: bool, sprint: bool, jump: bool, melee: bool, shoot: bool, camera_toggle: bool) -> void:
+    var tick_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     for frame_index in range(frames):
         runtime.submit_input(move_x, move_z, look_x if frame_index == 0 else 0.0,
             look_y if frame_index == 0 else 0.0, vacuum, sprint,
             jump and frame_index == 0, melee and frame_index == 0,
             shoot and frame_index == 0, camera_toggle and frame_index == 0)
         runtime.tick()
+    if performance_profile_enabled:
+        performance_profile_last["native_tick_us"] = Time.get_ticks_usec() - tick_started
     _sync()
 func agent_reset() -> void:
     runtime.start_target_interaction_fixture()
@@ -371,8 +399,11 @@ func agent_reset() -> void:
     pending_comm_signal = 0
     _sync()
 func _sync() -> void:
+    var sync_started := Time.get_ticks_usec() if performance_profile_enabled else 0
+    _restore_base_camera_transform()
     var lighting_snapshot: Dictionary = runtime.lighting_presentation_snapshot()
     _sync_lighting(lighting_snapshot)
+    var room_bridge_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     var grass_key := "%d:%d:%d:%d" % [int(room_snapshot.room_seed), int(room_snapshot.room_index),
         int(room_snapshot.tile_index), int(room_snapshot.grass)]
@@ -380,35 +411,157 @@ func _sync() -> void:
         room_snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(
             int(room_snapshot.tile_index))
         _grass_snapshot_key = grass_key
-    room_snapshot["grass_tips"] = runtime.grass_blade_tip_presentation_snapshot(
-        int(room_snapshot.tile_index))
+    if performance_profile_variant == "no_grass":
+        room_snapshot["grass"] = false
+        room_snapshot["grass_blades"] = []
+        room_snapshot["grass_tips"] = []
+    else:
+        room_snapshot["grass_tips"] = runtime.grass_blade_tip_presentation_snapshot(
+            int(room_snapshot.tile_index))
+    if performance_profile_enabled:
+        performance_profile_last["room_bridge_us"] = Time.get_ticks_usec() - room_bridge_started
+    var room_adapter_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     room_adapter.call("sync_snapshot", room_snapshot)
+    if performance_profile_enabled:
+        performance_profile_last["room_adapter_us"] = Time.get_ticks_usec() - room_adapter_started
     camera.position = runtime.camera_position()
     camera.look_at(runtime.camera_target(), Vector3.UP)
     camera.fov = runtime.camera_fov_degrees()
     sky_dome.position = camera.position
     sky_dome_material.set_shader_parameter("sky_origin", camera.position)
     _sync_moon(lighting_snapshot)
-    phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera, runtime)
+    var phone_started := Time.get_ticks_usec() if performance_profile_enabled else 0
+    if performance_profile_variant == "no_phone":
+        phone_adapter.visible = false
+    else:
+        phone_adapter.visible = true
+        phone_adapter.call("sync_snapshot", runtime.phone_presentation_snapshot(), camera, runtime)
+    if performance_profile_enabled:
+        performance_profile_last["phone_bridge_adapter_us"] = Time.get_ticks_usec() - phone_started
     music_adapter.call("sync_snapshot", runtime.music_presentation_snapshot())
-    particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
+    var particles_started := Time.get_ticks_usec() if performance_profile_enabled else 0
+    if performance_profile_variant == "no_particles":
+        particle_adapter.visible = false
+    else:
+        particle_adapter.visible = true
+        particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
+    if performance_profile_enabled:
+        performance_profile_last["particles_bridge_adapter_us"] = Time.get_ticks_usec() - particles_started
     var hud_targets: Array[Dictionary] = []
+    var enemies_started := Time.get_ticks_usec() if performance_profile_enabled else 0
+    var enemy_bridge_us := 0
+    var enemy_adapter_us := 0
     for i in range(targets.size()):
+        var enemy_bridge_started := Time.get_ticks_usec() if performance_profile_enabled else 0
         var target_snapshot: Dictionary = runtime.target_presentation_snapshot(i)
         hud_targets.append(target_snapshot)
-        targets[i].call("sync_from_native", target_snapshot,
-            runtime.target_model_vertices(i), camera.global_position, runtime.camera_target(),
-            camera_obstruction_fade_enabled and not runtime.first_person())
-        souls[i].call("sync_from_native", runtime.target_soul_presentation_snapshot(i),
-            runtime.target_soul_lattice(i))
+        if performance_profile_variant == "no_enemies":
+            targets[i].visible = false
+        else:
+            var model_vertices := PackedVector3Array()
+            var model_pose := []
+            if skeleton_enemy_slice_enabled and i == 0:
+                model_pose = runtime.target_model_pose(i)
+            else:
+                model_vertices = runtime.target_model_vertices(i)
+            if performance_profile_enabled:
+                enemy_bridge_us += Time.get_ticks_usec() - enemy_bridge_started
+            var enemy_adapter_started := Time.get_ticks_usec() if performance_profile_enabled else 0
+            if skeleton_enemy_slice_enabled and i == 0:
+                targets[i].call("sync_pose_from_native", target_snapshot,
+                    model_pose, camera.global_position, runtime.camera_target(),
+                    camera_obstruction_fade_enabled and not runtime.first_person())
+            else:
+                targets[i].call("sync_from_native", target_snapshot,
+                    model_vertices, camera.global_position, runtime.camera_target(),
+                    camera_obstruction_fade_enabled and not runtime.first_person())
+            if performance_profile_enabled:
+                enemy_adapter_us += Time.get_ticks_usec() - enemy_adapter_started
+            enemy_bridge_started = Time.get_ticks_usec() if performance_profile_enabled else 0
+        var soul_snapshot: Dictionary = runtime.target_soul_presentation_snapshot(i)
+        var soul_lattice: PackedVector3Array = runtime.target_soul_lattice(i)
+        if performance_profile_enabled:
+            enemy_bridge_us += Time.get_ticks_usec() - enemy_bridge_started
+        souls[i].call("sync_from_native", soul_snapshot, soul_lattice)
+    if performance_profile_enabled:
+        performance_profile_last["enemies_bridge_adapter_us"] = Time.get_ticks_usec() - enemies_started
+        performance_profile_last["enemy_bridge_us"] = enemy_bridge_us
+        performance_profile_last["enemy_adapter_us"] = enemy_adapter_us
     _sync_projectiles(runtime.projectile_presentation_snapshot())
     var viewport_size := get_viewport().get_visible_rect().size
     door_transition_adapter.call("sync_snapshot",
         runtime.door_transition_presentation_snapshot(), viewport_size)
-    hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(),
-        runtime.restart_menu_presentation_snapshot(viewport_size.x, viewport_size.y), hud_targets,
-        camera, runtime.player_position(), runtime.comm_signal(),
-        runtime.comm_signal_timer(), runtime.simulation_time())
+    var hud_started := Time.get_ticks_usec() if performance_profile_enabled else 0
+    if performance_profile_variant == "no_hud":
+        hud_adapter.visible = false
+    else:
+        hud_adapter.visible = true
+        hud_adapter.call("sync_snapshot", runtime.hud_presentation_snapshot(),
+            runtime.restart_menu_presentation_snapshot(viewport_size.x, viewport_size.y), hud_targets,
+            camera, runtime.player_position(), runtime.comm_signal(),
+            runtime.comm_signal_timer(), runtime.simulation_time())
+    if performance_profile_enabled:
+        performance_profile_last["hud_bridge_adapter_us"] = Time.get_ticks_usec() - hud_started
+    # All existing consumers above observe the native camera. Only the final
+    # rendered view receives trauma, and the next sync restores the base first.
+    _capture_base_camera_transform()
+    _apply_render_camera_trauma()
+    if performance_profile_enabled:
+        performance_profile_last["sync_total_us"] = Time.get_ticks_usec() - sync_started
+
+func configure_performance_profile(variant: String) -> void:
+    performance_profile_enabled = true
+    performance_profile_variant = variant
+    var shadows_enabled := variant != "no_shadows"
+    sun_light.shadow_enabled = shadows_enabled
+    fill_light.shadow_enabled = shadows_enabled
+    drama_spotlight.shadow_enabled = shadows_enabled
+    for point_light in native_point_lights:
+        point_light.shadow_enabled = shadows_enabled
+
+func performance_profile_snapshot() -> Dictionary:
+    return performance_profile_last.duplicate()
+
+func _capture_base_camera_transform() -> void:
+    _camera_base_transform = camera.global_transform
+    _camera_base_target = runtime.camera_target()
+    _camera_base_fov = camera.fov
+    _camera_base_valid = true
+
+func _restore_base_camera_transform() -> void:
+    if camera != null and _camera_base_valid:
+        camera.global_transform = _camera_base_transform
+        camera.fov = _camera_base_fov
+
+func _apply_render_camera_trauma() -> void:
+    if not camera_trauma_enabled or _camera_trauma_strength <= 0.0:
+        return
+    var strength := clampf(_camera_trauma_strength, 0.0, 1.0)
+    var phase := float(_camera_trauma_phase)
+    var local_offset := Vector3(sin(phase * 2.17), cos(phase * 1.63), sin(phase * 2.83 + 0.4))
+    if local_offset.length_squared() > 1.0:
+        local_offset = local_offset.normalized()
+    local_offset *= CAMERA_TRAUMA_MAX_TRANSLATION * strength
+    var local_rotation := Vector3(cos(phase * 1.91), sin(phase * 2.41), sin(phase * 1.37 + 0.7))
+    local_rotation *= CAMERA_TRAUMA_MAX_ROTATION_RADIANS * strength
+    var rendered := _camera_base_transform
+    rendered.origin += _camera_base_transform.basis * local_offset
+    rendered.basis = (_camera_base_transform.basis * Basis.from_euler(local_rotation)).orthonormalized()
+    camera.global_transform = rendered
+    _camera_trauma_phase += 1
+    _camera_trauma_strength = maxf(0.0, _camera_trauma_strength - CAMERA_TRAUMA_DECAY_PER_SYNC)
+
+func set_camera_trauma_enabled_for_test(enabled: bool) -> void:
+    camera_trauma_enabled = enabled
+    if not enabled:
+        _camera_trauma_strength = 0.0
+        _restore_base_camera_transform()
+
+func inject_camera_trauma_for_test(amplitude: float) -> void:
+    # Deterministic and bounded: tests may request any value, but presentation
+    # strength is always clamped to [0, 1].
+    _camera_trauma_strength = clampf(amplitude, 0.0, 1.0) if camera_trauma_enabled else 0.0
+    _camera_trauma_phase = 0
 
 func _sync_projectiles(snapshots: Array) -> void:
     var active := {}
@@ -454,10 +607,23 @@ func presentation_observation_snapshot() -> Dictionary:
         if projectile.visible:
             projectile_rows.append({"stable_id": stable_id, "node_name": projectile.name,
                 "position": projectile.global_position, "visible": true})
+    var base_transform := _camera_base_transform if _camera_base_valid else camera.global_transform
+    var rendered_transform := camera.global_transform
+    var target_distance := maxf(base_transform.origin.distance_to(_camera_base_target), 0.001)
+    var rendered_target := rendered_transform.origin - rendered_transform.basis.z * target_distance
     return {
-        "camera_position": camera.global_position,
-        "camera_target": runtime.camera_target(),
-        "camera_fov": camera.fov,
+        # Preserve the original observation contract as the native/base camera.
+        "camera_position": base_transform.origin,
+        "camera_target": _camera_base_target,
+        "camera_fov": _camera_base_fov,
+        "base_camera_position": base_transform.origin,
+        "base_camera_target": _camera_base_target,
+        "base_camera_fov": _camera_base_fov,
+        "rendered_camera_position": rendered_transform.origin,
+        "rendered_camera_target": rendered_target,
+        "rendered_camera_fov": camera.fov,
+        "camera_trauma_enabled": camera_trauma_enabled,
+        "camera_trauma_strength": _camera_trauma_strength,
         "targets": target_rows,
         "projectiles": projectile_rows,
         "camera_obstruction_fade_enabled": camera_obstruction_fade_enabled,

@@ -4,6 +4,9 @@
 #include <godot_cpp/variant/quaternion.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/rect2.hpp>
+#include <godot_cpp/variant/transform3d.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <fstream>
 #include <iterator>
@@ -90,6 +93,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("target_soul_presentation_snapshot","index"),&ParentGameNode::target_soul_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("target_soul_lattice","index"),&ParentGameNode::target_soul_lattice);
     ClassDB::bind_method(D_METHOD("target_model_vertices","index"),&ParentGameNode::target_model_vertices);
+    ClassDB::bind_method(D_METHOD("human_model_rig"),&ParentGameNode::human_model_rig);
+    ClassDB::bind_method(D_METHOD("target_model_pose","index"),&ParentGameNode::target_model_pose);
     ClassDB::bind_method(D_METHOD("target_model_color","index"),&ParentGameNode::target_model_color);
     ClassDB::bind_method(D_METHOD("camera_position"),&ParentGameNode::camera_position);
     ClassDB::bind_method(D_METHOD("camera_target"),&ParentGameNode::camera_target);
@@ -1196,6 +1201,81 @@ PackedVector3Array ParentGameNode::target_soul_lattice(int index) const {
         result.set(i, v(target.latticeSurfacePos[i]));
     return result;
 }
+static Transform3D human_transform(const float *matrix) {
+    return Transform3D(Basis(Vector3(matrix[0],matrix[1],matrix[2]),
+                             Vector3(matrix[4],matrix[5],matrix[6]),
+                             Vector3(matrix[8],matrix[9],matrix[10])),
+                       Vector3(matrix[12],matrix[13],matrix[14]));
+}
+static HumanModelExpressiveness human_expression(
+        const TargetPresentationSnapshot& snapshot,float time) {
+    HumanModelExpressiveness expression;
+    expression.hitAmount=snapshot.reaction.hitAmount;
+    expression.hitDirection=snapshot.reaction.hitDirectionLocal;
+    expression.time=time;
+    expression.locomotionPhase=snapshot.reaction.locomotionPhase;
+    expression.locomotionAmount=snapshot.reaction.locomotionAmount;
+    expression.commitment=snapshot.reaction.commitment;
+    expression.searchAmount=snapshot.reaction.searchAmount;
+    expression.disruption=snapshot.reaction.disruption;
+    expression.vacuumPull=snapshot.reaction.vacuumPullAmount;
+    expression.individuality=snapshot.reaction.individuality;
+    return expression;
+}
+Dictionary ParentGameNode::human_model_rig() const {
+    Dictionary result;
+    if(!human_model_load_attempted){
+        human_model_load_attempted=true;
+        const String root=ProjectSettings::get_singleton()->globalize_path("res://");
+        human_model.load(root.path_join("../models/human.dbhuman").simplify_path().utf8().get_data());
+    }
+    if(!human_model.valid()) return result;
+    PackedVector3Array positions;
+    PackedInt32Array indices,parents;
+    PackedFloat32Array weights;
+    Array inverse_binds;
+    positions.resize(human_model.vertices.size());
+    indices.resize(human_model.vertices.size()*4u);
+    weights.resize(human_model.vertices.size()*4u);
+    for(std::size_t i=0;i<human_model.vertices.size();++i){
+        float bound[3];
+        const float *m=human_model.bindMatrix;
+        const float *p=human_model.vertices[i].position;
+        bound[0]=m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12];
+        bound[1]=m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13];
+        bound[2]=m[2]*p[0]+m[6]*p[1]+m[10]*p[2]+m[14];
+        positions.set(i,Vector3(bound[0],bound[1],bound[2]));
+        for(int influence=0;influence<4;++influence){
+            indices.set(i*4u+influence,human_model.vertices[i].bones[influence]);
+            weights.set(i*4u+influence,human_model.vertices[i].weights[influence]);
+        }
+    }
+    parents.resize(human_model.bones.size());
+    for(std::size_t i=0;i<human_model.bones.size();++i){
+        parents.set(i,human_model.bones[i].parent);
+        inverse_binds.push_back(human_transform(human_model.bones[i].inverse));
+    }
+    result["positions"]=positions;
+    result["bone_indices"]=indices;
+    result["weights"]=weights;
+    result["parents"]=parents;
+    result["inverse_binds"]=inverse_binds;
+    result["unit_scale"]=human_model.unitScale;
+    result["min_y"]=human_model.minY;
+    return result;
+}
+Array ParentGameNode::target_model_pose(int index) const {
+    Array result;
+    if(index<0||index>=TARGET_COUNT) return result;
+    if(human_model_rig().is_empty()) return result;
+    const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
+    std::vector<float> transforms;
+    human_model.localPose(snapshot.animationTime,snapshot.attackTimer,snapshot.attackVariant,
+                          transforms,human_expression(snapshot,bridge.state().time));
+    for(std::size_t i=0;i<human_model.bones.size();++i)
+        result.push_back(human_transform(transforms.data()+i*16u));
+    return result;
+}
 PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
     PackedVector3Array result;
     if(index<0||index>=TARGET_COUNT)return result;
@@ -1207,17 +1287,7 @@ PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
     }
     if(!human_model.valid())return result;
     const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
-    HumanModelExpressiveness expression;
-    expression.hitAmount=snapshot.reaction.hitAmount;
-    expression.hitDirection=snapshot.reaction.hitDirectionLocal;
-    expression.time=bridge.state().time;
-    expression.locomotionPhase=snapshot.reaction.locomotionPhase;
-    expression.locomotionAmount=snapshot.reaction.locomotionAmount;
-    expression.commitment=snapshot.reaction.commitment;
-    expression.searchAmount=snapshot.reaction.searchAmount;
-    expression.disruption=snapshot.reaction.disruption;
-    expression.vacuumPull=snapshot.reaction.vacuumPullAmount;
-    expression.individuality=snapshot.reaction.individuality;
+    const HumanModelExpressiveness expression=human_expression(snapshot,bridge.state().time);
     HumanModelFootTargets feet;
     feet.left[0]=snapshot.leftFootTarget.x;feet.left[1]=snapshot.leftFootTarget.y;feet.left[2]=snapshot.leftFootTarget.z;
     feet.right[0]=snapshot.rightFootTarget.x;feet.right[1]=snapshot.rightFootTarget.y;feet.right[2]=snapshot.rightFootTarget.z;
