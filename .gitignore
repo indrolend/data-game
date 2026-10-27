@@ -6,3 +6,14 @@ multiplayer-server/node_modules/
 multiplayer-server/.wrangler/
 .DS_Store
 Thumbs.db
+
+# Disposable editor and agent safety copies belong in Git history or an archive,
+# not beside authoritative source files.
+*.bak
+*.orig
+*.rej
+*.before-*
+*~
+/godot/.godot/
+/godot/bin/
+/godot/evidence/
