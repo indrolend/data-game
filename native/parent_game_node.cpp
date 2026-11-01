@@ -74,6 +74,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("phone_display_raster_pixels"),&ParentGameNode::phone_display_raster_pixels);
     ClassDB::bind_method(D_METHOD("phone_display_uses_source_sans"),&ParentGameNode::phone_display_uses_source_sans);
     ClassDB::bind_method(D_METHOD("music_presentation_snapshot"),&ParentGameNode::music_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("audio_presentation_snapshot"),&ParentGameNode::audio_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("hud_presentation_snapshot"),&ParentGameNode::hud_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("restart_menu_presentation_snapshot","viewport_width","viewport_height"),&ParentGameNode::restart_menu_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("restart_menu_item_at","viewport_x","viewport_y","viewport_width","viewport_height"),&ParentGameNode::restart_menu_item_at);
@@ -778,6 +779,30 @@ Dictionary ParentGameNode::music_presentation_snapshot() const {
     result["volume"] = volume;
     result["muted"] = state.localSettings.musicMuted;
     result["room_index"] = state.roomIndex;
+    return result;
+}
+Dictionary ParentGameNode::audio_presentation_snapshot() const {
+    const auto& state = bridge.state();
+    const auto& audio = state.audio;
+    Dictionary result;
+    Array events;
+    const unsigned int newest = audio.nextSerial > 0 ? audio.nextSerial - 1 : 0;
+    const unsigned int first = newest >= AUDIO_EVENT_COUNT ? newest - AUDIO_EVENT_COUNT + 1 : 1;
+    for (unsigned int serial = first; serial <= newest; ++serial) {
+        const auto& event = audio.events[(serial - 1u) % AUDIO_EVENT_COUNT];
+        if (event.serial != serial) continue;
+        Dictionary item;
+        item["serial"] = static_cast<int64_t>(event.serial);
+        item["cue"] = static_cast<int>(event.cue);
+        item["volume"] = event.volume;
+        events.push_back(item);
+    }
+    result["events"] = events;
+    result["newest_serial"] = static_cast<int64_t>(newest);
+    result["capacity"] = AUDIO_EVENT_COUNT;
+    result["volume"] = state.localSettings.sfxMuted ? 0.0f :
+        clampf(state.localSettings.sfxVolume, 0.0f, 1.0f);
+    result["muted"] = state.localSettings.sfxMuted;
     return result;
 }
 Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
