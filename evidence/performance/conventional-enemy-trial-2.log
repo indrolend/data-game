@@ -1,0 +1,44 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+CONVENTIONAL_ENEMY_RESULT {
+  "bone_count": 33,
+  "combined_frame_ms": {
+    "median": 1.448,
+    "p95": 1.988,
+    "worst": 2.367
+  },
+  "conventional_skeleton_pose_ms": {
+    "median": 0.061,
+    "p95": 0.071,
+    "worst": 0.108
+  },
+  "custom_cpu_skin_mesh_ms": {
+    "median": 0.544,
+    "p95": 0.674,
+    "worst": 0.718
+  },
+  "frame_count": 60,
+  "gpu_ms": {
+    "median": 0.116999998688698,
+    "p95": 0.118000000715256,
+    "worst": 0.791000008583069
+  },
+  "known_parity_gaps": [
+    "native attack/expressiveness bone modifiers",
+    "post-skin foot correction",
+    "final-deformed flat normals",
+    "shell-crack triangle removal",
+    "soul-collapse morph"
+  ],
+  "memory_first_mib": 36.3224830627441,
+  "memory_last_mib": 36.4035835266113,
+  "memory_mib": {
+    "median": 36.3583793640137,
+    "p95": 36.4035835266113,
+    "worst": 36.4035835266113
+  },
+  "schema_version": 1,
+  "vertex_count": 4164
+}
+

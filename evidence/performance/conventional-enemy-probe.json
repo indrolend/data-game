@@ -1,0 +1,40 @@
+{
+  "bone_count": 33,
+  "combined_frame_ms": {
+    "median": 1.6,
+    "p95": 2.136,
+    "worst": 3.416
+  },
+  "conventional_skeleton_pose_ms": {
+    "median": 0.073,
+    "p95": 0.096,
+    "worst": 0.159
+  },
+  "custom_cpu_skin_mesh_ms": {
+    "median": 0.577,
+    "p95": 0.681,
+    "worst": 0.796
+  },
+  "frame_count": 60,
+  "gpu_ms": {
+    "median": 0.116999998688698,
+    "p95": 0.122000001370907,
+    "worst": 0.940999984741211
+  },
+  "known_parity_gaps": [
+    "native attack/expressiveness bone modifiers",
+    "post-skin foot correction",
+    "final-deformed flat normals",
+    "shell-crack triangle removal",
+    "soul-collapse morph"
+  ],
+  "memory_first_mib": 36.3212356567383,
+  "memory_last_mib": 36.4023361206055,
+  "memory_mib": {
+    "median": 36.3571319580078,
+    "p95": 36.4023361206055,
+    "worst": 36.4023361206055
+  },
+  "schema_version": 1,
+  "vertex_count": 4164
+}

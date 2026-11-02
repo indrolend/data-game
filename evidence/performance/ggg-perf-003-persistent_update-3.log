@@ -1,0 +1,36 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+GGG_PERF_003_PROBE {
+  "bytes_per_instance_update": 49968,
+  "frame_ms": {
+    "median": 0.735,
+    "p95": 1.133,
+    "worst": 1.709
+  },
+  "gpu_ms": {
+    "median": 0.0439999997615814,
+    "p95": 0.046000000089407,
+    "worst": 0.367000013589859
+  },
+  "instances": 32,
+  "mechanism": "position-buffer-only; normals intentionally held constant",
+  "memory_first_mib": 34.7367038726807,
+  "memory_last_mib": 34.8015995025635,
+  "memory_mib": {
+    "median": 34.7654361724854,
+    "p95": 34.8015995025635,
+    "worst": 34.8015995025635
+  },
+  "mode": "persistent_update",
+  "operation_ms": {
+    "median": 0.114,
+    "p95": 0.143,
+    "worst": 0.268
+  },
+  "sample_frames": 600,
+  "schema_version": 1,
+  "vertices_per_instance": 4164,
+  "warmup_frames": 180
+}
+

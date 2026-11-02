@@ -1,0 +1,7 @@
+trial,variant,frame_median_ms,frame_p95_ms,frame_worst_ms,enemy_adapter_median_ms,gpu_p95_ms,static_memory_median_mib
+1,baseline,12.230,14.021,17.109,4.063,1.969,46.361
+1,persistent_mesh,15.990,17.947,21.546,7.369,2.337,46.347
+2,baseline,12.216,13.953,16.649,4.069,1.823,46.361
+2,persistent_mesh,15.901,17.850,20.493,7.357,2.341,46.347
+3,baseline,12.466,14.040,17.604,4.176,1.967,46.361
+3,persistent_mesh,16.282,17.976,22.712,7.430,2.376,46.347

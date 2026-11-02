@@ -1,0 +1,106 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+PERFORMANCE_RESULT {
+  "draw_calls": {
+    "median": 292.0,
+    "p95": 675.0,
+    "worst": 715.0
+  },
+  "enemy_bridge_adapter_ms": {
+    "median": 7.424,
+    "p95": 8.147,
+    "worst": 8.736
+  },
+  "fps_from_median_frame": 82.4810293632464,
+  "frame_ms": {
+    "median": 12.124,
+    "p95": 13.806,
+    "worst": 16.062
+  },
+  "godot_physics_ms": {
+    "median": 0.026,
+    "p95": 0.054,
+    "worst": 0.054
+  },
+  "godot_process_ms": {
+    "median": 14.064,
+    "p95": 17.085,
+    "worst": 17.085
+  },
+  "gpu_timing_supported": true,
+  "hud_bridge_adapter_ms": {
+    "median": 0.252,
+    "p95": 0.342,
+    "worst": 0.445
+  },
+  "max_fps": 0,
+  "native_tick_ms": {
+    "median": 0.077,
+    "p95": 0.092,
+    "worst": 0.145
+  },
+  "objects": {
+    "median": 2469.0,
+    "p95": 2488.0,
+    "worst": 2488.0
+  },
+  "particle_bridge_adapter_ms": {
+    "median": 0.01,
+    "p95": 0.146,
+    "worst": 0.25
+  },
+  "phone_bridge_adapter_ms": {
+    "median": 0.097,
+    "p95": 0.134,
+    "worst": 0.23
+  },
+  "primitives": {
+    "median": 147169.0,
+    "p95": 240326.0,
+    "worst": 251681.0
+  },
+  "render_setup_cpu_ms": {
+    "median": 0.141,
+    "p95": 0.181,
+    "worst": 0.224
+  },
+  "renderer": "NVIDIA GeForce RTX 3060",
+  "renderer_type": "opengl3",
+  "renderer_vendor": "NVIDIA",
+  "resolution": [
+    1280,
+    720
+  ],
+  "room_adapter_ms": {
+    "median": 1.106,
+    "p95": 1.309,
+    "worst": 1.589
+  },
+  "sample_frames": 600,
+  "scene_sync_ms": {
+    "median": 9.227,
+    "p95": 9.99,
+    "worst": 10.507
+  },
+  "schema_version": 1,
+  "static_memory_mib": {
+    "median": 46.6428632736206,
+    "p95": 46.9785900115967,
+    "worst": 46.9785938262939
+  },
+  "variant": "baseline",
+  "viewport_render_cpu_ms": {
+    "median": 1.00699996948242,
+    "p95": 1.66199994087219,
+    "worst": 4.93599987030029
+  },
+  "viewport_render_gpu_ms": {
+    "median": 0.763999998569489,
+    "p95": 1.72800004482269,
+    "worst": 2.66499996185303
+  },
+  "vsync": "disabled",
+  "warmup_frames": 180
+}
+

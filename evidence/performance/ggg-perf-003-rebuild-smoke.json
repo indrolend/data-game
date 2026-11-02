@@ -1,0 +1,32 @@
+{
+  "bytes_per_instance_update": 49968,
+  "frame_ms": {
+    "median": 8.567,
+    "p95": 9.429,
+    "worst": 11.115
+  },
+  "gpu_ms": {
+    "median": 0.0540000014007092,
+    "p95": 0.0570000000298023,
+    "worst": 1.00800001621246
+  },
+  "instances": 32,
+  "mechanism": "position-buffer-only; normals intentionally held constant",
+  "memory_first_mib": 34.7366428375244,
+  "memory_last_mib": 34.8015384674072,
+  "memory_mib": {
+    "median": 34.7653751373291,
+    "p95": 34.8015384674072,
+    "worst": 34.8015384674072
+  },
+  "mode": "rebuild",
+  "operation_ms": {
+    "median": 7.822,
+    "p95": 8.591,
+    "worst": 9.323
+  },
+  "sample_frames": 600,
+  "schema_version": 1,
+  "vertices_per_instance": 4164,
+  "warmup_frames": 180
+}

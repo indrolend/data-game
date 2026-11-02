@@ -1,0 +1,110 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 610.88 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3060
+
+PERFORMANCE_RESULT {
+  "draw_calls": {
+    "median": 65.0,
+    "p95": 138.0,
+    "worst": 144.0
+  },
+  "enemy_bridge_adapter_ms": {
+    "median": 7.429,
+    "p95": 8.01,
+    "worst": 8.541
+  },
+  "fps_from_median_frame": 90.9752547307132,
+  "frame_ms": {
+    "median": 10.992,
+    "p95": 12.228,
+    "worst": 17.129
+  },
+  "godot_physics_ms": {
+    "median": 0.021,
+    "p95": 0.05,
+    "worst": 0.05
+  },
+  "godot_process_ms": {
+    "median": 13.152,
+    "p95": 17.102,
+    "worst": 17.102
+  },
+  "gpu_timing_supported": true,
+  "hud_bridge_adapter_ms": {
+    "median": 0.248,
+    "p95": 0.33,
+    "worst": 2.558
+  },
+  "max_fps": 0,
+  "native_tick_ms": {
+    "median": 0.071,
+    "p95": 0.089,
+    "worst": 0.11
+  },
+  "objects": {
+    "median": 2469.0,
+    "p95": 2488.0,
+    "worst": 2488.0
+  },
+  "particle_bridge_adapter_ms": {
+    "median": 0.009,
+    "p95": 0.129,
+    "worst": 0.202
+  },
+  "phone_bridge_adapter_ms": {
+    "median": 0.09,
+    "p95": 0.126,
+    "worst": 0.187
+  },
+  "primitives": {
+    "median": 30514.0,
+    "p95": 51117.0,
+    "worst": 51123.0
+  },
+  "render_setup_cpu_ms": {
+    "median": 0.131,
+    "p95": 0.175,
+    "worst": 0.233
+  },
+  "renderer": "NVIDIA GeForce RTX 3060",
+  "renderer_type": "opengl3",
+  "renderer_vendor": "NVIDIA",
+  "resolution": [
+    1280,
+    720
+  ],
+  "room_adapter_ms": {
+    "median": 1.071,
+    "p95": 1.249,
+    "worst": 1.586
+  },
+  "sample_frames": 600,
+  "scene_sync_ms": {
+    "median": 9.153,
+    "p95": 9.9,
+    "worst": 11.626
+  },
+  "schema_version": 1,
+  "static_memory_mib": {
+    "median": 46.3703489303589,
+    "p95": 46.706075668335,
+    "worst": 46.7060794830322
+  },
+  "variant": "no_shadows",
+  "viewport_render_cpu_ms": {
+    "median": 0.479000002145767,
+    "p95": 0.663999974727631,
+    "worst": 4.3730001449585
+  },
+  "viewport_render_gpu_ms": {
+    "median": 0.310000002384186,
+    "p95": 1.05400002002716,
+    "worst": 1.74199998378754
+  },
+  "vsync": "disabled",
+  "warmup_frames": 180
+}
+
+WARNING: 2 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 1 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

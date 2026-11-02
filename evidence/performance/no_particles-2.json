@@ -1,0 +1,102 @@
+{
+  "draw_calls": {
+    "median": 292.0,
+    "p95": 675.0,
+    "worst": 715.0
+  },
+  "enemy_bridge_adapter_ms": {
+    "median": 7.504,
+    "p95": 8.096,
+    "worst": 8.858
+  },
+  "fps_from_median_frame": 82.815734989648,
+  "frame_ms": {
+    "median": 12.075,
+    "p95": 13.766,
+    "worst": 15.125
+  },
+  "godot_physics_ms": {
+    "median": 0.016,
+    "p95": 0.021,
+    "worst": 0.021
+  },
+  "godot_process_ms": {
+    "median": 14.471,
+    "p95": 15.11,
+    "worst": 15.11
+  },
+  "gpu_timing_supported": true,
+  "hud_bridge_adapter_ms": {
+    "median": 0.238,
+    "p95": 0.32,
+    "worst": 0.412
+  },
+  "max_fps": 0,
+  "native_tick_ms": {
+    "median": 0.079,
+    "p95": 0.091,
+    "worst": 0.131
+  },
+  "objects": {
+    "median": 2467.0,
+    "p95": 2486.0,
+    "worst": 2486.0
+  },
+  "particle_bridge_adapter_ms": {
+    "median": 0.001,
+    "p95": 0.002,
+    "worst": 0.049
+  },
+  "phone_bridge_adapter_ms": {
+    "median": 0.098,
+    "p95": 0.13,
+    "worst": 0.248
+  },
+  "primitives": {
+    "median": 147169.0,
+    "p95": 240326.0,
+    "worst": 251681.0
+  },
+  "render_setup_cpu_ms": {
+    "median": 0.136,
+    "p95": 0.177,
+    "worst": 0.211
+  },
+  "renderer": "NVIDIA GeForce RTX 3060",
+  "renderer_type": "opengl3",
+  "renderer_vendor": "NVIDIA",
+  "resolution": [
+    1280,
+    720
+  ],
+  "room_adapter_ms": {
+    "median": 1.128,
+    "p95": 1.303,
+    "worst": 1.638
+  },
+  "sample_frames": 600,
+  "scene_sync_ms": {
+    "median": 9.269,
+    "p95": 9.927,
+    "worst": 10.568
+  },
+  "schema_version": 1,
+  "static_memory_mib": {
+    "median": 46.2696371078491,
+    "p95": 46.5880517959595,
+    "worst": 46.5880556106567
+  },
+  "variant": "no_particles",
+  "viewport_render_cpu_ms": {
+    "median": 1.01300001144409,
+    "p95": 1.72300004959106,
+    "worst": 2.35899996757507
+  },
+  "viewport_render_gpu_ms": {
+    "median": 0.75900000333786,
+    "p95": 1.60300004482269,
+    "worst": 2.91199994087219
+  },
+  "vsync": "disabled",
+  "warmup_frames": 180
+}

@@ -17,3 +17,9 @@ Thumbs.db
 /godot/.godot/
 /godot/bin/
 /godot/evidence/
+
+# Local Codex transcripts and exploratory telemetry packages are reproducible
+# working artifacts. Accepted captures and benchmark summaries are committed
+# explicitly under evidence/.
+/codex-session-*.md
+/evidence/generated/scene-telemetry*/

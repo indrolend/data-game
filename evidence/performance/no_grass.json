@@ -1,0 +1,102 @@
+{
+  "draw_calls": {
+    "median": 199.0,
+    "p95": 266.0,
+    "worst": 282.0
+  },
+  "enemy_bridge_adapter_ms": {
+    "median": 7.415,
+    "p95": 8.013,
+    "worst": 8.519
+  },
+  "fps_from_median_frame": 86.333419666753,
+  "frame_ms": {
+    "median": 11.583,
+    "p95": 12.821,
+    "worst": 16.233
+  },
+  "godot_physics_ms": {
+    "median": 0.023,
+    "p95": 0.036,
+    "worst": 0.036
+  },
+  "godot_process_ms": {
+    "median": 13.616,
+    "p95": 16.22,
+    "worst": 16.22
+  },
+  "gpu_timing_supported": true,
+  "hud_bridge_adapter_ms": {
+    "median": 0.252,
+    "p95": 0.329,
+    "worst": 0.42
+  },
+  "max_fps": 0,
+  "native_tick_ms": {
+    "median": 0.075,
+    "p95": 0.089,
+    "worst": 0.134
+  },
+  "objects": {
+    "median": 2147.0,
+    "p95": 2166.0,
+    "worst": 2166.0
+  },
+  "particle_bridge_adapter_ms": {
+    "median": 0.009,
+    "p95": 0.13,
+    "worst": 0.201
+  },
+  "phone_bridge_adapter_ms": {
+    "median": 0.095,
+    "p95": 0.108,
+    "worst": 0.273
+  },
+  "primitives": {
+    "median": 147097.0,
+    "p95": 239998.0,
+    "worst": 251335.0
+  },
+  "render_setup_cpu_ms": {
+    "median": 0.117,
+    "p95": 0.145,
+    "worst": 0.343
+  },
+  "renderer": "NVIDIA GeForce RTX 3060",
+  "renderer_type": "opengl3",
+  "renderer_vendor": "NVIDIA",
+  "resolution": [
+    1280,
+    720
+  ],
+  "room_adapter_ms": {
+    "median": 0.856,
+    "p95": 0.985,
+    "worst": 1.225
+  },
+  "sample_frames": 600,
+  "scene_sync_ms": {
+    "median": 8.923,
+    "p95": 9.595,
+    "worst": 10.249
+  },
+  "schema_version": 1,
+  "static_memory_mib": {
+    "median": 44.6447019577026,
+    "p95": 44.9799671173096,
+    "worst": 44.9799709320068
+  },
+  "variant": "no_grass",
+  "viewport_render_cpu_ms": {
+    "median": 0.787999987602234,
+    "p95": 1.02100002765656,
+    "worst": 5.05200004577637
+  },
+  "viewport_render_gpu_ms": {
+    "median": 0.745000004768372,
+    "p95": 1.57700002193451,
+    "worst": 2.59699988365173
+  },
+  "vsync": "disabled",
+  "warmup_frames": 180
+}
