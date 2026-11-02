@@ -45,10 +45,19 @@ func configure(index: int, color: Color) -> void:
 func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array,
         camera_position: Variant = null, camera_target: Variant = null,
         obstruction_fade_enabled := false) -> void:
+    if not sync_presentation_state(snapshot, camera_position, camera_target,
+            obstruction_fade_enabled):
+        return
+    if vertices.is_empty():
+        return
+    _replace_mesh(vertices)
+
+func sync_presentation_state(snapshot: Dictionary, camera_position: Variant = null,
+        camera_target: Variant = null, obstruction_fade_enabled := false) -> bool:
     visible = bool(snapshot.alive)
     _sync_tether(snapshot)
-    if not visible or vertices.is_empty():
-        return
+    if not visible:
+        return false
     base_color = snapshot.get("damage_surface_color", base_color)
     var hit_color: Color = base_color.lerp(Color(1.0, 0.28, 0.2), clampf(float(snapshot.hit_amount), 0.0, 1.0))
     var morph := clampf(float(snapshot.pose.soul_morph), 0.0, 1.0)
@@ -71,6 +80,9 @@ func sync_from_native(snapshot: Dictionary, vertices: PackedVector3Array,
     var expressive: Vector3 = snapshot.pose.expressive_scale
     var model_scale := float(snapshot.pose.scale)
     scale = expressive * model_scale
+    return true
+
+func _replace_mesh(vertices: PackedVector3Array) -> void:
     var arrays := []
     arrays.resize(Mesh.ARRAY_MAX)
     arrays[Mesh.ARRAY_VERTEX] = vertices

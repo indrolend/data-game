@@ -6,6 +6,7 @@
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/packed_vector3_array.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
+#include <vector>
 #include "parent_bridge.hpp"
 #include "HumanModelData.hpp"
 namespace godot {
@@ -14,6 +15,7 @@ class ParentGameNode : public Node {
     ParentBridge bridge;
     mutable HumanModelData human_model;
     mutable bool human_model_load_attempted = false;
+    bool build_target_model_vertices(int index, std::vector<Vector3>& visible_vertices) const;
 protected:
     static void _bind_methods();
 public:
@@ -88,6 +90,7 @@ public:
     Dictionary target_soul_presentation_snapshot(int index) const;
     PackedVector3Array target_soul_lattice(int index) const;
     PackedVector3Array target_model_vertices(int index) const;
+    Dictionary target_model_packed_buffer(int index) const;
     Dictionary human_model_rig() const;
     Array target_model_pose(int index) const;
     Color target_model_color(int index) const;
