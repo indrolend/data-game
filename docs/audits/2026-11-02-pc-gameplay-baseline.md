@@ -51,3 +51,34 @@ legibility, animation quality, audio balance, or frame pacing.
 
 Hardware- and operating-system-specific optimization is intentionally deferred
 until these platform-neutral game and presentation checks are complete.
+
+## Current rendered and performance observations
+
+The graphical `fundamental_loop_visual_capture.gd` sequence passed on an NVIDIA
+GeForce RTX 3060 using OpenGL Compatibility at 1280×720. The captured sequence
+visibly retained the gameplay phone, enemy-hit response, cyan targeting and
+vacuum cues, magenta melee swing, chartreuse impact ring, shell cracking,
+capture response, settled signal residue, and pause-phone menu. No missing core
+gameplay cue was observed in this representative Field encounter.
+
+Three current-revision performance trials used 180 warm-up frames and 600
+sampled frames each with VSync disabled. The middle trial by median frame time
+reported:
+
+| Measurement | Result |
+|---|---:|
+| Median frame | 9.914 ms |
+| p95 frame | 10.630 ms |
+| Worst sampled frame | 15.270 ms |
+| FPS from median frame | 100.87 |
+| Godot scene synchronization median | 8.335 ms |
+| Enemy native bridge median | 3.088 ms |
+| Enemy Godot adapter median | 3.868 ms |
+| GPU render median | 2.349 ms |
+| Draw calls median | 271 |
+
+All three trials remained below 16.67 ms at p95. One non-middle trial recorded
+a 21.790 ms worst-frame outlier, so isolated frame spikes remain an observation
+target. The enemy presentation path still consumes about 6.96 ms per median
+frame, but it is not yet a release blocker on this PC and should not be changed
+before visual parity review.
