@@ -165,7 +165,10 @@ inline PhysicalEnemyBodyOutput updatePhysicalEnemyBody(
     body.bodyRoll = clampf(body.bodyRoll + body.rollVelocity * dt, -1.45f, 1.45f);
     body.impactInstability *= std::exp(-1.8f * dt);
 
-    if (!body.fallen && (std::abs(body.bodyPitch) > 0.82f || std::abs(body.bodyRoll) > 0.76f)) {
+    const float impactAngularSpeed = std::max(std::abs(body.pitchVelocity), std::abs(body.rollVelocity));
+    const bool balanceOverwhelmed = body.impactInstability > 0.96f && impactAngularSpeed > 2.8f;
+    if (!body.fallen && (std::abs(body.bodyPitch) > 0.82f || std::abs(body.bodyRoll) > 0.76f
+            || balanceOverwhelmed)) {
         body.fallen = true;
         body.recovery = 0.0f;
     }

@@ -86,6 +86,24 @@ void terrainImpactAndRecoveryContracts() {
     assert(!first.fallen);
     assert(std::abs(first.bodyPitch) < 0.20f && std::abs(first.bodyRoll) < 0.20f);
 
+    gameplay::PhysicalEnemyBodyState overwhelmed{}, overwhelmedRepeat{};
+    gameplay::PhysicalEnemyBodyInput overwhelmedInput{}, overwhelmedRepeatInput{};
+    float overwhelmedYaw = 0.0f, overwhelmedRepeatYaw = 0.0f;
+    gameplay::applyPhysicalEnemyImpact(overwhelmed, {9.0f, 0.0f, 9.0f});
+    gameplay::applyPhysicalEnemyImpact(overwhelmedRepeat, {9.0f, 0.0f, 9.0f});
+    step(overwhelmed, overwhelmedInput, overwhelmedYaw);
+    step(overwhelmedRepeat, overwhelmedRepeatInput, overwhelmedRepeatYaw);
+    assert(overwhelmed.fallen && overwhelmedRepeat.fallen);
+    assert(overwhelmed.bodyPitch == overwhelmedRepeat.bodyPitch);
+    assert(overwhelmed.bodyRoll == overwhelmedRepeat.bodyRoll);
+    for (int frame = 0; frame < 480; ++frame) {
+        step(overwhelmed, overwhelmedInput, overwhelmedYaw);
+        step(overwhelmedRepeat, overwhelmedRepeatInput, overwhelmedRepeatYaw);
+    }
+    assert(!overwhelmed.fallen && !overwhelmedRepeat.fallen);
+    assert(overwhelmed.bodyPitch == overwhelmedRepeat.bodyPitch);
+    assert(overwhelmed.bodyRoll == overwhelmedRepeat.bodyRoll);
+
     gameplay::PhysicalEnemyBodyState fallen{};
     fallen.initialized = true;
     fallen.fallen = true;

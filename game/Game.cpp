@@ -3507,6 +3507,24 @@ bool Game::damageSoulShell(int index, float amount) {
     return true;
 }
 
+bool Game::debugApplyEnemyPhysicalImpulse(int index,const Vec3& worldImpulse,float impactHeight) {
+    if(index<0||index>=TARGET_COUNT||!state_.targets[index].alive)return false;
+    TargetState& target=state_.targets[index];
+    const Vec3 finiteImpulse{
+        std::isfinite(worldImpulse.x)?worldImpulse.x:0.0f,
+        std::isfinite(worldImpulse.y)?worldImpulse.y:0.0f,
+        std::isfinite(worldImpulse.z)?worldImpulse.z:0.0f};
+    const Vec3 right{std::cos(target.visualYaw),0.0f,-std::sin(target.visualYaw)};
+    const Vec3 forward{-std::sin(target.visualYaw),0.0f,-std::cos(target.visualYaw)};
+    const float lever=0.35f+clampf(impactHeight,0.0f,1.8f)*0.65f;
+    gameplay::applyPhysicalEnemyImpact(enemyRuntime().bodies[index],{
+        dot3(finiteImpulse,right)*lever,0.0f,dot3(finiteImpulse,forward)*lever});
+    target.vel.x+=finiteImpulse.x;
+    target.vel.y+=finiteImpulse.y;
+    target.vel.z+=finiteImpulse.z;
+    return true;
+}
+
 void Game::updateMeleeDash(float dt) {
     MeleeVisualState& visual=state_.meleeVisual;
     if(visual.airLungeCameraLag>0.0f){

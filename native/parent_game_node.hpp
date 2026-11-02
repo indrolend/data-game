@@ -48,6 +48,8 @@ public:
     Dictionary player_support_snapshot(float x, float z) const;
     Dictionary world_support_snapshot(float x, float z, float radius) const;
     void start_target_interaction_fixture();
+    void start_endorphin_enemy_fixture();
+    bool apply_endorphin_enemy_impulse(int index,const Vector3& impulse,float height);
     void start_damage_fixture();
     void start_death_fixture();
     void start_city_room_fixture();

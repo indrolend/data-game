@@ -189,6 +189,20 @@ public:
     WorldSupportSample playerSupportAt(float x, float z) const { return game.debugPlayerSupportAt(x, z); }
     WorldSupportSample worldSupportAt(float x, float z, float radius) const { return game.debugWorldSupportAt(x, z, radius); }
     void startTargetInteractionFixture() { game.reset(); }
+    void startEndorphinEnemyFixture() {
+        game.reset();
+        auto& state=game.networkMutableState();
+        state.player.pos={0.0f,0.08f,1.8f};state.player.vel={};state.player.battery=100.0f;
+        state.camera.yaw=0.0f;state.camera.pitch=-0.06f;
+        for(int i=1;i<TARGET_COUNT;++i)state.targets[i]=TargetState{};
+        auto& target=state.targets[0];
+        target.pos={0.0f,0.08f,-2.4f};target.vel={};target.walkTarget=state.player.pos;
+        target.attackTimer=0.0f;target.attackCooldown=0.8f;target.attackHit=false;
+        target.attackDirection={0.0f,0.0f,1.0f};target.attackTargetPlayerId=0;
+    }
+    bool applyEndorphinEnemyImpulse(int index,const Vec3& impulse,float height) {
+        return game.debugApplyEnemyPhysicalImpulse(index,impulse,height);
+    }
     void startDamageFixture() {
         game.reset();
         auto& state=game.networkMutableState();

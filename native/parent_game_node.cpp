@@ -56,6 +56,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("player_support_snapshot","x","z"),&ParentGameNode::player_support_snapshot);
     ClassDB::bind_method(D_METHOD("world_support_snapshot","x","z","radius"),&ParentGameNode::world_support_snapshot);
     ClassDB::bind_method(D_METHOD("start_target_interaction_fixture"),&ParentGameNode::start_target_interaction_fixture);
+    ClassDB::bind_method(D_METHOD("start_endorphin_enemy_fixture"),&ParentGameNode::start_endorphin_enemy_fixture);
+    ClassDB::bind_method(D_METHOD("apply_endorphin_enemy_impulse","index","impulse","height"),&ParentGameNode::apply_endorphin_enemy_impulse);
     ClassDB::bind_method(D_METHOD("start_damage_fixture"),&ParentGameNode::start_damage_fixture);
     ClassDB::bind_method(D_METHOD("start_death_fixture"),&ParentGameNode::start_death_fixture);
     ClassDB::bind_method(D_METHOD("start_city_room_fixture"),&ParentGameNode::start_city_room_fixture);
@@ -195,6 +197,10 @@ static Dictionary support_dictionary(const WorldSupportSample& support) {
 Dictionary ParentGameNode::player_support_snapshot(float x,float z) const{return support_dictionary(bridge.playerSupportAt(x,z));}
 Dictionary ParentGameNode::world_support_snapshot(float x,float z,float radius) const{return support_dictionary(bridge.worldSupportAt(x,z,radius));}
 void ParentGameNode::start_target_interaction_fixture(){bridge.startTargetInteractionFixture();}
+void ParentGameNode::start_endorphin_enemy_fixture(){bridge.startEndorphinEnemyFixture();}
+bool ParentGameNode::apply_endorphin_enemy_impulse(int index,const Vector3& impulse,float height){
+    return bridge.applyEndorphinEnemyImpulse(index,{impulse.x,impulse.y,impulse.z},height);
+}
 void ParentGameNode::start_damage_fixture(){bridge.startDamageFixture();}
 void ParentGameNode::start_death_fixture(){bridge.startDeathFixture();}
 void ParentGameNode::start_city_room_fixture(){bridge.startCityRoomFixture();}

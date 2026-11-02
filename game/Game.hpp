@@ -811,6 +811,7 @@ public:
     WorldSupportSample debugPlayerSupportAt(float x,float z) const { return getPlayerSupport(x,z); }
     WorldSupportSample debugWorldSupportAt(float x,float z,float radius) const { return getWorldSupport(x,z,radius); }
     bool debugSetEnemies(int mode);
+    bool debugApplyEnemyPhysicalImpulse(int index,const Vec3& worldImpulse,float impactHeight);
     void debugNextRoom();
     void debugRerollRoom();
     void debugStepRoomInspector(int delta,bool newSeed=false);
