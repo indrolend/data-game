@@ -18,6 +18,13 @@ godot_console.exe --headless --path godot --script res://tests/parent_smoke.gd
 The editor-import step creates ignored `.godot/` metadata and registers the
 GDExtension for a newly materialized checkout.
 
+The continuous-integration macOS job builds a universal `x86_64;arm64`
+GDExtension from pinned `godot-cpp` commit
+`2bb1acf6f8ae1ce96ac7b9ba3a10b499c59c49ec`, runs it with Godot 4.7.2, and
+executes the native authority, playable encounter, and sound presentation
+smoke tests. This keeps the Godot client covered separately from the native
+desktop application release contract.
+
 ## Reproducible scene telemetry capture
 
 Run the capture without `--headless` so `render.png` comes from the graphical

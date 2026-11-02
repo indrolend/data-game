@@ -33,6 +33,44 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
 
+  godot-macos:
+    name: Godot client (macOS universal)
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out matching godot-cpp
+        run: |
+          git clone https://github.com/godotengine/godot-cpp.git "$RUNNER_TEMP/godot-cpp"
+          git -C "$RUNNER_TEMP/godot-cpp" checkout 2bb1acf6f8ae1ce96ac7b9ba3a10b499c59c49ec
+      - name: Build universal Godot extension
+        run: |
+          cmake -S . -B build/godot \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+            -DDB_BUILD_GODOT_PRESENTATION=ON \
+            -DGODOT_CPP_DIR="$RUNNER_TEMP/godot-cpp" \
+            -DGODOTCPP_DEFAULT_API_VERSION=4.7
+          cmake --build build/godot --config Release --target DigitalBreakdownGodot --parallel
+          file godot/bin/digital_breakdown_parent.dylib | tee build/godot-extension.txt
+          grep -q x86_64 build/godot-extension.txt
+          grep -q arm64 build/godot-extension.txt
+      - name: Install pinned Godot editor
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/godot.zip" \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_macos.universal.zip
+          ditto -x -k "$RUNNER_TEMP/godot.zip" "$RUNNER_TEMP/godot"
+          echo "GODOT=$RUNNER_TEMP/godot/Godot.app/Contents/MacOS/Godot" >> "$GITHUB_ENV"
+      - name: Parse and exercise Godot gameplay
+        run: |
+          "$GODOT" --version | grep -q '^4.7.2.stable'
+          "$GODOT" --headless --path godot --editor --quit
+          "$GODOT" --headless --path godot --script res://tests/parent_smoke.gd
+          "$GODOT" --headless --path godot --script res://tests/playable_encounter.gd
+          "$GODOT" --headless --path godot --script res://tests/sfx_presentation.gd
+
   multiplayer-server:
     runs-on: ubuntu-latest
     timeout-minutes: 15
