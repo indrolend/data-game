@@ -393,6 +393,12 @@ public:
         return codec.showColliders;
     }
     const GameState& state() const { return game.state(); }
+    const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT>& enemyLocomotions() const {
+        return game.enemyLocomotions();
+    }
+    const std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT>& enemyBodies() const {
+        return game.enemyBodies();
+    }
 private:
     bool phoneMenuActive() const {
         const auto& state = game.state();

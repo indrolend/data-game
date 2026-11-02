@@ -17,3 +17,16 @@ godot_console.exe --headless --path godot --script res://tests/parent_smoke.gd
 
 The editor-import step creates ignored `.godot/` metadata and registers the
 GDExtension for a newly materialized checkout.
+
+## Reproducible scene telemetry capture
+
+Run the capture without `--headless` so `render.png` comes from the graphical
+viewport rather than being presented as headless GPU evidence:
+
+```powershell
+godot_console.exe --path godot --script res://tests/scene_telemetry_capture.gd
+```
+
+The deterministic 120-step evidence package is written to
+`evidence/generated/scene-telemetry/`. The test enables the persistent skeleton
+presentation slice for its own process and does not change native gameplay.

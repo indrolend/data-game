@@ -91,6 +91,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("lighting_presentation_snapshot"),&ParentGameNode::lighting_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("player_action_snapshot"),&ParentGameNode::player_action_snapshot);
     ClassDB::bind_method(D_METHOD("target_presentation_snapshot","index"),&ParentGameNode::target_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("target_physical_snapshot","index"),&ParentGameNode::target_physical_snapshot);
     ClassDB::bind_method(D_METHOD("target_soul_presentation_snapshot","index"),&ParentGameNode::target_soul_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("target_soul_lattice","index"),&ParentGameNode::target_soul_lattice);
     ClassDB::bind_method(D_METHOD("target_model_vertices","index"),&ParentGameNode::target_model_vertices);
@@ -1190,6 +1191,72 @@ Dictionary ParentGameNode::target_presentation_snapshot(int index) const {
     reaction["search_amount"] = snapshot.reaction.searchAmount;
     reaction["individuality"] = snapshot.reaction.individuality;
     result["reaction"] = reaction;
+    return result;
+}
+static Dictionary enemy_foot_dictionary(const gameplay::EnemyFootState& foot) {
+    Dictionary result;
+    result["position"] = v(foot.position);
+    result["plant_position"] = v(foot.plantPosition);
+    result["swing_start"] = v(foot.swingStart);
+    result["swing_target"] = v(foot.swingTarget);
+    result["support_normal"] = v(foot.supportNormal);
+    result["phase"] = static_cast<int>(foot.phase);
+    result["contact"] = foot.contact;
+    result["load"] = foot.load;
+    result["swing_progress"] = foot.swingProgress;
+    result["planted"] = foot.planted;
+    return result;
+}
+Dictionary ParentGameNode::target_physical_snapshot(int index) const {
+    Dictionary result;
+    if(index<0||index>=TARGET_COUNT) return result;
+    const auto& target=bridge.state().targets[index];
+    const auto& locomotion=bridge.enemyLocomotions()[index];
+    const auto feet=gameplay::enemyLocomotionOutput(locomotion);
+    const auto& body=bridge.enemyBodies()[index];
+    constexpr float enemySupportRadius=0.10f;
+    const auto support=bridge.worldSupportAt(target.pos.x,target.pos.z,enemySupportRadius);
+    result["index"]=index;
+    result["position"]=v(target.pos);
+    result["linear_velocity"]=v(target.vel);
+    result["yaw"]=target.visualYaw;
+    result["angular_velocity"]=Vector3(body.pitchVelocity,body.yawVelocity,body.rollVelocity);
+    result["body_pitch"]=body.bodyPitch;
+    result["body_roll"]=body.bodyRoll;
+    result["initialized"]=body.initialized;
+    result["fallen"]=body.fallen;
+    result["recovery_time"]=body.recovery;
+    result["support_contact"]=body.supportContact;
+    result["disruption"]=body.disruption;
+    result["impact_instability"]=body.impactInstability;
+    result["scramble_amount"]=body.scrambleAmount;
+    result["gait_phase"]=body.gaitPhase;
+    result["left_foot"]=enemy_foot_dictionary(locomotion.left);
+    result["right_foot"]=enemy_foot_dictionary(locomotion.right);
+    result["support_state"]=static_cast<int>(feet.supportState);
+    result["support_normal"]=v(feet.supportNormal);
+    result["supported_desired_velocity"]=v(feet.supportedDesiredVelocity);
+    result["predicted_center_of_mass"]=v(feet.predictedCenterOfMass);
+    result["left_contact"]=feet.leftContact;
+    result["right_contact"]=feet.rightContact;
+    result["left_load"]=feet.leftLoad;
+    result["right_load"]=feet.rightLoad;
+    result["crouch"]=feet.crouch;
+    result["recovery_urgency"]=feet.recoveryUrgency;
+    result["recovery_phase"]=static_cast<int>(locomotion.recoveryPhase);
+    result["recovery_phase_time"]=locomotion.recoveryPhaseTime;
+    result["corrective_step_active"]=feet.correctiveStepActive;
+    result["turn_step_active"]=feet.turnStepActive;
+    result["support_recovery_ready"]=feet.supportRecoveryReady;
+    Dictionary ground;
+    ground["available"]=support.available;
+    ground["height"]=support.height;
+    ground["normal"]=v(support.normal);
+    ground["classification"]=static_cast<int>(support.classification);
+    ground["source"]=static_cast<int>(support.identity.source);
+    ground["index"]=support.identity.index;
+    ground["vertical_separation"]=target.pos.y-support.height;
+    result["ground_support"]=ground;
     return result;
 }
 Dictionary ParentGameNode::target_soul_presentation_snapshot(int index) const {

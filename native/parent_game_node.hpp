@@ -84,6 +84,7 @@ public:
     Dictionary lighting_presentation_snapshot() const;
     Dictionary player_action_snapshot() const;
     Dictionary target_presentation_snapshot(int index) const;
+    Dictionary target_physical_snapshot(int index) const;
     Dictionary target_soul_presentation_snapshot(int index) const;
     PackedVector3Array target_soul_lattice(int index) const;
     PackedVector3Array target_model_vertices(int index) const;

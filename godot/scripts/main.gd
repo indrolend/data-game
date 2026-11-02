@@ -6,6 +6,7 @@ const RoomPresentationAdapter = preload("res://scripts/room_presentation_adapter
 const HumanModelAdapter = preload("res://scripts/human_model_adapter.gd")
 const SkeletonHumanModelAdapter = preload("res://scripts/skeleton_human_model_adapter.gd")
 const NativeParticlePresentationAdapter = preload("res://scripts/native_particle_presentation_adapter.gd")
+const MeleeArcAdapter = preload("res://scripts/melee_arc_adapter.gd")
 const SoulLatticeAdapter = preload("res://scripts/soul_lattice_adapter.gd")
 const DeveloperConsole = preload("res://scripts/developer_console.gd")
 const HudPresentationAdapter = preload("res://scripts/hud_presentation_adapter.gd")
@@ -22,6 +23,7 @@ var music_adapter: Node
 var sfx_adapter: Node
 var phone_adapter: Node
 var particle_adapter: Node
+var melee_arc_adapter: Node3D
 var room_adapter: Node
 var camera: Camera3D
 var world_environment: WorldEnvironment
@@ -56,6 +58,7 @@ var performance_profile_enabled := false
 var performance_profile_variant := "baseline"
 var performance_profile_last := {}
 var skeleton_enemy_slice_enabled := false
+var skeleton_enemy_slice_index := 0
 var pending_look := Vector2.ZERO
 var pending_jump := false
 var pending_melee := false
@@ -74,6 +77,8 @@ func _ready() -> void:
     # ParentGameNode or any value used to submit authoritative input.
     camera_trauma_enabled = OS.get_environment("DB_ENABLE_CAMERA_TRAUMA") == "1"
     skeleton_enemy_slice_enabled = OS.get_environment("DB_ENABLE_SKELETON_ENEMY_SLICE") == "1"
+    skeleton_enemy_slice_index = clampi(OS.get_environment("DB_SKELETON_ENEMY_INDEX").to_int(),
+        0, 31)
     runtime = ClassDB.instantiate("ParentGameNode")
     add_child(runtime)
     world_environment = WorldEnvironment.new()
@@ -165,9 +170,12 @@ func _ready() -> void:
     particle_adapter = NativeParticlePresentationAdapter.new()
     particle_adapter.name = "NativeParticlePresentationAdapter"
     add_child(particle_adapter)
+    melee_arc_adapter = MeleeArcAdapter.new()
+    melee_arc_adapter.name = "NativeMeleeArcPresentation"
+    add_child(melee_arc_adapter)
     for i in range(runtime.target_count()):
         var enemy: Node3D
-        if skeleton_enemy_slice_enabled and i == 0:
+        if skeleton_enemy_slice_enabled and i == skeleton_enemy_slice_index:
             enemy = SkeletonHumanModelAdapter.new()
             enemy.call("configure_from_native", i, runtime.target_model_color(i),
                 runtime.human_model_rig())
@@ -453,6 +461,7 @@ func _sync() -> void:
         particle_adapter.call("sync_from_native", runtime.particle_presentation_snapshot(), camera)
     if performance_profile_enabled:
         performance_profile_last["particles_bridge_adapter_us"] = Time.get_ticks_usec() - particles_started
+    melee_arc_adapter.call("sync_snapshot", runtime.player_action_snapshot())
     var hud_targets: Array[Dictionary] = []
     var enemies_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     var enemy_bridge_us := 0
@@ -466,14 +475,14 @@ func _sync() -> void:
         else:
             var model_vertices := PackedVector3Array()
             var model_pose := []
-            if skeleton_enemy_slice_enabled and i == 0:
+            if skeleton_enemy_slice_enabled and i == skeleton_enemy_slice_index:
                 model_pose = runtime.target_model_pose(i)
             else:
                 model_vertices = runtime.target_model_vertices(i)
             if performance_profile_enabled:
                 enemy_bridge_us += Time.get_ticks_usec() - enemy_bridge_started
             var enemy_adapter_started := Time.get_ticks_usec() if performance_profile_enabled else 0
-            if skeleton_enemy_slice_enabled and i == 0:
+            if skeleton_enemy_slice_enabled and i == skeleton_enemy_slice_index:
                 targets[i].call("sync_pose_from_native", target_snapshot,
                     model_pose, camera.global_position, runtime.camera_target(),
                     camera_obstruction_fade_enabled and not runtime.first_person())
