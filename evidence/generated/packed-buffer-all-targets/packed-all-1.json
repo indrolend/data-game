@@ -1,0 +1,117 @@
+{
+  "draw_calls": {
+    "median": 271.0,
+    "p95": 598.0,
+    "worst": 635.0
+  },
+  "enemy_adapter_ms": {
+    "median": 0.226,
+    "p95": 0.666,
+    "worst": 0.964
+  },
+  "enemy_bridge_adapter_ms": {
+    "median": 5.868,
+    "p95": 7.132,
+    "worst": 8.418
+  },
+  "enemy_bridge_ms": {
+    "median": 5.598,
+    "p95": 6.762,
+    "worst": 7.408
+  },
+  "fps_from_median_frame": 108.377587514902,
+  "frame_ms": {
+    "median": 9.227,
+    "p95": 10.703,
+    "worst": 15.285
+  },
+  "godot_physics_ms": {
+    "median": 0.015,
+    "p95": 0.018,
+    "worst": 0.018
+  },
+  "godot_process_ms": {
+    "median": 10.532,
+    "p95": 15.263,
+    "worst": 15.662
+  },
+  "gpu_timing_supported": true,
+  "hud_bridge_adapter_ms": {
+    "median": 0.157,
+    "p95": 0.246,
+    "worst": 0.388
+  },
+  "max_fps": 0,
+  "native_tick_ms": {
+    "median": 0.064,
+    "p95": 0.084,
+    "worst": 0.104
+  },
+  "objects": {
+    "median": 2537.0,
+    "p95": 2553.0,
+    "worst": 2554.0
+  },
+  "particle_bridge_adapter_ms": {
+    "median": 0.008,
+    "p95": 0.125,
+    "worst": 0.165
+  },
+  "phone_bridge_adapter_ms": {
+    "median": 0.085,
+    "p95": 0.112,
+    "worst": 0.167
+  },
+  "primitives": {
+    "median": 135686.0,
+    "p95": 215151.0,
+    "worst": 220302.0
+  },
+  "render_setup_cpu_ms": {
+    "median": 0.118,
+    "p95": 0.153,
+    "worst": 0.185
+  },
+  "renderer": "NVIDIA GeForce RTX 3060",
+  "renderer_type": "opengl3",
+  "renderer_vendor": "NVIDIA",
+  "resolution": [
+    804,
+    581
+  ],
+  "room_adapter_ms": {
+    "median": 1.015,
+    "p95": 1.308,
+    "worst": 1.72
+  },
+  "room_bridge_ms": {
+    "median": 0.135,
+    "p95": 0.17,
+    "worst": 0.241
+  },
+  "sample_frames": 600,
+  "scene_sync_ms": {
+    "median": 7.369,
+    "p95": 8.986,
+    "worst": 10.483
+  },
+  "schema_version": 1,
+  "static_memory_mib": {
+    "median": 46.9369783401489,
+    "p95": 47.2967643737793,
+    "worst": 47.2967681884766
+  },
+  "variant": "baseline",
+  "viewport_render_cpu_ms": {
+    "median": 0.901000022888184,
+    "p95": 1.43099999427795,
+    "worst": 5.81799983978271
+  },
+  "viewport_render_gpu_ms": {
+    "median": 2.19700002670288,
+    "p95": 2.53399991989136,
+    "worst": 2.9760000705719
+  },
+  "vsync": "disabled",
+  "warmup_frames": 180
+}

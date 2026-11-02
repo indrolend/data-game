@@ -14,7 +14,7 @@ func decoded_position(data: PackedByteArray, index: int) -> Vector3:
         data.decode_float(offset + 8))
 
 func decoded_normal(data: PackedByteArray, vertex_count: int, index: int) -> Vector3:
-    var packed := data.decode_u32(vertex_count * 12 + index * 4)
+    var packed := data.decode_u32(vertex_count * 12 + index * 8)
     var oct := Vector2(float(packed & 0xffff) / 65535.0,
         float((packed >> 16) & 0xffff) / 65535.0)
     return Vector3.octahedron_decode(oct)
@@ -25,7 +25,7 @@ func verify_payload(runtime: Node, target: int, label: String) -> Dictionary:
     var count := int(payload.get("vertex_count", 0))
     var data: PackedByteArray = payload.get("data", PackedByteArray())
     check(count == vertices.size(), "%s vertex count matches control" % label)
-    check(data.size() == count * 16, "%s packed byte count matches Godot layout" % label)
+    check(data.size() == count * 20, "%s packed byte count matches Godot layout" % label)
     var bounds := AABB(payload.aabb_position, payload.aabb_size)
     for index in range(count):
         check(decoded_position(data, index).distance_to(vertices[index]) <= 0.000001,
@@ -72,6 +72,17 @@ func _run() -> void:
     var vertices: PackedVector3Array = runtime.target_model_vertices(target)
     adapter.sync_packed_from_native(runtime.target_presentation_snapshot(target), payload, vertices)
     var persistent_mesh: Mesh = adapter.mesh_instance.mesh
+    var surface_format: int = persistent_mesh.surface_get_format(0)
+    var payload_count := int(payload.vertex_count)
+    check(RenderingServer.mesh_surface_get_format_vertex_stride(surface_format, payload_count) == 12,
+        "surface position stride matches native packer")
+    check(RenderingServer.mesh_surface_get_format_normal_tangent_stride(surface_format,
+        payload_count) == 8, "surface normal/tangent stride matches native packer")
+    check(RenderingServer.mesh_surface_get_format_offset(surface_format, payload_count,
+        Mesh.ARRAY_NORMAL) == payload_count * 12, "surface normal offset matches native packer")
+    check(RenderingServer.mesh_surface_get_format_offset(surface_format, payload_count,
+        Mesh.ARRAY_TANGENT) == payload_count * 12 + 4,
+        "surface tangent offset matches native packer")
     for frame in range(120):
         runtime.submit_input(0.0, 0.0, 0.04, 0.0, frame > 40 and frame < 80,
             false, false, frame == 30, false, false)

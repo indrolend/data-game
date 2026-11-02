@@ -16,7 +16,7 @@ func sync_packed_from_native(snapshot: Dictionary, packed: Dictionary,
         return
     var vertex_count := int(packed.get("vertex_count", 0))
     var bytes: PackedByteArray = packed.get("data", PackedByteArray())
-    if vertex_count <= 0 or bytes.size() != vertex_count * 16:
+    if vertex_count <= 0 or bytes.size() != vertex_count * 20:
         return
     if needs_surface_rebuild(vertex_count):
         if rebuild_vertices.size() != vertex_count:

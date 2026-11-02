@@ -1419,7 +1419,8 @@ Dictionary ParentGameNode::target_model_packed_buffer(int index) const {
     if(!build_target_model_vertices(index,vertices)||vertices.empty())return result;
     const std::size_t vertexBytes=vertices.size()*sizeof(float)*3u;
     PackedByteArray bytes;
-    bytes.resize(static_cast<int64_t>(vertexBytes+vertices.size()*sizeof(std::uint32_t)));
+    constexpr std::size_t normalTangentBytes=sizeof(std::uint32_t)*2u;
+    bytes.resize(static_cast<int64_t>(vertexBytes+vertices.size()*normalTangentBytes));
     std::uint8_t* output=bytes.ptrw();
     Vector3 minimum=vertices.front();
     Vector3 maximum=vertices.front();
@@ -1435,10 +1436,18 @@ Dictionary ParentGameNode::target_model_packed_buffer(int index) const {
         const auto encode=[](float value){
             return static_cast<std::uint16_t>(std::clamp(value*65535.0f,0.0f,65535.0f));
         };
-        const std::uint32_t packed=static_cast<std::uint32_t>(encode(oct.x)) |
+        const std::uint32_t packedNormal=static_cast<std::uint32_t>(encode(oct.x)) |
             (static_cast<std::uint32_t>(encode(oct.y))<<16u);
-        for(std::size_t corner=0;corner<3u;++corner)
-            std::memcpy(output+vertexBytes+(triangle+corner)*sizeof(packed),&packed,sizeof(packed));
+        // StandardMaterial3D receives no normal map for this model, so tangents
+        // are not read by the shader. Godot still reserves the tangent word in
+        // its vertex layout when normals are present; fill it with a stable,
+        // valid encoding without deriving unused per-frame tangent vectors.
+        constexpr std::uint32_t packedTangent=0xffffffffu;
+        for(std::size_t corner=0;corner<3u;++corner){
+            const std::size_t offset=vertexBytes+(triangle+corner)*normalTangentBytes;
+            std::memcpy(output+offset,&packedNormal,sizeof(packedNormal));
+            std::memcpy(output+offset+sizeof(packedNormal),&packedTangent,sizeof(packedTangent));
+        }
     }
     result["data"]=bytes;
     result["vertex_count"]=static_cast<int64_t>(vertices.size());

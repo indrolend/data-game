@@ -1,5 +1,14 @@
 # GGG-PERF-004: native-packed persistent enemy buffer
 
+> **Superseded layout finding:** the original one-enemy experiment assumed a
+> 16-byte position/normal layout. The actual Godot 4.7 surface also reserves an
+> interleaved 32-bit tangent word, for a 20-byte total. The malformed stream's
+> visual differences were incorrectly classified as sub-visible. The all-target
+> follow-up detected the faceting, corrected the layout, rejected dynamic
+> tangent generation, and established the accepted fixed-tangent result in
+> `GGG-PERF-005.md`. The raw GGG-PERF-004 files remain historical evidence and
+> must not be used as the accepted benchmark.
+
 ## Decision
 
 **Retain the one-enemy candidate as an opt-in experiment and promote it to the
