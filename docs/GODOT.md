@@ -15,6 +15,39 @@ godot_console.exe --headless --editor --path godot --quit
 godot_console.exe --headless --path godot --script res://tests/parent_smoke.gd
 ```
 
+## Package-safe runtime assets
+
+The root `models/` tree remains the authored asset authority. Before exporting,
+stage the raw assets required by Godot and the native extension under the Godot
+resource root:
+
+```powershell
+cmake -DDB_SOURCE_ROOT=C:/Users/indro/Projects/data-game `
+  -P tools/prepare_godot_runtime_assets.cmake
+```
+
+The preparation step copies only the 19 declared runtime files and verifies
+their SHA-256 hashes. `godot/runtime-assets/` is generated and ignored by Git;
+do not edit it or commit copied models. The runtime prefers staged files and
+falls back to the root tree during ordinary checkout development.
+
+Create a production pack with the committed Windows preset:
+
+```powershell
+godot_console.exe --headless --path godot `
+  --export-pack "Windows Desktop" "$env:TEMP\DigitalBreakdown.pck"
+```
+
+`Windows Desktop` excludes `tests/`, `experiments/`, and generated evidence.
+Use the separate `Windows Verification Pack` preset when packaged test scripts
+are required. Keeping both contracts prevents development-only fixtures from
+silently becoming part of the player artifact.
+
+A standalone Windows export additionally requires Godot 4.7.2 Windows export
+templates. Distribute the generated `runtime-assets/` directory beside the
+executable/PCK because native human-model and font readers require filesystem
+paths even though Godot also includes the files in the PCK.
+
 The editor-import step creates ignored `.godot/` metadata and registers the
 GDExtension for a newly materialized checkout.
 

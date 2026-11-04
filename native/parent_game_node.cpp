@@ -11,6 +11,8 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include <algorithm>
+#include <cstring>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "third_party/stb/stb_truetype.h"
 #include "phone_presentation_snapshot.hpp"
@@ -95,6 +97,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("target_soul_presentation_snapshot","index"),&ParentGameNode::target_soul_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("target_soul_lattice","index"),&ParentGameNode::target_soul_lattice);
     ClassDB::bind_method(D_METHOD("target_model_vertices","index"),&ParentGameNode::target_model_vertices);
+    ClassDB::bind_method(D_METHOD("target_model_packed_buffer","index"),&ParentGameNode::target_model_packed_buffer);
     ClassDB::bind_method(D_METHOD("human_model_rig"),&ParentGameNode::human_model_rig);
     ClassDB::bind_method(D_METHOD("target_model_pose","index"),&ParentGameNode::target_model_pose);
     ClassDB::bind_method(D_METHOD("target_model_color","index"),&ParentGameNode::target_model_color);
@@ -542,8 +545,13 @@ struct PhoneRasterFont {
     void ensure_loaded() {
         if (attempted) return;
         attempted = true;
-        const String resolved = ProjectSettings::get_singleton()->globalize_path(
-            "res://fonts/SourceSans3-Semibold.ttf");
+        const String root = ProjectSettings::get_singleton()->globalize_path("res://");
+        String resolved = root.path_join("runtime-assets/fonts/SourceSans3-Semibold.ttf")
+            .simplify_path();
+        std::ifstream staged(resolved.utf8().get_data(), std::ios::binary);
+        if (!staged.good()) {
+            resolved = root.path_join("fonts/SourceSans3-Semibold.ttf").simplify_path();
+        }
         const CharString path = resolved.utf8();
         std::ifstream input(path.get_data(), std::ios::binary);
         if (!input) return;
@@ -1293,6 +1301,14 @@ PackedVector3Array ParentGameNode::target_soul_lattice(int index) const {
         result.set(i, v(target.latticeSurfacePos[i]));
     return result;
 }
+static String godot_runtime_model_path(const char* relative_path) {
+    const String root = ProjectSettings::get_singleton()->globalize_path("res://");
+    const String packaged = root.path_join("runtime-assets/models")
+        .path_join(relative_path).simplify_path();
+    std::ifstream packaged_file(packaged.utf8().get_data(), std::ios::binary);
+    if (packaged_file.good()) return packaged;
+    return root.path_join("../models").path_join(relative_path).simplify_path();
+}
 static Transform3D human_transform(const float *matrix) {
     return Transform3D(Basis(Vector3(matrix[0],matrix[1],matrix[2]),
                              Vector3(matrix[4],matrix[5],matrix[6]),
@@ -1318,8 +1334,8 @@ Dictionary ParentGameNode::human_model_rig() const {
     Dictionary result;
     if(!human_model_load_attempted){
         human_model_load_attempted=true;
-        const String root=ProjectSettings::get_singleton()->globalize_path("res://");
-        human_model.load(root.path_join("../models/human.dbhuman").simplify_path().utf8().get_data());
+        const String path=godot_runtime_model_path("human.dbhuman");
+        human_model.load(path.utf8().get_data());
     }
     if(!human_model.valid()) return result;
     PackedVector3Array positions;
@@ -1368,16 +1384,15 @@ Array ParentGameNode::target_model_pose(int index) const {
         result.push_back(human_transform(transforms.data()+i*16u));
     return result;
 }
-PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
-    PackedVector3Array result;
-    if(index<0||index>=TARGET_COUNT)return result;
+bool ParentGameNode::build_target_model_vertices(int index, std::vector<Vector3>& visibleVertices) const {
+    visibleVertices.clear();
+    if(index<0||index>=TARGET_COUNT)return false;
     if(!human_model_load_attempted){
         human_model_load_attempted=true;
-        const String project_root=ProjectSettings::get_singleton()->globalize_path("res://");
-        const String path=project_root.path_join("../models/human.dbhuman").simplify_path();
+        const String path=godot_runtime_model_path("human.dbhuman");
         human_model.load(path.utf8().get_data());
     }
-    if(!human_model.valid())return result;
+    if(!human_model.valid())return false;
     const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
     const HumanModelExpressiveness expression=human_expression(snapshot,bridge.state().time);
     HumanModelFootTargets feet;
@@ -1391,7 +1406,6 @@ PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
     const auto& target = bridge.state().targets[index];
     const float armorMaximum = combat_presentation::shellArmorMaximum(target.brute);
     const float crackAmount = snapshot.shellCrackAmount;
-    std::vector<Vector3> visibleVertices;
     visibleVertices.reserve(vertices.size());
     for(std::size_t triangle=0;triangle+8u<vertices.size();triangle+=9u){
         const Vector3 a(vertices[triangle],vertices[triangle+1u],vertices[triangle+2u]);
@@ -1401,8 +1415,56 @@ PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
         if(humanShellTriangleMissingTowardCrit(triangle/9u,crackAmount,center)) continue;
         visibleVertices.push_back(a); visibleVertices.push_back(b); visibleVertices.push_back(c);
     }
+    return true;
+}
+PackedVector3Array ParentGameNode::target_model_vertices(int index) const {
+    PackedVector3Array result;
+    std::vector<Vector3> visibleVertices;
+    if(!build_target_model_vertices(index,visibleVertices))return result;
     result.resize(static_cast<int64_t>(visibleVertices.size()));
     for(int64_t i=0;i<result.size();++i) result.set(i,visibleVertices[static_cast<std::size_t>(i)]);
+    return result;
+}
+Dictionary ParentGameNode::target_model_packed_buffer(int index) const {
+    Dictionary result;
+    std::vector<Vector3> vertices;
+    if(!build_target_model_vertices(index,vertices)||vertices.empty())return result;
+    const std::size_t vertexBytes=vertices.size()*sizeof(float)*3u;
+    PackedByteArray bytes;
+    constexpr std::size_t normalTangentBytes=sizeof(std::uint32_t)*2u;
+    bytes.resize(static_cast<int64_t>(vertexBytes+vertices.size()*normalTangentBytes));
+    std::uint8_t* output=bytes.ptrw();
+    Vector3 minimum=vertices.front();
+    Vector3 maximum=vertices.front();
+    for(std::size_t i=0;i<vertices.size();++i){
+        const float position[3]={vertices[i].x,vertices[i].y,vertices[i].z};
+        std::memcpy(output+i*sizeof(position),position,sizeof(position));
+        minimum.x=std::min(minimum.x,vertices[i].x); minimum.y=std::min(minimum.y,vertices[i].y); minimum.z=std::min(minimum.z,vertices[i].z);
+        maximum.x=std::max(maximum.x,vertices[i].x); maximum.y=std::max(maximum.y,vertices[i].y); maximum.z=std::max(maximum.z,vertices[i].z);
+    }
+    for(std::size_t triangle=0;triangle+2u<vertices.size();triangle+=3u){
+        const Vector3 normal=(vertices[triangle+1u]-vertices[triangle]).cross(vertices[triangle+2u]-vertices[triangle]).normalized();
+        const Vector2 oct=normal.octahedron_encode();
+        const auto encode=[](float value){
+            return static_cast<std::uint16_t>(std::clamp(value*65535.0f,0.0f,65535.0f));
+        };
+        const std::uint32_t packedNormal=static_cast<std::uint32_t>(encode(oct.x)) |
+            (static_cast<std::uint32_t>(encode(oct.y))<<16u);
+        // StandardMaterial3D receives no normal map for this model, so tangents
+        // are not read by the shader. Godot still reserves the tangent word in
+        // its vertex layout when normals are present; fill it with a stable,
+        // valid encoding without deriving unused per-frame tangent vectors.
+        constexpr std::uint32_t packedTangent=0xffffffffu;
+        for(std::size_t corner=0;corner<3u;++corner){
+            const std::size_t offset=vertexBytes+(triangle+corner)*normalTangentBytes;
+            std::memcpy(output+offset,&packedNormal,sizeof(packedNormal));
+            std::memcpy(output+offset+sizeof(packedNormal),&packedTangent,sizeof(packedTangent));
+        }
+    }
+    result["data"]=bytes;
+    result["vertex_count"]=static_cast<int64_t>(vertices.size());
+    result["aabb_position"]=minimum;
+    result["aabb_size"]=maximum-minimum;
     return result;
 }
 Color ParentGameNode::target_model_color(int index) const {

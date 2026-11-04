@@ -23,8 +23,10 @@ func _initialize() -> void:
             var texture_image := native_texture.get_image()
             check(texture_image.get_width() == 512 and texture_image.get_height() == 512,
                 "native %s runtime map retains its 512x512 dimensions" % material_name)
-            var source_path := ProjectSettings.globalize_path(
-                "res://../models/materials/photo-%s-runtime.rgb" % material_name)
+            var packaged_source := "res://runtime-assets/models/materials/photo-%s-runtime.rgb" % material_name
+            var source_path := packaged_source if FileAccess.file_exists(packaged_source) else \
+                ProjectSettings.globalize_path(
+                    "res://../models/materials/photo-%s-runtime.rgb" % material_name)
             var source_file := FileAccess.open(source_path, FileAccess.READ)
             check(source_file != null, "native %s runtime RGB source remains available" % material_name)
             if source_file != null:
@@ -38,6 +40,12 @@ func _initialize() -> void:
     snapshot["grass_blades"] = runtime.grass_blade_presentation_snapshot(int(snapshot.tile_index))
     snapshot["grass_tips"] = runtime.grass_blade_tip_presentation_snapshot(int(snapshot.tile_index))
     adapter.sync_snapshot(snapshot)
+    var cached_floor: MeshInstance3D = adapter.structure("room/0/structure/floor")
+    var cached_floor_material: Material = cached_floor.material_override if cached_floor != null else null
+    adapter.sync_snapshot(snapshot)
+    check(cached_floor != null and adapter.structure("room/0/structure/floor") == cached_floor and
+        cached_floor.material_override == cached_floor_material,
+        "unchanged room identity preserves static nodes and material instances")
     var capture_records: Array = snapshot.get("capture_points", [])
     check(capture_records.size() == 5 and adapter.capture_point_count() == capture_records.size(),
         "native objective state supplies and Godot renders all five Field capture points")
@@ -269,10 +277,22 @@ func _initialize() -> void:
         if street_node != null:
             var expected_center: Vector3 = structure_record.center
             var expected_size: Vector3 = structure_record.size
-            var street_mesh := street_node.mesh as BoxMesh
-            check(street_node.position.distance_to(expected_center) <= 0.000001 and
-                street_mesh != null and street_mesh.size.distance_to(expected_size) <= 0.000001,
-                "City street mesh preserves native position and dimensions")
+            var stable_id := str(structure_record.id)
+            var flat_marking := "/city/crosswalk/" in stable_id or "/city/center-dash/" in stable_id
+            if flat_marking:
+                var marking_mesh := street_node.mesh as QuadMesh
+                var expected_surface := expected_center + Vector3(0.0, expected_size.y * 0.5, 0.0)
+                check(marking_mesh != null and
+                    street_node.position.distance_to(expected_surface) <= 0.000001 and
+                    street_node.rotation.distance_to(Vector3(-PI * 0.5, 0.0, 0.0)) <= 0.000001 and
+                    marking_mesh.size.distance_to(Vector2(expected_size.x, expected_size.z)) <= 0.000001 and
+                    street_node.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+                    "thin City road markings preserve the native top surface without exposed box sides")
+            else:
+                var street_mesh := street_node.mesh as BoxMesh
+                check(street_node.position.distance_to(expected_center) <= 0.000001 and
+                    street_mesh != null and street_mesh.size.distance_to(expected_size) <= 0.000001,
+                    "City street mesh preserves native position and dimensions")
     check(city_mass_records.size() == 10,
         "City fixture presents all ten authoritative native obstacle masses")
     for mass_record in city_mass_records:

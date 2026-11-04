@@ -6,6 +6,13 @@ extends Node3D
 const NATIVE_STENCIL_HORIZONTAL_SCALE := 0.84
 const WORLD_LIGHT_LAYER := 1
 const PHONE_RECEIVER_LAYER := 2
+const PACKAGED_MODELS_ROOT := "res://runtime-assets/models"
+
+func _native_model_resource(relative_path: String) -> String:
+	var packaged := PACKAGED_MODELS_ROOT.path_join(relative_path)
+	if FileAccess.file_exists(packaged):
+		return packaged
+	return "res://../models".path_join(relative_path)
 
 var phone_root: Node3D
 var body: MeshInstance3D
@@ -30,7 +37,7 @@ func _ready() -> void:
 
 	body = MeshInstance3D.new()
 	body.name = "Body"
-	body.mesh = _load_native_phone_mesh("res://../models/phone.dbmesh")
+	body.mesh = _load_native_phone_mesh(_native_model_resource("phone.dbmesh"))
 	_native_body_loaded = body.mesh != null
 	if not _native_body_loaded:
 		body.mesh = BoxMesh.new()

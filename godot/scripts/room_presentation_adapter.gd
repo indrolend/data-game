@@ -22,6 +22,18 @@ var _grass_snapshot_key := ""
 var _grass_blade_records: Array = []
 var _coastal_water: MeshInstance3D
 var _coastal_water_material: ShaderMaterial
+var _static_geometry_sync_enabled := true
+var _static_geometry_snapshot_key := ""
+const PACKAGED_MODELS_ROOT := "res://runtime-assets/models"
+
+func _native_model_path(relative_path: String) -> String:
+    var packaged := PACKAGED_MODELS_ROOT.path_join(relative_path)
+    if FileAccess.file_exists(packaged):
+        return packaged
+    return ProjectSettings.globalize_path("res://../models".path_join(relative_path))
+
+func set_static_geometry_sync_enabled(enabled: bool) -> void:
+    _static_geometry_sync_enabled = enabled
 
 func set_native_field_grass_pixels(pixels: PackedByteArray) -> void:
     if _field_grass_texture != null:
@@ -49,8 +61,8 @@ func native_material_texture(material_name: String) -> ImageTexture:
         return _native_material_textures[material_name]
     if material_name not in ["stone", "metal"]:
         return null
-    var material_path := ProjectSettings.globalize_path(
-        "res://../models/materials/photo-%s-runtime.rgb" % material_name)
+    var material_path := _native_model_path(
+        "materials/photo-%s-runtime.rgb" % material_name)
     var file := FileAccess.open(material_path, FileAccess.READ)
     if file == null:
         push_error("Could not open native runtime material: " + material_path)
@@ -80,40 +92,65 @@ func _apply_native_material_texture(material: StandardMaterial3D, material_name:
         material.uv1_triplanar = false
 
 func sync_snapshot(snapshot: Dictionary) -> void:
-    var retained: Dictionary = {}
-    for record in snapshot.structures as Array:
-        var stable_id := str(record.id)
-        retained[stable_id] = true
-        var mesh_instance: MeshInstance3D = _nodes.get(stable_id)
-        if mesh_instance == null:
-            mesh_instance = MeshInstance3D.new()
-            mesh_instance.name = stable_id.replace("/", "_")
-            mesh_instance.set_meta("native_id", stable_id)
-            mesh_instance.mesh = BoxMesh.new()
-            add_child(mesh_instance)
-            _nodes[stable_id] = mesh_instance
-        mesh_instance.position = record.center
-        (mesh_instance.mesh as BoxMesh).size = record.size
-        mesh_instance.material_override = _material_from_native(record.material)
-        mesh_instance.set_meta("native_kind", int(record.kind))
-    for stable_id in _nodes.keys():
-        if not retained.has(stable_id):
-            (_nodes[stable_id] as Node).queue_free()
-            _nodes.erase(stable_id)
+    var static_geometry_key := "%d:%d:%d:%d:%d:%d:%d" % [
+        int(snapshot.room_seed), int(snapshot.room_index), int(snapshot.tile_index),
+        (snapshot.structures as Array).size(), (snapshot.objects as Array).size(),
+        (snapshot.get("field_backdrop_trees", []) as Array).size(),
+        (snapshot.get("city_facade_modules", []) as Array).size()]
+    var sync_static_geometry := _static_geometry_sync_enabled \
+        and static_geometry_key != _static_geometry_snapshot_key
+    if sync_static_geometry:
+        var retained: Dictionary = {}
+        for record in snapshot.structures as Array:
+            var stable_id := str(record.id)
+            var flat_road_marking := _is_flat_city_road_marking(stable_id)
+            retained[stable_id] = true
+            var mesh_instance: MeshInstance3D = _nodes.get(stable_id)
+            if mesh_instance == null:
+                mesh_instance = MeshInstance3D.new()
+                mesh_instance.name = stable_id.replace("/", "_")
+                mesh_instance.set_meta("native_id", stable_id)
+                add_child(mesh_instance)
+                _nodes[stable_id] = mesh_instance
+            if flat_road_marking:
+                if not mesh_instance.mesh is QuadMesh:
+                    mesh_instance.mesh = QuadMesh.new()
+                mesh_instance.position = record.center + Vector3(0.0, float(record.size.y) * 0.5, 0.0)
+                mesh_instance.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+                (mesh_instance.mesh as QuadMesh).size = Vector2(record.size.x, record.size.z)
+                mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            else:
+                if not mesh_instance.mesh is BoxMesh:
+                    mesh_instance.mesh = BoxMesh.new()
+                mesh_instance.position = record.center
+                mesh_instance.rotation = Vector3.ZERO
+                (mesh_instance.mesh as BoxMesh).size = record.size
+                mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+            mesh_instance.material_override = _material_from_native(record.material)
+            mesh_instance.set_meta("native_kind", int(record.kind))
+        for stable_id in _nodes.keys():
+            if not retained.has(stable_id):
+                (_nodes[stable_id] as Node).queue_free()
+                _nodes.erase(stable_id)
     set_meta("native_room_seed", int(snapshot.room_seed))
     set_meta("native_room_index", int(snapshot.room_index))
     set_meta("native_tile_index", int(snapshot.tile_index))
-    _sync_lawn_objects(snapshot.objects as Array, int(snapshot.tile_index))
     _sync_capture_points(snapshot.get("capture_points", []), float(snapshot.get("presentation_time", 0.0)))
     _sync_grass(snapshot)
     _sync_coastal_water(snapshot)
-    _sync_rock_objects(snapshot.objects as Array)
-    _sync_tree_objects(snapshot.objects as Array)
-    _sync_field_backdrop_trees(snapshot.get("field_backdrop_trees", []))
-    _sync_house_objects(snapshot.objects as Array)
-    _sync_marker_objects(snapshot.objects as Array)
-    _sync_ruin_objects(snapshot.objects as Array)
-    _sync_city_facades(snapshot.get("city_facade_modules", []))
+    if sync_static_geometry:
+        _sync_lawn_objects(snapshot.objects as Array, int(snapshot.tile_index))
+        _sync_rock_objects(snapshot.objects as Array)
+        _sync_tree_objects(snapshot.objects as Array)
+        _sync_field_backdrop_trees(snapshot.get("field_backdrop_trees", []))
+        _sync_house_objects(snapshot.objects as Array)
+        _sync_marker_objects(snapshot.objects as Array)
+        _sync_ruin_objects(snapshot.objects as Array)
+        _sync_city_facades(snapshot.get("city_facade_modules", []))
+        _static_geometry_snapshot_key = static_geometry_key
+
+func _is_flat_city_road_marking(stable_id: String) -> bool:
+    return "/city/crosswalk/" in stable_id or "/city/center-dash/" in stable_id
 
 func structure_count() -> int:
     return _nodes.size()
@@ -356,8 +393,7 @@ func _sync_city_facades(records: Array) -> void:
             _city_facade_nodes.erase(stable_id)
 
 func _load_city_facade_mesh(model_name: String) -> ArrayMesh:
-    var project_path := ProjectSettings.globalize_path("res://../models/environment/city")
-    var model_path := project_path.path_join(model_name + ".dbmesh")
+    var model_path := _native_model_path("environment/city/" + model_name + ".dbmesh")
     var file := FileAccess.open(model_path, FileAccess.READ)
     if file == null:
         push_error("Could not open native City facade mesh: " + model_path)
@@ -458,8 +494,7 @@ func _load_field_backdrop_tree_mesh(model_name: String) -> ArrayMesh:
     if model_name not in ["common-tree", "twisted-tree", "dead-tree", "pine-tree"]:
         push_error("Unsupported native Field backdrop tree: " + model_name)
         return null
-    var model_path := ProjectSettings.globalize_path(
-        "res://../models/environment/" + model_name + ".dbmesh")
+    var model_path := _native_model_path("environment/" + model_name + ".dbmesh")
     var file := FileAccess.open(model_path, FileAccess.READ)
     if file == null:
         push_error("Could not open native Field backdrop tree mesh: " + model_path)
@@ -753,8 +788,7 @@ var _native_foliage_texture: ImageTexture
 func _load_native_foliage_texture() -> ImageTexture:
     if _native_foliage_texture != null:
         return _native_foliage_texture
-    var path := ProjectSettings.globalize_path(
-        "res://../models/materials/cc0-fir-foliage.rgba")
+    var path := _native_model_path("materials/cc0-fir-foliage.rgba")
     var file := FileAccess.open(path, FileAccess.READ)
     if file == null:
         return null

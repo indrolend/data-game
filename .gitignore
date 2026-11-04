@@ -6,6 +6,8 @@ multiplayer-server/node_modules/
 multiplayer-server/.wrangler/
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
 
 # Disposable editor and agent safety copies belong in Git history or an archive,
 # not beside authoritative source files.
@@ -17,6 +19,7 @@ Thumbs.db
 /godot/.godot/
 /godot/bin/
 /godot/evidence/
+/godot/runtime-assets/
 
 # Local Codex transcripts and exploratory telemetry packages are reproducible
 # working artifacts. Accepted captures and benchmark summaries are committed
