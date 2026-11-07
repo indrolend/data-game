@@ -74,9 +74,8 @@ func _run() -> void:
 		scene.moon_material.get_shader_parameter("sun_direction") == night.sun.direction.normalized() and
 		not scene.moon.visible and not scene.moon.position.is_equal_approx(moon_before),
 		"sky and accelerated lunar position follow native state while lunar sunlight remains independent of ground daylight")
-	check(scene.drama_spotlight.visible and
-		scene.drama_spotlight.position.distance_to(scene.runtime.player_position()) > 9.0,
-		"native night state enables the render-only overhead dramatic follow spot")
+	check(not scene.drama_spotlight.visible,
+		"the theatrical follow spot remains opt-in rather than overriding native night lighting")
 	scene.runtime.start_city_room_fixture()
 	scene._sync()
 	var city: Dictionary = scene.runtime.lighting_presentation_snapshot()

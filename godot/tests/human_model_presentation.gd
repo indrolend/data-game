@@ -208,6 +208,9 @@ func _run() -> void:
             "vacuum tether points along the native pull direction")
         check(absf(tether.scale.x - float(tether_snapshot.tether_width)) < 0.00001,
             "vacuum tether width is sourced from native state")
+        var tether_mesh := tether.mesh as CylinderMesh
+        check(tether_mesh.top_radius < tether_mesh.bottom_radius and tether_mesh.radial_segments >= 12,
+            "vacuum tether tapers toward the captured soul instead of reading as a placeholder cylinder")
         tether_adapter.queue_free()
     effects_adapter.queue_free()
     damage_adapter.queue_free()

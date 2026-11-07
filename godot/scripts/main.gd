@@ -49,6 +49,7 @@ var souls: Array[Node3D] = []
 var projectile_nodes := {}
 var camera_obstruction_fade_enabled := true
 var camera_trauma_enabled := false
+var drama_spotlight_enabled := false
 var _camera_base_transform := Transform3D.IDENTITY
 var _camera_base_target := Vector3.ZERO
 var _camera_base_fov := 0.0
@@ -80,6 +81,7 @@ func _ready() -> void:
     # GGG-CAM-001 is an opt-in presentation experiment. It never mutates the
     # ParentGameNode or any value used to submit authoritative input.
     camera_trauma_enabled = OS.get_environment("DB_ENABLE_CAMERA_TRAUMA") == "1"
+    drama_spotlight_enabled = OS.get_environment("DB_ENABLE_DRAMA_SPOTLIGHT") == "1"
     skeleton_enemy_slice_enabled = OS.get_environment("DB_ENABLE_SKELETON_ENEMY_SLICE") == "1"
     skeleton_enemy_slice_index = clampi(OS.get_environment("DB_SKELETON_ENEMY_INDEX").to_int(),
         0, 31)
@@ -289,6 +291,20 @@ func _unhandled_input(event: InputEvent) -> void:
                 _:
                     return
             Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _upgrade_active() else Input.MOUSE_MODE_CAPTURED
+            _sync()
+            get_viewport().set_input_as_handled()
+        elif event is InputEventMouseMotion:
+            var item := int(hud_adapter.call("upgrade_item_at", event.position))
+            if item >= 0:
+                runtime.set_upgrade_selection(item)
+                _sync()
+            get_viewport().set_input_as_handled()
+        elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+            var item := int(hud_adapter.call("upgrade_item_at", event.position))
+            if item >= 0:
+                runtime.set_upgrade_selection(item)
+                runtime.activate_upgrade_selection()
+            _sync_mouse_mode()
             _sync()
             get_viewport().set_input_as_handled()
         return
@@ -720,6 +736,9 @@ func _sync_lighting(snapshot: Dictionary) -> void:
         point.omni_range = clampf(1.0 / sqrt(quadratic), 1.5, 30.0) if quadratic > 0.0001 else 4.5
 
 func _sync_drama_spotlight(snapshot: Dictionary) -> void:
+    if not drama_spotlight_enabled:
+        drama_spotlight.visible = false
+        return
     var loop: Dictionary = runtime.gameplay_loop_snapshot()
     var special_event := int(loop.projectiles) > 0 or int(loop.room_captures) > 0 or bool(loop.upgrade_active)
     var night := bool(snapshot.open_sky) and float(snapshot.daylight) < 0.22

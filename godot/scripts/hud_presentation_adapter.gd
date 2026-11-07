@@ -10,6 +10,7 @@ const COPPER := Color(0.666667, 0.501961, 0.400000)
 const SIGNAL_GREEN := Color(0.301961, 0.909804, 0.556863)
 const WARM_GOLD := Color(0.882353, 0.721569, 0.498039)
 const TARGET_GLYPHS := "01ABCDEFHIKMNPRSTXYZ+-/:"
+const HUD_FONT: Font = preload("res://fonts/SourceSans3-Semibold.ttf")
 
 var snapshot: Dictionary = {}
 var restart_menu: Dictionary = {}
@@ -163,14 +164,14 @@ func _draw_upgrade_menu(width: float, height: float, upgrade: Dictionary) -> voi
 		draw_rect(Rect2(card.position.x + 9.0, card.end.y - 2.0,
 			card.size.x - 18.0, 1.5), Color(color, (0.82 if selected else 0.24) * reveal))
 		var label := str(labels[track])
-		var label_width := ThemeDB.fallback_font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
+		var label_width := HUD_FONT.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
 		_draw_text(label, Vector2(card.get_center().x - label_width * 0.5, card.position.y + 29.0),
 			18, Color(0.94, 1.0, 1.0, (0.98 if selected else 0.72) * reveal))
 		var level := int(permanent[track]) if is_permanent else int(temporary[track])
 		var detail := "PERM %d/5" % level if is_permanent else "RUN %d / NEXT %d" % [level, mini(12, level + 1)]
-		var detail_width := ThemeDB.fallback_font.get_string_size(detail, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11).x
+		var detail_width := HUD_FONT.get_string_size(detail, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12).x
 		_draw_text(detail, Vector2(card.get_center().x - detail_width * 0.5, card.position.y + 53.0),
-			11, Color(color, (0.88 if available else 0.48) * reveal))
+			12, Color(color, (0.88 if available else 0.48) * reveal))
 	_draw_text("PERMANENT MEMORY / TOKENS %d" % int(upgrade.get("tokens", 0)),
 		Vector2(panel.position.x + 18.0, panel.position.y + 174.0), 12,
 		Color(0.83, 0.93, 0.56, 0.86 * reveal))
@@ -178,8 +179,30 @@ func _draw_upgrade_menu(width: float, height: float, upgrade: Dictionary) -> voi
 		Vector2(panel.position.x + 18.0, panel.position.y + 291.0), 10,
 		Color(0.58, 0.82, 0.88, 0.72 * reveal))
 
+func upgrade_item_at(viewport_position: Vector2) -> int:
+	if not bool(snapshot.get("upgrade", {}).get("active", false)):
+		return -1
+	var hud_scale := clampf(minf(size.x / 1280.0, size.y / 720.0), 1.0, 2.5)
+	var logical := viewport_position / hud_scale
+	var width := size.x / hud_scale
+	var height := size.y / hud_scale
+	var panel_width := minf(680.0, width - 24.0)
+	var panel_height := 300.0
+	var panel := Rect2((width - panel_width) * 0.5, (height - panel_height) * 0.5,
+		panel_width, panel_height)
+	var cell_width := (panel_width - 24.0) / 3.0
+	for item in range(6):
+		var row_top := 66.0 if item < 3 else 184.0
+		var card_height := 76.0 if item < 3 else 66.0
+		var track := item % 3
+		var card := Rect2(panel.position.x + 12.0 + float(track) * cell_width,
+			panel.position.y + row_top, cell_width - 4.0, card_height)
+		if card.has_point(logical):
+			return item
+	return -1
+
 func _draw_text(value: String, position: Vector2, font_size: int, color: Color) -> void:
-	draw_string(ThemeDB.fallback_font, position, value, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
+	draw_string(HUD_FONT, position, value, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
 
 func _draw_battery_and_objective(width: float, height: float) -> void:
 	var battery := clampf(float(snapshot.get("battery_fill", 0.0)), 0.0, 1.0)
@@ -198,7 +221,7 @@ func _draw_battery_and_objective(width: float, height: float) -> void:
 		var objective := "PATH OPEN" if room_clear else "%d / %d" % [deposited,
 			maxi(1, int(snapshot.get("required_souls", 1)))]
 		var objective_color := CHARTREUSE if room_clear else CYAN
-		draw_string(ThemeDB.fallback_font,
+		draw_string(HUD_FONT,
 			Vector2(width - 22.0 - _text_width(objective, 1.0), height - 28.0),
 			objective, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, Color(objective_color, 0.74))
 
@@ -266,8 +289,8 @@ func _draw_target_markers(width: float, height: float, hud_scale: float) -> void
 			spin * 0.08, Color(color, alpha))
 		var glyph_index := int(simulation_time * 10.0 + float(target.get("index", 0)) * 7.0 + room_index * 3) % TARGET_GLYPHS.length()
 		var glyph := TARGET_GLYPHS.substr(glyph_index, 1)
-		var font := ThemeDB.fallback_font
-		var font_size := maxi(1, roundi(7.0 * glyph_scale))
+		var font := HUD_FONT
+		var font_size := maxi(10, roundi(8.0 * glyph_scale))
 		var text_position := viewport_point - Vector2(font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0, font_size).x * 0.5, -font_size * 0.28)
 		draw_string(font, text_position + Vector2(1, 1), glyph,
@@ -294,8 +317,8 @@ func _draw_communication_signal(width: float, height: float, hud_scale: float) -
 	var color: Color = colors[comm_signal]
 	var fade := clampf(comm_signal_timer / 0.35, 0.0, 1.0)
 	var text_scale := clampf(9.0 / depth, 1.15, 2.15)
-	var font_size := maxi(1, roundi(7.0 * text_scale))
-	var text_width := ThemeDB.fallback_font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT,
+	var font_size := maxi(11, roundi(8.0 * text_scale))
+	var text_width := HUD_FONT.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0, font_size).x
 	var panel_width := text_width + 18.0 * text_scale
 	var panel_height := 13.0 * text_scale
@@ -304,7 +327,7 @@ func _draw_communication_signal(width: float, height: float, hud_scale: float) -
 	var pulse := 0.5 + 0.5 * sin(simulation_time * 8.0)
 	draw_rect(Rect2(point.x - panel_width * 0.5, point.y - panel_height * 0.5,
 		panel_width, 1.4 * text_scale), Color(color, (0.58 + 0.18 * pulse) * fade))
-	draw_string(ThemeDB.fallback_font, point - Vector2(text_width, -font_size * 0.28) * 0.5,
+	draw_string(HUD_FONT, point - Vector2(text_width, -font_size * 0.28) * 0.5,
 		label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color(color, 0.96 * fade))
 
 func _draw_critical_pulse(width: float, height: float) -> void:
@@ -330,7 +353,7 @@ func _draw_energy_ticker(width: float) -> void:
 		return
 	var type := int(snapshot.get("energy_ticker_type", 2))
 	var color := COPPER if type == 1 else SIGNAL_GREEN if type == 0 else CYAN
-	var font := ThemeDB.fallback_font
+	var font := HUD_FONT
 	var font_size := 16
 	var text_width := font.get_string_size(ticker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x
 	var panel_width := maxf(118.0, text_width + 16.0)

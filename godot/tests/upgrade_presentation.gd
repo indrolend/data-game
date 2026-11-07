@@ -17,6 +17,7 @@ func send_key(scene: Node, key: Key) -> void:
 	scene._unhandled_input(event)
 
 func _run() -> void:
+	root.size = Vector2i(1280, 720)
 	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
@@ -42,6 +43,21 @@ func _run() -> void:
 	send_key(scene, KEY_DOWN)
 	check(int(runtime.upgrade_presentation_snapshot().selection) == 4,
 		"Godot arrow input follows the original three-column, two-row upgrade grid")
+	var hud: Control = scene.get("hud_adapter")
+	var hud_scale := clampf(minf(hud.size.x / 1280.0, hud.size.y / 720.0), 1.0, 2.5)
+	var logical_size := hud.size / hud_scale
+	var card_center := Vector2(logical_size.x * 0.5,
+		logical_size.y * 0.5 - 150.0 + 66.0 + 38.0) * hud_scale
+	var hover := InputEventMouseMotion.new()
+	hover.position = card_center
+	check(int(hud.call("upgrade_item_at", card_center)) == 1,
+		"upgrade hit testing maps the rendered top-center card")
+	scene.call("_unhandled_input", hover)
+	check(int(runtime.upgrade_presentation_snapshot().selection) == 1,
+		"mouse hover selects the upgrade card under the rendered HUD position")
+	check(int(hud.call("upgrade_item_at", Vector2(8.0, 8.0))) == -1,
+		"upgrade hit testing rejects points outside the rendered cards")
+	send_key(scene, KEY_DOWN)
 	send_key(scene, KEY_ENTER)
 	snapshot = runtime.upgrade_presentation_snapshot()
 	check(bool(snapshot.active) and int(snapshot.tokens) == 1 and
@@ -53,6 +69,15 @@ func _run() -> void:
 	check(not bool(snapshot.active) and not bool(runtime.paused()) and
 		int(snapshot.temporary_levels[1]) == 2,
 		"Godot confirmation delegates temporary run mutation and resumes gameplay")
+	runtime.start_upgrade_fixture()
+	scene._sync()
+	var click := InputEventMouseButton.new()
+	click.position = card_center
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	scene.call("_unhandled_input", click)
+	check(not bool(runtime.upgrade_presentation_snapshot().active) and not bool(runtime.paused()),
+		"mouse click activates the rendered temporary upgrade card and resumes gameplay")
 	scene.free()
 	if not failures.is_empty():
 		print("RESULT: FAIL count=", failures.size())
