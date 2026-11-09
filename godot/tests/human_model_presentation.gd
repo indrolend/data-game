@@ -103,6 +103,10 @@ func _run() -> void:
     get_root().add_child(damage_adapter)
     var soul_adapter = SoulLatticeAdapter.new()
     get_root().add_child(soul_adapter)
+    await process_frame
+    check(soul_adapter.material.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL and
+        soul_adapter.mesh_instance.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
+        "Godot soul lattice preserves native lit geometry and shadow participation")
     var effects_adapter = load("res://scripts/native_particle_presentation_adapter.gd").new()
     get_root().add_child(effects_adapter)
     for step in range(1300):
@@ -134,6 +138,12 @@ func _run() -> void:
             var soul_morph := float(damaged_target.pose.soul_morph)
             var soul_snapshot: Dictionary = interaction.target_soul_presentation_snapshot(interaction_target)
             soul_adapter.sync_from_native(soul_snapshot, interaction.target_soul_lattice(interaction_target))
+            if soul_adapter.mesh_instance.mesh is ArrayMesh:
+                var soul_arrays: Array = soul_adapter.mesh_instance.mesh.surface_get_arrays(0)
+                var soul_vertices: PackedVector3Array = soul_arrays[Mesh.ARRAY_VERTEX]
+                var soul_normals: PackedVector3Array = soul_arrays[Mesh.ARRAY_NORMAL]
+                check(not soul_vertices.is_empty() and soul_normals.size() == soul_vertices.size(),
+                    "Godot soul lattice supplies the flat normals used by native drawSoulFlesh")
             check(float(damaged_target.shell_crack_amount) > 0.0,
                 "broken enemy shell remains cracked instead of resetting intact at defeat")
             check(absf(damage_adapter.material.albedo_color.a - (1.0 - soul_morph * soul_morph * (3.0 - 2.0 * soul_morph))) < 0.00001,

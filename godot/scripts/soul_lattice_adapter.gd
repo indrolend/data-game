@@ -12,11 +12,15 @@ func _ready() -> void:
     add_child(mesh_instance)
 
     material = StandardMaterial3D.new()
-    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    # Match DesktopRenderer::drawSoulFlesh(): the extraction lattice is real
+    # lit geometry, with one flat normal per triangle.  Emission keeps the
+    # signal readable without discarding scene and phone-light response.
+    material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     material.emission_enabled = true
     mesh_instance.material_override = material
+    mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
     visible = false
 
 func _index(x: int, y: int, z: int) -> int:
@@ -66,6 +70,15 @@ func sync_from_native(snapshot: Dictionary, lattice: PackedVector3Array) -> void
     var arrays := []
     arrays.resize(Mesh.ARRAY_MAX)
     arrays[Mesh.ARRAY_VERTEX] = triangles
+    var normals := PackedVector3Array()
+    normals.resize(triangles.size())
+    for triangle in range(0, triangles.size(), 3):
+        var normal := (triangles[triangle + 1] - triangles[triangle]).cross(
+            triangles[triangle + 2] - triangles[triangle]).normalized()
+        normals[triangle] = normal
+        normals[triangle + 1] = normal
+        normals[triangle + 2] = normal
+    arrays[Mesh.ARRAY_NORMAL] = normals
 
     var surface := ArrayMesh.new()
     surface.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

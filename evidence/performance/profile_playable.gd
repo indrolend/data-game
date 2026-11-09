@@ -60,6 +60,9 @@ func _run() -> void:
     var primitives: Array[float] = []
     var object_count: Array[float] = []
     var static_memory: Array[float] = []
+    var worst_frame_index := -1
+    var worst_frame_value := -1.0
+    var worst_frame_target_state: Array[Dictionary] = []
 
     for frame in range(WARMUP_FRAMES + SAMPLE_FRAMES):
         var started := Time.get_ticks_usec()
@@ -74,7 +77,21 @@ func _run() -> void:
         if frame < WARMUP_FRAMES:
             continue
         var profile: Dictionary = world.performance_profile_snapshot()
-        frame_ms.append(float(Time.get_ticks_usec() - started) / 1000.0)
+        var measured_frame_ms := float(Time.get_ticks_usec() - started) / 1000.0
+        frame_ms.append(measured_frame_ms)
+        if measured_frame_ms > worst_frame_value:
+            worst_frame_value = measured_frame_ms
+            worst_frame_index = frame - WARMUP_FRAMES
+            worst_frame_target_state.clear()
+            for target_index in range(world.runtime.target_count()):
+                var target_state: Dictionary = world.runtime.target_presentation_snapshot(target_index)
+                if bool(target_state.alive):
+                    worst_frame_target_state.append({
+                        "index": target_index,
+                        "shell_crack_amount": float(target_state.shell_crack_amount),
+                        "soul_morph": float(target_state.pose.soul_morph),
+                        "hit_amount": float(target_state.hit_amount),
+                    })
         native_tick_ms.append(float(profile.get("native_tick_us", 0)) / 1000.0)
         sync_ms.append(float(profile.get("sync_total_us", 0)) / 1000.0)
         room_adapter_ms.append(float(profile.get("room_adapter_us", 0)) / 1000.0)
@@ -130,6 +147,8 @@ func _run() -> void:
         "objects": _summary(object_count),
         "static_memory_mib": _summary(static_memory),
         "gpu_timing_supported": _percentile(viewport_render_gpu_ms, 0.50) > 0.0,
+        "worst_frame_index": worst_frame_index,
+        "worst_frame_target_state": worst_frame_target_state,
     }
     var json := JSON.stringify(result, "  ") + "\n"
     print("PERFORMANCE_RESULT ", json)

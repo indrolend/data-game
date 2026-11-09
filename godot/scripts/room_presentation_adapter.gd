@@ -13,11 +13,16 @@ var _field_grass_image: Image
 var _city_asphalt_texture: ImageTexture
 var _native_material_textures: Dictionary = {}
 var _city_facade_nodes: Dictionary = {}
+var _city_facade_records: Dictionary = {}
+var _city_facade_instances: Dictionary = {}
 var _field_backdrop_tree_nodes: Dictionary = {}
 var _capture_point_nodes: Dictionary = {}
 var _native_tree_meshes: Dictionary = {}
 var _city_facade_meshes: Dictionary = {}
 var _grass_node: Node3D
+var _grass_multimesh_instance: MultiMeshInstance3D
+var _grass_latest_tips: Array = []
+var _grass_debug_proxies: Dictionary = {}
 var _grass_snapshot_key := ""
 var _grass_blade_records: Array = []
 var _coastal_water: MeshInstance3D
@@ -92,16 +97,20 @@ func _apply_native_material_texture(material: StandardMaterial3D, material_name:
         material.uv1_triplanar = false
 
 func sync_snapshot(snapshot: Dictionary) -> void:
+    var static_geometry_included := bool(snapshot.get("static_geometry_included", true))
+    var structures: Array = snapshot.get("structures", [])
+    var objects: Array = snapshot.get("objects", [])
+    var field_backdrop_trees: Array = snapshot.get("field_backdrop_trees", [])
+    var city_facade_modules: Array = snapshot.get("city_facade_modules", [])
     var static_geometry_key := "%d:%d:%d:%d:%d:%d:%d" % [
         int(snapshot.room_seed), int(snapshot.room_index), int(snapshot.tile_index),
-        (snapshot.structures as Array).size(), (snapshot.objects as Array).size(),
-        (snapshot.get("field_backdrop_trees", []) as Array).size(),
-        (snapshot.get("city_facade_modules", []) as Array).size()]
-    var sync_static_geometry := _static_geometry_sync_enabled \
+        structures.size(), objects.size(), field_backdrop_trees.size(),
+        city_facade_modules.size()]
+    var sync_static_geometry := static_geometry_included and _static_geometry_sync_enabled \
         and static_geometry_key != _static_geometry_snapshot_key
     if sync_static_geometry:
         var retained: Dictionary = {}
-        for record in snapshot.structures as Array:
+        for record in structures:
             var stable_id := str(record.id)
             var flat_road_marking := _is_flat_city_road_marking(stable_id)
             retained[stable_id] = true
@@ -139,14 +148,14 @@ func sync_snapshot(snapshot: Dictionary) -> void:
     _sync_grass(snapshot)
     _sync_coastal_water(snapshot)
     if sync_static_geometry:
-        _sync_lawn_objects(snapshot.objects as Array, int(snapshot.tile_index))
-        _sync_rock_objects(snapshot.objects as Array)
-        _sync_tree_objects(snapshot.objects as Array)
-        _sync_field_backdrop_trees(snapshot.get("field_backdrop_trees", []))
-        _sync_house_objects(snapshot.objects as Array)
-        _sync_marker_objects(snapshot.objects as Array)
-        _sync_ruin_objects(snapshot.objects as Array)
-        _sync_city_facades(snapshot.get("city_facade_modules", []))
+        _sync_lawn_objects(objects, int(snapshot.tile_index))
+        _sync_rock_objects(objects)
+        _sync_tree_objects(objects)
+        _sync_field_backdrop_trees(field_backdrop_trees)
+        _sync_house_objects(objects)
+        _sync_marker_objects(objects)
+        _sync_ruin_objects(objects)
+        _sync_city_facades(city_facade_modules)
         _static_geometry_snapshot_key = static_geometry_key
 
 func _is_flat_city_road_marking(stable_id: String) -> bool:
@@ -209,15 +218,30 @@ func lawn_object(stable_id: String) -> MeshInstance3D:
     return _lawn_nodes.get(stable_id)
 
 func grass_blade_count() -> int:
-    return _grass_node.get_child_count() if _grass_node != null else 0
+    return _grass_blade_records.size()
 
 func grass_blade(index: int) -> MeshInstance3D:
-    return _grass_node.get_child(index) as MeshInstance3D if _grass_node != null else null
+    if index < 0 or index >= _grass_blade_records.size() or _grass_node == null:
+        return null
+    var proxy: MeshInstance3D = _grass_debug_proxies.get(index)
+    if proxy == null:
+        proxy = MeshInstance3D.new()
+        proxy.name = "NativeBladeDiagnostic_%03d" % index
+        proxy.mesh = _grass_blade_mesh()
+        proxy.visible = false
+        _grass_node.add_child(proxy)
+        _grass_debug_proxies[index] = proxy
+    _apply_grass_transform(proxy, _grass_blade_records[index],
+        _grass_latest_tips[index] if index < _grass_latest_tips.size() else null)
+    return proxy
 
 func coastal_water_node() -> MeshInstance3D:
     return _coastal_water
 
 func _sync_grass(snapshot: Dictionary) -> void:
+    if OS.get_environment("DB_DISABLE_GRASS_MULTIMESH") == "1":
+        _sync_grass_legacy(snapshot)
+        return
     var key := "%d:%d:%d:%d" % [int(snapshot.room_seed), int(snapshot.room_index),
         int(snapshot.tile_index), int(snapshot.grass)]
     var rebuild := key != _grass_snapshot_key
@@ -226,6 +250,64 @@ func _sync_grass(snapshot: Dictionary) -> void:
     if _grass_node == null:
         _grass_node = Node3D.new()
         _grass_node.name = "NativeFieldGrass"
+        _grass_node.set_meta("presentation_only", true)
+        add_child(_grass_node)
+    var blades: Array = snapshot.get("grass_blades", [])
+    if rebuild:
+        for proxy in _grass_debug_proxies.values():
+            proxy.queue_free()
+        _grass_debug_proxies.clear()
+        _grass_blade_records = blades.duplicate()
+    if not bool(snapshot.grass) or (rebuild and blades.is_empty()):
+        _grass_node.visible = false
+        return
+    if rebuild:
+        var blade_mesh := _grass_blade_mesh()
+        var blade_material := StandardMaterial3D.new()
+        blade_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+        blade_material.vertex_color_use_as_albedo = true
+        blade_material.vertex_color_is_srgb = false
+        blade_material.albedo_color = Color.WHITE
+        blade_material.roughness = 0.93
+        blade_mesh.surface_set_material(0, blade_material)
+        if _grass_multimesh_instance == null:
+            _grass_multimesh_instance = MultiMeshInstance3D.new()
+            _grass_multimesh_instance.name = "NativeFieldGrassInstances"
+            _grass_node.add_child(_grass_multimesh_instance)
+        var multimesh := MultiMesh.new()
+        multimesh.transform_format = MultiMesh.TRANSFORM_3D
+        multimesh.use_colors = true
+        multimesh.mesh = blade_mesh
+        multimesh.instance_count = _grass_blade_records.size()
+        _grass_multimesh_instance.multimesh = multimesh
+    var tips: Array = snapshot.get("grass_tips", [])
+    _grass_latest_tips = tips.duplicate()
+    var grass_multimesh := _grass_multimesh_instance.multimesh
+    for index in range(_grass_blade_records.size()):
+        var blade: Dictionary = _grass_blade_records[index]
+        var root_position: Vector3 = blade.root
+        var tip_position: Vector3 = tips[index] if index < tips.size() else root_position + Vector3.UP * float(blade.height)
+        var tip_delta := tip_position - root_position
+        if tip_delta.length_squared() < 0.000001:
+            tip_delta = Vector3.UP * float(blade.height)
+        var orientation := Quaternion(Vector3.UP, tip_delta.normalized()) * Quaternion(Vector3.UP, float(blade.phase))
+        var basis := Basis(orientation).scaled_local(Vector3(float(blade.width), tip_delta.length(), float(blade.width)))
+        grass_multimesh.set_instance_transform(index, Transform3D(basis, root_position))
+        var tone := float(blade.get("tone", 1.0))
+        grass_multimesh.set_instance_color(index, Color(tone, tone, tone, 1.0))
+        if _grass_debug_proxies.has(index):
+            _apply_grass_transform(_grass_debug_proxies[index], blade, tip_position)
+    _grass_node.visible = true
+
+func _sync_grass_legacy(snapshot: Dictionary) -> void:
+    var key := "%d:%d:%d:%d" % [int(snapshot.room_seed), int(snapshot.room_index),
+        int(snapshot.tile_index), int(snapshot.grass)]
+    var rebuild := key != _grass_snapshot_key
+    if rebuild:
+        _grass_snapshot_key = key
+    if _grass_node == null:
+        _grass_node = Node3D.new()
+        _grass_node.name = "NativeFieldGrassLegacy"
         _grass_node.set_meta("presentation_only", true)
         add_child(_grass_node)
     var blades: Array = snapshot.get("grass_blades", [])
@@ -251,28 +333,34 @@ func _sync_grass(snapshot: Dictionary) -> void:
             var blade_node := MeshInstance3D.new()
             blade_node.name = "NativeBlade_%03d" % index
             blade_node.mesh = blade_mesh
-            blade_node.set_meta("native_height", float(blade.height))
-            blade_node.set_meta("native_width", float(blade.width))
             var tone := float(blade.get("tone", 1.0))
-            blade_node.set_meta("native_tone", tone)
             var per_blade_material := blade_material.duplicate() as StandardMaterial3D
             per_blade_material.albedo_color = Color(tone, tone, tone, 1.0)
             blade_node.material_override = per_blade_material
             _grass_node.add_child(blade_node)
     var tips: Array = snapshot.get("grass_tips", [])
+    _grass_latest_tips = tips.duplicate()
     for index in range(mini(_grass_blade_records.size(), _grass_node.get_child_count())):
-        var blade: Dictionary = _grass_blade_records[index]
-        var blade_node := _grass_node.get_child(index) as MeshInstance3D
-        var root_position: Vector3 = blade.root
-        var tip_position: Vector3 = tips[index] if index < tips.size() else root_position + Vector3.UP * float(blade.height)
-        var tip_delta := tip_position - root_position
-        if tip_delta.length_squared() < 0.000001:
-            tip_delta = Vector3.UP * float(blade.height)
-        blade_node.position = root_position
-        blade_node.scale = Vector3(float(blade.width), tip_delta.length(), float(blade.width))
-        blade_node.quaternion = Quaternion(Vector3.UP, tip_delta.normalized()) * Quaternion(Vector3.UP, float(blade.phase))
-        blade_node.set_meta("native_tip", tip_position)
+        _apply_grass_transform(_grass_node.get_child(index), _grass_blade_records[index],
+            tips[index] if index < tips.size() else null)
     _grass_node.visible = true
+
+func _apply_grass_transform(blade_node: MeshInstance3D, blade: Dictionary,
+        tip_value: Variant) -> void:
+    var root_position: Vector3 = blade.root
+    var tip_position: Vector3 = tip_value if tip_value is Vector3 else \
+        root_position + Vector3.UP * float(blade.height)
+    var tip_delta := tip_position - root_position
+    if tip_delta.length_squared() < 0.000001:
+        tip_delta = Vector3.UP * float(blade.height)
+    blade_node.position = root_position
+    blade_node.scale = Vector3(float(blade.width), tip_delta.length(), float(blade.width))
+    blade_node.quaternion = Quaternion(Vector3.UP, tip_delta.normalized()) * \
+        Quaternion(Vector3.UP, float(blade.phase))
+    blade_node.set_meta("native_height", float(blade.height))
+    blade_node.set_meta("native_width", float(blade.width))
+    blade_node.set_meta("native_tone", float(blade.get("tone", 1.0)))
+    blade_node.set_meta("native_tip", tip_position)
 
 func _sync_coastal_water(snapshot: Dictionary) -> void:
     var water: Dictionary = snapshot.get("coastal_water", {})
@@ -357,40 +445,101 @@ func ruin_object_count() -> int:
     return _ruin_nodes.size()
 
 func city_facade_module_count() -> int:
-    return _city_facade_nodes.size()
+    return _city_facade_records.size()
 
 func city_facade_module(stable_id: String) -> MeshInstance3D:
-    return _city_facade_nodes.get(stable_id)
+    var proxy: MeshInstance3D = _city_facade_nodes.get(stable_id)
+    if proxy != null or not _city_facade_records.has(stable_id):
+        return proxy
+    var record: Dictionary = _city_facade_records[stable_id]
+    var model_name := str(record.model)
+    proxy = MeshInstance3D.new()
+    proxy.name = stable_id.replace("/", "_") + "_diagnostic"
+    proxy.set_meta("native_id", stable_id)
+    proxy.set_meta("native_model", model_name)
+    proxy.set_meta("presentation_only", true)
+    proxy.mesh = _city_facade_meshes.get(model_name)
+    proxy.position = record.origin
+    proxy.scale = record.scale
+    proxy.rotation = Vector3(0.0, float(record.yaw), 0.0)
+    proxy.visible = false
+    add_child(proxy)
+    _city_facade_nodes[stable_id] = proxy
+    return proxy
 
 func _sync_city_facades(records: Array) -> void:
-    var retained: Dictionary = {}
+    if OS.get_environment("DB_DISABLE_CITY_FACADE_MULTIMESH") == "1":
+        _sync_city_facades_legacy(records)
+        return
+    for proxy in _city_facade_nodes.values():
+        proxy.queue_free()
+    _city_facade_nodes.clear()
+    for instance in _city_facade_instances.values():
+        instance.queue_free()
+    _city_facade_instances.clear()
+    _city_facade_records.clear()
+    var groups: Dictionary = {}
     for record in records:
         var stable_id := str(record.id)
-        retained[stable_id] = true
-        var module: MeshInstance3D = _city_facade_nodes.get(stable_id)
-        if module == null:
-            var model_name := str(record.model)
-            var model_mesh: ArrayMesh = _city_facade_meshes.get(model_name)
+        _city_facade_records[stable_id] = record
+        var model_name := str(record.model)
+        # Spatial cells preserve coarse frustum culling while still combining
+        # repeated authored modules within each visible building region.
+        var cell_x := floori(float(record.origin.x) / 6.0)
+        var cell_z := floori(float(record.origin.z) / 6.0)
+        var group_key := "%s:%d:%d" % [model_name, cell_x, cell_z]
+        if not groups.has(group_key):
+            groups[group_key] = {"model": model_name, "records": []}
+        groups[group_key].records.append(record)
+    for group_key in groups:
+        var group_record: Dictionary = groups[group_key]
+        var model_name: String = group_record.model
+        var model_mesh: ArrayMesh = _city_facade_meshes.get(model_name)
+        if model_mesh == null:
+            model_mesh = _load_city_facade_mesh(model_name)
             if model_mesh == null:
-                model_mesh = _load_city_facade_mesh(model_name)
-                if model_mesh == null:
-                    continue
-                _city_facade_meshes[model_name] = model_mesh
-            module = MeshInstance3D.new()
-            module.name = stable_id.replace("/", "_")
-            module.set_meta("native_id", stable_id)
-            module.set_meta("native_model", model_name)
-            module.set_meta("presentation_only", true)
-            module.mesh = model_mesh
-            add_child(module)
-            _city_facade_nodes[stable_id] = module
+                continue
+            _city_facade_meshes[model_name] = model_mesh
+        var group: Array = group_record.records
+        var multimesh := MultiMesh.new()
+        multimesh.transform_format = MultiMesh.TRANSFORM_3D
+        multimesh.mesh = model_mesh
+        multimesh.instance_count = group.size()
+        for index in range(group.size()):
+            var record: Dictionary = group[index]
+            var basis := Basis.from_euler(Vector3(0.0, float(record.yaw), 0.0)).scaled_local(record.scale)
+            multimesh.set_instance_transform(index, Transform3D(basis, record.origin))
+        var instance := MultiMeshInstance3D.new()
+        instance.name = "NativeCityFacade_%s" % str(group_key).replace(":", "_")
+        instance.set_meta("native_model", model_name)
+        instance.set_meta("presentation_only", true)
+        instance.multimesh = multimesh
+        add_child(instance)
+        _city_facade_instances[group_key] = instance
+
+func _sync_city_facades_legacy(records: Array) -> void:
+    _city_facade_records.clear()
+    for record in records:
+        var stable_id := str(record.id)
+        _city_facade_records[stable_id] = record
+        var model_name := str(record.model)
+        var model_mesh: ArrayMesh = _city_facade_meshes.get(model_name)
+        if model_mesh == null:
+            model_mesh = _load_city_facade_mesh(model_name)
+            if model_mesh == null:
+                continue
+            _city_facade_meshes[model_name] = model_mesh
+        var module := MeshInstance3D.new()
+        module.name = stable_id.replace("/", "_")
+        module.set_meta("native_id", stable_id)
+        module.set_meta("native_model", model_name)
+        module.set_meta("presentation_only", true)
+        module.mesh = model_mesh
         module.position = record.origin
         module.scale = record.scale
         module.rotation = Vector3(0.0, float(record.yaw), 0.0)
-    for stable_id in _city_facade_nodes.keys():
-        if not retained.has(stable_id):
-            (_city_facade_nodes[stable_id] as Node).queue_free()
-            _city_facade_nodes.erase(stable_id)
+        add_child(module)
+        _city_facade_nodes[stable_id] = module
 
 func _load_city_facade_mesh(model_name: String) -> ArrayMesh:
     var model_path := _native_model_path("environment/city/" + model_name + ".dbmesh")

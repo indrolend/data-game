@@ -228,6 +228,84 @@ struct HumanModelData {
       applyFootTargets(output, footTargets, footAnchors, footAnchorTotals);
   }
 
+  void footCorrectionWeights(std::vector<float> &left,
+                             std::vector<float> &right) const {
+    ensureFootCorrectionWeights();
+    left = footCorrectionWeights_[0];
+    right = footCorrectionWeights_[1];
+  }
+
+  void footCorrections(float animationTime, float attackTimer, int attackVariant,
+                       const HumanModelExpressiveness &expressiveness,
+                       const HumanModelFootTargets &targets,
+                       float corrections[2][3]) const {
+    std::fill(&corrections[0][0], &corrections[0][0] + 6, 0.0f);
+    if (!valid() || !targets.active) return;
+    ensureFootCorrectionWeights();
+    const std::size_t boneCount = bones.size();
+    const float frame = std::fmod(std::max(0.0f, animationTime) *
+        static_cast<float>(frameCount), static_cast<float>(frameCount));
+    const unsigned int f0 = static_cast<unsigned int>(frame) % frameCount;
+    const unsigned int f1 = (f0 + 1) % frameCount;
+    const float blend = frame - static_cast<float>(f0);
+    std::vector<float> worlds(boneCount * 16u), skinMatrices(boneCount * 16u);
+    for (std::size_t i = 0; i < boneCount; ++i) {
+      const HumanModelPose &a = poses[static_cast<std::size_t>(f0) * boneCount + i];
+      const HumanModelPose &b = poses[static_cast<std::size_t>(f1) * boneCount + i];
+      float p[3], s[3], q[4];
+      for (int k = 0; k < 3; ++k) {
+        p[k] = a.position[k] + (b.position[k] - a.position[k]) * blend;
+        s[k] = a.scale[k] + (b.scale[k] - a.scale[k]) * blend;
+      }
+      slerp(a.quaternion, b.quaternion, blend, q);
+      if (attackTimer > 0.0f) applyAttack(bones[i], attackTimer, attackVariant, q);
+      applyExpressiveness(bones[i], expressiveness, q);
+      float local[16]; compose(p, q, s, local);
+      float *world = worlds.data() + i * 16u;
+      if (bones[i].parent >= 0)
+        multiply(world, worlds.data() + static_cast<std::size_t>(bones[i].parent) * 16u, local);
+      else multiply(world, rootParentMatrix, local);
+      multiply(skinMatrices.data() + i * 16u, world, bones[i].inverse);
+    }
+    float anchors[2][3]{}, totals[2]{};
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+      if (footAnchorWeights_[0][i] <= 0.0f && footAnchorWeights_[1][i] <= 0.0f) continue;
+      float bound[3], sum[3]{};
+      point(bindMatrix, vertices[i].position, bound);
+      for (int k = 0; k < 4; ++k) {
+        const float weight = vertices[i].weights[k];
+        if (weight <= 0.0f) continue;
+        float transformed[3];
+        point(skinMatrices.data() + static_cast<std::size_t>(vertices[i].bones[k]) * 16u,
+              bound, transformed);
+        for (int axis = 0; axis < 3; ++axis) sum[axis] += transformed[axis] * weight;
+      }
+      const float position[3]{sum[0] * unitScale, (sum[1] - minY) * unitScale,
+                              sum[2] * unitScale};
+      for (int side = 0; side < 2; ++side) {
+        const float weight = footAnchorWeights_[side][i];
+        totals[side] += weight;
+        for (int axis = 0; axis < 3; ++axis) anchors[side][axis] += position[axis] * weight;
+      }
+    }
+    const float *desired[2]{targets.left, targets.right};
+    for (int side = 0; side < 2; ++side) {
+      if (totals[side] <= 0.001f) continue;
+      float magnitudeSquared = 0.0f;
+      for (int axis = 0; axis < 3; ++axis) {
+        anchors[side][axis] /= totals[side];
+        corrections[side][axis] = desired[side][axis] - anchors[side][axis];
+        magnitudeSquared += corrections[side][axis] * corrections[side][axis];
+      }
+      const float magnitude = std::sqrt(magnitudeSquared);
+      if (magnitude > 0.16f)
+        for (float &component : corrections[side]) component *= 0.16f / magnitude;
+      const float contact = std::clamp(side == 0 ? targets.leftContact : targets.rightContact,
+                                       0.0f, 1.0f);
+      for (float &component : corrections[side]) component *= 0.20f + contact * 0.80f;
+    }
+  }
+
 private:
   static void multiply(float *out, const float *a, const float *b) {
     float v[16]{};

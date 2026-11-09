@@ -84,7 +84,9 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("gameplay_loop_snapshot"),&ParentGameNode::gameplay_loop_snapshot);
     ClassDB::bind_method(D_METHOD("door_transition_presentation_snapshot"),&ParentGameNode::door_transition_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("projectile_presentation_snapshot"),&ParentGameNode::projectile_presentation_snapshot);
-    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index"),&ParentGameNode::room_presentation_snapshot);
+    ClassDB::bind_method(D_METHOD("room_presentation_identity_snapshot","tile_index"),&ParentGameNode::room_presentation_identity_snapshot);
+    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index","include_static"),
+        &ParentGameNode::room_presentation_snapshot,DEFVAL(true));
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
     ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
     ClassDB::bind_method(D_METHOD("grass_blade_presentation_snapshot","tile_index"),&ParentGameNode::grass_blade_presentation_snapshot);
@@ -100,6 +102,7 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("target_model_packed_buffer","index"),&ParentGameNode::target_model_packed_buffer);
     ClassDB::bind_method(D_METHOD("human_model_rig"),&ParentGameNode::human_model_rig);
     ClassDB::bind_method(D_METHOD("target_model_pose","index"),&ParentGameNode::target_model_pose);
+    ClassDB::bind_method(D_METHOD("target_model_foot_corrections","index"),&ParentGameNode::target_model_foot_corrections);
     ClassDB::bind_method(D_METHOD("target_model_color","index"),&ParentGameNode::target_model_color);
     ClassDB::bind_method(D_METHOD("camera_position"),&ParentGameNode::camera_position);
     ClassDB::bind_method(D_METHOD("camera_target"),&ParentGameNode::camera_target);
@@ -814,7 +817,18 @@ Dictionary ParentGameNode::audio_presentation_snapshot() const {
     result["muted"] = state.localSettings.sfxMuted;
     return result;
 }
-Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
+Dictionary ParentGameNode::room_presentation_identity_snapshot(int tile_index) const {
+    const auto& state=bridge.state();
+    if(tile_index<0) tile_index=state.topology.currentTileIndex;
+    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    Dictionary result;
+    result["room_seed"]=state.roomSeed;
+    result["room_index"]=state.roomIndex;
+    result["tile_index"]=tile_index;
+    result["grass"]=plan.grass;
+    return result;
+}
+Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool include_static) const {
     if(tile_index<0)tile_index=bridge.state().topology.currentTileIndex;
     const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index);
     Dictionary result;
@@ -854,6 +868,8 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
     coastal_water["source_speed"] = snapshot.waterSourceSpeed;
     coastal_water["source_active"] = snapshot.waterSourceActive;
     result["coastal_water"] = coastal_water;
+    result["static_geometry_included"] = include_static;
+    if(include_static) {
     Array structures;
     for (const auto& structure : snapshot.structures) {
         Dictionary item;
@@ -999,6 +1015,7 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index) const {
         objects.push_back(item);
     }
     result["objects"] = objects;
+    }
     return result;
 }
 PackedByteArray ParentGameNode::field_grass_texture_pixels() const {
@@ -1330,21 +1347,28 @@ static HumanModelExpressiveness human_expression(
     expression.individuality=snapshot.reaction.individuality;
     return expression;
 }
-Dictionary ParentGameNode::human_model_rig() const {
-    Dictionary result;
+bool ParentGameNode::ensure_human_model_loaded() const {
     if(!human_model_load_attempted){
         human_model_load_attempted=true;
         const String path=godot_runtime_model_path("human.dbhuman");
         human_model.load(path.utf8().get_data());
     }
-    if(!human_model.valid()) return result;
+    return human_model.valid();
+}
+Dictionary ParentGameNode::human_model_rig() const {
+    Dictionary result;
+    if(!ensure_human_model_loaded()) return result;
     PackedVector3Array positions;
     PackedInt32Array indices,parents;
     PackedFloat32Array weights;
+    PackedColorArray foot_weights;
     Array inverse_binds;
     positions.resize(human_model.vertices.size());
     indices.resize(human_model.vertices.size()*4u);
     weights.resize(human_model.vertices.size()*4u);
+    foot_weights.resize(human_model.vertices.size());
+    std::vector<float> left_foot_weights, right_foot_weights;
+    human_model.footCorrectionWeights(left_foot_weights,right_foot_weights);
     for(std::size_t i=0;i<human_model.vertices.size();++i){
         float bound[3];
         const float *m=human_model.bindMatrix;
@@ -1353,6 +1377,7 @@ Dictionary ParentGameNode::human_model_rig() const {
         bound[1]=m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13];
         bound[2]=m[2]*p[0]+m[6]*p[1]+m[10]*p[2]+m[14];
         positions.set(i,Vector3(bound[0],bound[1],bound[2]));
+        foot_weights.set(i,Color(left_foot_weights[i],right_foot_weights[i],0.0f,1.0f));
         for(int influence=0;influence<4;++influence){
             indices.set(i*4u+influence,human_model.vertices[i].bones[influence]);
             weights.set(i*4u+influence,human_model.vertices[i].weights[influence]);
@@ -1366,6 +1391,7 @@ Dictionary ParentGameNode::human_model_rig() const {
     result["positions"]=positions;
     result["bone_indices"]=indices;
     result["weights"]=weights;
+    result["foot_weights"]=foot_weights;
     result["parents"]=parents;
     result["inverse_binds"]=inverse_binds;
     result["unit_scale"]=human_model.unitScale;
@@ -1375,7 +1401,7 @@ Dictionary ParentGameNode::human_model_rig() const {
 Array ParentGameNode::target_model_pose(int index) const {
     Array result;
     if(index<0||index>=TARGET_COUNT) return result;
-    if(human_model_rig().is_empty()) return result;
+    if(!ensure_human_model_loaded()) return result;
     const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
     std::vector<float> transforms;
     human_model.localPose(snapshot.animationTime,snapshot.attackTimer,snapshot.attackVariant,
@@ -1384,15 +1410,26 @@ Array ParentGameNode::target_model_pose(int index) const {
         result.push_back(human_transform(transforms.data()+i*16u));
     return result;
 }
+PackedVector3Array ParentGameNode::target_model_foot_corrections(int index) const {
+    PackedVector3Array result;
+    if(index<0||index>=TARGET_COUNT||!ensure_human_model_loaded()) return result;
+    const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
+    HumanModelFootTargets feet;
+    feet.left[0]=snapshot.leftFootTarget.x; feet.left[1]=snapshot.leftFootTarget.y; feet.left[2]=snapshot.leftFootTarget.z;
+    feet.right[0]=snapshot.rightFootTarget.x; feet.right[1]=snapshot.rightFootTarget.y; feet.right[2]=snapshot.rightFootTarget.z;
+    feet.leftContact=snapshot.leftFootContact; feet.rightContact=snapshot.rightFootContact;
+    feet.active=snapshot.bodyAuthoritative;
+    float corrections[2][3]{};
+    human_model.footCorrections(snapshot.animationTime,snapshot.attackTimer,snapshot.attackVariant,
+        human_expression(snapshot,bridge.state().time),feet,corrections);
+    result.push_back(Vector3(corrections[0][0],corrections[0][1],corrections[0][2]));
+    result.push_back(Vector3(corrections[1][0],corrections[1][1],corrections[1][2]));
+    return result;
+}
 bool ParentGameNode::build_target_model_vertices(int index, std::vector<Vector3>& visibleVertices) const {
     visibleVertices.clear();
     if(index<0||index>=TARGET_COUNT)return false;
-    if(!human_model_load_attempted){
-        human_model_load_attempted=true;
-        const String path=godot_runtime_model_path("human.dbhuman");
-        human_model.load(path.utf8().get_data());
-    }
-    if(!human_model.valid())return false;
+    if(!ensure_human_model_loaded())return false;
     const auto snapshot=TargetPresentationSnapshot::from(bridge.state(),index);
     const HumanModelExpressiveness expression=human_expression(snapshot,bridge.state().time);
     HumanModelFootTargets feet;

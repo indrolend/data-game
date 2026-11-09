@@ -5,6 +5,7 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/packed_vector3_array.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <vector>
 #include "parent_bridge.hpp"
@@ -15,6 +16,7 @@ class ParentGameNode : public Node {
     ParentBridge bridge;
     mutable HumanModelData human_model;
     mutable bool human_model_load_attempted = false;
+    bool ensure_human_model_loaded() const;
     bool build_target_model_vertices(int index, std::vector<Vector3>& visible_vertices) const;
 protected:
     static void _bind_methods();
@@ -77,7 +79,8 @@ public:
     Dictionary gameplay_loop_snapshot() const;
     Dictionary door_transition_presentation_snapshot() const;
     Array projectile_presentation_snapshot() const;
-    Dictionary room_presentation_snapshot(int tile_index) const;
+    Dictionary room_presentation_identity_snapshot(int tile_index) const;
+    Dictionary room_presentation_snapshot(int tile_index, bool include_static = true) const;
     PackedByteArray field_grass_texture_pixels() const;
     PackedByteArray city_asphalt_texture_pixels() const;
     Array grass_blade_presentation_snapshot(int tile_index) const;
@@ -93,6 +96,7 @@ public:
     Dictionary target_model_packed_buffer(int index) const;
     Dictionary human_model_rig() const;
     Array target_model_pose(int index) const;
+    PackedVector3Array target_model_foot_corrections(int index) const;
     Color target_model_color(int index) const;
     Vector3 camera_position() const;
     Vector3 camera_target() const;

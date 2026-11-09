@@ -44,6 +44,7 @@ var fill_light: DirectionalLight3D
 var drama_spotlight: SpotLight3D
 var native_point_lights: Array[OmniLight3D] = []
 var _grass_snapshot_key := ""
+var _room_static_snapshot_key := ""
 var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
 var projectile_nodes := {}
@@ -61,6 +62,7 @@ var performance_profile_variant := "baseline"
 var performance_profile_last := {}
 var skeleton_enemy_slice_enabled := false
 var skeleton_enemy_slice_index := 0
+var skeleton_enemies_enabled := false
 var packed_enemy_slice_enabled := false
 var packed_enemy_slice_index := 0
 var packed_enemies_enabled := false
@@ -85,6 +87,7 @@ func _ready() -> void:
     skeleton_enemy_slice_enabled = OS.get_environment("DB_ENABLE_SKELETON_ENEMY_SLICE") == "1"
     skeleton_enemy_slice_index = clampi(OS.get_environment("DB_SKELETON_ENEMY_INDEX").to_int(),
         0, 31)
+    skeleton_enemies_enabled = OS.get_environment("DB_DISABLE_SKELETON_ENEMIES") != "1"
     packed_enemy_slice_enabled = OS.get_environment("DB_ENABLE_PACKED_ENEMY_SLICE") == "1"
     packed_enemy_slice_index = clampi(OS.get_environment("DB_PACKED_ENEMY_INDEX").to_int(), 0, 31)
     packed_enemies_enabled = OS.get_environment("DB_DISABLE_PACKED_ENEMIES") != "1"
@@ -184,13 +187,13 @@ func _ready() -> void:
     add_child(melee_arc_adapter)
     for i in range(runtime.target_count()):
         var enemy: Node3D
-        if _uses_packed_enemy(i):
-            enemy = PackedHumanModelAdapter.new()
-            enemy.call("configure", i, runtime.target_model_color(i))
-        elif skeleton_enemy_slice_enabled and i == skeleton_enemy_slice_index:
+        if _uses_skeleton_enemy(i):
             enemy = SkeletonHumanModelAdapter.new()
             enemy.call("configure_from_native", i, runtime.target_model_color(i),
                 runtime.human_model_rig())
+        elif _uses_packed_enemy(i):
+            enemy = PackedHumanModelAdapter.new()
+            enemy.call("configure", i, runtime.target_model_color(i))
         else:
             enemy = HumanModelAdapter.new()
             enemy.call("configure", i, runtime.target_model_color(i))
@@ -439,7 +442,12 @@ func agent_reset() -> void:
     _sync()
 
 func _uses_packed_enemy(index: int) -> bool:
-    return packed_enemies_enabled or (packed_enemy_slice_enabled and index == packed_enemy_slice_index)
+    return not _uses_skeleton_enemy(index) and \
+        (packed_enemies_enabled or (packed_enemy_slice_enabled and index == packed_enemy_slice_index))
+
+func _uses_skeleton_enemy(index: int) -> bool:
+    return skeleton_enemies_enabled or \
+        (skeleton_enemy_slice_enabled and index == skeleton_enemy_slice_index)
 
 func _sync() -> void:
     var sync_started := Time.get_ticks_usec() if performance_profile_enabled else 0
@@ -447,7 +455,14 @@ func _sync() -> void:
     var lighting_snapshot: Dictionary = runtime.lighting_presentation_snapshot()
     _sync_lighting(lighting_snapshot)
     var room_bridge_started := Time.get_ticks_usec() if performance_profile_enabled else 0
-    var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
+    var room_identity: Dictionary = runtime.room_presentation_identity_snapshot(-1)
+    var room_static_key := "%d:%d:%d" % [int(room_identity.room_seed),
+        int(room_identity.room_index), int(room_identity.tile_index)]
+    var include_room_static := OS.get_environment("DB_DISABLE_ROOM_STATIC_SPLIT") == "1" or \
+        room_static_key != _room_static_snapshot_key
+    var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1, include_room_static)
+    if include_room_static:
+        _room_static_snapshot_key = room_static_key
     var grass_key := "%d:%d:%d:%d" % [int(room_snapshot.room_seed), int(room_snapshot.room_index),
         int(room_snapshot.tile_index), int(room_snapshot.grass)]
     if grass_key != _grass_snapshot_key:
@@ -505,27 +520,40 @@ func _sync() -> void:
         else:
             var model_vertices := PackedVector3Array()
             var model_pose := []
+            var foot_corrections := PackedVector3Array()
             var model_packed: Dictionary = {}
             if bool(target_snapshot.alive):
-                if _uses_packed_enemy(i):
+                if _uses_skeleton_enemy(i):
+                    if float(target_snapshot.get("shell_crack_amount", 0.0)) > 0.0:
+                        model_packed = runtime.target_model_packed_buffer(i)
+                        var crack_count := int(model_packed.get("vertex_count", 0))
+                        if targets[i].call("needs_surface_rebuild", crack_count):
+                            model_vertices = runtime.target_model_vertices(i)
+                    else:
+                        model_pose = runtime.target_model_pose(i)
+                        foot_corrections = runtime.target_model_foot_corrections(i)
+                elif _uses_packed_enemy(i):
                     model_packed = runtime.target_model_packed_buffer(i)
                     var packed_count := int(model_packed.get("vertex_count", 0))
                     if targets[i].call("needs_surface_rebuild", packed_count):
                         model_vertices = runtime.target_model_vertices(i)
-                elif skeleton_enemy_slice_enabled and i == skeleton_enemy_slice_index:
-                    model_pose = runtime.target_model_pose(i)
                 else:
                     model_vertices = runtime.target_model_vertices(i)
             if performance_profile_enabled:
                 enemy_bridge_us += Time.get_ticks_usec() - enemy_bridge_started
             var enemy_adapter_started := Time.get_ticks_usec() if performance_profile_enabled else 0
-            if _uses_packed_enemy(i):
+            if _uses_skeleton_enemy(i):
+                if float(target_snapshot.get("shell_crack_amount", 0.0)) > 0.0:
+                    targets[i].call("sync_cracked_from_native", target_snapshot,
+                        model_packed, model_vertices, camera.global_position, runtime.camera_target(),
+                        camera_obstruction_fade_enabled and not runtime.first_person())
+                else:
+                    targets[i].call("sync_pose_from_native", target_snapshot,
+                        model_pose, foot_corrections, camera.global_position, runtime.camera_target(),
+                        camera_obstruction_fade_enabled and not runtime.first_person())
+            elif _uses_packed_enemy(i):
                 targets[i].call("sync_packed_from_native", target_snapshot, model_packed,
                     model_vertices, camera.global_position, runtime.camera_target(),
-                    camera_obstruction_fade_enabled and not runtime.first_person())
-            elif skeleton_enemy_slice_enabled and i == skeleton_enemy_slice_index:
-                targets[i].call("sync_pose_from_native", target_snapshot,
-                    model_pose, camera.global_position, runtime.camera_target(),
                     camera_obstruction_fade_enabled and not runtime.first_person())
             else:
                 targets[i].call("sync_from_native", target_snapshot,

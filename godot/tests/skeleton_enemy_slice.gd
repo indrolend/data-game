@@ -37,7 +37,8 @@ func _run() -> void:
         runtime.tick()
         control.tick()
         var snapshot: Dictionary = runtime.target_presentation_snapshot(0)
-        adapter.sync_pose_from_native(snapshot, runtime.target_model_pose(0))
+        adapter.sync_pose_from_native(snapshot, runtime.target_model_pose(0),
+            runtime.target_model_foot_corrections(0))
         check(adapter.skinned_mesh.mesh == persistent_mesh,
             "persistent mesh identity survives frame %d" % frame)
         check(runtime.target_presentation_snapshot(0) == control.target_presentation_snapshot(0),
