@@ -543,6 +543,30 @@ target_include_directories(AuthoritativeStateDigestTest PRIVATE "${DB_GAME_ROOT}
 target_compile_features(AuthoritativeStateDigestTest PRIVATE cxx_std_17)
 
 add_executable(
+    DataEngineReference
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/reference_main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/DataEngine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/ReferenceScenario.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(DataEngineReference PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine" "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(DataEngineReference PRIVATE cxx_std_17)
+
+add_executable(
+    DataEngineReferenceTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/data_engine_reference_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/DataEngine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/ReferenceScenario.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(DataEngineReferenceTest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine" "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(DataEngineReferenceTest PRIVATE cxx_std_17)
+
+add_executable(
     SecretTvPolicyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/secret_tv_policy_test.cpp"
     "${DB_GAME_ROOT}/Game.cpp"
@@ -616,6 +640,7 @@ add_test(NAME GameplayFlowProbe COMMAND GameplayFlowProbe)
 add_test(NAME RoomProgressionProbe COMMAND RoomProgressionProbe)
 add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
 add_test(NAME AuthoritativeStateDigestTest COMMAND AuthoritativeStateDigestTest)
+add_test(NAME DataEngineReferenceTest COMMAND DataEngineReferenceTest)
 add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
 add_test(NAME SignalResidueLifecycleTest COMMAND SignalResidueLifecycleTest)
 
