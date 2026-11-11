@@ -322,6 +322,10 @@ struct DurableSectionHashes {
 DurableSectionHashes durableSectionHashes(const WorldSnapshot& snapshot);
 std::uint64_t authoritativeStateHash(const WorldSnapshot& snapshot);
 std::uint64_t visualStateHash(const WorldSnapshot& snapshot);
+// Canonical, quantized digest of durable gameplay authority. This deliberately
+// excludes local presentation state and is computed only when requested.
+std::uint64_t authoritativeStateDigest(const GameState& state);
+std::string authoritativeStateDigestHex(const GameState& state);
 
 class SnapshotInterpolator {
 public:

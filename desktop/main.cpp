@@ -1446,6 +1446,7 @@ void printUsage() {
     std::printf("  --controller-test    Print connected controller state once and exit.\n");
     std::printf("  --controller-live-test   Stream controller state for a short live test.\n");
     std::printf("  --build-identity-json    Print machine-readable build identity and exit.\n");
+    std::printf("  --authoritative-state-digest  Print the canonical reset-state digest and exit.\n");
     std::printf("  --capture-frame PATH Capture a hidden frame and exit.\n");
     std::printf("  --capture-flower-frame PATH  Capture the flower/soul readability fixture.\n");
     std::printf("  --capture-room-seed N --capture-room-index N  Start a generated room fixture before capturing.\n");
@@ -1862,9 +1863,10 @@ int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::files
         host.renderer.draw(state);glFinish();
         const bool saved=captureFramebuffer(outputDirectory/relative,width,height);captureFailed|=!saved;
         glfwSwapBuffers(window);glfwPollEvents();frames.push_back(relative.generic_string());
-        timeline<<std::fixed<<std::setprecision(6)<<"{\"phase\":\""<<phase<<"\",\"frame\":"<<state.frame<<",\"room\":"<<state.roomIndex<<",\"seed\":"<<state.roomSeed<<",\"player\":["<<state.player.pos.x<<','<<state.player.pos.y<<','<<state.player.pos.z<<"],\"grounded\":"<<(state.player.grounded?"true":"false")<<",\"souls\":"<<state.player.souls<<",\"filled\":"<<countFilled(state)<<",\"required\":"<<state.requiredSouls<<",\"room_clear\":"<<(state.roomClear?"true":"false")<<",\"upgrade\":"<<(state.upgradeMenu.active?"true":"false")<<",\"transition\":"<<(state.doorTransition.active?"true":"false")<<",\"capture_ok\":"<<(saved?"true":"false")<<"}\n";
+        const std::string stateDigest=dbnet::authoritativeStateDigestHex(state);
+        timeline<<std::fixed<<std::setprecision(6)<<"{\"phase\":\""<<phase<<"\",\"frame\":"<<state.frame<<",\"room\":"<<state.roomIndex<<",\"seed\":"<<state.roomSeed<<",\"player\":["<<state.player.pos.x<<','<<state.player.pos.y<<','<<state.player.pos.z<<"],\"grounded\":"<<(state.player.grounded?"true":"false")<<",\"souls\":"<<state.player.souls<<",\"filled\":"<<countFilled(state)<<",\"required\":"<<state.requiredSouls<<",\"room_clear\":"<<(state.roomClear?"true":"false")<<",\"upgrade\":"<<(state.upgradeMenu.active?"true":"false")<<",\"transition\":"<<(state.doorTransition.active?"true":"false")<<",\"state_digest\":\""<<stateDigest<<"\",\"capture_ok\":"<<(saved?"true":"false")<<"}\n";
         events<<"{\"frame\":"<<state.frame<<",\"event\":\""<<phase<<"\"}\n";
-        std::printf("VERTICAL_SLICE phase=%s frame=%d room=%d pos=(%.2f,%.2f,%.2f) souls=%d objective=%d/%d clear=%d upgrade=%d transition=%d capture=%s\n",phase,state.frame,state.roomIndex,state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.souls,countFilled(state),state.requiredSouls,state.roomClear?1:0,state.upgradeMenu.active?1:0,state.doorTransition.active?1:0,saved?"OK":"FAIL");
+        std::printf("VERTICAL_SLICE phase=%s frame=%d room=%d pos=(%.2f,%.2f,%.2f) souls=%d objective=%d/%d clear=%d upgrade=%d transition=%d digest=%s capture=%s\n",phase,state.frame,state.roomIndex,state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.souls,countFilled(state),state.requiredSouls,state.roomClear?1:0,state.upgradeMenu.active?1:0,state.doorTransition.active?1:0,stateDigest.c_str(),saved?"OK":"FAIL");
     };
     const auto step=[&](float moveZ,bool sprint,bool jump,bool melee,bool vacuum){host.game.setTouchControls(0.0f,moveZ,0.0f,0.0f,vacuum,sprint,jump,melee,false,false);host.game.update(dt);host.audio.update(host.game.state());};
 
@@ -2218,6 +2220,13 @@ int runLightingReplayEvidence(GLFWwindow* window,HostState& host,const std::file
 int main(int argc, char** argv) {
     if (hasArg(argc, argv, "--build-identity-json")) {
         printBuildIdentityJson();
+        return 0;
+    }
+    if (hasArg(argc, argv, "--authoritative-state-digest")) {
+        auto game=std::make_unique<Game>();
+        game->reset();
+        std::printf("AUTHORITATIVE_STATE_DIGEST schema=1 frame=%d digest=%s\n",
+            game->state().frame,dbnet::authoritativeStateDigestHex(game->state()).c_str());
         return 0;
     }
     if (hasArg(argc, argv, "--help") || hasArg(argc, argv, "-h")) {

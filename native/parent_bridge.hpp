@@ -3,6 +3,7 @@
 #include "PhoneDisplayLayout.hpp"
 #include "death_menu_presentation.hpp"
 #include "developer/DeveloperCodec.hpp"
+#include "MultiplayerProtocol.hpp"
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -15,6 +16,9 @@ public:
         game.setTouchControls(x,z,look_x,look_y,vacuum,sprint,jump,melee,shoot,camera);
     }
     void tick() { game.update(1.0f/60.0f); }
+    std::string authoritativeStateDigest() const {
+        return dbnet::authoritativeStateDigestHex(game.state());
+    }
     void setCommSignal(int signal) { game.setCommSignal(signal); }
     void setPaused(bool paused) { game.setUiPaused(paused); }
     void menuMoveSelection(int direction) {
