@@ -9,6 +9,7 @@ func check(condition: bool, message: String) -> void:
 
 func _initialize() -> void:
     var script = load("res://scripts/agent_playtest.gd").new()
+    check(script.SCHEMA == 5, "agent observation schema includes authoritative state identity")
     var parsed: Dictionary = script._parse_command("assert room=2 deposited=5 clear=1 tokens=5 upgrade=1")
     check(not parsed.has("error") and parsed.kind == "assert", "semantic assertion command parses")
     check(int(parsed.expectations.room) == 2 and int(parsed.expectations.deposited) == 5 and

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SCHEMA := 4
+const SCHEMA := 5
 const MAX_STEP_FRAMES := 120
 const MAX_COMMAND_BYTES := 1024
 
@@ -378,8 +378,8 @@ func _observe() -> bool:
     var native_transition: Dictionary = world.runtime.door_transition_presentation_snapshot()
     var godot_transition: Dictionary = presentation.door_transition
     var command_id := "uncommanded" if current_command_sequence < 0 else "cmd-%04d" % current_command_sequence
-    print("AGENT_STATE schema=%d command_id=%s frame=%d room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f camera_pos=%.6f,%.6f,%.6f camera_target=%.6f,%.6f,%.6f camera_fov=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d projectile_id=%s projectile_pos=%.6f,%.6f,%.6f projectile_vel=%.6f,%.6f,%.6f godot_projectile_node=%s godot_projectile_pos=%.6f,%.6f,%.6f projectile_visible=%d projectile_transform_error=%.6f action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d camera_obstruction_fade=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f nearest_node=%s nearest_godot_pos=%.6f,%.6f,%.6f nearest_camera_alpha=%.6f nearest_transform_error=%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f transition_id=%s transition_active=%d transition_progress=%.6f transition_motion=%.6f,%.6f,%.6f transition_visible=%d transition_progress_error=%.6f frame_capture=%d frame_file=\"%s\"" % [
-        SCHEMA, command_id, world.runtime.frame(), int(loop.room_index), int(loop.room_seed),
+    print("AGENT_STATE schema=%d command_id=%s frame=%d state_digest=%s room=%d seed=%d environment=%s/%s heat=%.6f captures=%d deposited=%d required=%d clear=%d tokens=%d upgrade=%d pos=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f camera_pos=%.6f,%.6f,%.6f camera_target=%.6f,%.6f,%.6f camera_fov=%.6f battery=%.6f souls=%d living=%d loose=%d projectiles=%d projectile_id=%s projectile_pos=%.6f,%.6f,%.6f projectile_vel=%.6f,%.6f,%.6f godot_projectile_node=%s godot_projectile_pos=%.6f,%.6f,%.6f projectile_visible=%d projectile_transform_error=%.6f action=%s vacuum=%d vacuum_target=%d vacuum_lock=%.6f loose_commitment=%.6f dead=%d downed=%d grounded=%d first_person=%d camera_obstruction_fade=%d nearest_target=%d nearest_distance=%.6f target_pos=%.6f,%.6f,%.6f nearest_node=%s nearest_godot_pos=%.6f,%.6f,%.6f nearest_camera_alpha=%.6f nearest_transform_error=%.6f target_alive=%d target_slurpable=%d target_armor=%.6f target_health=%.6f target_crack=%.6f target_attack=%d target_attack_phase=%.6f objective=%d objective_pos=%.6f,%.6f,%.6f objective_distance=%.6f transition_id=%s transition_active=%d transition_progress=%.6f transition_motion=%.6f,%.6f,%.6f transition_visible=%d transition_progress_error=%.6f frame_capture=%d frame_file=\"%s\"" % [
+        SCHEMA, command_id, world.runtime.frame(), world.runtime.authoritative_state_digest(), int(loop.room_index), int(loop.room_seed),
         str(loop.setting_name), str(loop.form_name), float(loop.room_heat),
         int(loop.room_captures), int(loop.deposited_souls), int(loop.required_souls),
         int(loop.room_clear), int(loop.tokens), int(loop.upgrade_active),

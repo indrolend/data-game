@@ -1,4 +1,10 @@
-# Agent playtest observation schema
+# Native agent playtest observation schema
+
+This document describes the desktop-native protocol. The Godot-hosted protocol
+is a separate presentation-aware interface emitted by
+`godot/scripts/agent_playtest.gd`. Its schema 5 `AGENT_STATE` record includes
+`state_digest`, the authoritative C++ gameplay digest at the observation tick,
+alongside native/presentation transforms and `frame_file`.
 
 The interactive `--agent-playtest` interface emits one `AGENT_STATE` line and
 one `AGENT_ENEMY` line for every observation. Both lines share `schema` and

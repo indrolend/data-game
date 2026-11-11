@@ -1,0 +1,18 @@
+# Authentic player inputs only: approach, break one shell, and capture its soul.
+observe
+step frames=120 melee=true
+step frames=120 melee=true
+step frames=120 melee=true
+step frames=120 melee=true
+step frames=120 melee=true
+step frames=120 melee=true
+step frames=30 melee=true
+step frames=30 melee=true
+step frames=30 melee=true
+step frames=30 melee=true
+step frames=30 vacuum=true
+step frames=30 vacuum=true
+step frames=30 vacuum=true
+assert souls=1 grounded=1
+observe
+quit
