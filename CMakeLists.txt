@@ -110,8 +110,9 @@ if(DB_BUILD_GODOT_PRESENTATION)
     add_library(DigitalBreakdownGodot SHARED
         native/register_types.cpp
         native/parent_game_node.cpp
+        network/MultiplayerProtocol.cpp
         "${DB_GAME_ROOT}/Game.cpp")
-    target_include_directories(DigitalBreakdownGodot PRIVATE native "${DB_GAME_ROOT}")
+    target_include_directories(DigitalBreakdownGodot PRIVATE native network "${DB_GAME_ROOT}")
     target_compile_features(DigitalBreakdownGodot PRIVATE cxx_std_17)
     target_link_libraries(DigitalBreakdownGodot PRIVATE godot-cpp)
     set_target_properties(DigitalBreakdownGodot PROPERTIES
@@ -533,6 +534,15 @@ target_include_directories(DeterministicInputSoak PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(DeterministicInputSoak PRIVATE cxx_std_17)
 
 add_executable(
+    AuthoritativeStateDigestTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/authoritative_state_digest_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(AuthoritativeStateDigestTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(AuthoritativeStateDigestTest PRIVATE cxx_std_17)
+
+add_executable(
     SecretTvPolicyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/secret_tv_policy_test.cpp"
     "${DB_GAME_ROOT}/Game.cpp"
@@ -605,6 +615,7 @@ add_test(NAME DesktopSaveRecoveryTest COMMAND DigitalBreakdown --save-roundtrip-
 add_test(NAME GameplayFlowProbe COMMAND GameplayFlowProbe)
 add_test(NAME RoomProgressionProbe COMMAND RoomProgressionProbe)
 add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
+add_test(NAME AuthoritativeStateDigestTest COMMAND AuthoritativeStateDigestTest)
 add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
 add_test(NAME SignalResidueLifecycleTest COMMAND SignalResidueLifecycleTest)
 

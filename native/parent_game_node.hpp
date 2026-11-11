@@ -24,6 +24,7 @@ public:
     void submit_input(float x,float z,float look_x,float look_y,bool vacuum,bool sprint,
                       bool jump,bool melee,bool shoot,bool camera);
     void tick();
+    String authoritative_state_digest() const;
     void set_comm_signal(int signal);
     void set_paused(bool paused);
     void menu_move_selection(int direction);

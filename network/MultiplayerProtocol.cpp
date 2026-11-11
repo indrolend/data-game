@@ -962,6 +962,18 @@ std::uint64_t visualStateHash(const WorldSnapshot& s){
   return h.value;
 }
 
+std::uint64_t authoritativeStateDigest(const GameState& state){
+  return authoritativeStateHash(captureWorld(
+      state,capturePlayers(state),static_cast<std::uint32_t>(std::max(0,state.frame))));
+}
+
+std::string authoritativeStateDigestHex(const GameState& state){
+  char text[17]{};
+  std::snprintf(text,sizeof(text),"%016llx",
+      static_cast<unsigned long long>(authoritativeStateDigest(state)));
+  return text;
+}
+
 void SnapshotInterpolator::reset(){
   previous_=TimedSnapshot{};current_=TimedSnapshot{};hasPrevious_=hasCurrent_=false;
 }

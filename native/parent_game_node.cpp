@@ -126,11 +126,15 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("comm_signal_timer"),&ParentGameNode::comm_signal_timer);
     ClassDB::bind_method(D_METHOD("paused"),&ParentGameNode::paused);
     ClassDB::bind_method(D_METHOD("simulation_time"),&ParentGameNode::simulation_time);
+    ClassDB::bind_method(D_METHOD("authoritative_state_digest"),&ParentGameNode::authoritative_state_digest);
 }
 void ParentGameNode::submit_input(float x,float z,float lx,float ly,bool vacuum,bool sprint,bool jump,bool melee,bool shoot,bool camera){
     bridge.input(x,z,lx,ly,vacuum,sprint,jump,melee,shoot,camera);
 }
 void ParentGameNode::tick(){bridge.tick();}
+String ParentGameNode::authoritative_state_digest() const {
+    return String::utf8(bridge.authoritativeStateDigest().c_str());
+}
 void ParentGameNode::set_comm_signal(int signal){bridge.setCommSignal(signal);}
 void ParentGameNode::set_paused(bool paused){bridge.setPaused(paused);}
 void ParentGameNode::menu_move_selection(int direction){bridge.menuMoveSelection(direction);}
