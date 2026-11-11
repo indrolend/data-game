@@ -431,6 +431,7 @@ void Game::reset() {
     auto freshState=std::make_unique<GameState>();
     state_ = std::move(*freshState);
     enemyRuntime_=std::make_unique<EnemyRuntimePool>();
+    particleAllocationTelemetry_=ParticleAllocationTelemetry{};
     state_.progression.permanent=permanent;
     state_.localSettings=localSettings;
     state_.localSettings.menuPage=LocalMenuPage::Main;
@@ -954,8 +955,7 @@ void Game::updateFlowerPowerups(float dt) {
 
 void Game::spawnParticleBurst(const Vec3& position,ParticleMaterial material) {
     for(int n=0;n<22;++n) {
-        ParticleState& particle=state_.particles[state_.nextParticle];
-        state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+        ParticleState& particle=allocateParticle();
         const float life=0.55f+nextFlowerRandom()*0.35f;
         particle=ParticleState{}; particle.pos=position; particle.material=material;
         particle.vel={(nextFlowerRandom()-0.5f)*5.0f,nextFlowerRandom()*4.0f,(nextFlowerRandom()-0.5f)*5.0f};
@@ -965,8 +965,7 @@ void Game::spawnParticleBurst(const Vec3& position,ParticleMaterial material) {
 
 void Game::spawnSignalResidue(const Vec3& position) {
     for(int n=0;n<signal_residue::FragmentCount;++n) {
-        ParticleState& particle=state_.particles[state_.nextParticle];
-        state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+        ParticleState& particle=allocateParticle();
         const float angle=nextFlowerRandom()*DB_PI*2.0f;
         const float radial=0.65f+nextFlowerRandom()*1.75f;
         particle=ParticleState{};
@@ -982,7 +981,7 @@ void Game::spawnSignalResidue(const Vec3& position) {
 void Game::spawnFlameBurst(const Vec3& position,float strength) {
     const int count=static_cast<int>(36.0f*clampf(strength,0.7f,2.2f));
     for(int n=0;n<count;++n) {
-        ParticleState& particle=state_.particles[state_.nextParticle]; state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+        ParticleState& particle=allocateParticle();
         const float angle=nextFlowerRandom()*DB_PI*2.0f,radial=1.2f+nextFlowerRandom()*5.4f*strength,life=0.42f+nextFlowerRandom()*0.32f;
         particle=ParticleState{}; particle.pos=position+Vec3{0,0.06f,0}; particle.material=ParticleMaterial::Impact;
         particle.vel={std::cos(angle)*radial,2.4f+nextFlowerRandom()*5.0f*strength,std::sin(angle)*radial}; particle.life=life; particle.maxLife=life;
@@ -995,7 +994,7 @@ void Game::spawnShellShatter(const TargetState& target) {
     unsigned int visualSeed=0x91E10DA5u^static_cast<unsigned int>((target.pos.x+32.0f)*997.0f)^static_cast<unsigned int>((target.pos.z+64.0f)*619.0f);
     const auto visualRandom=[&](){visualSeed=visualSeed*1664525u+1013904223u;return static_cast<float>((visualSeed>>8)&0x00ffffffu)/16777216.0f;};
     for(int n=0;n<count;++n){
-        ParticleState& particle=state_.particles[state_.nextParticle];state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+        ParticleState& particle=allocateParticle();
         const float angle=visualRandom()*DB_PI*2.0f;
         const float height=0.08f+visualRandom()*bodyHeight*0.90f;
         const float bodyWidth=(height>bodyHeight*0.68f?0.16f:0.25f)*target.scale;
@@ -1008,6 +1007,17 @@ void Game::spawnShellShatter(const TargetState& target) {
         particle.vel={std::cos(angle)*radial,0.45f+visualRandom()*2.25f,std::sin(angle)*radial};
         particle.life=life;particle.maxLife=life;
     }
+}
+
+ParticleState& Game::allocateParticle() {
+    ParticleState& particle=state_.particles[state_.nextParticle];
+    ++particleAllocationTelemetry_.allocations;
+    if(particle.life>0.0f){
+        ++particleAllocationTelemetry_.liveOverwrites;
+        if(particle.material==ParticleMaterial::SignalResidue)++particleAllocationTelemetry_.signalResidueOverwrites;
+    }
+    state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+    return particle;
 }
 
 void Game::updateParticles(float dt) {
@@ -2558,8 +2568,7 @@ void Game::updatePlayer(float dt) {
         const Vec3 travel=p.vel*(1.0f/std::max(0.001f,horizontalLength(p.vel)));
         const Vec3 right{travel.z,0.0f,-travel.x};
         for(float side:{-1.0f,1.0f}){
-            ParticleState& scrape=state_.particles[state_.nextParticle];
-            state_.nextParticle=(state_.nextParticle+1)%PARTICLE_COUNT;
+            ParticleState& scrape=allocateParticle();
             scrape=ParticleState{};
             scrape.material=ParticleMaterial::Environment;
             scrape.pos=p.pos-travel*0.24f+right*(side*0.15f)+Vec3{0,0.025f,0};

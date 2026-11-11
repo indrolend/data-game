@@ -1332,7 +1332,8 @@ int runCombatRenderStress(GLFWwindow* window,HostState& host){
     const double captureLate=std::accumulate(captureAverage.end()-3,captureAverage.end(),0.0)/3.0;
     const double respawnEarly=std::accumulate(respawnAverage.begin(),respawnAverage.begin()+3,0.0)/3.0;
     const double respawnLate=std::accumulate(respawnAverage.end()-3,respawnAverage.end(),0.0)/3.0;
-    std::printf("COMBAT_RENDER_STRESS_OK cycles=%d capture_early=%.3f capture_late=%.3f capture_ratio=%.3f settled_early=%.3f settled_late=%.3f settled_ratio=%.3f peak_particles=%d peak_fragments=%d peak_souls=%d\n",cycles,captureEarly,captureLate,captureEarly>0?captureLate/captureEarly:0,respawnEarly,respawnLate,respawnEarly>0?respawnLate/respawnEarly:0,peakParticles,peakFragments,peakSouls);
+    const auto particleTelemetry=host.game.particleAllocationTelemetry();
+    std::printf("COMBAT_RENDER_STRESS_OK cycles=%d capture_early=%.3f capture_late=%.3f capture_ratio=%.3f settled_early=%.3f settled_late=%.3f settled_ratio=%.3f peak_particles=%d peak_fragments=%d peak_souls=%d particle_allocations=%llu live_overwrites=%llu residue_overwrites=%llu\n",cycles,captureEarly,captureLate,captureEarly>0?captureLate/captureEarly:0,respawnEarly,respawnLate,respawnEarly>0?respawnLate/respawnEarly:0,peakParticles,peakFragments,peakSouls,static_cast<unsigned long long>(particleTelemetry.allocations),static_cast<unsigned long long>(particleTelemetry.liveOverwrites),static_cast<unsigned long long>(particleTelemetry.signalResidueOverwrites));
     constexpr std::array<int,3> displayedSoulCounts{{0,5,10}};
     std::array<std::vector<double>,displayedSoulCounts.size()> inventorySamples;
     const GameState stableState=host.game.state();
@@ -1421,7 +1422,8 @@ int runCombatCrowdStress(GLFWwindow* window,HostState& host){
     host.renderer.resize(originalWidth,originalHeight);
     for(std::size_t scaleIndex=0;scaleIndex<resolutionScales.size();++scaleIndex){const auto stats=RuntimePerfTrace::stats(resolutionSamples[scaleIndex]);std::printf("COMBAT_CROWD_RESOLUTION scale=%.2f width=%d height=%d render_avg=%.3f render_p95=%.3f render_max=%.3f\n",resolutionScales[scaleIndex],std::max(1,static_cast<int>(originalWidth*resolutionScales[scaleIndex])),std::max(1,static_cast<int>(originalHeight*resolutionScales[scaleIndex])),stats.average,stats.p95,stats.maximum);}
     const auto audioStats=RuntimePerfTrace::stats(audioSamples);std::printf("COMBAT_CROWD_AUDIO samples=%zu update_avg=%.3f update_p95=%.3f update_max=%.3f\n",audioSamples.size(),audioStats.average,audioStats.p95,audioStats.maximum);
-    std::printf("COMBAT_CROWD_STRESS_OK waves=%d enemies=%d wave_early=%.3f wave_late=%.3f wave_ratio=%.3f snapshot_early=%.3f snapshot_late=%.3f snapshot_ratio=%.3f peak_particles=%d peak_fragments=%d peak_souls=%d\n",waves,crowd,waveEarly,waveLate,waveEarly>0?waveLate/waveEarly:0,early.average,late.average,early.average>0?late.average/early.average:0,peakParticles,peakFragments,peakSouls);return 0;
+    const auto particleTelemetry=host.game.particleAllocationTelemetry();
+    std::printf("COMBAT_CROWD_STRESS_OK waves=%d enemies=%d wave_early=%.3f wave_late=%.3f wave_ratio=%.3f snapshot_early=%.3f snapshot_late=%.3f snapshot_ratio=%.3f peak_particles=%d peak_fragments=%d peak_souls=%d particle_allocations=%llu live_overwrites=%llu residue_overwrites=%llu\n",waves,crowd,waveEarly,waveLate,waveEarly>0?waveLate/waveEarly:0,early.average,late.average,early.average>0?late.average/early.average:0,peakParticles,peakFragments,peakSouls,static_cast<unsigned long long>(particleTelemetry.allocations),static_cast<unsigned long long>(particleTelemetry.liveOverwrites),static_cast<unsigned long long>(particleTelemetry.signalResidueOverwrites));return 0;
 }
 
 void printUsage() {

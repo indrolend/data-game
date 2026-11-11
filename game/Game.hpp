@@ -790,6 +790,12 @@ struct GameState {
 struct HostRemotePeerSimulationIsolationAccess;
 struct SoulProjectileLifecycleAccess;
 
+struct ParticleAllocationTelemetry {
+    std::uint64_t allocations = 0;
+    std::uint64_t liveOverwrites = 0;
+    std::uint64_t signalResidueOverwrites = 0;
+};
+
 class Game {
 public:
     void reset();
@@ -857,6 +863,7 @@ public:
     const std::array<gameplay::EnemyMotorMemory,TARGET_COUNT>& enemyMotors() const;
     const std::array<gameplay::EnemyMotorOutput,TARGET_COUNT>& enemyMotorOutputs() const;
     void setEnemyMotorExpressionEnabled(bool enabled) { enemyMotorExpressionEnabled_=enabled; }
+    const ParticleAllocationTelemetry& particleAllocationTelemetry() const { return particleAllocationTelemetry_; }
 
 private:
     friend struct HostRemotePeerSimulationIsolationAccess;
@@ -876,6 +883,7 @@ private:
     };
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
     bool enemyMotorExpressionEnabled_ = true;
+    ParticleAllocationTelemetry particleAllocationTelemetry_;
     EnemyRuntimePool& enemyRuntime();
 
     void resetRoom();
@@ -930,6 +938,7 @@ private:
     void updateFlowerPowerups(float dt);
     void refreshRoomInspectorReport(bool seedSelectionValid=true);
     void updateParticles(float dt);
+    ParticleState& allocateParticle();
     void spawnParticleBurst(const Vec3& position, ParticleMaterial material);
     void spawnSignalResidue(const Vec3& position);
     void spawnFlameBurst(const Vec3& position, float strength);
