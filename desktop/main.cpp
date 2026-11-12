@@ -6,6 +6,8 @@
 #include "DeveloperCodec.hpp"
 #include "AgentPlaytestProtocol.hpp"
 #include "LightingControlCommand.hpp"
+#include "ShadowControlCommand.hpp"
+#include "EnvironmentControlCommand.hpp"
 #include "BuildIdentity.hpp"
 #include "MenuNavigation.hpp"
 #include "ControllerRumble.hpp"
@@ -972,7 +974,7 @@ void executeDeveloperCodec(HostState& host){
     const auto parsed=parseDeveloperCodecCommand(input);
     const auto invalid=[&](){host.codec.write(parsed.recognizedVerb?"INVALID ARGUMENTS":"UNKNOWN COMMAND");host.codec.write("type: help");};
     switch(parsed.command){
-        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");host.codec.write("lighting show/reset/export | reference a/b | set/clear | input");break;
+        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");host.codec.write("environment show/catalog/premise/seed/next/reroll");host.codec.write("lighting show/reset/export | reference a/b | set/clear | input");host.codec.write("shadow show/reset | mode | strength | resolution | bias | coverage");host.codec.write("shadow depth-map on/off | geometry on/off");break;
         case DeveloperCodecCommand::State:{
             const auto& state=host.game.state();const auto& build=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
             host.codec.write("build "+build.commitShort+"  version "+build.humanVersion);
@@ -1012,6 +1014,37 @@ void executeDeveloperCodec(HostState& host){
             }else{
                 host.codec.write("LIGHTING UPDATED");
             }
+            break;
+        }
+        case DeveloperCodecCommand::Shadow:{
+            const auto command=parseShadowCommand(input);auto& control=host.renderer.shadowControl();const auto& observed=host.renderer.lastShadowObservation();
+            if(command.kind==ShadowCommandKind::Show){
+                std::ostringstream line;line<<"mode "<<shadowModeName(control.mode)<<" requested "<<shadowQualityName(observed.requested)<<" active "<<shadowQualityName(observed.effective);host.codec.write(line.str());
+                line.str("");line.clear();line<<"mapped "<<(observed.mappedReady?"ready":"not-ready")<<" supported "<<(observed.supported?"yes":"no")<<" directional "<<(observed.directional?"yes":"no");host.codec.write(line.str());
+                line.str("");line.clear();line<<"strength "<<std::fixed<<std::setprecision(2)<<observed.strength<<" resolution "<<observed.resolution<<" coverage "<<observed.coverage;host.codec.write(line.str());
+                line.str("");line.clear();line<<"bias "<<observed.biasFactor<<' '<<observed.biasUnits<<" depth-map "<<(control.showDepthMap?"on":"off")<<" geometry "<<(control.geometryOnly?"on":"off");host.codec.write(line.str());
+            }else if(command.kind==ShadowCommandKind::Invalid||!applyShadowCommand(control,command)){
+                host.codec.write("INVALID SHADOW COMMAND");host.codec.write("shadow mode auto/off/cheap/normal/pretty");host.codec.write("shadow strength N | resolution 0/256/512/1024/2048/4096");host.codec.write("shadow bias FACTOR UNITS | coverage N");host.codec.write("shadow depth-map on/off | geometry on/off");
+            }else host.codec.write("SHADOW UPDATED");
+            break;
+        }
+        case DeveloperCodecCommand::Environment:{
+            const auto command=parseEnvironmentCommand(input);
+            if(command.kind==EnvironmentCommandKind::Show){
+                const auto& state=host.game.state();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);const auto geometry=room_environment::roomGeometryCapacityPlan(plan,state.roomSeed,state.roomIndex,ROOM_COLLIDER_COUNT);
+                host.codec.write("room "+std::to_string(state.roomIndex)+" seed "+std::to_string(state.roomSeed));
+                host.codec.write(std::string(room_environment::settingName(plan.setting))+" / "+room_environment::formName(plan.form)+" / "+room_environment::scaleName(plan.scale)+" / "+room_environment::conditionName(plan.condition));
+                host.codec.write(std::string("intent ")+room_environment::traversalIntentName(plan.traversalIntent)+" obstacles "+std::to_string(plan.obstacleCount)+" props "+std::to_string(room_environment::selectedEnvironmentPropCount(plan,geometry)));
+                host.codec.write(std::string("inspector ")+(state.roomInspector?room_environment::premiseName(state.roomInspectorPremise):"off")+" enemies "+(state.roomInspectorEnemies?"on":"off"));
+            }else if(command.kind==EnvironmentCommandKind::Catalog){
+                host.codec.write("0 field-open | 1 city-corridor");host.codec.write("2 city-courtyard | 3 city-canyon");host.codec.write("4 city-skyline | 5 sterile-corridor");host.codec.write("6 sterile-chamber | 7 coastal-shore");
+            }else if(command.kind==EnvironmentCommandKind::Premise){
+                host.game.debugStartRoomInspector();host.game.debugStepRoomInspector(command.premise,false);host.codec.write(std::string("ENVIRONMENT ")+room_environment::premiseName(host.game.state().roomInspectorPremise));
+            }else if(command.kind==EnvironmentCommandKind::Seed){
+                host.game.debugStartGeneratedRoomFixture(command.seed,command.room);host.codec.write("ENVIRONMENT SEED "+std::to_string(command.seed)+" ROOM "+std::to_string(command.room));
+            }else if(command.kind==EnvironmentCommandKind::Next){host.game.debugNextRoom();host.codec.write("ENVIRONMENT NEXT");
+            }else if(command.kind==EnvironmentCommandKind::Reroll){host.game.debugRerollRoom();host.codec.write("ENVIRONMENT REROLLED");}
+            else{host.codec.write("INVALID ENVIRONMENT COMMAND");host.codec.write("environment show | catalog | premise NAME/0..7");host.codec.write("environment seed SEED [ROOM] | next | reroll");}
             break;
         }
         default:invalid();break;
@@ -1473,6 +1506,7 @@ void printUsage() {
     std::printf("  --capture-room-seed N --capture-room-index N  Start a generated room fixture before capturing.\n");
     std::printf("  --capture-graphics-preset N  Override fixture quality (0 low, 1 normal, 2 pretty).\n");
     std::printf("  --capture-shadows N  Override fixture shadows (0 disabled, 1 enabled).\n");
+    std::printf("  --shadow-command \"shadow ...\"  Apply a runtime shadow control command before capture; repeatable.\n");
     std::printf("  --capture-lifetime-rooms N --capture-best-room N  Set cosmetic accomplishment state for fixture captures.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
@@ -2281,6 +2315,10 @@ int main(int argc, char** argv) {
     const bool machineLightingProvided=lightingControlState||!lightingCommands.empty();
     if(lightingControlState){std::ifstream input(lightingControlState);std::ostringstream encoded;encoded<<input.rdbuf();if(!input||!deserializeLightingControl(encoded.str(),machineLightingControl)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_state path=%s\n",lightingControlState);return 4;}}
     for(const auto& text:lightingCommands){const auto command=parseLightingCommand(text);if(!applyLightingCommand(machineLightingControl,command)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
+    const auto shadowCommands=argValues(argc,argv,"--shadow-command");
+    render_contract::RuntimeShadowControl machineShadowControl;
+    const bool machineShadowProvided=!shadowCommands.empty();
+    for(const auto& text:shadowCommands){const auto command=parseShadowCommand(text);if(!applyShadowCommand(machineShadowControl,command)){std::fprintf(stderr,"SHADOW_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
     const bool agentPlaytest=hasArg(argc,argv,"--agent-playtest");
     const char* agentFrame=argValue(argc,argv,"--agent-frame");
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
@@ -2404,6 +2442,7 @@ int main(int argc, char** argv) {
 
     HostState host;
     if(machineLightingProvided){host.renderer.setLightingControl(machineLightingControl);std::printf("LIGHTING_CONTROL=APPLIED %s\n",serializeLightingControl(machineLightingControl).c_str());}
+    if(machineShadowProvided){host.renderer.shadowControl()=machineShadowControl;std::printf("SHADOW_CONTROL=APPLIED mode=%s strength=%.3f resolution=%d bias=%.3f,%.3f coverage=%.3f depth_map=%d geometry=%d\n",shadowModeName(machineShadowControl.mode),machineShadowControl.strengthScale,machineShadowControl.resolution,machineShadowControl.biasFactor,machineShadowControl.biasUnits,machineShadowControl.coverageScale,machineShadowControl.showDepthMap?1:0,machineShadowControl.geometryOnly?1:0);}
     host.playtestPolicy=playtestPolicy;
     if(automationPlaytest)host.automationCaptureDelayFrames=1;
     host.progressionPath=progressionSavePath();
@@ -3051,6 +3090,8 @@ int main(int argc, char** argv) {
         if(capturePath&&++captureFrames>=stillCaptureFrames){
             const bool attractRunning=!captureStart||(host.game.state().attractMode&&!host.game.state().uiPaused);
             const bool captured=attractRunning&&captureFramebuffer(capturePath,framebufferWidth,framebufferHeight);
+            const auto& shadow=host.renderer.lastShadowObservation();
+            std::printf("SHADOW_OBSERVATION requested=%s effective=%s mapped_ready=%d supported=%d directional=%d resolution=%d strength=%.4f coverage=%.4f cheap_ground=%d\n",shadowQualityName(shadow.requested),shadowQualityName(shadow.effective),shadow.mappedReady?1:0,shadow.supported?1:0,shadow.directional?1:0,shadow.resolution,shadow.strength,shadow.coverage,render_contract::usesProceduralGroundShadows(shadow.effective)?1:0);
             std::printf("CAPTURE_FRAME_%s %s\n",captured?"OK":"FAILED",capturePath);
             glfwSetWindowShouldClose(window,GLFW_TRUE);
         }

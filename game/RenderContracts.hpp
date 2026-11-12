@@ -10,12 +10,36 @@ namespace render_contract {
 enum class ShadingModel : unsigned char { Unlit, ColorGraded, NormalLit };
 enum class TextureId : unsigned char { None, FieldGrass, CityAsphalt };
 enum class ShadowQuality : unsigned char { Off, Cheap, MappedNormal, MappedPretty };
+enum class ShadowMode : unsigned char { Automatic, Off, Cheap, MappedNormal, MappedPretty };
+
+struct RuntimeShadowControl {
+    ShadowMode mode=ShadowMode::Automatic;
+    float strengthScale=1.0f;
+    int resolution=0;
+    float biasFactor=2.0f;
+    float biasUnits=4.0f;
+    float coverageScale=1.0f;
+    bool showDepthMap=false;
+    bool geometryOnly=false;
+};
 
 constexpr ShadowQuality shadowQualityFor(int graphicsPreset,bool shadowsEnabled,bool directionalSupported){
     if(!shadowsEnabled)return ShadowQuality::Off;
     if(!directionalSupported||graphicsPreset<=0)return ShadowQuality::Cheap;
     return graphicsPreset>=2?ShadowQuality::MappedPretty:ShadowQuality::MappedNormal;
 }
+
+constexpr ShadowQuality resolveShadowQuality(const RuntimeShadowControl& control,int graphicsPreset,bool shadowsEnabled,bool directionalSupported){
+    switch(control.mode){
+        case ShadowMode::Off:return ShadowQuality::Off;
+        case ShadowMode::Cheap:return ShadowQuality::Cheap;
+        case ShadowMode::MappedNormal:return ShadowQuality::MappedNormal;
+        case ShadowMode::MappedPretty:return ShadowQuality::MappedPretty;
+        case ShadowMode::Automatic:break;
+    }
+    return shadowQualityFor(graphicsPreset,shadowsEnabled,directionalSupported);
+}
+constexpr bool usesProceduralGroundShadows(ShadowQuality quality){return quality==ShadowQuality::Cheap;}
 
 constexpr int shadowMapResolution(ShadowQuality quality){
     return quality==ShadowQuality::MappedPretty?2048:(quality==ShadowQuality::MappedNormal?1024:0);
