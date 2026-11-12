@@ -555,6 +555,20 @@ target_include_directories(DataEngineReference PRIVATE
 target_compile_features(DataEngineReference PRIVATE cxx_std_17)
 
 add_executable(
+    DataEngineTransitionBenchmark
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/transition_benchmark.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/DataEngine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(DataEngineTransitionBenchmark PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine" "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(DataEngineTransitionBenchmark PRIVATE cxx_std_17)
+if(WIN32)
+    target_link_libraries(DataEngineTransitionBenchmark PRIVATE psapi)
+endif()
+
+add_executable(
     DataEngineReferenceTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/data_engine_reference_test.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/engine/DataEngine.cpp"
