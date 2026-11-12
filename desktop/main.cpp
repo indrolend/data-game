@@ -972,7 +972,7 @@ void executeDeveloperCodec(HostState& host){
     const auto parsed=parseDeveloperCodecCommand(input);
     const auto invalid=[&](){host.codec.write(parsed.recognizedVerb?"INVALID ARGUMENTS":"UNKNOWN COMMAND");host.codec.write("type: help");};
     switch(parsed.command){
-        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");break;
+        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");host.codec.write("lighting show/reset/export | reference a/b | set/clear | input");break;
         case DeveloperCodecCommand::State:{
             const auto& state=host.game.state();const auto& build=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
             host.codec.write("build "+build.commitShort+"  version "+build.humanVersion);
