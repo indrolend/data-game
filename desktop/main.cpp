@@ -993,6 +993,27 @@ void executeDeveloperCodec(HostState& host){
         case DeveloperCodecCommand::PlaytestRally:host.game.debugStartRallyLab();host.codec.write("PLAYTEST RALLY");break;
         case DeveloperCodecCommand::PlaytestTraversal:host.game.debugStartTraversalLab();host.codec.write("PLAYTEST TRAVERSAL");break;
         case DeveloperCodecCommand::PlaytestRooms:host.game.debugStartRoomInspector();host.codec.write("PLAYTEST ROOMS");break;
+        case DeveloperCodecCommand::Lighting:{
+            const auto command=parseLightingCommand(input);
+            auto& control=host.renderer.lightingControl();
+            if(command.kind==LightingCommandKind::Show){
+                host.codec.write(std::string("reference ")+(control.reference==render_contract::AtmosphereProfile::ProgressiveCandidate?"progressive":"readable"));
+                host.codec.write("overrides "+std::to_string(control.overrideMask));
+                host.codec.write(std::string("inputs time=")+(control.timeFixed?"fixed":"live")+
+                    " room="+(control.roomFixed?"fixed":"live")+" phone="+(control.phoneFixed?"fixed":"live"));
+            }else if(command.kind==LightingCommandKind::Export){
+                host.codec.write(serializeLightingControl(control));
+            }else if(command.kind==LightingCommandKind::Invalid||!applyLightingCommand(control,command)){
+                host.codec.write("INVALID LIGHTING COMMAND");
+                host.codec.write("lighting show | reset | reference a/b");
+                host.codec.write("lighting set CHANNEL R G B | clear CHANNEL");
+                host.codec.write("lighting set fog-density VALUE");
+                host.codec.write("lighting input time/room/phone VALUE/live");
+            }else{
+                host.codec.write("LIGHTING UPDATED");
+            }
+            break;
+        }
         default:invalid();break;
     }
     host.codec.input.clear();
