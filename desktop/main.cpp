@@ -1518,6 +1518,7 @@ void printUsage() {
     std::printf("  --perf-trace FILE   Record one-second runtime performance summaries as CSV.\n");
     std::printf("  --evidence-scenario NAME --evidence-output DIR  Run a deterministic visual/runtime evidence scenario.\n");
     std::printf("  --evidence-scenario lighting-replay  Fixed-dt scripted gameplay replay with per-frame lighting snapshots (honors --lighting-command).\n");
+    std::printf("  --evidence-scenario shadow-rotation  Presentation-only camera orbit with capability and cost observations.\n");
     std::printf("  --evidence-scenario vertical-slice  Traversal, combat, soul capture, objective, transition, and next-room proof.\n");
     std::printf("  --lighting-replay-selfcheck  Run the lighting replay twice headlessly and compare state hashes.\n");
     std::printf("  --net-latency-ms N --net-jitter-ms N  Enable explicit deterministic network impairment.\n");
@@ -1967,6 +1968,22 @@ int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::files
     return passed?0:5;
 }
 
+int runShadowRotationEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    const auto manifestPath=outputDirectory/"manifest.json";if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"video",error);if(error)return 4;
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),assertions(outputDirectory/"assertions.json",std::ios::trunc);if(!timeline||!assertions)return 4;
+    host.renderer.setHudVisible(false);const GameState authoritative=host.game.state();const std::string digest=dbnet::authoritativeStateDigestHex(authoritative);constexpr int frameCount=31;std::uint64_t projectionHash=0;bool projectionStable=true,captureOk=true;double costTotal=0,costMaximum=0;
+    const Vec3 target=authoritative.player.pos+Vec3{0,0.72f,0};const Vec3 initialOffset=authoritative.camera.pos-target;const float radius=std::max(0.5f,std::sqrt(initialOffset.x*initialOffset.x+initialOffset.z*initialOffset.z));const float baseAngle=std::atan2(initialOffset.x,initialOffset.z);
+    for(int frame=0;frame<frameCount;++frame){GameState render=authoritative;const float fraction=static_cast<float>(frame)/static_cast<float>(frameCount-1),angle=baseAngle-0.72f+fraction*1.44f;render.camera.yaw=angle;render.camera.pos={target.x+std::sin(angle)*radius,authoritative.camera.pos.y,target.z+std::cos(angle)*radius};render.camera.lookTarget=target;render.camera.forward=normalized(target-render.camera.pos);
+        const auto begin=std::chrono::steady_clock::now();host.renderer.draw(render);glFinish();const auto end=std::chrono::steady_clock::now();const double cost=std::chrono::duration<double,std::milli>(end-begin).count();costTotal+=cost;costMaximum=std::max(costMaximum,cost);const auto& observed=host.renderer.lastShadowObservation();if(frame==0)projectionHash=observed.projectionHash;else projectionStable&=observed.projectionHash==projectionHash;
+        char name[64]{};std::snprintf(name,sizeof(name),"frame-%04d.ppm",frame);captureOk&=captureFramebuffer(outputDirectory/"frames"/"video"/name,width,height);glfwSwapBuffers(window);glfwPollEvents();const bool activated=observed.effective!=render_contract::ShadowQuality::Off&&(!observed.mappedRequested||observed.mappedReady);
+        timeline<<std::fixed<<std::setprecision(6)<<"{\"frame\":"<<frame<<",\"camera_yaw\":"<<angle<<",\"player_pos\":["<<authoritative.player.pos.x<<','<<authoritative.player.pos.y<<','<<authoritative.player.pos.z<<"],\"authoritative_digest\":\""<<digest<<"\",\"requested\":\""<<shadowQualityName(observed.requested)<<"\",\"effective\":\""<<shadowQualityName(observed.effective)<<"\",\"observed\":"<<(activated?"true":"false")<<",\"projection_hash\":\""<<std::hex<<std::setw(16)<<std::setfill('0')<<observed.projectionHash<<std::dec<<std::setfill(' ')<<"\",\"cost_ms\":"<<cost<<",\"frame_file\":\"frames/video/"<<name<<"\"}\n";
+        std::printf("CAPABILITY_OBSERVATION schema=1 frame=%d requested=%s effective=%s observed=%d projection_hash=%016llx cost_ms=%.4f authoritative_digest=%s\n",frame,shadowQualityName(observed.requested),shadowQualityName(observed.effective),activated?1:0,static_cast<unsigned long long>(observed.projectionHash),cost,digest.c_str());}
+    const bool authoritativeUnchanged=digest==dbnet::authoritativeStateDigestHex(host.game.state());const bool passed=captureOk&&projectionStable&&authoritativeUnchanged;assertions<<"{\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"authoritative_state_unchanged\": "<<(authoritativeUnchanged?"true":"false")<<",\n  \"projection_stable\": "<<(projectionStable?"true":"false")<<",\n  \"frame_count\": "<<frameCount<<",\n  \"render_average_ms\": "<<(costTotal/frameCount)<<",\n  \"render_maximum_ms\": "<<costMaximum<<"\n}\n";
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 1,\n  \"scenario\": \"shadow-rotation\",\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"authoritative_digest\": \""<<digest<<"\",\n  \"frames\": "<<frameCount<<",\n  \"projection_stable\": "<<(projectionStable?"true":"false")<<",\n  \"render_average_ms\": "<<(costTotal/frameCount)<<",\n  \"render_maximum_ms\": "<<costMaximum<<",\n  \"timeline\": \"timeline.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"*.ppm\", \"frame_rate\": 10}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=shadow-rotation frames=%d projection_stable=%d average_ms=%.4f maximum_ms=%.4f\n",passed?"PASS":"FAIL",frameCount,projectionStable?1:0,costTotal/frameCount,costMaximum);return passed?0:5;
+}
+
 int runModelTest(const std::filesystem::path& root) {
     HumanModelData human;StaticModelData phone,flower;
     if(!human.load((root/"models"/"human.dbhuman").string())||!phone.load((root/"models"/"phone.dbmesh").string())||!flower.load((root/"models"/"flower.dbmesh").string())){std::fprintf(stderr,"MODEL_TEST_FAILED load\n");return 1;}
@@ -2353,7 +2370,7 @@ int main(int argc, char** argv) {
     const int captureBestRoom=argInt(argc,argv,"--capture-best-room",0);
     const float capturePlayerX=argFloat(argc,argv,"--capture-player-x",std::numeric_limits<float>::quiet_NaN());
     const float capturePlayerZ=argFloat(argc,argv,"--capture-player-z",std::numeric_limits<float>::quiet_NaN());
-    const bool captureGeneratedRoom=capturePath&&captureRoomSeed>=0&&captureRoomIndex>=1;
+    const bool captureGeneratedRoom=(capturePath||agentPlaytest||evidenceScenario)&&captureRoomSeed>=0&&captureRoomIndex>=1;
     const bool isolatedPersistence=isolatesPersistentSave({
         evidenceScenario!=nullptr,
         agentPlaytest,
@@ -2640,6 +2657,7 @@ int main(int argc, char** argv) {
         else if(std::strcmp(evidenceScenario,"enemy-obstruction")==0)result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
         else if(std::strcmp(evidenceScenario,"lighting-replay")==0)result=runLightingReplayEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"shadow-rotation")==0)result=runShadowRotationEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"soul-lifecycle")==0)result=runSoulLifecycleEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"vertical-slice")==0)result=runVerticalSliceEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);

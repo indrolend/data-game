@@ -1526,6 +1526,7 @@ bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_light
     glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_LIGHTING);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(shadowControl_.biasFactor,shadowControl_.biasUnits);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(-coverage,coverage,-coverage,coverage,1.0f,110.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
     glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(eye,center,{0,1,0});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
+    float lightProjection[16];multiplyMatrix(shadowProjection_,shadowView_,lightProjection);shadowProjectionHash_=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,lightProjection,sizeof(lightProjection));
     drawShadowGeometry(state,response,quality);
     glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
 }
@@ -2270,7 +2271,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(mappedRequested&&!mappedReady)shadowQuality=shadowControl_.mode==render_contract::ShadowMode::Automatic?(state.localSettings.shadows?render_contract::ShadowQuality::Cheap:render_contract::ShadowQuality::Off):render_contract::ShadowQuality::Off;
     frameShadowQuality_=shadowQuality;
     const float mappedStrength=(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f)*resolvedSun.daylight*shadowControl_.strengthScale;
-    shadowObservation_={requestedShadowQuality,shadowQuality,mappedRequested,mappedReady,resolvedSun.castsDirectionalShadows,shadowMapSupported_,mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0,mappedReady?mappedStrength:0.0f,mappedRequested?render_contract::shadowCoverage(requestedShadowQuality)*shadowControl_.coverageScale:0.0f,shadowControl_.biasFactor,shadowControl_.biasUnits};
+    shadowObservation_={requestedShadowQuality,shadowQuality,mappedRequested,mappedReady,resolvedSun.castsDirectionalShadows,shadowMapSupported_,mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0,mappedReady?mappedStrength:0.0f,mappedRequested?render_contract::shadowCoverage(requestedShadowQuality)*shadowControl_.coverageScale:0.0f,shadowControl_.biasFactor,shadowControl_.biasUnits,mappedReady?shadowProjectionHash_:0};
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
