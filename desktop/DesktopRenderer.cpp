@@ -1517,6 +1517,14 @@ void DesktopRenderer::drawShadowGeometry(const GameState& state,const scene_ligh
     shadowGeometryPass_=false;
 }
 
+void DesktopRenderer::drawLocalShadowReceivers(const GameState& state) const{
+    const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
+    // Local fixture light is already accounted for by fixed-function lighting
+    // on walls and props. Restrict its shadow compositor to the walkable floor
+    // so it adds cast silhouettes instead of double-darkening whole surfaces.
+    drawBox({0,0.020f,tileOrigin},{ROOM_WIDTH-0.55f,0.002f,ROOM_DEPTH-0.55f},0,0,0,0,0,0);
+}
+
 bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
     const int size=shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(quality);if(!ensureShadowMap(size))return false;
     const float coverage=render_contract::shadowCoverage(quality)*shadowControl_.coverageScale,texel=coverage*2.0f/static_cast<float>(size);
@@ -1526,6 +1534,20 @@ bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_light
     glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_LIGHTING);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(shadowControl_.biasFactor,shadowControl_.biasUnits);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(-coverage,coverage,-coverage,coverage,1.0f,110.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
     glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(eye,center,{0,1,0});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
+    float lightProjection[16];multiplyMatrix(shadowProjection_,shadowView_,lightProjection);shadowProjectionHash_=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,lightProjection,sizeof(lightProjection));
+    drawShadowGeometry(state,response,quality);
+    glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
+}
+
+bool DesktopRenderer::renderLocalShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const{
+    const int size=shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(quality);if(!source.enabled||!ensureShadowMap(size))return false;
+    const float coverage=source.coverage*shadowControl_.coverageScale;
+    const Vec3 target{source.worldPosition.x,0.0f,source.worldPosition.z};
+    shadowBindFramebuffer(GL_FRAMEBUFFER,shadowFramebuffer_);glViewport(0,0,size,size);glClear(GL_DEPTH_BUFFER_BIT);
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_LIGHTING);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(shadowControl_.biasFactor*0.5f,shadowControl_.biasUnits*0.5f);
+    const float nearPlane=0.75f,halfNear=nearPlane*coverage/std::max(0.5f,source.worldPosition.y);
+    glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glFrustum(-halfNear,halfNear,-halfNear,halfNear,nearPlane,source.worldPosition.y+1.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
+    glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(source.worldPosition,target,{0,0,-1});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
     float lightProjection[16];multiplyMatrix(shadowProjection_,shadowView_,lightProjection);shadowProjectionHash_=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,lightProjection,sizeof(lightProjection));
     drawShadowGeometry(state,response,quality);
     glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
@@ -1552,7 +1574,7 @@ void DesktopRenderer::applyMappedShadow(const GameState& state,const scene_light
     shadowActiveTexture(GL_TEXTURE1);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_COMBINE);glTexEnvi(GL_TEXTURE_ENV,GL_COMBINE_ALPHA,GL_REPLACE);glTexEnvi(GL_TEXTURE_ENV,GL_SOURCE0_ALPHA,GL_TEXTURE);glTexEnvi(GL_TEXTURE_ENV,GL_OPERAND0_ALPHA,GL_SRC_ALPHA);
     glMatrixMode(GL_TEXTURE);glPushMatrix();glLoadMatrixf(textureMatrix);glMatrixMode(GL_MODELVIEW);
     glPushMatrix();glLoadIdentity();const GLfloat sPlane[]{1,0,0,0},tPlane[]{0,1,0,0},rPlane[]{0,0,1,0},qPlane[]{0,0,0,1};glTexGenfv(GL_S,GL_EYE_PLANE,sPlane);glTexGenfv(GL_T,GL_EYE_PLANE,tPlane);glTexGenfv(GL_R,GL_EYE_PLANE,rPlane);glTexGenfv(GL_Q,GL_EYE_PLANE,qPlane);glPopMatrix();glEnable(GL_TEXTURE_GEN_S);glEnable(GL_TEXTURE_GEN_T);glEnable(GL_TEXTURE_GEN_R);glEnable(GL_TEXTURE_GEN_Q);shadowActiveTexture(GL_TEXTURE0);
-    drawShadowGeometry(state,response,quality);
+    if(shadowObservation_.localFixture)drawLocalShadowReceivers(state);else drawShadowGeometry(state,response,quality);
     shadowActiveTexture(GL_TEXTURE1);glDisable(GL_TEXTURE_GEN_S);glDisable(GL_TEXTURE_GEN_T);glDisable(GL_TEXTURE_GEN_R);glDisable(GL_TEXTURE_GEN_Q);glMatrixMode(GL_TEXTURE);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_TEXTURE_2D);shadowActiveTexture(GL_TEXTURE0);
     glDisable(GL_ALPHA_TEST);glDepthFunc(GL_LEQUAL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glStencilMask(0);glStencilFunc(GL_EQUAL,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);glDisable(GL_DEPTH_TEST);glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();glColor4f(0.015f,0.020f,0.028f,strength);glBegin(GL_QUADS);glVertex2f(0,0);glVertex2f(static_cast<float>(width_),0);glVertex2f(static_cast<float>(width_),static_cast<float>(height_));glVertex2f(0,static_cast<float>(height_));glEnd();glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);
@@ -1618,7 +1640,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     if(sterile){
         drawStructuralBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
         glDisable(GL_LIGHTING);
-        for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture)drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity,fixture.color.g*fixture.intensity,fixture.color.b*fixture.intensity);}
+        if(!shadowGeometryPass_)for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture)drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity,fixture.color.g*fixture.intensity,fixture.color.b*fixture.intensity);}
         glEnable(GL_LIGHTING);
     }
     if(openNatural){
@@ -2267,11 +2289,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     auto shadowQuality=render_contract::resolveShadowQuality(shadowControl_,state.localSettings.graphicsPreset,state.localSettings.shadows,true);
     const auto requestedShadowQuality=shadowQuality;
     const bool mappedRequested=shadowQuality==render_contract::ShadowQuality::MappedNormal||shadowQuality==render_contract::ShadowQuality::MappedPretty;
-    const bool mappedReady=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,lightingResponse,resolvedSun.direction,shadowQuality);
+    const float fixtureShadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
+    const auto localShadowSource=room_lighting::primaryLocalShadowSource(lightRig,fixtureShadowTileOrigin);
+    const bool directionalShadow=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,lightingResponse,resolvedSun.direction,shadowQuality);
+    const bool localFixtureShadow=mappedRequested&&!directionalShadow&&!menuPresentation&&renderLocalShadowDepth(state,lightingResponse,localShadowSource,shadowQuality);
+    const bool mappedReady=directionalShadow||localFixtureShadow;
     if(mappedRequested&&!mappedReady)shadowQuality=shadowControl_.mode==render_contract::ShadowMode::Automatic?(state.localSettings.shadows?render_contract::ShadowQuality::Cheap:render_contract::ShadowQuality::Off):render_contract::ShadowQuality::Off;
     frameShadowQuality_=shadowQuality;
-    const float mappedStrength=(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f)*resolvedSun.daylight*shadowControl_.strengthScale;
-    shadowObservation_={requestedShadowQuality,shadowQuality,mappedRequested,mappedReady,resolvedSun.castsDirectionalShadows,shadowMapSupported_,mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0,mappedReady?mappedStrength:0.0f,mappedRequested?render_contract::shadowCoverage(requestedShadowQuality)*shadowControl_.coverageScale:0.0f,shadowControl_.biasFactor,shadowControl_.biasUnits,mappedReady?shadowProjectionHash_:0};
+    const float mappedStrength=(localFixtureShadow?(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.62f:0.52f):(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f)*resolvedSun.daylight)*shadowControl_.strengthScale;
+    shadowObservation_={};shadowObservation_.requested=requestedShadowQuality;shadowObservation_.effective=shadowQuality;shadowObservation_.mappedRequested=mappedRequested;shadowObservation_.mappedReady=mappedReady;shadowObservation_.directional=directionalShadow;shadowObservation_.localFixture=localFixtureShadow;shadowObservation_.supported=shadowMapSupported_;shadowObservation_.sourceIndex=localFixtureShadow?localShadowSource.lightIndex:-1;shadowObservation_.sourcePosition=localFixtureShadow?localShadowSource.worldPosition:Vec3{};shadowObservation_.resolution=mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0;shadowObservation_.strength=mappedReady?mappedStrength:0.0f;shadowObservation_.coverage=mappedRequested?(localShadowSource.enabled?localShadowSource.coverage:render_contract::shadowCoverage(requestedShadowQuality))*shadowControl_.coverageScale:0.0f;shadowObservation_.biasFactor=shadowControl_.biasFactor;shadowObservation_.biasUnits=shadowControl_.biasUnits;shadowObservation_.projectionHash=mappedReady?shadowProjectionHash_:0;
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
