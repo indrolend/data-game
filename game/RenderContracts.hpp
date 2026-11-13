@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include "Math.hpp"
@@ -99,6 +100,8 @@ struct RuntimeLightingControl {
     SceneAtmosphere overrides{};
     bool timeFixed=false,roomFixed=false,phoneFixed=false;
     AtmosphereInputs fixedInputs{};
+    std::uint8_t localLightMask=0x7u;
+    std::array<float,3> localLightIntensity{{1.0f,1.0f,1.0f}};
 };
 
 constexpr float DayCycleSeconds=480.0f;

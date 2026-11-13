@@ -1640,7 +1640,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     if(sterile){
         drawStructuralBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
         glDisable(GL_LIGHTING);
-        if(!shadowGeometryPass_)for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture)drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity,fixture.color.g*fixture.intensity,fixture.color.b*fixture.intensity);}
+        if(!shadowGeometryPass_)for(int i=0;i<lightRig.localLightCount;++i){const auto& fixture=lightRig.localLights[i];if(fixture.visibleFixture){const bool enabled=(lightingControl_.localLightMask&(1u<<i))!=0&&lightingControl_.localLightIntensity[static_cast<std::size_t>(i)]>0.001f;const float scale=enabled?lightingControl_.localLightIntensity[static_cast<std::size_t>(i)]:0.055f;drawBox(fixture.localPosition+Vec3{0,0,z0},fixture.fixtureSize,0,0,0,fixture.color.r*fixture.intensity*scale,fixture.color.g*fixture.intensity*scale,fixture.color.b*fixture.intensity*scale);}}
         glEnable(GL_LIGHTING);
     }
     if(openNatural){
@@ -2290,11 +2290,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto requestedShadowQuality=shadowQuality;
     const bool mappedRequested=shadowQuality==render_contract::ShadowQuality::MappedNormal||shadowQuality==render_contract::ShadowQuality::MappedPretty;
     const float fixtureShadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    const auto localShadowSource=room_lighting::primaryLocalShadowSource(lightRig,fixtureShadowTileOrigin);
+    auto localShadowSource=room_lighting::primaryLocalShadowSource(lightRig,fixtureShadowTileOrigin);
+    if(localShadowSource.enabled&&((lightingControl_.localLightMask&(1u<<localShadowSource.lightIndex))==0||lightingControl_.localLightIntensity[static_cast<std::size_t>(localShadowSource.lightIndex)]<=0.001f))localShadowSource.enabled=false;
     const bool directionalShadow=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,lightingResponse,resolvedSun.direction,shadowQuality);
     const bool localFixtureShadow=mappedRequested&&!directionalShadow&&!menuPresentation&&renderLocalShadowDepth(state,lightingResponse,localShadowSource,shadowQuality);
     const bool mappedReady=directionalShadow||localFixtureShadow;
-    if(mappedRequested&&!mappedReady)shadowQuality=shadowControl_.mode==render_contract::ShadowMode::Automatic?(state.localSettings.shadows?render_contract::ShadowQuality::Cheap:render_contract::ShadowQuality::Off):render_contract::ShadowQuality::Off;
+    // A failed mapped request must not silently activate a different shadow
+    // implementation. That made lighting ablations change two causal variables
+    // and allowed octagonal ground shadows to reappear during mapped-shadow work.
+    if(mappedRequested&&!mappedReady)shadowQuality=render_contract::ShadowQuality::Off;
     frameShadowQuality_=shadowQuality;
     const float mappedStrength=(localFixtureShadow?(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.62f:0.52f):(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f)*resolvedSun.daylight)*shadowControl_.strengthScale;
     shadowObservation_={};shadowObservation_.requested=requestedShadowQuality;shadowObservation_.effective=shadowQuality;shadowObservation_.mappedRequested=mappedRequested;shadowObservation_.mappedReady=mappedReady;shadowObservation_.directional=directionalShadow;shadowObservation_.localFixture=localFixtureShadow;shadowObservation_.supported=shadowMapSupported_;shadowObservation_.sourceIndex=localFixtureShadow?localShadowSource.lightIndex:-1;shadowObservation_.sourcePosition=localFixtureShadow?localShadowSource.worldPosition:Vec3{};shadowObservation_.resolution=mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0;shadowObservation_.strength=mappedReady?mappedStrength:0.0f;shadowObservation_.coverage=mappedRequested?(localShadowSource.enabled?localShadowSource.coverage:render_contract::shadowCoverage(requestedShadowQuality))*shadowControl_.coverageScale:0.0f;shadowObservation_.biasFactor=shadowControl_.biasFactor;shadowObservation_.biasUnits=shadowControl_.biasUnits;shadowObservation_.projectionHash=mappedReady?shadowProjectionHash_:0;
@@ -2303,7 +2307,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
     applyMaterial(semanticMaterial(SemanticSurface::Default));
     const float lightTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    const auto resolvedLighting=room_lighting::resolveSceneLighting(atmosphere,lightRig,lightingResponse,state.phoneTransform.screenCenter,state.environmentVisual.latestShotOrigin,lightTileOrigin,capturePosition);
+    auto resolvedLighting=room_lighting::resolveSceneLighting(atmosphere,lightRig,lightingResponse,state.phoneTransform.screenCenter,state.environmentVisual.latestShotOrigin,lightTileOrigin,capturePosition);
+    for(int i=0;i<3;++i){auto& light=resolvedLighting.localLights[static_cast<std::size_t>(i)];const bool enabled=(lightingControl_.localLightMask&(1u<<i))!=0;light.enabled=light.enabled&&enabled;if(light.enabled){const float scale=lightingControl_.localLightIntensity[static_cast<std::size_t>(i)];light.diffuse={light.diffuse.r*scale,light.diffuse.g*scale,light.diffuse.b*scale};}}
     const GLfloat ambient[]={resolvedLighting.ambient.r,resolvedLighting.ambient.g,resolvedLighting.ambient.b,1.0f};glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);
     applyLight(GL_LIGHT0,resolvedLighting.sun);applyLight(GL_LIGHT1,resolvedLighting.fill);applyLight(GL_LIGHT2,resolvedLighting.phone);
     for(int i=0;i<3;++i)applyLight(GL_LIGHT3+i,resolvedLighting.localLights[static_cast<std::size_t>(i)]);
