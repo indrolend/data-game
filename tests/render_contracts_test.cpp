@@ -45,6 +45,11 @@ int main(){
         !sterileCorridorRig.localLights[0].visibleFixture||sterileCorridorRig.localLights[0].radius<=0.0f||sterileCorridorRig.localLights[0].fixtureSize.x<=0.0f){
         std::fputs("RENDER_CONTRACTS_FAIL room light source rig\n",stderr);return 1;
     }
+    const auto chamberShadow=primaryLocalShadowSource(sterileChamberRig,84.0f);
+    const auto corridorShadow=primaryLocalShadowSource(sterileCorridorRig,84.0f);
+    if(!chamberShadow.enabled||chamberShadow.lightIndex!=1||chamberShadow.worldPosition.z!=84.0f||chamberShadow.coverage!=sterileChamberRig.localLights[1].radius||corridorShadow.enabled){
+        std::fputs("RENDER_CONTRACTS_FAIL local fixture shadow source\n",stderr);return 1;
+    }
     static_assert(FieldOpenGround.texture==TextureId::FieldGrass&&FieldOpenGround.textureWorldScale==6.4f);
     const auto fieldPixels=field_grass_texture::pixels(),fieldPixelsAgain=field_grass_texture::pixels();
     if(fieldPixels!=fieldPixelsAgain){std::fputs("RENDER_CONTRACTS_FAIL field texture determinism\n",stderr);return 1;}

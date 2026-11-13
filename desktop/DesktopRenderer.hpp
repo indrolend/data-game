@@ -26,7 +26,7 @@ public:
     const render_contract::RuntimeLightingControl& lightingControl() const;
     render_contract::RuntimeShadowControl& shadowControl() { return shadowControl_; }
     const render_contract::RuntimeShadowControl& shadowControl() const { return shadowControl_; }
-    struct ShadowObservation { render_contract::ShadowQuality requested=render_contract::ShadowQuality::Off,effective=render_contract::ShadowQuality::Off;bool mappedRequested=false,mappedReady=false,directional=false,supported=false;int resolution=0;float strength=0.0f,coverage=0.0f,biasFactor=0.0f,biasUnits=0.0f;std::uint64_t projectionHash=0; };
+    struct ShadowObservation { render_contract::ShadowQuality requested=render_contract::ShadowQuality::Off,effective=render_contract::ShadowQuality::Off;bool mappedRequested=false,mappedReady=false,directional=false,localFixture=false,supported=false;int sourceIndex=-1,resolution=0;Vec3 sourcePosition{};float strength=0.0f,coverage=0.0f,biasFactor=0.0f,biasUnits=0.0f;std::uint64_t projectionHash=0; };
     const ShadowObservation& lastShadowObservation() const { return shadowObservation_; }
     render_contract::SceneAtmosphere resolvedAtmosphere(const GameState& state) const;
     void draw(const GameState& state, const DeveloperCodecState* codec=nullptr) const;
@@ -101,7 +101,9 @@ private:
     void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
     bool ensureShadowMap(int size) const;
     bool renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
+    bool renderLocalShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const;
     void drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
+    void drawLocalShadowReceivers(const GameState& state) const;
     void applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
     void drawShadowDepthMap() const;
     void updateCoastalWater(const GameState& state) const;

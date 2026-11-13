@@ -48,6 +48,23 @@ struct ResolvedSceneLighting {
     render_contract::FogDefinition fog{};
 };
 
+struct LocalShadowSource {
+    bool enabled=false;
+    int lightIndex=-1;
+    Vec3 worldPosition{};
+    float coverage=0.0f;
+};
+
+// Sterile chambers deliberately pay for one stable local shadow projection,
+// not one map per fixture. The selected source is derived from the same rig
+// that owns the visible fixture and fixed-function light position.
+inline LocalShadowSource primaryLocalShadowSource(const RoomLightRig& rig,float tileOrigin){
+    if(rig.primarySource!=PrimaryLightSource::CeilingFixtures||rig.localLightCount!=3)return {};
+    const int index=rig.localLightCount/2;
+    const auto& source=rig.localLights[static_cast<std::size_t>(index)];
+    return {source.visibleFixture,index,{source.localPosition.x,source.localPosition.y,tileOrigin+source.localPosition.z},source.radius};
+}
+
 inline RoomLightRig roomLightRig(room_environment::RoomSetting setting,room_environment::RoomForm form){
     using room_environment::RoomForm;
     using room_environment::RoomSetting;
