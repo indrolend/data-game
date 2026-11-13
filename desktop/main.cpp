@@ -1003,6 +1003,7 @@ void executeDeveloperCodec(HostState& host){
                 host.codec.write("overrides "+std::to_string(control.overrideMask));
                 host.codec.write(std::string("inputs time=")+(control.timeFixed?"fixed":"live")+
                     " room="+(control.roomFixed?"fixed":"live")+" phone="+(control.phoneFixed?"fixed":"live"));
+                std::ostringstream lights;lights<<"local mask="<<static_cast<int>(control.localLightMask)<<" intensity="<<std::fixed<<std::setprecision(2)<<control.localLightIntensity[0]<<','<<control.localLightIntensity[1]<<','<<control.localLightIntensity[2];host.codec.write(lights.str());
             }else if(command.kind==LightingCommandKind::Export){
                 host.codec.write(serializeLightingControl(control));
             }else if(command.kind==LightingCommandKind::Invalid||!applyLightingCommand(control,command)){
@@ -1011,6 +1012,8 @@ void executeDeveloperCodec(HostState& host){
                 host.codec.write("lighting set CHANNEL R G B | clear CHANNEL");
                 host.codec.write("lighting set fog-density VALUE");
                 host.codec.write("lighting input time/room/phone VALUE/live");
+                host.codec.write("lighting light 0..2 on/off | intensity VALUE");
+                host.codec.write("lighting lights isolate 0..2 | all");
             }else{
                 host.codec.write("LIGHTING UPDATED");
             }

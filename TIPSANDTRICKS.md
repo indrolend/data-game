@@ -13,6 +13,7 @@
 - Configure with `DB_ENABLE_DEVELOPER_CONSOLE=ON` and keep storefront builds at the default `OFF`.
 - Open the in-game console with the grave accent key.
 - `lighting show` reports lighting-control overrides; `lighting input time <seconds>` freezes time and `lighting input time live` releases it.
+- Isolate sterile fixtures with `lighting lights isolate <0..2>`, restore them with `lighting lights all`, toggle one with `lighting light <0..2> on|off`, and sweep its contribution with `lighting light <0..2> intensity <0..4>`.
 - `shadow show` reports requested/effective shadow paths and mapped readiness.
 - Isolate paths with `shadow mode off|cheap|normal|pretty|auto`.
 - Tune mapped shadows with `shadow strength <0..3>`, `shadow resolution 0|256|512|1024|2048|4096`, `shadow bias <factor> <units>`, and `shadow coverage <0.25..4>`.
