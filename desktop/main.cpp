@@ -1792,16 +1792,29 @@ int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::p
         const auto& state=host.game.state();
         int enemyIndex=-1;
         float nearestEnemyDistance=std::numeric_limits<float>::max();
+        int activeEnemies=0,exposedSouls=0;
         for(int index=0;index<TARGET_COUNT;++index)if(gameplay::isActiveHuman(state.targets[index])){
+            ++activeEnemies;
             const float distance=length(state.targets[index].pos-state.player.pos);
             if(distance<nearestEnemyDistance){nearestEnemyDistance=distance;enemyIndex=index;}
         }
+        for(const auto& target:state.targets)if(target.alive&&target.slurpable)++exposedSouls;
+        int objectiveIndex=-1;
+        float nearestObjectiveDistance=std::numeric_limits<float>::max();
+        for(int index=0;index<state.requiredSouls;++index)if(!state.captures[index].filled){
+            const float distance=length(state.captures[index].pos-state.player.pos);
+            if(distance<nearestObjectiveDistance){nearestObjectiveDistance=distance;objectiveIndex=index;}
+        }
         const auto& identity=desktopBuildIdentity();
-        std::printf("AGENT_STATE schema=%d tick=%llu frame=%d room=%d pos=%.6f,%.6f,%.6f velocity=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d clear=%d dead=%d frame_capture=%d scenario=interactive build_commit=%s build_configuration=%s frame_file=\"%s\"\n",
+        std::printf("AGENT_STATE schema=%d tick=%llu frame=%d room=%d pos=%.6f,%.6f,%.6f velocity=%.6f,%.6f,%.6f yaw=%.6f pitch=%.6f battery=%.6f souls=%d active_enemies=%d exposed_souls=%d goals=%d/%d clear=%d dead=%d frame_capture=%d scenario=interactive build_commit=%s build_configuration=%s frame_file=\"%s\"\n",
             agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),state.frame,state.roomIndex,
             state.player.pos.x,state.player.pos.y,state.player.pos.z,state.player.vel.x,state.player.vel.y,state.player.vel.z,
-            state.camera.yaw,state.camera.pitch,state.player.battery,state.player.souls,state.roomClear?1:0,state.dead?1:0,captured?1:0,
+            state.camera.yaw,state.camera.pitch,state.player.battery,state.player.souls,activeEnemies,exposedSouls,state.depositedSouls,state.requiredSouls,state.roomClear?1:0,state.dead?1:0,captured?1:0,
             identity.commit.c_str(),identity.buildConfiguration.c_str(),observationFramePath.generic_string().c_str());
+        if(objectiveIndex<0)std::printf("AGENT_OBJECTIVE schema=%d tick=%llu valid=0 id=-1\n",agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick));
+        else std::printf("AGENT_OBJECTIVE schema=%d tick=%llu valid=1 id=%d pos_m=%.6f,%.6f,%.6f distance_m=%.6f\n",
+            agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),objectiveIndex,
+            state.captures[objectiveIndex].pos.x,state.captures[objectiveIndex].pos.y,state.captures[objectiveIndex].pos.z,nearestObjectiveDistance);
         if(enemyIndex<0){
             std::printf("AGENT_ENEMY schema=%d tick=%llu valid=0 id=-1\n",agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick));
         }else{
@@ -1813,8 +1826,9 @@ int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::p
             const auto& body=host.game.enemyBodies()[enemyIndex];
             const auto& motor=host.game.enemyMotors()[enemyIndex];
             const auto& motorOutput=host.game.enemyMotorOutputs()[enemyIndex];
-            std::printf("AGENT_ENEMY schema=%d tick=%llu valid=1 id=%d pos_m=%.6f,%.6f,%.6f velocity_mps=%.6f,%.6f,%.6f perception_confidence=%.6f perception_uncertainty=%.6f perception_confirmed=%d last_seen_m=%.6f,%.6f,%.6f behavior=%s behavior_time_s=%.6f steering=%.6f,%.6f,%.6f speed_scale=%.6f brace=%.6f pace_expression=%.6f arousal=%.6f caution=%.6f fixation=%.6f locomotion_initialized=%d left_contact=%.6f right_contact=%.6f left_load=%.6f right_load=%.6f recovery_urgency=%.6f disruption=%.6f support_contact=%.6f fallen=%d walk_target_m=%.6f,%.6f,%.6f\n",
+            std::printf("AGENT_ENEMY schema=%d tick=%llu valid=1 id=%d distance_m=%.6f armor=%.6f pos_m=%.6f,%.6f,%.6f velocity_mps=%.6f,%.6f,%.6f perception_confidence=%.6f perception_uncertainty=%.6f perception_confirmed=%d last_seen_m=%.6f,%.6f,%.6f behavior=%s behavior_time_s=%.6f steering=%.6f,%.6f,%.6f speed_scale=%.6f brace=%.6f pace_expression=%.6f arousal=%.6f caution=%.6f fixation=%.6f locomotion_initialized=%d left_contact=%.6f right_contact=%.6f left_load=%.6f right_load=%.6f recovery_urgency=%.6f disruption=%.6f support_contact=%.6f fallen=%d walk_target_m=%.6f,%.6f,%.6f\n",
                 agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),enemyIndex,
+                nearestEnemyDistance,enemy.armor,
                 enemy.pos.x,enemy.pos.y,enemy.pos.z,enemy.vel.x,enemy.vel.y,enemy.vel.z,
                 perception.confidence,perception.uncertainty,perception.confirmed?1:0,
                 perception.lastSeenPosition.x,perception.lastSeenPosition.y,perception.lastSeenPosition.z,

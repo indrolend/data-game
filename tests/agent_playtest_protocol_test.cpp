@@ -12,7 +12,7 @@ int main() {
     const bool controls = parseCommand("observe").kind == CommandKind::Observe
         && parseCommand("reset").kind == CommandKind::Reset
         && parseCommand("quit").kind == CommandKind::Quit;
-    const bool schema = SchemaVersion == 2;
+    const bool schema = SchemaVersion == 3;
     const bool rejected = parseCommand("step frames=0").kind == CommandKind::Invalid
         && parseCommand("step frames=121").kind == CommandKind::Invalid
         && parseCommand("step moveX=nan").kind == CommandKind::Invalid
