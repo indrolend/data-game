@@ -80,7 +80,10 @@ inline RoomLightRig roomLightRig(room_environment::RoomSetting setting,room_envi
     rig.localLightCount=form==RoomForm::Chamber?3:2;
     for(int i=0;i<rig.localLightCount;++i){
         const float z=rig.localLightCount==3?(-10.0f+10.0f*static_cast<float>(i)):(i==0?-8.0f:8.0f);
-        rig.localLights[i]={{0.0f,world::RoomWallHeight-0.18f,z},{5.8f,0.055f,0.72f},{0.68f,0.88f,0.94f},i==rig.localLightCount-1?1.05f:1.24f,7.9f,true};
+        // The sterile rig was swept fixture-by-fixture against a fixed chamber
+        // capture. A 1.75x contribution raised receiver readability without
+        // clipping the scene, while preserving the runtime scale at 1.0.
+        rig.localLights[i]={{0.0f,world::RoomWallHeight-0.18f,z},{5.8f,0.055f,0.72f},{0.68f,0.88f,0.94f},i==rig.localLightCount-1?1.8375f:2.17f,7.9f,true};
     }
     return rig;
 }

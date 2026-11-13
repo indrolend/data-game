@@ -42,6 +42,7 @@ int main(){
         cityRig.fillDirection.x!=36.0f||cityRig.fillDirection.y!=22.0f||cityRig.fillDirection.z!=-18.0f||
         sterileCorridorRig.primarySource!=PrimaryLightSource::CeilingFixtures||sterileCorridorRig.localLightCount!=2||
         sterileChamberRig.localLightCount!=3||sterileChamberRig.localLights[1].localPosition.z!=0.0f||
+        sterileChamberRig.localLights[0].intensity!=2.17f||sterileChamberRig.localLights[2].intensity!=1.8375f||
         !sterileCorridorRig.localLights[0].visibleFixture||sterileCorridorRig.localLights[0].radius<=0.0f||sterileCorridorRig.localLights[0].fixtureSize.x<=0.0f){
         std::fputs("RENDER_CONTRACTS_FAIL room light source rig\n",stderr);return 1;
     }
