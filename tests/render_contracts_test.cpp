@@ -21,6 +21,15 @@ int main(){
     static_assert(shadowQualityFor(1,true,true)==ShadowQuality::MappedNormal);
     static_assert(shadowQualityFor(2,true,true)==ShadowQuality::MappedPretty);
     static_assert(shadowQualityFor(2,true,false)==ShadowQuality::Cheap);
+    constexpr RuntimeShadowControl forcedOff{ShadowMode::Off};
+    constexpr RuntimeShadowControl forcedCheap{ShadowMode::Cheap};
+    constexpr RuntimeShadowControl forcedNormal{ShadowMode::MappedNormal};
+    static_assert(resolveShadowQuality(forcedOff,2,true,true)==ShadowQuality::Off);
+    static_assert(resolveShadowQuality(forcedCheap,2,true,true)==ShadowQuality::Cheap);
+    static_assert(resolveShadowQuality(forcedNormal,0,false,false)==ShadowQuality::MappedNormal);
+    static_assert(usesProceduralGroundShadows(ShadowQuality::Cheap));
+    static_assert(!usesProceduralGroundShadows(ShadowQuality::MappedNormal));
+    static_assert(!usesProceduralGroundShadows(ShadowQuality::MappedPretty));
     static_assert(shadowMapResolution(ShadowQuality::MappedNormal)==1024);
     static_assert(shadowMapResolution(ShadowQuality::MappedPretty)==2048);
     const auto fieldRig=roomLightRig(room_environment::RoomSetting::Field,room_environment::RoomForm::Open);

@@ -1317,7 +1317,7 @@ void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) co
     };
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
     for(const auto& tree:group){
-        if(!shadowGeometryPass_&&state.localSettings.shadows&&state.localSettings.graphicsPreset<=0)
+        if(!shadowGeometryPass_&&render_contract::usesProceduralGroundShadows(frameShadowQuality_))
             drawGroundShadow({tree.x,0,z0+tree.z},0.46f,0.34f,tree.height*0.34f,0.18f,0.0f,frameSunDirection_);
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
@@ -1518,23 +1518,36 @@ void DesktopRenderer::drawShadowGeometry(const GameState& state,const scene_ligh
 }
 
 bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
-    const int size=render_contract::shadowMapResolution(quality);if(!ensureShadowMap(size))return false;
-    const float coverage=render_contract::shadowCoverage(quality),texel=coverage*2.0f/static_cast<float>(size);
+    const int size=shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(quality);if(!ensureShadowMap(size))return false;
+    const float coverage=render_contract::shadowCoverage(quality)*shadowControl_.coverageScale,texel=coverage*2.0f/static_cast<float>(size);
     Vec3 center=state.player.pos;center.x=std::round(center.x/texel)*texel;center.z=std::round(center.z/texel)*texel;center.y=2.8f;
     const Vec3 light=normalized(sunDirection),eye=center+light*52.0f;
     shadowBindFramebuffer(GL_FRAMEBUFFER,shadowFramebuffer_);glViewport(0,0,size,size);glClear(GL_DEPTH_BUFFER_BIT);
-    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_LIGHTING);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(2.0f,4.0f);
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_LIGHTING);glEnable(GL_POLYGON_OFFSET_FILL);glPolygonOffset(shadowControl_.biasFactor,shadowControl_.biasUnits);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(-coverage,coverage,-coverage,coverage,1.0f,110.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
     glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(eye,center,{0,1,0});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
+    float lightProjection[16];multiplyMatrix(shadowProjection_,shadowView_,lightProjection);shadowProjectionHash_=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,lightProjection,sizeof(lightProjection));
     drawShadowGeometry(state,response,quality);
     glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
+}
+
+void DesktopRenderer::drawShadowDepthMap() const{
+    if(!shadowDepthTexture_||!shadowMapSupported_)return;
+    const float inset=18.0f,w=std::min(360.0f,static_cast<float>(width_)*0.34f),h=w*0.5625f,x=static_cast<float>(width_)-w-inset,y=inset;
+    glDisable(GL_LIGHTING);glDisable(GL_FOG);glDisable(GL_DEPTH_TEST);glDisable(GL_BLEND);glDepthMask(GL_FALSE);
+    shadowActiveTexture(GL_TEXTURE0);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_MODE,GL_NONE);glTexParameteri(GL_TEXTURE_2D,GL_DEPTH_TEXTURE_MODE,GL_LUMINANCE);
+    glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();
+    glColor4f(1,1,1,1);glBegin(GL_QUADS);glTexCoord2f(0,1);glVertex2f(x,y);glTexCoord2f(1,1);glVertex2f(x+w,y);glTexCoord2f(1,0);glVertex2f(x+w,y+h);glTexCoord2f(0,0);glVertex2f(x,y+h);glEnd();
+    glDisable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,0);glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);
+    glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_MODE,GL_COMPARE_R_TO_TEXTURE);glTexParameteri(GL_TEXTURE_2D,GL_DEPTH_TEXTURE_MODE,GL_ALPHA);glBindTexture(GL_TEXTURE_2D,0);
+    glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glEnable(GL_FOG);glEnable(GL_LIGHTING);
 }
 
 void DesktopRenderer::applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const{
     if(!shadowMapSupported_||!shadowDepthTexture_||strength<=0.001f)return;
     float cameraView[16],inverseCamera[16],lightVp[16],worldToShadow[16];glGetFloatv(GL_MODELVIEW_MATRIX,cameraView);invertRigidMatrix(cameraView,inverseCamera);multiplyMatrix(shadowProjection_,shadowView_,lightVp);multiplyMatrix(lightVp,inverseCamera,worldToShadow);
     const float bias[16]={0.5f,0,0,0, 0,0.5f,0,0, 0,0,0.5f,0, 0.5f,0.5f,0.5f,1};float textureMatrix[16];multiplyMatrix(bias,worldToShadow,textureMatrix);
-    glClearStencil(0);glClear(GL_STENCIL_BUFFER_BIT);glEnable(GL_STENCIL_TEST);glStencilMask(0xff);glStencilFunc(GL_ALWAYS,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
+    glStencilMask(0xff);glClearStencil(0);glClear(GL_STENCIL_BUFFER_BIT);glEnable(GL_STENCIL_TEST);glStencilFunc(GL_ALWAYS,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
     glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_FALSE);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_LESS,0.5f);glDisable(GL_BLEND);glDisable(GL_LIGHTING);
     shadowActiveTexture(GL_TEXTURE1);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_COMBINE);glTexEnvi(GL_TEXTURE_ENV,GL_COMBINE_ALPHA,GL_REPLACE);glTexEnvi(GL_TEXTURE_ENV,GL_SOURCE0_ALPHA,GL_TEXTURE);glTexEnvi(GL_TEXTURE_ENV,GL_OPERAND0_ALPHA,GL_SRC_ALPHA);
     glMatrixMode(GL_TEXTURE);glPushMatrix();glLoadMatrixf(textureMatrix);glMatrixMode(GL_MODELVIEW);
@@ -1864,7 +1877,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                 // Preserve their authored proportions, using prop height as the
                 // single source of truth for climbing and world scale.
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-                if(!shadowGeometryPass_&&state.localSettings.shadows&&state.localSettings.graphicsPreset<=0)
+                if(!shadowGeometryPass_&&render_contract::usesProceduralGroundShadows(frameShadowQuality_))
                     drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f,frameSunDirection_);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
                 drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
@@ -2251,10 +2264,14 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(captureActivity<=0.001f&&completionWeight>0.001f)capturePosition=completionPosition*(1.0f/completionWeight);
     const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear,captureActivity,completionAfterglow});
     const bool menuPresentation=(((!state.started&&!state.dead)||state.dead||state.cinematic.introActive)&&!state.multiplayer.enabled&&!state.upgradeMenu.active);
-    auto shadowQuality=render_contract::shadowQualityFor(state.localSettings.graphicsPreset,state.localSettings.shadows,true);
+    auto shadowQuality=render_contract::resolveShadowQuality(shadowControl_,state.localSettings.graphicsPreset,state.localSettings.shadows,true);
+    const auto requestedShadowQuality=shadowQuality;
     const bool mappedRequested=shadowQuality==render_contract::ShadowQuality::MappedNormal||shadowQuality==render_contract::ShadowQuality::MappedPretty;
     const bool mappedReady=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,lightingResponse,resolvedSun.direction,shadowQuality);
-    if(mappedRequested&&!mappedReady)shadowQuality=state.localSettings.shadows?render_contract::ShadowQuality::Cheap:render_contract::ShadowQuality::Off;
+    if(mappedRequested&&!mappedReady)shadowQuality=shadowControl_.mode==render_contract::ShadowMode::Automatic?(state.localSettings.shadows?render_contract::ShadowQuality::Cheap:render_contract::ShadowQuality::Off):render_contract::ShadowQuality::Off;
+    frameShadowQuality_=shadowQuality;
+    const float mappedStrength=(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f)*resolvedSun.daylight*shadowControl_.strengthScale;
+    shadowObservation_={requestedShadowQuality,shadowQuality,mappedRequested,mappedReady,resolvedSun.castsDirectionalShadows,shadowMapSupported_,mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0,mappedReady?mappedStrength:0.0f,mappedRequested?render_contract::shadowCoverage(requestedShadowQuality)*shadowControl_.coverageScale:0.0f,shadowControl_.biasFactor,shadowControl_.biasUnits,mappedReady?shadowProjectionHash_:0};
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
@@ -2272,6 +2289,12 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     lightingObservation_={true,atmosphere,atmosphereInputs,lightRig,
         {state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear},lightingResponse,
         observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
+    if(shadowControl_.geometryOnly){
+        glDisable(GL_LIGHTING);glDisable(GL_FOG);glEnable(GL_DEPTH_TEST);drawShadowGeometry(state,lightingResponse,requestedShadowQuality);glEnable(GL_FOG);glEnable(GL_LIGHTING);
+        if(mappedReady&&shadowControl_.showDepthMap)drawShadowDepthMap();
+        if(codec&&codec->open)drawDeveloperCodec(*codec);
+        return;
+    }
     const bool cheapVisuals=state.localSettings.graphicsPreset<=0;
     const auto actorVisible=[&](const Vec3& position){const Vec3 delta=position-state.camera.pos;const float maxDist=cheapVisuals?38.0f:55.0f;return lengthSq(delta)<maxDist*maxDist&&dot3(delta,state.camera.forward)>-8.0f;};
     if(openSky){
@@ -2434,8 +2457,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         drawEnemyReactionBillboard(state,target);
     }
     if(mappedReady){
-        const float qualityStrength=shadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f;
-        applyMappedShadow(state,lightingResponse,shadowQuality,qualityStrength*resolvedSun.daylight);
+        applyMappedShadow(state,lightingResponse,shadowQuality,mappedStrength);
+        if(shadowControl_.showDepthMap)drawShadowDepthMap();
     }
     std::sort(translucentSouls.begin(),translucentSouls.begin()+translucentSoulCount,[](const auto& a,const auto& b){return a.distanceSquared>b.distanceSquared;});
     glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE);

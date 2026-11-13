@@ -6,6 +6,8 @@
 #include "DeveloperCodec.hpp"
 #include "AgentPlaytestProtocol.hpp"
 #include "LightingControlCommand.hpp"
+#include "ShadowControlCommand.hpp"
+#include "EnvironmentControlCommand.hpp"
 #include "BuildIdentity.hpp"
 #include "MenuNavigation.hpp"
 #include "ControllerRumble.hpp"
@@ -972,7 +974,7 @@ void executeDeveloperCodec(HostState& host){
     const auto parsed=parseDeveloperCodecCommand(input);
     const auto invalid=[&](){host.codec.write(parsed.recognizedVerb?"INVALID ARGUMENTS":"UNKNOWN COMMAND");host.codec.write("type: help");};
     switch(parsed.command){
-        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");break;
+        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");host.codec.write("environment show/catalog/premise/seed/next/reroll");host.codec.write("lighting show/reset/export | reference a/b | set/clear | input");host.codec.write("shadow show/reset | mode | strength | resolution | bias | coverage");host.codec.write("shadow depth-map on/off | geometry on/off");break;
         case DeveloperCodecCommand::State:{
             const auto& state=host.game.state();const auto& build=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
             host.codec.write("build "+build.commitShort+"  version "+build.humanVersion);
@@ -993,6 +995,58 @@ void executeDeveloperCodec(HostState& host){
         case DeveloperCodecCommand::PlaytestRally:host.game.debugStartRallyLab();host.codec.write("PLAYTEST RALLY");break;
         case DeveloperCodecCommand::PlaytestTraversal:host.game.debugStartTraversalLab();host.codec.write("PLAYTEST TRAVERSAL");break;
         case DeveloperCodecCommand::PlaytestRooms:host.game.debugStartRoomInspector();host.codec.write("PLAYTEST ROOMS");break;
+        case DeveloperCodecCommand::Lighting:{
+            const auto command=parseLightingCommand(input);
+            auto& control=host.renderer.lightingControl();
+            if(command.kind==LightingCommandKind::Show){
+                host.codec.write(std::string("reference ")+(control.reference==render_contract::AtmosphereProfile::ProgressiveCandidate?"progressive":"readable"));
+                host.codec.write("overrides "+std::to_string(control.overrideMask));
+                host.codec.write(std::string("inputs time=")+(control.timeFixed?"fixed":"live")+
+                    " room="+(control.roomFixed?"fixed":"live")+" phone="+(control.phoneFixed?"fixed":"live"));
+            }else if(command.kind==LightingCommandKind::Export){
+                host.codec.write(serializeLightingControl(control));
+            }else if(command.kind==LightingCommandKind::Invalid||!applyLightingCommand(control,command)){
+                host.codec.write("INVALID LIGHTING COMMAND");
+                host.codec.write("lighting show | reset | reference a/b");
+                host.codec.write("lighting set CHANNEL R G B | clear CHANNEL");
+                host.codec.write("lighting set fog-density VALUE");
+                host.codec.write("lighting input time/room/phone VALUE/live");
+            }else{
+                host.codec.write("LIGHTING UPDATED");
+            }
+            break;
+        }
+        case DeveloperCodecCommand::Shadow:{
+            const auto command=parseShadowCommand(input);auto& control=host.renderer.shadowControl();const auto& observed=host.renderer.lastShadowObservation();
+            if(command.kind==ShadowCommandKind::Show){
+                std::ostringstream line;line<<"mode "<<shadowModeName(control.mode)<<" requested "<<shadowQualityName(observed.requested)<<" active "<<shadowQualityName(observed.effective);host.codec.write(line.str());
+                line.str("");line.clear();line<<"mapped "<<(observed.mappedReady?"ready":"not-ready")<<" supported "<<(observed.supported?"yes":"no")<<" directional "<<(observed.directional?"yes":"no");host.codec.write(line.str());
+                line.str("");line.clear();line<<"strength "<<std::fixed<<std::setprecision(2)<<observed.strength<<" resolution "<<observed.resolution<<" coverage "<<observed.coverage;host.codec.write(line.str());
+                line.str("");line.clear();line<<"bias "<<observed.biasFactor<<' '<<observed.biasUnits<<" depth-map "<<(control.showDepthMap?"on":"off")<<" geometry "<<(control.geometryOnly?"on":"off");host.codec.write(line.str());
+            }else if(command.kind==ShadowCommandKind::Invalid||!applyShadowCommand(control,command)){
+                host.codec.write("INVALID SHADOW COMMAND");host.codec.write("shadow mode auto/off/cheap/normal/pretty");host.codec.write("shadow strength N | resolution 0/256/512/1024/2048/4096");host.codec.write("shadow bias FACTOR UNITS | coverage N");host.codec.write("shadow depth-map on/off | geometry on/off");
+            }else host.codec.write("SHADOW UPDATED");
+            break;
+        }
+        case DeveloperCodecCommand::Environment:{
+            const auto command=parseEnvironmentCommand(input);
+            if(command.kind==EnvironmentCommandKind::Show){
+                const auto& state=host.game.state();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);const auto geometry=room_environment::roomGeometryCapacityPlan(plan,state.roomSeed,state.roomIndex,ROOM_COLLIDER_COUNT);
+                host.codec.write("room "+std::to_string(state.roomIndex)+" seed "+std::to_string(state.roomSeed));
+                host.codec.write(std::string(room_environment::settingName(plan.setting))+" / "+room_environment::formName(plan.form)+" / "+room_environment::scaleName(plan.scale)+" / "+room_environment::conditionName(plan.condition));
+                host.codec.write(std::string("intent ")+room_environment::traversalIntentName(plan.traversalIntent)+" obstacles "+std::to_string(plan.obstacleCount)+" props "+std::to_string(room_environment::selectedEnvironmentPropCount(plan,geometry)));
+                host.codec.write(std::string("inspector ")+(state.roomInspector?room_environment::premiseName(state.roomInspectorPremise):"off")+" enemies "+(state.roomInspectorEnemies?"on":"off"));
+            }else if(command.kind==EnvironmentCommandKind::Catalog){
+                host.codec.write("0 field-open | 1 city-corridor");host.codec.write("2 city-courtyard | 3 city-canyon");host.codec.write("4 city-skyline | 5 sterile-corridor");host.codec.write("6 sterile-chamber | 7 coastal-shore");
+            }else if(command.kind==EnvironmentCommandKind::Premise){
+                host.game.debugStartRoomInspector();host.game.debugStepRoomInspector(command.premise,false);host.codec.write(std::string("ENVIRONMENT ")+room_environment::premiseName(host.game.state().roomInspectorPremise));
+            }else if(command.kind==EnvironmentCommandKind::Seed){
+                host.game.debugStartGeneratedRoomFixture(command.seed,command.room);host.codec.write("ENVIRONMENT SEED "+std::to_string(command.seed)+" ROOM "+std::to_string(command.room));
+            }else if(command.kind==EnvironmentCommandKind::Next){host.game.debugNextRoom();host.codec.write("ENVIRONMENT NEXT");
+            }else if(command.kind==EnvironmentCommandKind::Reroll){host.game.debugRerollRoom();host.codec.write("ENVIRONMENT REROLLED");}
+            else{host.codec.write("INVALID ENVIRONMENT COMMAND");host.codec.write("environment show | catalog | premise NAME/0..7");host.codec.write("environment seed SEED [ROOM] | next | reroll");}
+            break;
+        }
         default:invalid();break;
     }
     host.codec.input.clear();
@@ -1452,6 +1506,7 @@ void printUsage() {
     std::printf("  --capture-room-seed N --capture-room-index N  Start a generated room fixture before capturing.\n");
     std::printf("  --capture-graphics-preset N  Override fixture quality (0 low, 1 normal, 2 pretty).\n");
     std::printf("  --capture-shadows N  Override fixture shadows (0 disabled, 1 enabled).\n");
+    std::printf("  --shadow-command \"shadow ...\"  Apply a runtime shadow control command before capture; repeatable.\n");
     std::printf("  --capture-lifetime-rooms N --capture-best-room N  Set cosmetic accomplishment state for fixture captures.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
@@ -1463,6 +1518,7 @@ void printUsage() {
     std::printf("  --perf-trace FILE   Record one-second runtime performance summaries as CSV.\n");
     std::printf("  --evidence-scenario NAME --evidence-output DIR  Run a deterministic visual/runtime evidence scenario.\n");
     std::printf("  --evidence-scenario lighting-replay  Fixed-dt scripted gameplay replay with per-frame lighting snapshots (honors --lighting-command).\n");
+    std::printf("  --evidence-scenario shadow-rotation  Presentation-only camera orbit with capability and cost observations.\n");
     std::printf("  --evidence-scenario vertical-slice  Traversal, combat, soul capture, objective, transition, and next-room proof.\n");
     std::printf("  --lighting-replay-selfcheck  Run the lighting replay twice headlessly and compare state hashes.\n");
     std::printf("  --net-latency-ms N --net-jitter-ms N  Enable explicit deterministic network impairment.\n");
@@ -1912,6 +1968,22 @@ int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::files
     return passed?0:5;
 }
 
+int runShadowRotationEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    const auto manifestPath=outputDirectory/"manifest.json";if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
+    std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"video",error);if(error)return 4;
+    std::ofstream timeline(outputDirectory/"timeline.ndjson",std::ios::trunc),assertions(outputDirectory/"assertions.json",std::ios::trunc);if(!timeline||!assertions)return 4;
+    host.renderer.setHudVisible(false);const GameState authoritative=host.game.state();const std::string digest=dbnet::authoritativeStateDigestHex(authoritative);constexpr int frameCount=31;std::uint64_t projectionHash=0;bool projectionStable=true,captureOk=true,observedEffect=false;double costTotal=0,costMaximum=0;std::string requestedCapability="off",effectiveCapability="off";
+    const Vec3 target=authoritative.player.pos+Vec3{0,0.72f,0};const Vec3 initialOffset=authoritative.camera.pos-target;const float radius=std::max(0.5f,std::sqrt(initialOffset.x*initialOffset.x+initialOffset.z*initialOffset.z));const float baseAngle=std::atan2(initialOffset.x,initialOffset.z);
+    for(int frame=0;frame<frameCount;++frame){GameState render=authoritative;const float fraction=static_cast<float>(frame)/static_cast<float>(frameCount-1),angle=baseAngle-0.72f+fraction*1.44f;render.camera.yaw=angle;render.camera.pos={target.x+std::sin(angle)*radius,authoritative.camera.pos.y,target.z+std::cos(angle)*radius};render.camera.lookTarget=target;render.camera.forward=normalized(target-render.camera.pos);
+        const auto begin=std::chrono::steady_clock::now();host.renderer.draw(render);glFinish();const auto end=std::chrono::steady_clock::now();const double cost=std::chrono::duration<double,std::milli>(end-begin).count();costTotal+=cost;costMaximum=std::max(costMaximum,cost);const auto& observed=host.renderer.lastShadowObservation();if(frame==0)projectionHash=observed.projectionHash;else projectionStable&=observed.projectionHash==projectionHash;
+        char name[64]{};std::snprintf(name,sizeof(name),"frame-%04d.ppm",frame);captureOk&=captureFramebuffer(outputDirectory/"frames"/"video"/name,width,height);glfwSwapBuffers(window);glfwPollEvents();const bool activated=observed.effective!=render_contract::ShadowQuality::Off&&(!observed.mappedRequested||observed.mappedReady);requestedCapability=shadowQualityName(observed.requested);effectiveCapability=shadowQualityName(observed.effective);observedEffect|=activated;
+        timeline<<std::fixed<<std::setprecision(6)<<"{\"schema\":\"capability.observation/v1\",\"capability_id\":\"render.shadow.camera-stability\",\"frame\":"<<frame<<",\"camera_yaw\":"<<angle<<",\"player_pos\":["<<authoritative.player.pos.x<<','<<authoritative.player.pos.y<<','<<authoritative.player.pos.z<<"],\"authoritative_digest\":\""<<digest<<"\",\"requested\":\""<<shadowQualityName(observed.requested)<<"\",\"effective\":\""<<shadowQualityName(observed.effective)<<"\",\"observed\":"<<(activated?"true":"false")<<",\"projection_hash\":\""<<std::hex<<std::setw(16)<<std::setfill('0')<<observed.projectionHash<<std::dec<<std::setfill(' ')<<"\",\"cost\":{\"value\":"<<cost<<",\"unit\":\"ms\",\"measurement_class\":\"gpu-synchronized-render\"},\"frame_file\":\"frames/video/"<<name<<"\"}\n";
+        std::printf("CAPABILITY_OBSERVATION schema=1 frame=%d requested=%s effective=%s observed=%d projection_hash=%016llx cost_ms=%.4f authoritative_digest=%s\n",frame,shadowQualityName(observed.requested),shadowQualityName(observed.effective),activated?1:0,static_cast<unsigned long long>(observed.projectionHash),cost,digest.c_str());}
+    const bool authoritativeUnchanged=digest==dbnet::authoritativeStateDigestHex(host.game.state());const bool passed=captureOk&&projectionStable&&authoritativeUnchanged;assertions<<"{\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"authoritative_state_unchanged\": "<<(authoritativeUnchanged?"true":"false")<<",\n  \"projection_stable\": "<<(projectionStable?"true":"false")<<",\n  \"frame_count\": "<<frameCount<<",\n  \"render_average_ms\": "<<(costTotal/frameCount)<<",\n  \"render_maximum_ms\": "<<costMaximum<<"\n}\n";
+    const auto& identity=desktopBuildIdentity();std::ofstream manifest(manifestPath,std::ios::trunc);manifest<<"{\n  \"schema_version\": 2,\n  \"scenario\": \"shadow-rotation\",\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"commit\": \""<<identity.commit<<"\",\n  \"configuration\": \""<<identity.buildConfiguration<<"\",\n  \"authoritative_digest\": \""<<digest<<"\",\n  \"frames\": "<<frameCount<<",\n  \"projection_stable\": "<<(projectionStable?"true":"false")<<",\n  \"render_average_ms\": "<<(costTotal/frameCount)<<",\n  \"render_maximum_ms\": "<<costMaximum<<",\n  \"capability\": {\"schema\": \"capability.observation/v1\", \"id\": \"render.shadow.camera-stability\", \"requested\": \""<<requestedCapability<<"\", \"effective\": \""<<effectiveCapability<<"\", \"observed\": "<<(observedEffect?"true":"false")<<", \"authoritative_state_unchanged\": "<<(authoritativeUnchanged?"true":"false")<<", \"projection_stable\": "<<(projectionStable?"true":"false")<<", \"cost\": {\"average\": "<<(costTotal/frameCount)<<", \"maximum\": "<<costMaximum<<", \"unit\": \"ms\", \"measurement_class\": \"gpu-synchronized-render\"}},\n  \"timeline\": \"timeline.ndjson\",\n  \"assertions\": \"assertions.json\",\n  \"video_frames\": {\"directory\": \"frames/video\", \"pattern\": \"*.ppm\", \"frame_rate\": 10}\n}\n";
+    std::printf("EVIDENCE_RUN=%s scenario=shadow-rotation frames=%d projection_stable=%d average_ms=%.4f maximum_ms=%.4f\n",passed?"PASS":"FAIL",frameCount,projectionStable?1:0,costTotal/frameCount,costMaximum);return passed?0:5;
+}
+
 int runModelTest(const std::filesystem::path& root) {
     HumanModelData human;StaticModelData phone,flower;
     if(!human.load((root/"models"/"human.dbhuman").string())||!phone.load((root/"models"/"phone.dbmesh").string())||!flower.load((root/"models"/"flower.dbmesh").string())){std::fprintf(stderr,"MODEL_TEST_FAILED load\n");return 1;}
@@ -2260,6 +2332,10 @@ int main(int argc, char** argv) {
     const bool machineLightingProvided=lightingControlState||!lightingCommands.empty();
     if(lightingControlState){std::ifstream input(lightingControlState);std::ostringstream encoded;encoded<<input.rdbuf();if(!input||!deserializeLightingControl(encoded.str(),machineLightingControl)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_state path=%s\n",lightingControlState);return 4;}}
     for(const auto& text:lightingCommands){const auto command=parseLightingCommand(text);if(!applyLightingCommand(machineLightingControl,command)){std::fprintf(stderr,"LIGHTING_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
+    const auto shadowCommands=argValues(argc,argv,"--shadow-command");
+    render_contract::RuntimeShadowControl machineShadowControl;
+    const bool machineShadowProvided=!shadowCommands.empty();
+    for(const auto& text:shadowCommands){const auto command=parseShadowCommand(text);if(!applyShadowCommand(machineShadowControl,command)){std::fprintf(stderr,"SHADOW_CONTROL=PROTOCOL_FAILURE reason=invalid_command command=%s\n",text.c_str());return 4;}}
     const bool agentPlaytest=hasArg(argc,argv,"--agent-playtest");
     const char* agentFrame=argValue(argc,argv,"--agent-frame");
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
@@ -2294,7 +2370,7 @@ int main(int argc, char** argv) {
     const int captureBestRoom=argInt(argc,argv,"--capture-best-room",0);
     const float capturePlayerX=argFloat(argc,argv,"--capture-player-x",std::numeric_limits<float>::quiet_NaN());
     const float capturePlayerZ=argFloat(argc,argv,"--capture-player-z",std::numeric_limits<float>::quiet_NaN());
-    const bool captureGeneratedRoom=capturePath&&captureRoomSeed>=0&&captureRoomIndex>=1;
+    const bool captureGeneratedRoom=(capturePath||agentPlaytest||evidenceScenario)&&captureRoomSeed>=0&&captureRoomIndex>=1;
     const bool isolatedPersistence=isolatesPersistentSave({
         evidenceScenario!=nullptr,
         agentPlaytest,
@@ -2383,6 +2459,7 @@ int main(int argc, char** argv) {
 
     HostState host;
     if(machineLightingProvided){host.renderer.setLightingControl(machineLightingControl);std::printf("LIGHTING_CONTROL=APPLIED %s\n",serializeLightingControl(machineLightingControl).c_str());}
+    if(machineShadowProvided){host.renderer.shadowControl()=machineShadowControl;std::printf("SHADOW_CONTROL=APPLIED mode=%s strength=%.3f resolution=%d bias=%.3f,%.3f coverage=%.3f depth_map=%d geometry=%d\n",shadowModeName(machineShadowControl.mode),machineShadowControl.strengthScale,machineShadowControl.resolution,machineShadowControl.biasFactor,machineShadowControl.biasUnits,machineShadowControl.coverageScale,machineShadowControl.showDepthMap?1:0,machineShadowControl.geometryOnly?1:0);}
     host.playtestPolicy=playtestPolicy;
     if(automationPlaytest)host.automationCaptureDelayFrames=1;
     host.progressionPath=progressionSavePath();
@@ -2580,6 +2657,7 @@ int main(int argc, char** argv) {
         else if(std::strcmp(evidenceScenario,"enemy-obstruction")==0)result=runEnemyObstructionEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"lighting-comparison")==0)result=runLightingComparisonEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight,machineLightingProvided);
         else if(std::strcmp(evidenceScenario,"lighting-replay")==0)result=runLightingReplayEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
+        else if(std::strcmp(evidenceScenario,"shadow-rotation")==0)result=runShadowRotationEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"soul-lifecycle")==0)result=runSoulLifecycleEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else if(std::strcmp(evidenceScenario,"vertical-slice")==0)result=runVerticalSliceEvidence(window,host,evidenceOutput,framebufferWidth,framebufferHeight);
         else std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=unknown_scenario scenario=%s\n",evidenceScenario);
@@ -3030,6 +3108,8 @@ int main(int argc, char** argv) {
         if(capturePath&&++captureFrames>=stillCaptureFrames){
             const bool attractRunning=!captureStart||(host.game.state().attractMode&&!host.game.state().uiPaused);
             const bool captured=attractRunning&&captureFramebuffer(capturePath,framebufferWidth,framebufferHeight);
+            const auto& shadow=host.renderer.lastShadowObservation();
+            std::printf("SHADOW_OBSERVATION requested=%s effective=%s mapped_ready=%d supported=%d directional=%d resolution=%d strength=%.4f coverage=%.4f cheap_ground=%d\n",shadowQualityName(shadow.requested),shadowQualityName(shadow.effective),shadow.mappedReady?1:0,shadow.supported?1:0,shadow.directional?1:0,shadow.resolution,shadow.strength,shadow.coverage,render_contract::usesProceduralGroundShadows(shadow.effective)?1:0);
             std::printf("CAPTURE_FRAME_%s %s\n",captured?"OK":"FAILED",capturePath);
             glfwSetWindowShouldClose(window,GLFW_TRUE);
         }
