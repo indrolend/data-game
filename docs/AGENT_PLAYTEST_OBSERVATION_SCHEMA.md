@@ -7,13 +7,15 @@ is a separate presentation-aware interface emitted by
 alongside native/presentation transforms and `frame_file`.
 
 The interactive `--agent-playtest` interface emits one `AGENT_STATE` line and
-one `AGENT_ENEMY` line for every observation. Both lines share `schema` and
+one `AGENT_OBJECTIVE`, `AGENT_SOUL`, and `AGENT_ENEMY` line for every
+observation. All lines share `schema` and
 `tick`, so a consumer can join them to the framebuffer written for that same
 observation.
 
-Schema 2 preserves every schema 1 `AGENT_STATE` field and appends build,
-scenario, and frame-file provenance. Consumers that ignore unknown key/value
-pairs remain compatible. Schema 2 adds `AGENT_ENEMY`.
+Schema 4 preserves earlier `AGENT_STATE` fields and adds explicit encounter
+counts and nearest objective, exposed-soul, and active-enemy observations.
+Consumers that ignore unknown key/value pairs remain compatible. Positions are
+authoritative world-space values; selection is recomputed at each observation.
 
 ## Identity and validity
 
@@ -24,12 +26,12 @@ pairs remain compatible. Schema 2 adds `AGENT_ENEMY`.
 - `frame_file` is the tick-suffixed framebuffer capture produced by this
   observation. The path supplied to `--agent-frame` remains a latest-frame
   compatibility alias.
-- `valid=0` means no active enemy exists; no zero-filled runtime fallback is
-  presented as enemy telemetry.
-- `id` is the stable target-pool index for the selected active enemy. Schema 2
-  selects the active enemy nearest the player at observation time, making the
-  record more likely to correspond to visible gameplay. Consumers must join by
-  the explicit `id` rather than assuming one subject persists forever.
+- `valid=0` means no subject of that record type exists; no zero-filled runtime
+  fallback is presented as telemetry.
+- `id` is the stable target-pool or objective index for the selected subject.
+  Schema 4 selects the nearest subject of each record type at observation time.
+  Consumers must join by the explicit `id` rather than assuming one subject
+  persists forever.
 
 ## Units and semantics
 
@@ -46,6 +48,6 @@ pairs remain compatible. Schema 2 adds `AGENT_ENEMY`.
 - `fallen`, `perception_confirmed`, and `locomotion_initialized` are booleans
   encoded as `0` or `1`.
 
-The protocol intentionally exposes one active enemy rather than dumping every
-runtime array. Multi-enemy scenarios should select subjects explicitly in a
-future schema revision.
+The protocol intentionally exposes the nearest actionable subject rather than
+dumping runtime arrays. The external policy must re-observe after every bounded
+action because the selected enemy, soul, or objective can change.

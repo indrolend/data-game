@@ -1792,13 +1792,18 @@ int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::p
         const auto& state=host.game.state();
         int enemyIndex=-1;
         float nearestEnemyDistance=std::numeric_limits<float>::max();
-        int activeEnemies=0,exposedSouls=0;
+        int activeEnemies=0,exposedSouls=0,soulIndex=-1;
+        float nearestSoulDistance=std::numeric_limits<float>::max();
         for(int index=0;index<TARGET_COUNT;++index)if(gameplay::isActiveHuman(state.targets[index])){
             ++activeEnemies;
             const float distance=length(state.targets[index].pos-state.player.pos);
             if(distance<nearestEnemyDistance){nearestEnemyDistance=distance;enemyIndex=index;}
         }
-        for(const auto& target:state.targets)if(target.alive&&target.slurpable)++exposedSouls;
+        for(int index=0;index<TARGET_COUNT;++index)if(state.targets[index].alive&&state.targets[index].slurpable){
+            ++exposedSouls;
+            const float distance=length(state.targets[index].pos-state.player.pos);
+            if(distance<nearestSoulDistance){nearestSoulDistance=distance;soulIndex=index;}
+        }
         int objectiveIndex=-1;
         float nearestObjectiveDistance=std::numeric_limits<float>::max();
         for(int index=0;index<state.requiredSouls;++index)if(!state.captures[index].filled){
@@ -1815,6 +1820,12 @@ int runAgentPlaytest(GLFWwindow* window,HostState& host,const std::filesystem::p
         else std::printf("AGENT_OBJECTIVE schema=%d tick=%llu valid=1 id=%d pos_m=%.6f,%.6f,%.6f distance_m=%.6f\n",
             agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),objectiveIndex,
             state.captures[objectiveIndex].pos.x,state.captures[objectiveIndex].pos.y,state.captures[objectiveIndex].pos.z,nearestObjectiveDistance);
+        if(soulIndex<0)std::printf("AGENT_SOUL schema=%d tick=%llu valid=0 id=-1\n",agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick));
+        else{
+            const auto& soul=state.targets[soulIndex];
+            std::printf("AGENT_SOUL schema=%d tick=%llu valid=1 id=%d pos_m=%.6f,%.6f,%.6f distance_m=%.6f\n",
+                agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick),soulIndex,soul.pos.x,soul.pos.y,soul.pos.z,nearestSoulDistance);
+        }
         if(enemyIndex<0){
             std::printf("AGENT_ENEMY schema=%d tick=%llu valid=0 id=-1\n",agent_playtest::SchemaVersion,static_cast<unsigned long long>(tick));
         }else{
