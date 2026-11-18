@@ -9,8 +9,11 @@ int main(){
     const EnvironmentPropSpec mass{EnvironmentPrimitive::Rock,EnvironmentRole::Mass,{8.0f,0.0f,-3.0f},{2.1f,1.2f,1.7f},0.37f,0};
     const auto a=faceted_rock::makeMesh(mass,91,7,2);
     const auto b=faceted_rock::makeMesh(mass,91,7,2);
+    const auto visual=faceted_rock::makeVisualMesh(mass,91,7,2);
     assert(a.vertexCount==faceted_rock::VertexCount&&b.vertexCount==a.vertexCount);
     assert(a.positions==b.positions&&a.normals==b.normals);
+    assert(visual.vertexCount==a.vertexCount);
+    assert(visual.positions==a.positions&&visual.normals==a.normals);
     bool grounded=false,upwardFace=false;
     for(int i=0;i<a.vertexCount;++i){
         const float x=a.positions[i*3],y=a.positions[i*3+1],z=a.positions[i*3+2];

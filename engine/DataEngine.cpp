@@ -42,7 +42,7 @@ void DataEngine::startGeneratedScenario(int seed, int room) {
 }
 
 bool DataEngine::prepareReferenceEncounter() {
-    GameState& state = game_.networkMutableState();
+    GameState& state = game_.fixtureMutableState();
     for (TargetState& target : state.targets) target = TargetState{};
     for (HumanRespawnRequest& request : state.respawnQueue) request = HumanRespawnRequest{};
     state.cinematic = CinematicState{};
@@ -72,7 +72,7 @@ bool DataEngine::prepareReferenceEncounter() {
 }
 
 bool DataEngine::depositReferenceGoal(int goalIndex) {
-    GameState& state = game_.networkMutableState();
+    GameState& state = game_.fixtureMutableState();
     if (goalIndex < 0 || goalIndex >= state.requiredSouls || goalIndex >= CAPTURE_COUNT) return false;
     constexpr float roomDepth = 42.0f;
     const float tileOrigin = static_cast<float>(state.topology.currentTileIndex) * roomDepth;
@@ -87,7 +87,7 @@ bool DataEngine::depositReferenceGoal(int goalIndex) {
 }
 
 bool DataEngine::crossReferenceExit() {
-    GameState& state = game_.networkMutableState();
+    GameState& state = game_.fixtureMutableState();
     constexpr float roomDepth = 42.0f;
     const float tileOrigin = static_cast<float>(state.topology.currentTileIndex) * roomDepth;
     state.player.pos = {0.0f, PHONE_MODEL_HEIGHT * 0.5f, tileOrigin - 20.8f};

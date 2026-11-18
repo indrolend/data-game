@@ -23,7 +23,7 @@ public:
     void setPaused(bool paused) { game.setUiPaused(paused); }
     void menuMoveSelection(int direction) {
         if (direction == 0) return;
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         if (state.dead) {
             const int next = std::max(0, std::min(1,
                 state.cinematic.deathChoice + (direction > 0 ? 1 : -1)));
@@ -52,7 +52,7 @@ public:
         return phoneDisplayItemAt(layout, logicalX, logicalY);
     }
     void setMenuSelection(int selection) {
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         if (state.dead) {
             if (selection < 0 || selection > 1) return;
             state.hud.menuSelection = selection;
@@ -73,7 +73,7 @@ public:
     }
     bool menuAdjust(int direction) {
         if (direction == 0) return false;
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         const auto page = makePhoneMenuPageModel(state);
         const auto* row = phoneMenuElementForSelection(page, state.hud.menuSelection);
         if (!row) return false;
@@ -85,7 +85,7 @@ public:
         return true;
     }
     bool menuConfirm() {
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         if (state.dead) {
             const int selection = std::max(0, std::min(1, state.cinematic.deathChoice));
             state.cinematic.menuPaintGesture = 1;
@@ -125,7 +125,7 @@ public:
         return false;
     }
     bool menuBack() {
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         if (state.dead) {
             state.hud.menuSelection = 1;
             state.cinematic.deathChoice = 1;
@@ -147,7 +147,7 @@ public:
     }
     bool upgradeMenuActive() const { return game.state().upgradeMenu.active; }
     void moveUpgradeSelection(int horizontal, int vertical) {
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         if (!state.upgradeMenu.active) return;
         int selection = std::max(0, std::min(5, state.hud.menuSelection));
         int row = selection / 3;
@@ -161,7 +161,7 @@ public:
         state.cinematic.textInteraction = std::max(state.cinematic.textInteraction, 0.22f);
     }
     void setUpgradeSelection(int selection) {
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         if (!state.upgradeMenu.active) return;
         const int next = std::max(0, std::min(5, selection));
         if (next == state.hud.menuSelection) return;
@@ -173,7 +173,7 @@ public:
         const auto& state = game.state();
         if (!state.upgradeMenu.active) return false;
         const int selection = std::max(0, std::min(5, state.hud.menuSelection));
-        auto& mutableState = game.networkMutableState();
+        auto& mutableState = game.hostMutableState();
         mutableState.cinematic.menuPaintGesture = 1;
         mutableState.cinematic.textInteraction = 0.42f;
         return selection < 3 ? game.chooseTemporaryUpgrade(selection)
@@ -195,7 +195,7 @@ public:
     void startTargetInteractionFixture() { game.reset(); }
     void startDamageFixture() {
         game.reset();
-        auto& state=game.networkMutableState();
+        auto& state=game.hostMutableState();
         state.player.pos={0.0f,0.08f,0.0f};state.player.vel={};state.player.battery=100.0f;
         state.camera.yaw=0.0f;state.camera.pitch=0.0f;
         for(int i=1;i<TARGET_COUNT;++i)state.targets[i]=TargetState{};
@@ -206,7 +206,7 @@ public:
     }
     void startDeathFixture() {
         startDamageFixture();
-        game.networkMutableState().player.battery = 1.0f;
+        game.hostMutableState().player.battery = 1.0f;
         for (int frame = 0; frame < 600 && !game.state().dead; ++frame) game.update(1.0f / 60.0f);
     }
     DeathMenuPresentation deathMenuPresentation(float width, float height) const {
@@ -243,7 +243,7 @@ public:
     }
     void startUpgradeFixture() {
         game.debugStartRallyLab();
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         state.upgradeMenu.active = true;
         state.upgradeMenu.presentationTime = 0.0f;
         state.uiPaused = true;
@@ -254,7 +254,7 @@ public:
     }
     void startRoomTransitionFixture() {
         game.debugStartRallyLab();
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         state.player.pos = {0.0f, 0.08f, -20.72f};
         state.player.vel = {};
         state.player.grounded = true;
@@ -413,7 +413,7 @@ private:
         return presentationMode && (!state.started || state.uiPaused);
     }
     void pushMenuPage(LocalMenuPage page) {
-        auto& state = game.networkMutableState();
+        auto& state = game.hostMutableState();
         auto& settings = state.localSettings;
         if (settings.menuHistoryDepth < LocalSettingsState::MenuHistoryCapacity) {
             settings.menuHistory[settings.menuHistoryDepth++] = {
@@ -430,7 +430,7 @@ private:
         state.hud.menuSelection = 0;
     }
     void resetControls() {
-        auto& settings = game.networkMutableState().localSettings;
+        auto& settings = game.hostMutableState().localSettings;
         settings.keyboardBindings = {{87,83,65,68,340,32,70,81,67,0}};
         settings.mouseLookSensitivity = 1.0f;
         settings.controllerLookSensitivity = 1.15f;

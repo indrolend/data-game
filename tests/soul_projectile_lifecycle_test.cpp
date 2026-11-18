@@ -17,7 +17,7 @@ bool near(float a,float b,float e=0.002f){return std::fabs(a-b)<=e;}
 
 void isolate(Game& game) {
     game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     state.roomClear=true;
     for(auto& target:state.targets)target.alive=false;
     for(auto& bullet:state.bullets)bullet=BulletState{};
@@ -30,13 +30,13 @@ void isolate(Game& game) {
 }
 
 void box(Game& game,int index,Vec3 center,Vec3 size){
-    auto& state=game.networkMutableState();state.debug.colliderCount=std::max(state.debug.colliderCount,index+1);
+    auto& state=game.fixtureMutableState();state.debug.colliderCount=std::max(state.debug.colliderCount,index+1);
     auto& c=state.roomColliders[index];c.center=center;c.width=size.x;c.height=size.y;c.depth=size.z;
     c.minX=center.x-size.x*0.5f;c.maxX=center.x+size.x*0.5f;c.bottomY=center.y-size.y*0.5f;c.topY=center.y+size.y*0.5f;c.minZ=center.z-size.z*0.5f;c.maxZ=center.z+size.z*0.5f;
 }
 
 BulletState& soul(Game& game,std::uint64_t id=77) {
-    BulletState& bullet=game.networkMutableState().bullets[0];
+    BulletState& bullet=game.fixtureMutableState().bullets[0];
     bullet=BulletState{};bullet.alive=true;bullet.life=3.0f;
     bullet.soul={id,false,4};
     return bullet;
@@ -59,14 +59,14 @@ int main(){
     ok&=fb.alive&&fb.dropped&&near(speed(fb.vel),0.0f)&&fb.soul.id==77;
 
     Game melee;isolate(melee);auto& mb=soul(melee);mb.pos={0,0.45f,-1.0f};mb.vel={0,0,1};
-    auto& ms=melee.networkMutableState();ms.player.pos={0,0.08f,0};ms.phoneTransform.position={0,0.45f,0};
+    auto& ms=melee.fixtureMutableState();ms.player.pos={0,0.08f,0};ms.phoneTransform.position={0,0.45f,0};
     ms.camera.forward=normalized(Vec3{0,0.25f,-1});
     ms.meleeVisual=MeleeVisualState{};ms.meleeVisual.direction={0,0,-1};ms.meleeVisual.range=2.0f;ms.meleeVisual.hitRadius=0.6f;
     const int meleeHits=SoulProjectileLifecycleAccess::melee(melee);
     ok&=meleeHits==1&&mb.vel.z<0&&mb.vel.y>0&&speed(mb.vel)>22.0f&&speed(mb.vel)<26.0f&&mb.contactCooldown>0;
 
     Game lunge;isolate(lunge);auto& lb=soul(lunge);lb.pos={0,0.45f,-0.2f};lb.vel={0,0,1};
-    auto& ls=lunge.networkMutableState();ls.player.pos={0,0.08f,0};ls.phoneTransform.position={0,0.45f,-0.4f};
+    auto& ls=lunge.fixtureMutableState();ls.player.pos={0,0.08f,0};ls.phoneTransform.position={0,0.45f,-0.4f};
     ls.camera.forward=normalized(Vec3{0,0.35f,-1});
     ls.meleeVisual=MeleeVisualState{};ls.meleeVisual.direction={0,0,-1};ls.meleeVisual.locomotionLunge=true;
     ls.meleeVisual.contactPositionValid=true;ls.meleeVisual.previousContactPosition={0,0.45f,0.2f};
@@ -74,7 +74,7 @@ int main(){
     ok&=lungeHits==1&&lb.vel.z<0&&lb.vel.y>0&&speed(lb.vel)>33.0f&&ls.hud.criticalHitPulse>0.9f;
 
     Game forgiving;isolate(forgiving);auto& forgivingBullet=soul(forgiving,992);forgivingBullet.pos={0.88f,0.45f,-1.0f};forgivingBullet.vel={0,0,1};
-    auto& forgivingState=forgiving.networkMutableState();forgivingState.player.pos={0,0.08f,0};forgivingState.phoneTransform.position={0,0.45f,0};forgivingState.camera.forward={0,0,-1};
+    auto& forgivingState=forgiving.fixtureMutableState();forgivingState.player.pos={0,0.08f,0};forgivingState.phoneTransform.position={0,0.45f,0};forgivingState.camera.forward={0,0,-1};
     forgivingState.meleeVisual=MeleeVisualState{};forgivingState.meleeVisual.direction={0,0,-1};forgivingState.meleeVisual.range=2.0f;forgivingState.meleeVisual.hitRadius=0.6f;
     ok&=SoulProjectileLifecycleAccess::melee(forgiving)==1&&forgivingBullet.vel.z<0;
 
@@ -83,7 +83,7 @@ int main(){
     ok&=flightBullet.dropped&&airborneFrames>=45;
 
     Game recovery;isolate(recovery);auto& rb=soul(recovery,991);rb.pos={0,1.0f,0.35f};rb.dropped=true;
-    auto& rs=recovery.networkMutableState();rs.vacuum.active=true;rs.phoneTransform.vacuumPullPoint={0,1.0f,0};rs.phoneTransform.screenNormal={0,0,1};
+    auto& rs=recovery.fixtureMutableState();rs.vacuum.active=true;rs.phoneTransform.vacuumPullPoint={0,1.0f,0};rs.phoneTransform.screenNormal={0,0,1};
     SoulProjectileLifecycleAccess::bullets(recovery,kDt);
     ok&=!rb.alive&&rs.player.souls==1&&rs.player.storedSouls[0].id==991&&rs.player.storedSouls[0].originRoom==4;
 
@@ -105,7 +105,7 @@ int main(){
 
     Game playground;playground.debugStartRoomInspector();playground.debugStepRoomInspector(1,false);
     for(int attempt=0;attempt<64&&room_environment::roomPlan(playground.state().roomSeed,playground.state().roomIndex).traversalIntent!=room_environment::RoomTraversalIntent::Playground;++attempt)playground.debugStepRoomInspector(0,true);
-    auto& ps=playground.networkMutableState();for(auto& target:ps.targets)target.alive=false;for(auto& bullet:ps.bullets)bullet=BulletState{};
+    auto& ps=playground.fixtureMutableState();for(auto& target:ps.targets)target.alive=false;for(auto& bullet:ps.bullets)bullet=BulletState{};
     const auto playgroundPlan=room_environment::roomPlan(ps.roomSeed,ps.roomIndex);const int playgroundCollider=playgroundPlan.obstacleCount;const RoomCollider& platform=ps.roomColliders[playgroundCollider];
     auto& pb=soul(playground,484);pb.pos={platform.minX-1.0f,platform.center.y,platform.center.z};pb.vel={90,0,0};SoulProjectileLifecycleAccess::bullets(playground,1.0f/30.0f);
     ok&=playgroundPlan.setting==room_environment::RoomSetting::City&&playgroundPlan.form==room_environment::RoomForm::Corridor&&playgroundPlan.traversalIntent==room_environment::RoomTraversalIntent::Playground&&

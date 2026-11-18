@@ -148,6 +148,7 @@ int main(){
 
     const auto blade=grassBlade(12345,2,0,7),sameBlade=grassBlade(12345,2,0,7);
     assert(blade.root.x==sameBlade.root.x&&blade.height==sameBlade.height);
+    assert(blade.height>=0.10f&&blade.height<=0.25f&&blade.width>=0.035f&&blade.width<=0.060f);
     GrassReactionInputs calmInput;calmInput.player={100,0,100};
     const Vec3 calm=grassTip(blade,0.5f,calmInput);
     GrassReactionInputs playerInput;playerInput.player=blade.root;

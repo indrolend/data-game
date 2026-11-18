@@ -41,6 +41,16 @@ test("codebase truth rejects dropped tests and duplicate authority roots", () =>
     execFileSync("git", ["add", "."], { cwd: fixture });
     execFileSync("git", ["commit", "-m", "baseline"], { cwd: fixture, stdio: "pipe" });
 
+    fs.mkdirSync(path.join(fixture, "engine"));
+    fs.writeFileSync(path.join(fixture, "engine", "authority.cpp"), [
+      "void ambiguous(auto& game) { game.networkMutableState(); }",
+      "void wrong_owner(auto& game) { game.replicationMutableState(); }",
+      "",
+    ].join("\n"));
+    execFileSync("git", ["add", "engine/authority.cpp"], { cwd: fixture });
+    execFileSync("git", ["commit", "-m", "track authority"], { cwd: fixture, stdio: "pipe" });
+    execFileSync("git", ["rm", "--cached", "engine/authority.cpp"], { cwd: fixture, stdio: "pipe" });
+
     fs.mkdirSync(path.join(fixture, "native-desktop"));
     fs.writeFileSync(path.join(fixture, "native-desktop", "duplicate.cpp"), "int duplicate() { return 1; }\n");
     fs.writeFileSync(path.join(fixture, "CMakeLists.txt"), "add_executable(App native-desktop/duplicate.cpp)\n");
@@ -52,6 +62,9 @@ test("codebase truth rejects dropped tests and duplicate authority roots", () =>
     assert.deepEqual(report.comparison.droppedTests, ["ContractTest"]);
     assert.equal(report.issues.some((issue) => issue.code === "unregistered-test-source"), true);
     assert.equal(report.issues.some((issue) => issue.code === "duplicate-authority-root"), true);
+    assert.equal(report.issues.some((issue) => issue.code === "ambiguous-mutable-state"), true);
+    assert.equal(report.issues.some((issue) => issue.code === "mutable-state-authority-mismatch"), true);
+    assert.equal(report.issues.some((issue) => issue.code === "untracked-base-overlap"), true);
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }

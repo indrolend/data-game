@@ -13,7 +13,7 @@ bool tickerIs(const GameState& state, const char* expected) {
 }
 
 void prepareSecretRoom(Game& game, int roomIndex, int souls, int signal) {
-    GameState& state = game.networkMutableState();
+    GameState& state = game.fixtureMutableState();
     state.roomIndex = roomIndex;
     state.roomClear = true;
     state.secretTv.signal = signal;
@@ -60,7 +60,7 @@ int main() {
     for (int room = 0; room <= 15; ++room) {
         Game game;
         game.reset();
-        GameState& state = game.networkMutableState();
+        GameState& state = game.fixtureMutableState();
         state.roomIndex = room;
         state.roomClear = false;
         game.update(kDt);
@@ -81,7 +81,7 @@ int main() {
     {
         Game game;
         game.reset();
-        GameState& state = game.networkMutableState();
+        GameState& state = game.fixtureMutableState();
         state.secretTv.signal = 7;
         state.secretTv.damage = 1;
         state.roomIndex = 5;
@@ -136,7 +136,7 @@ int main() {
         Game game;
         game.reset();
         prepareSecretRoom(game, 3, 12, 4);
-        GameState& state = game.networkMutableState();
+        GameState& state = game.fixtureMutableState();
         state.secretTv.broken = true;
         state.secretTv.damage = state.secretTv.tolerance;
         donate(game);
@@ -163,7 +163,7 @@ int main() {
         check(breakSignal >= 0, "no-damaging-signal-found");
         if (breakSignal >= 0) {
             prepareSecretRoom(game, 3, 1, breakSignal - 1);
-            GameState& state = game.networkMutableState();
+            GameState& state = game.fixtureMutableState();
             state.secretTv.damage = state.secretTv.tolerance - 1;
             donate(game);
             check(game.state().secretTv.broken, "tv-breaks-at-tolerance");

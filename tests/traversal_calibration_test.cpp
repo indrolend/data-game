@@ -27,7 +27,7 @@ bool activeEnemyIntersectsCollider(const GameState& state){
 
 bool runJumpTrial(float gap,int timingOffset,float steeringError,float targetHeight=PlatformTop,float targetWidth=5.0f){
     Game game;game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     state.debug.colliderCount=2;
     for(auto& collider:state.roomColliders)collider={};
     constexpr float depth=6.0f;
@@ -71,7 +71,7 @@ int successes(float gap,float targetHeight=PlatformTop,float targetWidth=5.0f){
 
 bool runTreeClimbContract(){
     Game game;game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     for(auto& target:state.targets)target={};
     for(auto& collider:state.roomColliders)collider={};
     state.debug.colliderCount=1;
@@ -113,7 +113,7 @@ bool runTreeClimbContract(){
     const PlayerState& launched=game.state().player;
     if(launched.treeClimbing||launched.treeCollider!=-1||launched.treeClimbCooldown<=0.0f||launched.jumpVel<=4.0f||horizontalDot(normalized(launched.vel),launchNormal)<0.99f){std::fprintf(stderr,"TREE_CLIMB_STAGE tip jump climbing=%d collider=%d cooldown=%.3f jump=%.3f alignment=%.3f\n",launched.treeClimbing?1:0,launched.treeCollider,launched.treeClimbCooldown,launched.jumpVel,horizontalDot(normalized(launched.vel),launchNormal));return false;}
 
-    Game descent;descent.reset();GameState& descentState=descent.networkMutableState();
+    Game descent;descent.reset();GameState& descentState=descent.fixtureMutableState();
     for(auto& target:descentState.targets)target={};
     for(auto& collider:descentState.roomColliders)collider={};
     descentState.debug.colliderCount=1;setBox(descentState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
@@ -126,7 +126,7 @@ bool runTreeClimbContract(){
     }
     if(!descent.state().player.treeClimbing||descent.state().player.pos.y>=crownY-0.20f||descent.state().phonePose.actionState!=10){std::fprintf(stderr,"TREE_CLIMB_STAGE descend climbing=%d y=%.3f crown=%.3f action=%d\n",descent.state().player.treeClimbing?1:0,descent.state().player.pos.y,crownY,descent.state().phonePose.actionState);return false;}
 
-    Game offCenter;offCenter.reset();GameState& offCenterState=offCenter.networkMutableState();
+    Game offCenter;offCenter.reset();GameState& offCenterState=offCenter.fixtureMutableState();
     for(auto& target:offCenterState.targets)target={};
     for(auto& collider:offCenterState.roomColliders)collider={};
     offCenterState.debug.colliderCount=1;setBox(offCenterState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
@@ -135,7 +135,7 @@ bool runTreeClimbContract(){
     offCenter.setTouchControls(0.0f,1.0f,0.0f,0.0f,false,false,false,false,false,false);offCenter.update(Dt);
     if(offCenter.state().player.treeClimbing){std::fprintf(stderr,"TREE_CLIMB_STAGE off-center grip incorrectly attached x=%.3f\n",offCenter.state().player.pos.x);return false;}
 
-    Game lungeGrip;lungeGrip.reset();GameState& lungeGripState=lungeGrip.networkMutableState();
+    Game lungeGrip;lungeGrip.reset();GameState& lungeGripState=lungeGrip.fixtureMutableState();
     for(auto& target:lungeGripState.targets)target={};
     for(auto& collider:lungeGripState.roomColliders)collider={};
     lungeGripState.debug.colliderCount=1;setBox(lungeGripState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
@@ -145,7 +145,7 @@ bool runTreeClimbContract(){
     lungeGrip.setTouchControls(0.0f,0.0f,0.0f,0.0f,false,false,false,false,false,false);lungeGrip.update(Dt);
     if(!lungeGrip.state().player.treeClimbing||lungeGrip.state().player.treeCollider!=0){std::fprintf(stderr,"TREE_CLIMB_STAGE lunge grip failed climbing=%d collider=%d\n",lungeGrip.state().player.treeClimbing?1:0,lungeGrip.state().player.treeCollider);return false;}
 
-    Game passiveContact;passiveContact.reset();GameState& passiveState=passiveContact.networkMutableState();
+    Game passiveContact;passiveContact.reset();GameState& passiveState=passiveContact.fixtureMutableState();
     for(auto& target:passiveState.targets)target={};
     for(auto& collider:passiveState.roomColliders)collider={};
     passiveState.debug.colliderCount=1;setBox(passiveState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
@@ -154,7 +154,7 @@ bool runTreeClimbContract(){
     passiveContact.setTouchControls(0.0f,0.0f,0.0f,0.0f,false,false,false,false,false,false);passiveContact.update(Dt);
     if(passiveContact.state().player.treeClimbing){std::fprintf(stderr,"TREE_CLIMB_STAGE passive airborne contact became magnetic\n");return false;}
 
-    Game wall;wall.reset();GameState& wallState=wall.networkMutableState();
+    Game wall;wall.reset();GameState& wallState=wall.fixtureMutableState();
     for(auto& target:wallState.targets)target={};
     for(auto& collider:wallState.roomColliders)collider={};
     wallState.debug.colliderCount=1;setBox(wallState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
@@ -166,7 +166,7 @@ bool runTreeClimbContract(){
 
 bool runLandingSlideIntentContract(){
     const auto land=[](bool runHeld){
-        Game game;game.reset();GameState& state=game.networkMutableState();
+        Game game;game.reset();GameState& state=game.fixtureMutableState();
         for(auto& target:state.targets)target={};
         for(auto& collider:state.roomColliders)collider={};
         state.debug.colliderCount=0;
@@ -174,15 +174,18 @@ bool runLandingSlideIntentContract(){
         state.player.vel={8.0f,0.0f,0.0f};
         state.player.jumpVel=-7.0f;
         state.player.grounded=false;
+        state.camera.verticalFovDegrees=60.0f;
+        float maximumFov=state.camera.verticalFovDegrees;
         for(int frame=0;frame<30&&!game.state().player.grounded;++frame){
             game.setTouchControls(0.0f,0.0f,0.0f,0.0f,false,runHeld,false,false,false,false);
             game.update(Dt);
+            maximumFov=std::max(maximumFov,game.state().camera.verticalFovDegrees);
         }
-        return std::array<float,3>{game.state().player.grounded?1.0f:0.0f,game.state().meleeVisual.landingRecovery,horizontalLength(game.state().player.vel)};
+        return std::array<float,4>{game.state().player.grounded?1.0f:0.0f,game.state().meleeVisual.landingRecovery,horizontalLength(game.state().player.vel),maximumFov};
     };
     const auto coast=land(false),slide=land(true);
-    if(coast[0]<0.5f||slide[0]<0.5f||coast[1]>0.001f||slide[1]<=0.0f||coast[2]>=slide[2]){
-        std::fprintf(stderr,"LANDING_SLIDE_INTENT_FAIL coast=(ground=%.0f recovery=%.3f speed=%.3f) slide=(ground=%.0f recovery=%.3f speed=%.3f)\n",coast[0],coast[1],coast[2],slide[0],slide[1],slide[2]);
+    if(coast[0]<0.5f||slide[0]<0.5f||coast[1]>0.001f||slide[1]<=0.0f||coast[2]>=slide[2]||coast[3]>66.01f||slide[3]>66.01f){
+        std::fprintf(stderr,"LANDING_SLIDE_INTENT_FAIL coast=(ground=%.0f recovery=%.3f speed=%.3f fov=%.3f) slide=(ground=%.0f recovery=%.3f speed=%.3f fov=%.3f)\n",coast[0],coast[1],coast[2],coast[3],slide[0],slide[1],slide[2],slide[3]);
         return false;
     }
     return true;
@@ -190,7 +193,7 @@ bool runLandingSlideIntentContract(){
 
 bool runRaisedSupportContract(){
     Game game;game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     for(auto& target:state.targets)target={};
     for(auto& collider:state.roomColliders)collider={};
     state.debug.colliderCount=1;

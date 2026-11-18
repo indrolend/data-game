@@ -89,7 +89,7 @@ Game makeHostWithActivePeer(int peerId = 1) {
   game.reset();
   game.configureNetworkHost();
   game.setNetworkPeerActive(peerId, true);
-  GameState& state = game.networkMutableState();
+  GameState& state = game.fixtureMutableState();
   clearWorldActivity(state);
   makeIdlePlayer(state.player);
   for (auto& peer : state.multiplayer.peers) {
@@ -106,7 +106,7 @@ Game makeHostWithActivePeer(int peerId = 1) {
 
 bool progressionTimersAdvanceOnce() {
   Game game = makeHostWithActivePeer(1);
-  GameState& state = game.networkMutableState();
+  GameState& state = game.fixtureMutableState();
   state.progression.run.batteryRegenLock = 1.0f;
   state.progression.run.headshotRegenTax = 0.5f;
   state.progression.run.relayPrimerTimer = 0.75f;
@@ -163,7 +163,7 @@ bool progressionTimersAdvanceOnce() {
 
 bool remoteActionsDoNotEmitHostAudio() {
   Game game = makeHostWithActivePeer(1);
-  GameState& state = game.networkMutableState();
+  GameState& state = game.fixtureMutableState();
   state.audio = AudioState{};
   const unsigned int beforeSerial = state.audio.nextSerial;
   auto& peer = state.multiplayer.peers[1];
@@ -242,7 +242,7 @@ void seedLocalContext(GameState& state) {
 
 bool localContextRestoresExactly() {
   Game game = makeHostWithActivePeer(1);
-  GameState& state = game.networkMutableState();
+  GameState& state = game.fixtureMutableState();
   seedLocalContext(state);
   auto& peer = state.multiplayer.peers[1];
   peer.input.touchMoveX = -1.0f;
@@ -336,7 +336,7 @@ bool localContextRestoresExactly() {
 
 bool eliminatedLocalPlayerSpectatesOnlyLivingPeer() {
   Game game = makeHostWithActivePeer(1);
-  GameState& state = game.networkMutableState();
+  GameState& state = game.fixtureMutableState();
   state.player.alive = false;
   state.player.downed = false;
   state.multiplayer.peers[1].player.pos = {2.0f, 0.08f, -3.0f};

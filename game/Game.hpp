@@ -849,7 +849,12 @@ public:
     void applyNetworkPeerSnapshot(int playerId, const PlayerState& player, float pitch, float vacuumPower, float vacuumPose, int vacuumTarget, float meleeTimer, float dischargeAmount);
 
     const GameState& state() const { return state_; }
-    GameState& networkMutableState() { return state_; }
+    // Mutable state is exposed only at integration boundaries. Callers must
+    // name the authority they are acting for instead of using a generic escape
+    // hatch that obscures whether a write is runtime, replicated, or a fixture.
+    GameState& hostMutableState() { return state_; }
+    GameState& replicationMutableState() { return state_; }
+    GameState& fixtureMutableState() { return state_; }
     const std::array<gameplay::EnemyPerceptionState,TARGET_COUNT>& enemyPerceptions() const;
     const std::array<gameplay::EnemyBehaviorState,TARGET_COUNT>& enemyBehaviors() const;
     const std::array<gameplay::EnemyLocomotionState,TARGET_COUNT>& enemyLocomotions() const;

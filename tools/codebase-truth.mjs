@@ -69,7 +69,7 @@ function resolveInclude(source, request, knownFiles) {
 const head = git(["rev-parse", "HEAD"]);
 const branch = git(["branch", "--show-current"], { optional: true }) || null;
 const upstream = git(["rev-parse", "--abbrev-ref", "@{upstream}"], { optional: true });
-const statusLines = lines(git(["status", "--short"]));
+const statusLines = lines(git(["status", "--short", "--untracked-files=all"]));
 const paths = lines(git(["ls-files", "--cached", "--others", "--exclude-standard"])).sort();
 const knownFiles = new Set(paths);
 const files = paths.map((relativePath) => {
@@ -112,24 +112,48 @@ if (baseHead) {
   const baseCmake = git(["show", `${baseRef}:CMakeLists.txt`], { optional: true });
   const baseTests = baseCmake ? parseCmake(baseCmake).tests.map((test) => test.name) : [];
   const currentTests = new Set(cmake.tests.map((test) => test.name));
+  const basePaths = new Set(lines(git(["ls-tree", "-r", "--name-only", baseRef])));
+  const untrackedPaths = statusLines.filter((line) => line.startsWith("?? ")).map((line) => line.slice(3));
   comparison = {
     ref: baseRef,
     sha: baseHead,
     ahead: counts[0],
     behind: counts[1],
     droppedTests: baseTests.filter((test) => !currentTests.has(test)).sort(),
+    overlappingUntracked: untrackedPaths.filter((file) => basePaths.has(file)).sort(),
   };
 }
 
 // `native/` is the supported Godot GDExtension adapter over the authoritative
 // C++ game. Only the retired parallel desktop authority remains forbidden.
 const legacyRoots = paths.filter((file) => /^native-desktop\//.test(file));
+const mutableStateRules = [
+  { method: "hostMutableState", allowed: /^(desktop|native)\// },
+  { method: "replicationMutableState", allowed: /^desktop\/DesktopMultiplayer\.cpp$/ },
+  { method: "fixtureMutableState", allowed: /^(tests|engine|game\/diagnostics)\// },
+];
+const mutableStateViolations = [];
+for (const file of paths.filter((value) => /\.(c|cc|cpp|cxx|h|hpp|m|mm)$/i.test(value))) {
+  const text = fs.readFileSync(path.join(root, file), "utf8");
+  if (text.includes("networkMutableState(")) {
+    mutableStateViolations.push({ code: "ambiguous-mutable-state", detail: file });
+  }
+  for (const rule of mutableStateRules) {
+    if (text.includes(`${rule.method}(`) && file !== "game/Game.hpp" && !rule.allowed.test(file)) {
+      mutableStateViolations.push({ code: "mutable-state-authority-mismatch", detail: `${file} uses ${rule.method}` });
+    }
+  }
+}
 const issues = [
   ...unregisteredTests.map((file) => ({ severity: "error", code: "unregistered-test-source", detail: file })),
   ...legacyRoots.map((file) => ({ severity: "error", code: "duplicate-authority-root", detail: file })),
+  ...mutableStateViolations.map((issue) => ({ severity: "error", ...issue })),
   ...(comparison?.droppedTests || []).map((test) => ({ severity: "error", code: "dropped-base-test", detail: test })),
 ];
 if (comparison?.behind) issues.push({ severity: "warning", code: "behind-base", detail: `${comparison.behind} commit(s) behind ${baseRef}` });
+for (const file of comparison?.overlappingUntracked || []) {
+  issues.push({ severity: "warning", code: "untracked-base-overlap", detail: `${file} is untracked locally but tracked by ${baseRef}` });
+}
 
 const byKind = Object.fromEntries([...new Set(files.map((file) => file.kind))].sort().map((kind) => [kind, files.filter((file) => file.kind === kind).length]));
 const report = {

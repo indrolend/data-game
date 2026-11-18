@@ -7,6 +7,11 @@ int main() {
     using namespace music_director;
     using namespace room_environment;
 
+    assert(menuMusicAllowed(false,false,false));
+    assert(!menuMusicAllowed(true,false,false));
+    assert(!menuMusicAllowed(false,true,false));
+    assert(!menuMusicAllowed(false,true,true));
+    assert(menuMusicAllowed(true,false,true));
     assert(menuTheme(false) == MenuTheme::Title);
     assert(menuTheme(true) == MenuTheme::Pensive);
 

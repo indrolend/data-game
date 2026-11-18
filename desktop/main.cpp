@@ -125,6 +125,7 @@ struct HostState {
     bool codecPreviousPaused=false;
     bool codecPreviousMouseCaptured=true;
     int automationCaptureDelayFrames = 0;
+    bool liveCaptureRequested = false;
     std::array<unsigned char, GLFW_GAMEPAD_BUTTON_LAST + 1> previousGamepadButtons{};
     bool previousGamepadLeftTrigger = false;
     bool previousGamepadRightTrigger = false;
@@ -265,7 +266,7 @@ bool loadProgression(Game& game,const std::filesystem::path& path){
         settings.menuPage=LocalMenuPage::Main;settings.rebindingAction=-1;
     }
     game.setPersistentProgression(tokens,shot,lunge,attack,lifetimeRoomsCleared,bestRoomCleared);
-    if(version>=2)game.networkMutableState().localSettings=settings;
+    if(version>=2)game.hostMutableState().localSettings=settings;
     return true;
 }
 bool replaceProgressionFile(const std::filesystem::path& source,const std::filesystem::path& destination){
@@ -306,7 +307,7 @@ int runSaveRoundtripTest(){
     const std::filesystem::path path=root/"progression.v1";
     Game source;
     source.setPersistentProgression(37,2,4,5,48,21);
-    auto& settings=source.networkMutableState().localSettings;
+    auto& settings=source.hostMutableState().localSettings;
     settings.musicVolume=0.31f;settings.sfxVolume=0.82f;settings.musicMuted=true;settings.sfxMuted=false;
     settings.graphicsPreset=2;settings.shadows=true;settings.portalWindow=false;settings.particles=true;settings.fpsCounter=true;
     settings.mouseLookSensitivity=1.30f;settings.touchLookSensitivity=0.80f;settings.controllerLookSensitivity=1.45f;
@@ -584,29 +585,29 @@ int deathMenuItemAt(const GameState& state,float x,float y,float canvasW,float c
 }
 
 void clearMenuHistory(LocalSettingsState& settings){settings.menuHistoryDepth=0;settings.menuScroll=0.0f;}
-void setMenuPageDirect(HostState& host,LocalMenuPage page,int selection=0,float scroll=0.0f){GameState& state=host.game.networkMutableState();state.localSettings.menuPage=page;state.localSettings.menuScroll=std::max(0.0f,scroll);state.localSettings.rebindingAction=-1;state.hud.menuSelection=std::max(0,selection);state.cinematic.textInteraction=0.36f;}
-void openMenuRoot(HostState& host,LocalMenuPage page=LocalMenuPage::Main){GameState& state=host.game.networkMutableState();clearMenuHistory(state.localSettings);setMenuPageDirect(host,page);}
-void pushMenuPage(HostState& host,LocalMenuPage page){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;if(settings.menuHistoryDepth<LocalSettingsState::MenuHistoryCapacity){settings.menuHistory[settings.menuHistoryDepth++]={settings.menuPage,state.hud.menuSelection,settings.menuScroll};}else{for(int i=1;i<LocalSettingsState::MenuHistoryCapacity;++i)settings.menuHistory[i-1]=settings.menuHistory[i];settings.menuHistory[LocalSettingsState::MenuHistoryCapacity-1]={settings.menuPage,state.hud.menuSelection,settings.menuScroll};}setMenuPageDirect(host,page);}
-bool popMenuPage(HostState& host){GameState& state=host.game.networkMutableState();auto& settings=state.localSettings;if(settings.menuHistoryDepth<=0)return false;const LocalMenuHistoryEntry entry=settings.menuHistory[--settings.menuHistoryDepth];setMenuPageDirect(host,entry.page,entry.selection,entry.scroll);return true;}
+void setMenuPageDirect(HostState& host,LocalMenuPage page,int selection=0,float scroll=0.0f){GameState& state=host.game.hostMutableState();state.localSettings.menuPage=page;state.localSettings.menuScroll=std::max(0.0f,scroll);state.localSettings.rebindingAction=-1;state.hud.menuSelection=std::max(0,selection);state.cinematic.textInteraction=0.36f;}
+void openMenuRoot(HostState& host,LocalMenuPage page=LocalMenuPage::Main){GameState& state=host.game.hostMutableState();clearMenuHistory(state.localSettings);setMenuPageDirect(host,page);}
+void pushMenuPage(HostState& host,LocalMenuPage page){GameState& state=host.game.hostMutableState();auto& settings=state.localSettings;if(settings.menuHistoryDepth<LocalSettingsState::MenuHistoryCapacity){settings.menuHistory[settings.menuHistoryDepth++]={settings.menuPage,state.hud.menuSelection,settings.menuScroll};}else{for(int i=1;i<LocalSettingsState::MenuHistoryCapacity;++i)settings.menuHistory[i-1]=settings.menuHistory[i];settings.menuHistory[LocalSettingsState::MenuHistoryCapacity-1]={settings.menuPage,state.hud.menuSelection,settings.menuScroll};}setMenuPageDirect(host,page);}
+bool popMenuPage(HostState& host){GameState& state=host.game.hostMutableState();auto& settings=state.localSettings;if(settings.menuHistoryDepth<=0)return false;const LocalMenuHistoryEntry entry=settings.menuHistory[--settings.menuHistoryDepth];setMenuPageDirect(host,entry.page,entry.selection,entry.scroll);return true;}
 
 PhoneMenuElement selectedPhoneElement(const GameState& state){const PhoneMenuPageViewModel page=makePhoneMenuPageModel(state);const PhoneMenuElement* element=phoneMenuElementForSelection(page,state.hud.menuSelection);return element?*element:PhoneMenuElement{};}
 PhoneMenuAction selectedPhoneAction(const GameState& state){return selectedPhoneElement(state).action;}
 
 bool adjustMenuSetting(HostState& host,int direction){
-    GameState& state=host.game.networkMutableState();
+    GameState& state=host.game.hostMutableState();
     const PhoneMenuAction action=selectedPhoneElement(state).action;
     if(!adjustPhoneMenuSetting(state.localSettings,action,direction))return false;
     state.cinematic.menuPaintGesture=direction<0?2:3;
     state.cinematic.textInteraction=0.65f;
     return true;
 }
-bool toggleMenuSetting(HostState& host){GameState& state=host.game.networkMutableState();if(!togglePhoneMenuSetting(state.localSettings,selectedPhoneAction(state)))return false;state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.65f;return true;}
+bool toggleMenuSetting(HostState& host){GameState& state=host.game.hostMutableState();if(!togglePhoneMenuSetting(state.localSettings,selectedPhoneAction(state)))return false;state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.65f;return true;}
 
 void setMenuSelection(HostState& host,int selection) {
     const int count=menuItemCount(host.game.state());
     if(count<=0)return;
 
-    GameState& state=host.game.networkMutableState();
+    GameState& state=host.game.hostMutableState();
 
     // Death remains deliberately bounded. Ordinary phone lists wrap so the
     // physical device never develops a dead navigation edge.
@@ -665,7 +666,7 @@ int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double wi
 }
 
 void activateMenuSelection(GLFWwindow* window,HostState& host) {
-    GameState& state=host.game.networkMutableState();const int selection=state.hud.menuSelection;state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.42f;
+    GameState& state=host.game.hostMutableState();const int selection=state.hud.menuSelection;state.cinematic.menuPaintGesture=1;state.cinematic.textInteraction=0.42f;
     host.audio.playMenuCue(true);
     if(state.upgradeMenu.active){
         if(selection<3)host.game.chooseTemporaryUpgrade(selection);else host.game.purchasePermanentUpgrade(selection-3);
@@ -720,7 +721,7 @@ void activateMenuSelection(GLFWwindow* window,HostState& host) {
 
 void controllerMenuBack(GLFWwindow* window,HostState& host){
     const GameState& state=host.game.state();
-    if(state.dead){GameState& mutableState=host.game.networkMutableState();mutableState.hud.menuSelection=1;mutableState.cinematic.deathChoice=1;return;}
+    if(state.dead){GameState& mutableState=host.game.hostMutableState();mutableState.hud.menuSelection=1;mutableState.cinematic.deathChoice=1;return;}
     if(soloPauseMenu(state)){
         if(state.localSettings.menuPage!=LocalMenuPage::Main){if(popMenuPage(host))return;}
         setMouseCaptured(window,host,true);return;
@@ -733,6 +734,9 @@ void controllerMenuBack(GLFWwindow* window,HostState& host){
     }
     if(state.uiPaused){setMouseCaptured(window,host,true);return;}
 }
+
+void setDeveloperCodecOpen(GLFWwindow* window,HostState& host,bool open);
+void executeDeveloperCodec(HostState& host);
 
 DesktopGamepadInput pollGamepad(GLFWwindow* window,HostState& host){
     DesktopGamepadInput input;
@@ -875,6 +879,34 @@ DesktopGamepadInput pollGamepad(GLFWwindow* window,HostState& host){
         host.previousGamepadMenuUp=menuUp;host.previousGamepadMenuDown=menuDown;
         return input;
     }
+    if(host.codec.open){
+        dbmenu::resetMenuRepeat(host.controllerVerticalMenuRepeat);
+        const bool leftPressed=menuLeft&&!host.previousGamepadMenuLeft;
+        const bool rightPressed=menuRight&&!host.previousGamepadMenuRight;
+        const bool upPressed=menuUp&&!host.previousGamepadMenuUp;
+        const bool downPressed=menuDown&&!host.previousGamepadMenuDown;
+        if(leftPressed||rightPressed||upPressed||downPressed){
+            host.codec.actionFocus=true;
+            host.codec.quickActionSelection=moveDeveloperCodecQuickSelection(
+                host.codec.quickActionSelection,rightPressed?1:(leftPressed?-1:0),downPressed?1:(upPressed?-1:0));
+            rumblePulse(host.game.state().localSettings,0.03f,0.14f,18);
+        }
+        if(pressed(GLFW_GAMEPAD_BUTTON_A)){
+            host.codec.actionFocus=true;
+            host.codec.input=DeveloperCodecQuickActions[host.codec.quickActionSelection].command;
+            executeDeveloperCodec(host);
+            rumblePulse(host.game.state().localSettings,0.10f,0.24f,32);
+        }
+        if(pressed(GLFW_GAMEPAD_BUTTON_B)){
+            setDeveloperCodecOpen(window,host,false);
+            rumblePulse(host.game.state().localSettings,0.12f,0.05f,28);
+        }
+        host.previousGamepadMenuLeft=menuLeft;host.previousGamepadMenuRight=menuRight;
+        host.previousGamepadMenuUp=menuUp;host.previousGamepadMenuDown=menuDown;
+        host.previousGamepadLeftTrigger=leftTriggerDown;host.previousGamepadRightTrigger=rightTriggerDown;
+        host.previousGamepadButtons=currentButtons;
+        return input;
+    }
     const bool leftTriggerPressed=leftTriggerDown&&!host.previousGamepadLeftTrigger;
     const bool rightTriggerPressed=rightTriggerDown&&!host.previousGamepadRightTrigger;
     if(menuActive&&!host.enteringJoinCode){
@@ -960,8 +992,8 @@ void setDeveloperCodecOpen(GLFWwindow* window,HostState& host,bool open){
         if(host.game.state().multiplayer.enabled)return;
         host.codecPreviousPaused=host.game.state().uiPaused;host.codecPreviousMouseCaptured=host.mouseCaptured;
         host.game.clearInputState();host.lookX=host.lookY=0.0;host.haveMouse=false;host.mouseCaptured=false;
-        glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);host.game.setUiPaused(true);host.codec.open=true;
-        if(host.codec.outputCount==0){host.codec.write("READY");host.codec.write("type: help");}
+        glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);host.game.setUiPaused(true);host.codec.open=true;host.codec.actionFocus=true;
+        if(host.codec.outputCount==0){host.codec.write("READY / ACTION DECK ACTIVE");host.codec.write("ARROWS + ENTER / TAB FOR COMMAND");}
     }else{
         host.game.clearInputState();host.codec.open=false;host.mouseCaptured=host.codecPreviousMouseCaptured;
         glfwSetInputMode(window,GLFW_CURSOR,host.mouseCaptured?GLFW_CURSOR_DISABLED:GLFW_CURSOR_NORMAL);
@@ -974,14 +1006,14 @@ void executeDeveloperCodec(HostState& host){
     const auto parsed=parseDeveloperCodecCommand(input);
     const auto invalid=[&](){host.codec.write(parsed.recognizedVerb?"INVALID ARGUMENTS":"UNKNOWN COMMAND");host.codec.write("type: help");};
     switch(parsed.command){
-        case DeveloperCodecCommand::Help:host.codec.write("help | state | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle | playtest rally/traversal/rooms");host.codec.write("environment show/catalog/premise/seed/next/reroll");host.codec.write("lighting show/reset/export | reference a/b | set/clear | input");host.codec.write("shadow show/reset | mode | strength | resolution | bias | coverage");host.codec.write("shadow depth-map on/off | geometry on/off");break;
+        case DeveloperCodecCommand::Help:host.codec.write("state | capture frame | soul spawn | battery full");host.codec.write("enemies on/off/toggle | room next/reroll");host.codec.write("colliders show/hide/toggle");host.codec.write("playtest rally/traversal/slope/rooms/field/tv/tv-enter");host.codec.write("environment | lighting | shadow inspectors");break;
         case DeveloperCodecCommand::State:{
             const auto& state=host.game.state();const auto& build=desktopBuildIdentity();const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
             host.codec.write("build "+build.commitShort+"  version "+build.humanVersion);
             host.codec.write("room "+std::to_string(state.roomIndex)+" seed "+std::to_string(state.roomSeed));
             host.codec.write(std::string(room_environment::settingName(plan.setting))+" / "+room_environment::formName(plan.form)+" / intent "+room_environment::traversalIntentName(plan.traversalIntent));
             std::ostringstream status;status<<"souls "<<state.player.souls<<" battery "<<std::fixed<<std::setprecision(1)<<state.player.battery;host.codec.write(status.str());
-            host.codec.write(std::string("mode ")+(state.rallyLab?"rally":(state.traversalLab?"traversal":(state.roomInspector?"rooms":"game"))));break;}
+            host.codec.write(std::string("mode ")+(state.rallyLab?"rally":(state.traversalLab?"traversal":(state.slopeLab?"slope":(state.roomInspector?"rooms":"game")))));break;}
         case DeveloperCodecCommand::SoulSpawn:host.codec.write(host.game.debugSpawnStoredSoul()?"SOUL SPAWNED":"SOUL WALLET FULL");break;
         case DeveloperCodecCommand::BatteryFull:host.game.debugFillBattery();host.codec.write("BATTERY FULL");break;
         case DeveloperCodecCommand::EnemiesOn:host.game.debugSetEnemies(1);host.codec.write("ENEMIES ON");break;
@@ -994,7 +1026,12 @@ void executeDeveloperCodec(HostState& host){
         case DeveloperCodecCommand::CollidersToggle:host.codec.showColliders=!host.codec.showColliders;host.codec.write(host.codec.showColliders?"COLLIDERS SHOWN":"COLLIDERS HIDDEN");break;
         case DeveloperCodecCommand::PlaytestRally:host.game.debugStartRallyLab();host.codec.write("PLAYTEST RALLY");break;
         case DeveloperCodecCommand::PlaytestTraversal:host.game.debugStartTraversalLab();host.codec.write("PLAYTEST TRAVERSAL");break;
+        case DeveloperCodecCommand::PlaytestSlope:host.game.debugStartSlopeLab();host.codec.write("PLAYTEST SLOPE");break;
         case DeveloperCodecCommand::PlaytestRooms:host.game.debugStartRoomInspector();host.codec.write("PLAYTEST ROOMS");break;
+        case DeveloperCodecCommand::PlaytestField:host.game.debugStartFieldIslandFixture();host.codec.write("PLAYTEST FIELD FIXTURE");break;
+        case DeveloperCodecCommand::PlaytestTv:host.game.debugStartSecretTvTest(false);host.codec.write("PLAYTEST TV ENTRANCE");break;
+        case DeveloperCodecCommand::PlaytestTvEnter:host.game.debugStartSecretTvTest(true);host.codec.write("PLAYTEST TV ROOM");break;
+        case DeveloperCodecCommand::CaptureFrame:host.liveCaptureRequested=true;host.codec.write("CAPTURE QUEUED");break;
         case DeveloperCodecCommand::Lighting:{
             const auto command=parseLightingCommand(input);
             auto& control=host.renderer.lightingControl();
@@ -1057,12 +1094,14 @@ void executeDeveloperCodec(HostState& host){
 
 void codecCharacterCallback(GLFWwindow* window,unsigned int codepoint){
     HostState* host=stateFor(window);if(!host||host->playtestPolicy.automation||!host->codec.open||codepoint<32||codepoint>126||codepoint=='`'||host->codec.input.size()>=96)return;
+    host->codec.actionFocus=false;
     host->codec.input.push_back(static_cast<char>(codepoint));
 }
 
 void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     HostState* host = stateFor(window);
     if (!host) return;
+    if(key==GLFW_KEY_F12&&action==GLFW_PRESS){host->liveCaptureRequested=true;return;}
     if(action==GLFW_PRESS&&host->playtestPolicy.automation)host->automationCaptureDelayFrames=8;
 #if DB_ENABLE_DEVELOPER_CONSOLE
     if(key==GLFW_KEY_GRAVE_ACCENT&&action==GLFW_PRESS){setDeveloperCodecOpen(window,*host,!host->codec.open);return;}
@@ -1070,6 +1109,15 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     if(host->codec.open){
         if(action!=GLFW_PRESS&&action!=GLFW_REPEAT)return;
         if(key==GLFW_KEY_ESCAPE){setDeveloperCodecOpen(window,*host,false);return;}
+        if(key==GLFW_KEY_TAB&&action==GLFW_PRESS){host->codec.actionFocus=!host->codec.actionFocus;return;}
+        if(host->codec.actionFocus){
+            if(key==GLFW_KEY_LEFT){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,-1,0);return;}
+            if(key==GLFW_KEY_RIGHT){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,1,0);return;}
+            if(key==GLFW_KEY_UP){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,0,-1);return;}
+            if(key==GLFW_KEY_DOWN){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,0,1);return;}
+            if(key==GLFW_KEY_ENTER){host->codec.input=DeveloperCodecQuickActions[host->codec.quickActionSelection].command;executeDeveloperCodec(*host);return;}
+            return;
+        }
         if(key==GLFW_KEY_ENTER){executeDeveloperCodec(*host);return;}
         if(key==GLFW_KEY_BACKSPACE){if(!host->codec.input.empty())host->codec.input.pop_back();return;}
         if(key==GLFW_KEY_UP&&host->codec.historyCount>0){host->codec.historyCursor=std::max(0,host->codec.historyCursor-1);host->codec.input=host->codec.history[host->codec.historyCursor];return;}
@@ -1084,7 +1132,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     }
     if(action==GLFW_PRESS&&host->game.state().attractMode){host->game.dismissAttractMode();setMouseCaptured(window,*host,false);return;}
 
-    if(action==GLFW_PRESS&&host->game.state().localSettings.rebindingAction>=0){auto& settings=host->game.networkMutableState().localSettings;if(key==GLFW_KEY_ESCAPE){settings.rebindingAction=-1;return;}const int actionIndex=settings.rebindingAction;int conflict=-1;for(int i=0;i<9;++i)if(i!=actionIndex&&settings.keyboardBindings[i]==key){conflict=i;break;}const int old=settings.keyboardBindings[actionIndex];settings.keyboardBindings[actionIndex]=key;if(conflict>=0)settings.keyboardBindings[conflict]=old;settings.rebindingAction=-1;host->audio.playMenuCue(true);return;}
+    if(action==GLFW_PRESS&&host->game.state().localSettings.rebindingAction>=0){auto& settings=host->game.hostMutableState().localSettings;if(key==GLFW_KEY_ESCAPE){settings.rebindingAction=-1;return;}const int actionIndex=settings.rebindingAction;int conflict=-1;for(int i=0;i<9;++i)if(i!=actionIndex&&settings.keyboardBindings[i]==key){conflict=i;break;}const int old=settings.keyboardBindings[actionIndex];settings.keyboardBindings[actionIndex]=key;if(conflict>=0)settings.keyboardBindings[conflict]=old;settings.rebindingAction=-1;host->audio.playMenuCue(true);return;}
 
     const bool menuActive=menuItemCount(host->game.state())>0;
     if(menuActive&&!host->enteringJoinCode){
@@ -1333,7 +1381,7 @@ int runCombatRenderStress(GLFWwindow* window,HostState& host){
     constexpr int respawnFrameLimit=300;
     constexpr int settledRespawnFrames=60;
     host.game.reset();
-    GameState& initial=host.game.networkMutableState();
+    GameState& initial=host.game.hostMutableState();
     for(auto& target:initial.targets)target=TargetState{};
     for(auto& request:initial.respawnQueue)request=HumanRespawnRequest{};
     initial.cinematic=CinematicState{};
@@ -1359,7 +1407,7 @@ int runCombatRenderStress(GLFWwindow* window,HostState& host){
     };
 
     for(int cycle=0;cycle<cycles;++cycle){
-        GameState& state=host.game.networkMutableState();
+        GameState& state=host.game.hostMutableState();
         TargetState& target=state.targets[0];
         target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1.0f;target.attackCooldown=999.0f;
         target.pos=state.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;
@@ -1375,7 +1423,7 @@ int runCombatRenderStress(GLFWwindow* window,HostState& host){
         int respawnWaitFrames=0;
         while(activeHumanCount(host.game.state())==0&&respawnWaitFrames++<respawnFrameLimit)step(false,false,respawnWaitSamples);
         if(activeHumanCount(host.game.state())!=1){std::fprintf(stderr,"COMBAT_RENDER_STRESS_FAIL cycle=%d phase=respawn frames=%d\n",cycle+1,respawnWaitFrames);return 1;}
-        for(auto& respawned:host.game.networkMutableState().targets)if(gameplay::isActiveHuman(respawned)){
+        for(auto& respawned:host.game.hostMutableState().targets)if(gameplay::isActiveHuman(respawned)){
             respawned=TargetState{};respawned.alive=true;respawned.attackCooldown=999.0f;
             respawned.pos=host.game.state().player.pos+Vec3{0,0,-1.5f};respawned.walkTarget=respawned.pos;
         }
@@ -1419,7 +1467,7 @@ int runCombatRenderStress(GLFWwindow* window,HostState& host){
 
 int runCombatCrowdStress(GLFWwindow* window,HostState& host){
     constexpr int waves=5,crowd=6;
-    host.game.reset();GameState& initial=host.game.networkMutableState();
+    host.game.reset();GameState& initial=host.game.hostMutableState();
     for(auto& target:initial.targets)target=TargetState{};
     for(auto& request:initial.respawnQueue)request=HumanRespawnRequest{};
     initial.cinematic=CinematicState{};initial.localSettings.particles=true;initial.localSettings.shadows=true;initial.localSettings.musicMuted=true;initial.localSettings.sfxMuted=true;initial.runRules.crowdedRoomStacks=1;
@@ -1437,11 +1485,11 @@ int runCombatCrowdStress(GLFWwindow* window,HostState& host){
         if(particles>peakParticles)peakLoadState=std::make_unique<GameState>(host.game.state());peakParticles=std::max(peakParticles,particles);peakFragments=std::max(peakFragments,fragments);peakSouls=std::max(peakSouls,souls);
     };
     for(int wave=0;wave<waves;++wave){
-        GameState& state=host.game.networkMutableState();state.player.battery=100;state.player.pos={0,0.08f,0};state.player.vel={};state.player.jumpVel=0;state.player.grounded=true;state.player.grabbedByTarget=-1;state.camera.yaw=0;state.camera.pitch=0;
+        GameState& state=host.game.hostMutableState();state.player.battery=100;state.player.pos={0,0.08f,0};state.player.vel={};state.player.jumpVel=0;state.player.grounded=true;state.player.grabbedByTarget=-1;state.camera.yaw=0;state.camera.pitch=0;
         int prepared=0;for(auto& target:state.targets)if(gameplay::isActiveHuman(target)&&prepared<crowd){target.health=1;target.armor=0.10f;target.attackCooldown=999;target.pos={-0.65f+0.26f*prepared,0.08f,-0.78f-0.06f*(prepared%2)};target.walkTarget=target.pos;target.vel={};++prepared;}
         for(int i=prepared;i<crowd;++i){TargetState& target=state.targets[i];target=TargetState{};target.alive=true;target.health=1;target.armor=0.10f;target.attackCooldown=999;target.pos={-0.65f+0.26f*i,0.08f,-0.78f-0.06f*(i%2)};target.walkTarget=target.pos;}prepared=crowd;
         const int soulsBefore=state.player.souls;std::vector<double> samples;
-        int attackFrames=0;while(activeHumanCount(host.game.state())>0&&attackFrames<240){const bool attack=attackFrames%32==0;step(false,attack,0,samples);++attackFrames;GameState& mutableState=host.game.networkMutableState();int index=0;for(auto& target:mutableState.targets)if(gameplay::isActiveHuman(target)){target.pos={-0.65f+0.26f*(index%crowd),0.08f,-0.78f-0.06f*(index%2)};target.walkTarget=target.pos;target.attackCooldown=999;++index;}}
+        int attackFrames=0;while(activeHumanCount(host.game.state())>0&&attackFrames<240){const bool attack=attackFrames%32==0;step(false,attack,0,samples);++attackFrames;GameState& mutableState=host.game.hostMutableState();int index=0;for(auto& target:mutableState.targets)if(gameplay::isActiveHuman(target)){target.pos={-0.65f+0.26f*(index%crowd),0.08f,-0.78f-0.06f*(index%2)};target.walkTarget=target.pos;target.attackCooldown=999;++index;}}
         if(activeHumanCount(host.game.state())>0){std::fprintf(stderr,"COMBAT_CROWD_STRESS_FAIL wave=%d phase=exposure humans=%d\n",wave+1,activeHumanCount(host.game.state()));return 1;}
         int captureFrames=0;while(host.game.state().player.souls<soulsBefore+crowd&&captureFrames++<900)step(true,false,0,samples);
         if(host.game.state().player.souls!=soulsBefore+crowd){std::fprintf(stderr,"COMBAT_CROWD_STRESS_FAIL wave=%d phase=capture gained=%d frames=%d\n",wave+1,host.game.state().player.souls-soulsBefore,captureFrames);return 1;}
@@ -1513,6 +1561,8 @@ void printUsage() {
     std::printf("  --capture-lifetime-rooms N --capture-best-room N  Set cosmetic accomplishment state for fixture captures.\n");
     std::printf("  --capture-spectator-frame PATH  Capture the multiplayer spectator presentation.\n");
     std::printf("  --capture-menu-frame PATH --menu-page NAME  Capture a phone menu or upgrade page and exit.\n");
+    std::printf("  --capture-developer-deck PATH  Capture the hidden developer action deck and exit.\n");
+    std::printf("  --developer-selection N --developer-focus actions|command --developer-command TEXT --developer-run-selection\n");
     std::printf("  --menu-paint-gesture select|confirm|left|right  Fix the menu feedback pose for capture.\n");
     std::printf("  --capture-cpu-demo DIR  Record a HUD-free deterministic gameplay vignette as PPM frames.\n");
     std::printf("  --capture-cinematic-demo DIR  Record the real lunge/capture sequence from a cinematic spectator camera.\n");
@@ -1647,6 +1697,33 @@ int argInt(int argc,char** argv,const char* expected,int fallback=0){const char*
 float argFloat(int argc,char** argv,const char* expected,float fallback){const char* value=argValue(argc,argv,expected);if(!value)return fallback;try{return std::stof(value);}catch(...){return fallback;}}
 bool captureFramebuffer(const std::filesystem::path& path,int width,int height,std::uint64_t* fileHash=nullptr){std::error_code directoryError;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),directoryError);if(directoryError)return false;std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*3u);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());std::ofstream out(path,std::ios::binary);if(!out)return false;const std::string header="P6\n"+std::to_string(width)+" "+std::to_string(height)+"\n255\n";out.write(header.data(),static_cast<std::streamsize>(header.size()));std::uint64_t hash=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,header.data(),header.size());for(int y=height-1;y>=0;--y){const char* row=reinterpret_cast<const char*>(pixels.data()+static_cast<std::size_t>(y)*width*3u);out.write(row,static_cast<std::streamsize>(width*3));hash=lighting_evidence::fnv1a(hash,row,static_cast<std::size_t>(width)*3u);}if(fileHash)*fileHash=hash;return static_cast<bool>(out);}
 
+bool captureLiveFramebuffer(const GameState& state,int width,int height,std::filesystem::path& imagePath){
+    const auto milliseconds=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    const std::filesystem::path directory=std::filesystem::path(DB_DEVELOPMENT_ARTIFACT_ROOT)/"runtime-captures";
+    const std::string stem="live-"+std::to_string(milliseconds)+"-frame-"+std::to_string(state.frame);
+    imagePath=directory/(stem+".ppm");
+    std::uint64_t pixelHash=0;
+    if(!captureFramebuffer(imagePath,width,height,&pixelHash))return false;
+    std::ofstream metadata(directory/(stem+".txt"));
+    if(!metadata)return false;
+    const auto& build=desktopBuildIdentity();
+    metadata<<std::fixed<<std::setprecision(6)
+        <<"build_commit="<<build.commit<<'\n'<<"build_version="<<build.humanVersion<<'\n'
+        <<"frame="<<state.frame<<'\n'<<"pixel_hash_fnv1a="<<pixelHash<<'\n'
+        <<"room_seed="<<state.roomSeed<<'\n'<<"room_index="<<state.roomIndex<<'\n'
+        <<"room_setting="<<room_environment::settingName(plan.setting)<<'\n'
+        <<"room_form="<<room_environment::formName(plan.form)<<'\n'
+        <<"player="<<state.player.pos.x<<','<<state.player.pos.y<<','<<state.player.pos.z<<'\n'
+        <<"camera="<<state.camera.pos.x<<','<<state.camera.pos.y<<','<<state.camera.pos.z<<'\n'
+        <<"camera_target="<<state.camera.lookTarget.x<<','<<state.camera.lookTarget.y<<','<<state.camera.lookTarget.z<<'\n'
+        <<"graphics_preset="<<state.localSettings.graphicsPreset<<'\n'
+        <<"shadows="<<(state.localSettings.shadows?1:0)<<'\n'
+        <<"started="<<(state.started?1:0)<<'\n'<<"paused="<<(state.uiPaused?1:0)<<'\n'
+        <<"attract_mode="<<(state.attractMode?1:0)<<'\n';
+    return static_cast<bool>(metadata);
+}
+
 int runEnemyMotionReel(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
     std::error_code error;std::filesystem::create_directories(outputDirectory,error);if(error)return 1;
     std::ofstream timeline(outputDirectory/"timeline.csv",std::ios::trunc);if(!timeline)return 1;
@@ -1723,7 +1800,7 @@ int findSterileCorridorRoom(int seed){for(int room=2;room<=64;++room){const auto
 template<class OnCapture> bool runLightingReplay(Game& game,std::vector<ReplayRecord>& records,OnCapture&& onCapture){
     const int room=findSterileCorridorRoom(ReplaySeed);if(room==0)return false;
     game.debugStartGeneratedRoomFixture(ReplaySeed,room);
-    GameState& fixture=game.networkMutableState();fixture.started=true;fixture.uiPaused=false;fixture.attractMode=false;fixture.cinematic.introActive=false;fixture.upgradeMenu.active=false;
+    GameState& fixture=game.hostMutableState();fixture.started=true;fixture.uiPaused=false;fixture.attractMode=false;fixture.cinematic.introActive=false;fixture.upgradeMenu.active=false;
     fixture.localSettings.graphicsPreset=1;fixture.localSettings.shadows=true;fixture.localSettings.portalWindow=false;fixture.localSettings.particles=false;fixture.localSettings.fpsCounter=false;fixture.localSettings.mobileFraming=false;
     for(auto& target:fixture.targets)target=TargetState{};
     fixture.player.pos={0,0.08f,14};fixture.player.vel={};fixture.player.grounded=true;fixture.player.battery=100;fixture.player.souls=1;
@@ -1877,11 +1954,11 @@ int runSoulLifecycleCapture(GLFWwindow* window,HostState& host,const std::filesy
     std::ofstream manifest(outputDirectory/"manifest.csv",std::ios::trunc);
     if(!manifest){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL manifest\n");return 1;}
     manifest<<"cycle,label,game_frame,souls,target_alive,soul_state,ingest,morph,cube,shell_opacity,visibility,target_scale,phone_bulge,phone_scale_x,phone_scale_y,phone_scale_z,visual_x,visual_y,visual_z,rotation_y,target_x,target_y,target_z,camera_x,camera_y,camera_z,particles,file\n";
-    host.game.reset();GameState& initial=host.game.networkMutableState();
+    host.game.reset();GameState& initial=host.game.hostMutableState();
     for(auto& target:initial.targets)target=TargetState{};
     for(auto& request:initial.respawnQueue)request=HumanRespawnRequest{};
     initial.cinematic=CinematicState{};initial.localSettings.shadows=true;initial.localSettings.particles=true;
-    const auto prepare=[&](int targetIndex){GameState& state=host.game.networkMutableState();state.player.pos={0,0.08f,0};state.player.battery=100;state.player.vel={};state.player.jumpVel=0;state.player.grounded=true;state.camera.yaw=0;state.camera.pitch=0;state.camera.forward={0,0,-1};TargetState& target=state.targets[targetIndex];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1;target.attackCooldown=999;target.pos=state.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;};
+    const auto prepare=[&](int targetIndex){GameState& state=host.game.hostMutableState();state.player.pos={0,0.08f,0};state.player.battery=100;state.player.vel={};state.player.jumpVel=0;state.player.grounded=true;state.camera.yaw=0;state.camera.pitch=0;state.camera.forward={0,0,-1};TargetState& target=state.targets[targetIndex];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1;target.attackCooldown=999;target.pos=state.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;};
     prepare(0);
     const auto step=[&](bool vacuum,bool melee){host.game.setTouchControls(0,0,0,0,vacuum,false,false,melee,false,false);host.game.update(static_cast<float>(SIMULATION_STEP_SECONDS));};
     const auto capture=[&](int cycle,const char* label,int targetIndex){const GameState& state=host.game.state();const TargetState& target=state.targets[targetIndex];const Vec3 visualScale=target.soulVisual.scale;const bool visualFinite=std::isfinite(visualScale.x)&&std::isfinite(visualScale.y)&&std::isfinite(visualScale.z)&&std::isfinite(target.soulVisual.rotationY)&&std::isfinite(target.soulVisual.shellOpacity)&&std::isfinite(state.phoneVisual.ingestBulge)&&std::isfinite(state.phoneVisual.bodyScale.x)&&std::isfinite(state.phoneVisual.bodyScale.y)&&std::isfinite(state.phoneVisual.bodyScale.z);const bool visualUniform=std::abs(visualScale.x-visualScale.y)<0.0001f&&std::abs(visualScale.x-visualScale.z)<0.0001f;if(!visualFinite||!visualUniform){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=%s visual=(%.6f,%.6f,%.6f) rotation=%.6f opacity=%.6f phone_bulge=%.6f\n",cycle,label,visualScale.x,visualScale.y,visualScale.z,target.soulVisual.rotationY,target.soulVisual.shellOpacity,state.phoneVisual.ingestBulge);return false;}int particles=0;for(const auto& particle:state.particles)if(particle.life>0)++particles;char filename[96]{};std::snprintf(filename,sizeof(filename),"cycle%d_%s.ppm",cycle,label);host.renderer.draw(state);glFinish();const bool saved=captureFramebuffer(outputDirectory/filename,width,height);glfwSwapBuffers(window);glfwPollEvents();manifest<<cycle<<','<<label<<','<<state.frame<<','<<state.player.souls<<','<<(target.alive?1:0)<<','<<static_cast<int>(target.soulState)<<','<<target.ingestProgress<<','<<target.soulMorph<<','<<target.soulCubeAmount<<','<<target.soulVisual.shellOpacity<<','<<target.visibility<<','<<target.scale<<','<<state.phoneVisual.ingestBulge<<','<<state.phoneVisual.bodyScale.x<<','<<state.phoneVisual.bodyScale.y<<','<<state.phoneVisual.bodyScale.z<<','<<visualScale.x<<','<<visualScale.y<<','<<visualScale.z<<','<<target.soulVisual.rotationY<<','<<target.pos.x<<','<<target.pos.y<<','<<target.pos.z<<','<<state.camera.pos.x<<','<<state.camera.pos.y<<','<<state.camera.pos.z<<','<<particles<<','<<filename<<'\n';manifest.flush();std::printf("SOUL_LIFECYCLE_FRAME cycle=%d label=%s frame=%d alive=%d state=%d ingest=%.3f morph=%.3f cube=%.3f opacity=%.3f phone_bulge=%.3f rotation=%.3f file=%s\n",cycle,label,state.frame,target.alive?1:0,static_cast<int>(target.soulState),target.ingestProgress,target.soulMorph,target.soulCubeAmount,target.soulVisual.shellOpacity,state.phoneVisual.ingestBulge,target.soulVisual.rotationY,filename);return saved;};
@@ -1892,7 +1969,7 @@ int runSoulLifecycleCapture(GLFWwindow* window,HostState& host,const std::filesy
         step(false,true);step(false,false);if(!host.game.state().targets[targetIndex].slurpable){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=exposure\n",cycle);return 1;}if(!capture(cycle,"01_exposed",targetIndex))return 1;
         int frames=0;while(host.game.state().targets[targetIndex].soulMorph<0.50f&&frames++<180)step(false,false);if(!capture(cycle,"02_morph_mid",targetIndex))return 1;
         while(host.game.state().targets[targetIndex].soulMorph<0.995f&&frames++<240)step(false,false);if(host.game.state().targets[targetIndex].soulMorph<0.995f){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=morph\n",cycle);return 1;}if(!capture(cycle,"03_free",targetIndex))return 1;
-        {GameState& state=host.game.networkMutableState();TargetState& target=state.targets[targetIndex];target.pos=state.player.pos+Vec3{0,0.50f,-3.0f};target.walkTarget=target.pos;target.vel={};state.camera.yaw=0;state.camera.pitch=0;state.camera.forward={0,0,-1};}
+        {GameState& state=host.game.hostMutableState();TargetState& target=state.targets[targetIndex];target.pos=state.player.pos+Vec3{0,0.50f,-3.0f};target.walkTarget=target.pos;target.vel={};state.camera.yaw=0;state.camera.pitch=0;state.camera.forward={0,0,-1};}
         frames=0;while(host.game.state().targets[targetIndex].soulState!=SoulState::Attracted&&frames++<180)step(true,false);if(host.game.state().targets[targetIndex].soulState==SoulState::Attracted&&!capture(cycle,"04_attracted",targetIndex))return 1;
         while(host.game.state().targets[targetIndex].soulState!=SoulState::Latched&&host.game.state().targets[targetIndex].soulState!=SoulState::Ingesting&&frames++<300)step(true,false);if(frames>=300){std::fprintf(stderr,"SOUL_LIFECYCLE_CAPTURE_FAIL cycle=%d phase=latch\n",cycle);return 1;}if(!capture(cycle,"05_latched",targetIndex))return 1;
         while(host.game.state().targets[targetIndex].alive&&host.game.state().targets[targetIndex].ingestProgress<0.25f&&frames++<420)step(true,false);if(!capture(cycle,"06_ingest_25",targetIndex))return 1;
@@ -1956,7 +2033,7 @@ int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::files
 
     host.game.debugStartGeneratedRoomFixture(2,2);
     host.game.setPersistentProgression(0,0,0,0);
-    GameState& initial=host.game.networkMutableState();
+    GameState& initial=host.game.hostMutableState();
     initial.started=true;initial.uiPaused=false;initial.attractMode=false;initial.cinematic.introActive=false;initial.upgradeMenu.active=false;
     initial.localSettings.graphicsPreset=2;initial.localSettings.shadows=true;initial.localSettings.particles=true;initial.localSettings.fpsCounter=false;
     initial.player.pos={0.0f,0.08f,15.2f};initial.player.vel={};initial.player.jumpVel=0.0f;initial.player.grounded=true;initial.player.battery=100.0f;
@@ -1970,24 +2047,24 @@ int runVerticalSliceEvidence(GLFWwindow* window,HostState& host,const std::files
     const bool traversalPassed=sawAirborne&&traversalDistance>2.0f;
     record("traversal-landed");
 
-    GameState& encounter=host.game.networkMutableState();TargetState& target=encounter.targets[0];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1.0f;target.attackCooldown=999.0f;target.pos=encounter.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;
+    GameState& encounter=host.game.hostMutableState();TargetState& target=encounter.targets[0];target=TargetState{};target.alive=true;target.armor=0.10f;target.health=1.0f;target.attackCooldown=999.0f;target.pos=encounter.player.pos+Vec3{0,0,-0.75f};target.walkTarget=target.pos;
     const int soulsBefore=encounter.player.souls;step(0,false,false,true,false);step(0,false,false,false,false);
     const bool combatPassed=host.game.state().targets[0].slurpable;record("soul-exposed");
     for(int settleTick=0;settleTick<24;++settleTick)step(0,false,false,false,false);
-    host.game.networkMutableState().targets[0].pos=host.game.state().player.pos+Vec3{0,0,-3.2f};
+    host.game.hostMutableState().targets[0].pos=host.game.state().player.pos+Vec3{0,0,-3.2f};
     bool sawAttracted=false,sawIngesting=false,capturedAttraction=false;int captureTicks=0;
     for(;captureTicks<360&&host.game.state().player.souls==soulsBefore;++captureTicks){step(0,false,false,false,true);const auto soul=host.game.state().targets[0].soulState;sawAttracted|=soul==SoulState::Attracted;sawIngesting|=soul==SoulState::Latched||soul==SoulState::Ingesting;if(!capturedAttraction&&soul==SoulState::Attracted){record("soul-pull");capturedAttraction=true;}}
     if(!capturedAttraction)record("soul-pull");
     const bool soulPassed=host.game.state().player.souls==soulsBefore+1&&sawAttracted&&sawIngesting;record("soul-stored");
 
-    for(int slot=0;slot<host.game.state().requiredSouls;++slot){GameState& state=host.game.networkMutableState();const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*42.0f;BulletState& bullet=state.bullets[0];bullet=BulletState{};bullet.alive=true;bullet.life=1.0f;bullet.pos=state.captures[slot].pos+Vec3{0,0,tileOrigin+1.9f};bullet.vel={0,0,-25.0f};step(0,false,false,false,false);}
+    for(int slot=0;slot<host.game.state().requiredSouls;++slot){GameState& state=host.game.hostMutableState();const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*42.0f;BulletState& bullet=state.bullets[0];bullet=BulletState{};bullet.alive=true;bullet.life=1.0f;bullet.pos=state.captures[slot].pos+Vec3{0,0,tileOrigin+1.9f};bullet.vel={0,0,-25.0f};step(0,false,false,false,false);}
     const bool objectivePassed=host.game.state().roomClear&&countFilled(host.game.state())==host.game.state().requiredSouls;record("objective-complete");
 
-    const int roomBefore=host.game.state().roomIndex;GameState& crossing=host.game.networkMutableState();const float tileOrigin=static_cast<float>(crossing.topology.currentTileIndex)*42.0f;crossing.player.pos={0,PHONE_MODEL_HEIGHT*0.5f,tileOrigin-20.8f};crossing.player.vel={0,0,-20};crossing.player.grounded=true;step(0,false,false,false,false);step(0,false,false,false,false);
+    const int roomBefore=host.game.state().roomIndex;GameState& crossing=host.game.hostMutableState();const float tileOrigin=static_cast<float>(crossing.topology.currentTileIndex)*42.0f;crossing.player.pos={0,PHONE_MODEL_HEIGHT*0.5f,tileOrigin-20.8f};crossing.player.vel={0,0,-20};crossing.player.grounded=true;step(0,false,false,false,false);step(0,false,false,false,false);
     const bool transitionPassed=host.game.state().roomIndex==roomBefore+1&&host.game.state().upgradeMenu.active&&host.game.state().uiPaused&&host.game.state().doorTransition.active;
     for(int presentationTick=0;presentationTick<24;++presentationTick)step(0,false,false,false,false);
     record("next-room-upgrade");
-    const bool upgradeChosen=host.game.chooseTemporaryUpgrade(0);host.game.networkMutableState().player.pos.x+=3.1f;step(0,false,false,false,false);const bool resumed=upgradeChosen&&!host.game.state().upgradeMenu.active&&!host.game.state().uiPaused&&!host.game.state().doorTransition.active;record("next-room-ready");
+    const bool upgradeChosen=host.game.chooseTemporaryUpgrade(0);host.game.hostMutableState().player.pos.x+=3.1f;step(0,false,false,false,false);const bool resumed=upgradeChosen&&!host.game.state().upgradeMenu.active&&!host.game.state().uiPaused&&!host.game.state().doorTransition.active;record("next-room-ready");
 
     const bool passed=!captureFailed&&traversalPassed&&combatPassed&&soulPassed&&objectivePassed&&transitionPassed&&resumed;
     {std::ofstream assertions(outputDirectory/"assertions.json",std::ios::trunc);assertions<<"{\n  \"classification\": \""<<(passed?"pass":"fail")<<"\",\n  \"traversal_airborne_and_advanced\": "<<(traversalPassed?"true":"false")<<",\n  \"traversal_distance\": "<<traversalDistance<<",\n  \"combat_exposed_soul\": "<<(combatPassed?"true":"false")<<",\n  \"soul_ingestion_completed\": "<<(soulPassed?"true":"false")<<",\n  \"saw_attracted\": "<<(sawAttracted?"true":"false")<<",\n  \"capture_ticks\": "<<captureTicks<<",\n  \"objective_completed\": "<<(objectivePassed?"true":"false")<<",\n  \"room_transitioned\": "<<(transitionPassed?"true":"false")<<",\n  \"upgrade_selected_and_resumed\": "<<(resumed?"true":"false")<<",\n  \"frame_count\": "<<frames.size()<<"\n}\n";}
@@ -2343,6 +2420,7 @@ int main(int argc, char** argv) {
     const bool captureFlower=argValue(argc,argv,"--capture-flower-frame")!=nullptr;
     const bool captureResidue=argValue(argc,argv,"--capture-residue-frame")!=nullptr;
     const bool captureMenu=argValue(argc,argv,"--capture-menu-frame")!=nullptr;
+    const bool captureDeveloper=argValue(argc,argv,"--capture-developer-deck")!=nullptr;
     const bool captureSpectator=argValue(argc,argv,"--capture-spectator-frame")!=nullptr;
     const char* captureDemoDir=argValue(argc,argv,"--capture-cpu-demo");
     const char* captureCinematicDir=argValue(argc,argv,"--capture-cinematic-demo");
@@ -2369,6 +2447,10 @@ int main(int argc, char** argv) {
     if(agentPlaytest&&!agentFrame){std::fprintf(stderr,"AGENT_PLAYTEST_ERROR reason=missing_agent_frame\n");return 2;}
     const char* captureMenuPage=argValue(argc,argv,"--menu-page");
     const char* captureMenuPaintGesture=argValue(argc,argv,"--menu-paint-gesture");
+    const char* captureDeveloperFocus=argValue(argc,argv,"--developer-focus");
+    const char* captureDeveloperCommand=argValue(argc,argv,"--developer-command");
+    const int captureDeveloperSelection=std::max(0,std::min(static_cast<int>(DeveloperCodecQuickActions.size())-1,argInt(argc,argv,"--developer-selection",0)));
+    const bool captureDeveloperRunSelection=hasArg(argc,argv,"--developer-run-selection");
     const bool captureMenuPause=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"pause")==0;
     const bool captureMenuUpgrade=captureMenu&&captureMenuPage&&std::strcmp(captureMenuPage,"upgrade")==0;
     const bool tvRoomTest=hasArg(argc,argv,"--tv-room-test");
@@ -2389,7 +2471,7 @@ int main(int argc, char** argv) {
     const bool combatCrowdStress=hasArg(argc,argv,"--combat-crowd-stress");
     const char* soulLifecycleDirectory=argValue(argc,argv,"--capture-soul-lifecycle");
     const char* enemyMotionDirectory=argValue(argc,argv,"--capture-enemy-motion");
-    const char* capturePath=captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureFlower?argValue(argc,argv,"--capture-flower-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame")))))))))));
+    const char* capturePath=captureDeveloper?argValue(argc,argv,"--capture-developer-deck"):(captureHuman?argValue(argc,argv,"--capture-human-frame"):(captureSoul?argValue(argc,argv,"--capture-soul-frame"):(captureOcclusion?argValue(argc,argv,"--capture-occlusion-frame"):(captureStart?argValue(argc,argv,"--capture-start-frame"):(capturePaused?argValue(argc,argv,"--capture-paused-frame"):(captureMosh?argValue(argc,argv,"--capture-mosh-frame"):(capturePhone?argValue(argc,argv,"--capture-phone-frame"):(captureFlower?argValue(argc,argv,"--capture-flower-frame"):(captureResidue?argValue(argc,argv,"--capture-residue-frame"):(captureMenu?argValue(argc,argv,"--capture-menu-frame"):(captureSpectator?argValue(argc,argv,"--capture-spectator-frame"):argValue(argc,argv,"--capture-frame"))))))))))));
     const int captureRoomSeed=argInt(argc,argv,"--capture-room-seed",-1);
     const int captureRoomIndex=argInt(argc,argv,"--capture-room-index",-1);
     const int captureGraphicsPreset=argInt(argc,argv,"--capture-graphics-preset",-1);
@@ -2423,6 +2505,7 @@ int main(int argc, char** argv) {
     }
     const int windowWidth=std::max(320,std::min(7680,argInt(argc,argv,"--capture-width",1280)));
     const int windowHeight=std::max(180,std::min(4320,argInt(argc,argv,"--capture-height",720)));
+    if(captureDeveloper&&!desktopBuildIdentity().developerConsole){std::fprintf(stderr,"DEVELOPER_DECK_CAPTURE_REFUSED reason=developer_console_disabled\n");return 2;}
     if (hasArg(argc, argv, "--smoke-test")) {
         return runSmokeTest();
     }
@@ -2508,9 +2591,24 @@ int main(int argc, char** argv) {
     if(const char* service=std::getenv("DIGITAL_BREAKDOWN_MULTIPLAYER_URL"))host.multiplayerService=service;
     host.game.reset();
     if((!capturePath&&!captureDemo&&!agentPlaytest)||captureStart)host.game.prepareAttractScreen();
+    if(captureStart){
+        GameState& fixture=host.game.hostMutableState();
+        if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(fixture.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));
+        if(captureShadows>=0)fixture.localSettings.shadows=captureShadows!=0;
+    }
+    if(captureDeveloper){
+        GameState& fixture=host.game.hostMutableState();
+        fixture.cinematic.introActive=false;fixture.uiPaused=true;fixture.upgradeMenu.active=false;
+        host.codec.open=true;host.codec.actionFocus=!(captureDeveloperFocus&&std::strcmp(captureDeveloperFocus,"command")==0);
+        host.codec.quickActionSelection=captureDeveloperSelection;
+        host.codec.write("READY / HIDDEN CAPTURE FIXTURE");
+        if(captureDeveloperCommand){host.codec.actionFocus=false;host.codec.input=captureDeveloperCommand;executeDeveloperCodec(host);}
+        else if(captureDeveloperRunSelection){host.codec.input=DeveloperCodecQuickActions[host.codec.quickActionSelection].command;executeDeveloperCodec(host);}
+        std::printf("DEVELOPER_DECK_FIXTURE selection=%d focus=%s executed=%s\n",host.codec.quickActionSelection,host.codec.actionFocus?"actions":"command",(captureDeveloperCommand||captureDeveloperRunSelection)?"YES":"NO");
+    }
     if(captureMenu){
         const char* page=captureMenuPage;
-        GameState& fixture=host.game.networkMutableState();
+        GameState& fixture=host.game.hostMutableState();
         host.game.prepareStartScreen();
         fixture.localSettings.menuPage=LocalMenuPage::Main;
         fixture.localSettings.menuScroll=0.0f;
@@ -2547,7 +2645,7 @@ int main(int argc, char** argv) {
         std::printf("RALLY_LAB_READY souls=1 enemies=0 controls=Q/F/Space+F/vacuum\n");
     }
     if(roomInspector){host.game.debugStartRoomInspector();for(int premise=0;premise<roomInspectorPremise;++premise)host.game.debugStepRoomInspector(1,false);std::printf("ROOM_INSPECTOR_READY previous=[ next=] regenerate=R enemies=E review=5/6/7/8\n");}
-    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);auto& generated=host.game.networkMutableState();generated.progression.permanent.lifetimeRoomsCleared=static_cast<std::uint64_t>(std::max(0,captureLifetimeRooms));generated.progression.permanent.bestRoomCleared=std::max(0,captureBestRoom);if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(generated.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));if(captureShadows>=0)generated.localSettings.shadows=captureShadows!=0;if(std::isfinite(capturePlayerX))generated.player.pos.x=capturePlayerX;if(std::isfinite(capturePlayerZ))generated.player.pos.z=static_cast<float>(generated.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s quality=%d shadows=%d lifetime=%llu best=%d player=(%.2f,%.2f)\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form),generated.localSettings.graphicsPreset,generated.localSettings.shadows?1:0,static_cast<unsigned long long>(generated.progression.permanent.lifetimeRoomsCleared),generated.progression.permanent.bestRoomCleared,generated.player.pos.x,generated.player.pos.z);}
+    if(captureGeneratedRoom){host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);auto& generated=host.game.hostMutableState();generated.progression.permanent.lifetimeRoomsCleared=static_cast<std::uint64_t>(std::max(0,captureLifetimeRooms));generated.progression.permanent.bestRoomCleared=std::max(0,captureBestRoom);if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(generated.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));if(captureShadows>=0)generated.localSettings.shadows=captureShadows!=0;if(std::isfinite(capturePlayerX))generated.player.pos.x=capturePlayerX;if(std::isfinite(capturePlayerZ))generated.player.pos.z=static_cast<float>(generated.topology.currentTileIndex)*world::RoomDepth+capturePlayerZ;const auto generatedPlan=room_environment::roomPlan(generated.roomSeed,generated.roomIndex);std::printf("CAPTURE_ROOM_FIXTURE seed=%d room=%d setting=%s form=%s quality=%d shadows=%d lifetime=%llu best=%d player=(%.2f,%.2f)\n",generated.roomSeed,generated.roomIndex,room_environment::settingName(generatedPlan.setting),room_environment::formName(generatedPlan.form),generated.localSettings.graphicsPreset,generated.localSettings.shadows?1:0,static_cast<unsigned long long>(generated.progression.permanent.lifetimeRoomsCleared),generated.progression.permanent.bestRoomCleared,generated.player.pos.x,generated.player.pos.z);}
     if(automationPlaytest)std::printf("AUTOMATION_PLAYTEST_READY local_only=YES focus_pause=OFF input_clearing=ON\n");
     host.savedProgressionRevision=host.game.state().progression.permanent.revision;
     host.savedSettings=host.game.state().localSettings;
@@ -2579,7 +2677,7 @@ int main(int argc, char** argv) {
         fixture.energy.flowerStacks=2;
     }
     if(captureFlower){
-        GameState& fixture=host.game.networkMutableState();
+        GameState& fixture=host.game.hostMutableState();
         for(auto& target:fixture.targets)target.alive=false;
         for(auto& flower:fixture.flowers)flower=FlowerPowerupState{};
         for(auto& bullet:fixture.bullets)bullet=BulletState{};
@@ -2588,7 +2686,7 @@ int main(int argc, char** argv) {
         auto& bullet=fixture.bullets[0];bullet.alive=true;bullet.life=1.0f;bullet.pos=fixture.player.pos+Vec3{0.18f,0.48f,-2.02f};bullet.spin=0.65f;
     }
     if(captureResidue){
-        GameState& fixture=host.game.networkMutableState();
+        GameState& fixture=host.game.hostMutableState();
         for(auto& target:fixture.targets)target.alive=false;
         fixture.cinematic.introActive=false;
         fixture.localSettings.particles=true;
@@ -2612,7 +2710,7 @@ int main(int argc, char** argv) {
     if(captureSpectator){
         host.game.configureNetworkHost();
         host.game.setNetworkPeerActive(1,true);
-        GameState& fixture=host.game.networkMutableState();
+        GameState& fixture=host.game.hostMutableState();
         for(auto& target:fixture.targets)target.alive=false;
         fixture.player.alive=false;
         fixture.player.downed=false;
@@ -2628,7 +2726,7 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(captureDemoDir);
         host.game.restart();
         if(captureRoomSeed>=0&&captureRoomIndex>=1)host.game.debugStartGeneratedRoomFixture(captureRoomSeed,captureRoomIndex);
-        GameState& fixture=host.game.networkMutableState();
+        GameState& fixture=host.game.hostMutableState();
         if(captureGraphicsPreset>=0)applyPhoneGraphicsPreset(fixture.localSettings,std::max(0,std::min(2,captureGraphicsPreset)));
         if(captureShadows>=0)fixture.localSettings.shadows=captureShadows!=0;
         if(std::isfinite(capturePlayerX))fixture.player.pos.x=capturePlayerX;
@@ -2773,7 +2871,7 @@ int main(int argc, char** argv) {
                 const bool vacuum=guest&&multiplayerParityFrame>=620&&
                     host.game.state().player.souls==0;
                 if(!guest&&multiplayerParityFrame==100){
-                    GameState& fixture=host.game.networkMutableState();
+                    GameState& fixture=host.game.hostMutableState();
                     fixture.player.pos={8,0.08f,8};
                     fixture.multiplayer.peers[1].player.pos={0,0.08f,0};
                     fixture.multiplayer.peers[1].player.vel={};
@@ -2786,14 +2884,14 @@ int main(int argc, char** argv) {
                     std::fflush(stdout);
                 }
                 if(!guest&&multiplayerParityFrame>=100&&multiplayerParityFrame<2500){
-                    GameState& fixture=host.game.networkMutableState();
+                    GameState& fixture=host.game.hostMutableState();
                     fixture.multiplayer.peers[1].player.pos={0,0.08f,0};
                     fixture.multiplayer.peers[1].player.vel={};
                     auto& enemy=fixture.targets[0];
                     if(enemy.alive&&!enemy.slurpable){enemy.pos={0,0.08f,-0.7f};enemy.walkTarget=enemy.pos;enemy.attackCooldown=10.0f;}
                 }
                 if(!guest&&multiplayerParityFrame==600){
-                    GameState& fixture=host.game.networkMutableState();
+                    GameState& fixture=host.game.hostMutableState();
                     auto& soul=fixture.targets[1];
                     for(std::size_t i=0;i<fixture.targets.size();++i)
                         if(i!=1)fixture.targets[i].alive=false;
@@ -2804,7 +2902,7 @@ int main(int argc, char** argv) {
                     std::fflush(stdout);
                 }
                 if(!guest&&multiplayerParityFrame>=600&&multiplayerParityFrame<2500){
-                    GameState& fixture=host.game.networkMutableState();
+                    GameState& fixture=host.game.hostMutableState();
                     auto& soul=fixture.targets[1];
                     if(soul.alive&&soul.soulState==SoulState::Free)
                         soul.pos={0,0.57f,-2.0f};
@@ -2937,7 +3035,7 @@ int main(int argc, char** argv) {
             bool exposedSoul=false;
             for(const auto& target:host.game.state().targets)if(target.alive&&target.slurpable){exposedSoul=true;break;}
             if(captureCinematic&&!exposedSoul&&f<=10){
-                GameState& fixture=host.game.networkMutableState();
+                GameState& fixture=host.game.hostMutableState();
                 fixture.targets[0].pos=fixture.player.pos+Vec3{0.15f,-fixture.player.pos.y,-2.65f};
                 fixture.targets[0].walkTarget=fixture.targets[0].pos;
                 fixture.targets[0].vel={};
@@ -3102,6 +3200,14 @@ int main(int argc, char** argv) {
         }
         const auto renderBegin=std::chrono::steady_clock::now();
         host.renderer.draw(renderState,&host.codec);
+        if(host.liveCaptureRequested){
+            host.liveCaptureRequested=false;
+            glFinish();
+            std::filesystem::path liveCapturePath;
+            const bool captured=captureLiveFramebuffer(renderState,framebufferWidth,framebufferHeight,liveCapturePath);
+            std::printf("LIVE_CAPTURE_%s path=%s frame=%d seed=%d room=%d\n",captured?"OK":"FAILED",liveCapturePath.string().c_str(),renderState.frame,renderState.roomSeed,renderState.roomIndex);
+            std::fflush(stdout);
+        }
         if(host.automationCaptureDelayFrames>0&&--host.automationCaptureDelayFrames==0){
             glFinish();
             const auto path=automationPlaytestCapturePath();

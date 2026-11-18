@@ -29,6 +29,15 @@
 - Compare identical fixtures when measuring performance.
 - Distinguish simulation failures from rendering performance.
 - Preserve generated evidence under ignored artifact directories.
+- Prefer the native hidden-capture path over desktop input for visual checks:
+  `DigitalBreakdown.exe --capture-frame <path.ppm> <fixture> --capture-hide-hud`.
+  Capture and agent-playtest modes set the GLFW window invisible, so they can
+  run without taking focus from the active desktop. Useful deterministic
+  fixtures include `--slope-lab`, `--room-inspector`, and `--tv-room-enter`.
+  Record the build identity printed by the executable with every capture.
+- Use interactive window control only for subjective input feel. Convert the
+  resulting issue into a checked-in command stream or native fixture before
+  claiming a fix, then replay the identical fixture for before/after evidence.
 - For an authentic native-to-Godot soul-capture check, run
   `godot/scripts/agent_playtest.gd` with
   `godot/tests/fixtures/agent_authentic_soul_capture.commands` and

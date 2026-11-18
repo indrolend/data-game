@@ -25,6 +25,8 @@ var _grass_latest_tips: Array = []
 var _grass_debug_proxies: Dictionary = {}
 var _grass_snapshot_key := ""
 var _grass_blade_records: Array = []
+var _grass_root_color := Color(0.20, 0.34, 0.20, 1.0)
+var _grass_tip_color := Color(0.27, 0.43, 0.25, 1.0)
 var _coastal_water: MeshInstance3D
 var _coastal_water_material: ShaderMaterial
 var _static_geometry_sync_enabled := true
@@ -60,14 +62,14 @@ func set_native_city_asphalt_pixels(pixels: PackedByteArray) -> void:
     _city_asphalt_texture = ImageTexture.create_from_image(image)
 
 func native_material_texture(material_name: String) -> ImageTexture:
-    if material_name == "field_grass":
-        return _field_grass_texture
     if _native_material_textures.has(material_name):
         return _native_material_textures[material_name]
-    if material_name not in ["stone", "metal"]:
+    if material_name not in ["field_grass", "stone", "metal"]:
         return null
-    var material_path := _native_model_path(
-        "materials/photo-%s-runtime.rgb" % material_name)
+    var file_name := "photo-%s-runtime.rgb" % material_name
+    if material_name == "field_grass":
+        file_name = "photo-grass.rgb"
+    var material_path := _native_model_path("materials/" + file_name)
     var file := FileAccess.open(material_path, FileAccess.READ)
     if file == null:
         push_error("Could not open native runtime material: " + material_path)
@@ -253,6 +255,8 @@ func _sync_grass(snapshot: Dictionary) -> void:
         _grass_node.set_meta("presentation_only", true)
         add_child(_grass_node)
     var blades: Array = snapshot.get("grass_blades", [])
+    _grass_root_color = snapshot.get("grass_root_color", _grass_root_color)
+    _grass_tip_color = snapshot.get("grass_tip_color", _grass_tip_color)
     if rebuild:
         for proxy in _grass_debug_proxies.values():
             proxy.queue_free()
@@ -311,6 +315,8 @@ func _sync_grass_legacy(snapshot: Dictionary) -> void:
         _grass_node.set_meta("presentation_only", true)
         add_child(_grass_node)
     var blades: Array = snapshot.get("grass_blades", [])
+    _grass_root_color = snapshot.get("grass_root_color", _grass_root_color)
+    _grass_tip_color = snapshot.get("grass_tip_color", _grass_tip_color)
     if rebuild:
         for old_blade in _grass_node.get_children():
             _grass_node.remove_child(old_blade)
@@ -404,10 +410,7 @@ func _grass_blade_mesh() -> ArrayMesh:
         Vector3(-0.5, 0.0, 0.0), Vector3(0.5, 0.0, 0.0), Vector3(0.0, 1.0, 0.0)])
     # DesktopRenderer draws one phase-oriented triangle with a root-to-tip
     # color ramp. It is intentionally distinct from the tiled Field floor.
-    var colors := PackedColorArray([
-        Color(0x38 / 255.0, 0x68 / 255.0, 0x40 / 255.0, 1.0),
-        Color(0x38 / 255.0, 0x68 / 255.0, 0x40 / 255.0, 1.0),
-        Color(0x4d / 255.0, 0x7d / 255.0, 0x4e / 255.0, 1.0)])
+    var colors := PackedColorArray([_grass_root_color, _grass_root_color, _grass_tip_color])
     var normals := PackedVector3Array([
         Vector3(0.18, 0.96, 0.0).normalized(), Vector3(0.18, 0.96, 0.0).normalized(),
         Vector3(0.18, 0.96, 0.0).normalized()])
@@ -914,8 +917,9 @@ func _material_from_native(definition: Dictionary) -> StandardMaterial3D:
         material.albedo_color.a = opacity
     material.set_meta("native_texture", int(definition.texture))
     material.set_meta("native_texture_world_scale", float(definition.texture_world_scale))
-    if int(definition.texture) == 1 and _field_grass_texture != null:
-        material.albedo_texture = _field_grass_texture
+    if int(definition.texture) == 1:
+        var grass_texture := native_material_texture("field_grass")
+        material.albedo_texture = grass_texture if grass_texture != null else _field_grass_texture
         material.uv1_triplanar = true
         var world_scale := maxf(float(definition.texture_world_scale), 0.001)
         material.uv1_scale = Vector3.ONE / world_scale

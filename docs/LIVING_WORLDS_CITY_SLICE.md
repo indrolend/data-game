@@ -68,7 +68,11 @@ The source textures and mesh hierarchy were inspected rather than blindly copied
 - Field backdrop trees now use the same deterministic structural variation as climbable authored trees: nonuniform width/depth, lean, yaw history, species-specific root counts, and grounded root flares. The four imported CC0 families remain the source silhouettes; collision is unchanged.
 - Coastal keeps ambientCG Ground054 as its only sand source. A narrow darker, finer-scale saturated strip now bridges dry sand and computed water instead of introducing another beach material.
 - Coastal collider obstacles now reuse the existing deterministic faceted-rock vocabulary and ambientCG stone material instead of rendering as moss-textured boxes. The renderer uses dominant-axis face projection so the photograph retains sensible scale on both top and side faces.
-- Rock presentation is deliberately separate from rock support authority. `makeMesh` remains the established physics/AI surface; `makeVisualMesh` supplies the broader irregular plateau silhouette inside the same bounds. This separation was required after traversal evidence caught an initial shared-mesh regression.
+- Rock presentation now resolves to the established `makeMesh` physics/AI
+  surface. The later presentation-only plateau proved unsafe because it extended
+  above and beyond that authority, allowing visible surface penetration. Any
+  future silhouette redesign must first satisfy the existing all-direction
+  traversal and clearance fixtures as one shared surface.
 
 ## Evidence and validation
 

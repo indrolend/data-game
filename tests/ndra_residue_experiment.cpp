@@ -40,7 +40,7 @@ void emit(const char* name,int tick,const ParticleState& before,const ParticleSt
 
 void runCase(const char* name,float y,bool vacuum,float battery,ParticleMaterial material,float pullX,float life=3.0f){
     Game game; game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     for(auto& particle:state.particles)particle=ParticleState{};
     state.vacuum.active=vacuum;state.player.battery=battery;state.phoneTransform.vacuumPullPoint={pullX,y,0.0f};
     ParticleState& particle=state.particles[0];particle.material=material;particle.life=particle.maxLife=life;
@@ -55,7 +55,7 @@ void runCase(const char* name,float y,bool vacuum,float battery,ParticleMaterial
 }
 
 void runSlopeCase(){
-    Game game;game.debugStartSlopeLab();GameState& state=game.networkMutableState();
+    Game game;game.debugStartSlopeLab();GameState& state=game.fixtureMutableState();
     for(auto& particle:state.particles)particle=ParticleState{};
     const SlopeSupport slope=state.slopeSupports[0];
     const float x=(slope.minX+slope.maxX)*0.5f,z=(slope.minZ+slope.maxZ)*0.5f;
@@ -79,7 +79,7 @@ int main(){
     runCase("control_capture_radius",0.105f,true,20.0f,ParticleMaterial::SignalResidue,0.01f);
     runSlopeCase();
 
-    Game transition;transition.reset();GameState& state=transition.networkMutableState();
+    Game transition;transition.reset();GameState& state=transition.fixtureMutableState();
     for(auto& particle:state.particles)particle=ParticleState{};
     state.vacuum.active=true;state.player.battery=20.0f;state.phoneTransform.vacuumPullPoint={0.5f,1.0f,0.0f};
     ParticleState& particle=state.particles[0];particle.material=ParticleMaterial::SignalResidue;particle.life=particle.maxLife=3.0f;particle.size=0.14f;particle.pos={0.0f,0.105f,0.0f};

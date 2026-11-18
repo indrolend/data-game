@@ -6,10 +6,20 @@
 
 int main(){
     DeveloperCodecState state;const bool closedAccepts=!state.gameplayInputSuppressed();state.open=true;const bool openSuppresses=state.gameplayInputSuppressed();state.open=false;const bool closeRestores=!state.gameplayInputSuppressed();
+    bool quickActionsRecognized=true;for(const auto& action:DeveloperCodecQuickActions)quickActionsRecognized&=parseDeveloperCodecCommand(action.command).command!=DeveloperCodecCommand::Invalid;
+    const bool navigation=moveDeveloperCodecQuickSelection(0,-1,0)==0&&moveDeveloperCodecQuickSelection(0,1,0)==1&&
+        moveDeveloperCodecQuickSelection(14,1,0)==14&&moveDeveloperCodecQuickSelection(1,-1,0)==0&&
+        moveDeveloperCodecQuickSelection(0,0,-1)==14&&moveDeveloperCodecQuickSelection(14,0,1)==0&&
+        moveDeveloperCodecQuickSelection(1,0,-1)==13&&moveDeveloperCodecQuickSelection(13,0,1)==1;
     const bool ok=closedAccepts&&openSuppresses&&closeRestores&&
         parseDeveloperCodecCommand("help").command==DeveloperCodecCommand::Help&&
         parseDeveloperCodecCommand("soul spawn").command==DeveloperCodecCommand::SoulSpawn&&
         parseDeveloperCodecCommand("playtest rally").command==DeveloperCodecCommand::PlaytestRally&&
+        parseDeveloperCodecCommand("playtest slope").command==DeveloperCodecCommand::PlaytestSlope&&
+        parseDeveloperCodecCommand("playtest field").command==DeveloperCodecCommand::PlaytestField&&
+        parseDeveloperCodecCommand("playtest tv-enter").command==DeveloperCodecCommand::PlaytestTvEnter&&
+        parseDeveloperCodecCommand("capture frame").command==DeveloperCodecCommand::CaptureFrame&&
+        DeveloperCodecQuickActions.size()==15&&quickActionsRecognized&&navigation&&
         parseDeveloperCodecCommand("not-real").command==DeveloperCodecCommand::Invalid&&
         parseDeveloperCodecCommand("soul spawn extra").command==DeveloperCodecCommand::Invalid&&
         parseDeveloperCodecCommand("help extra").command==DeveloperCodecCommand::Invalid&&parseDeveloperCodecCommand("lighting show").command==DeveloperCodecCommand::Lighting&&parseDeveloperCodecCommand("shadow show").command==DeveloperCodecCommand::Shadow&&parseDeveloperCodecCommand("environment show").command==DeveloperCodecCommand::Environment;
@@ -22,5 +32,5 @@ int main(){
     const auto environmentPremise=parseEnvironmentCommand("environment premise coastal-shore"),environmentSeed=parseEnvironmentCommand("environment seed 424242 12"),badEnvironment=parseEnvironmentCommand("environment premise moon");
     const bool environment=environmentPremise.kind==EnvironmentCommandKind::Premise&&environmentPremise.premise==7&&environmentSeed.kind==EnvironmentCommandKind::Seed&&environmentSeed.seed==424242&&environmentSeed.room==12&&badEnvironment.kind==EnvironmentCommandKind::Invalid;
     if(!ok||!lighting||!shadow||!environment){std::fprintf(stderr,"DEVELOPER_CODEC_FAILED\n");return 1;}
-    std::printf("DEVELOPER_CODEC_OK allowlist=16 shell=ABSENT invalid_args=REJECTED open_input=SUPPRESSED close_input=RESTORED\n");return 0;
+    std::printf("DEVELOPER_CODEC_OK action_deck=15 shell=ABSENT invalid_args=REJECTED open_input=SUPPRESSED close_input=RESTORED\n");return 0;
 }

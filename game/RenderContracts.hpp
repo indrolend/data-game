@@ -13,6 +13,13 @@ enum class TextureId : unsigned char { None, FieldGrass, CityAsphalt };
 enum class ShadowQuality : unsigned char { Off, Cheap, MappedNormal, MappedPretty };
 enum class ShadowMode : unsigned char { Automatic, Off, Cheap, MappedNormal, MappedPretty };
 
+constexpr bool allowsMappedSceneShadows(bool started,bool dead,bool introActive,
+    bool multiplayerEnabled,bool upgradeMenuActive,bool attractMode){
+    const bool presentation=(((!started&&!dead)||dead||introActive||attractMode)
+        &&!multiplayerEnabled&&!upgradeMenuActive);
+    return !presentation;
+}
+
 struct RuntimeShadowControl {
     ShadowMode mode=ShadowMode::Automatic;
     float strengthScale=1.0f;

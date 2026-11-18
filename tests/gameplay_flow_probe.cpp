@@ -89,7 +89,7 @@ int main() {
     Game game;
     game.reset();
 
-    GameState& initial = game.networkMutableState();
+    GameState& initial = game.fixtureMutableState();
     for (TargetState& target : initial.targets) target = TargetState{};
     for (HumanRespawnRequest& request : initial.respawnQueue) request = HumanRespawnRequest{};
     initial.cinematic = CinematicState{};
@@ -107,7 +107,7 @@ int main() {
     int sawIngestingCycles = 0;
 
     for (int cycle = 1; cycle <= kCycles; ++cycle) {
-        GameState& beforeAttack = game.networkMutableState();
+        GameState& beforeAttack = game.fixtureMutableState();
         // Keep storage below its production capacity while retaining room heat,
         // population, RNG, particles, and every target lifecycle across the soak.
         if (beforeAttack.player.souls >= 20) {
@@ -127,7 +127,7 @@ int main() {
             return fail(cycle, "melee_did_not_expose_soul", game.state());
         }
         if ((cycle % 2) == 0) {
-            GameState& approach = game.networkMutableState();
+            GameState& approach = game.fixtureMutableState();
             approach.targets[targetIndex].pos = approach.player.pos + Vec3{0.0f, 0.0f, -3.0f};
             approach.targets[targetIndex].walkTarget = approach.targets[targetIndex].pos;
         }

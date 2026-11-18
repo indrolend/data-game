@@ -200,13 +200,6 @@ add_executable(
 )
 target_include_directories(MultiplayerProtocolTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
 target_compile_features(MultiplayerProtocolTest PRIVATE cxx_std_17)
-if(MSVC)
-    # This integration test intentionally keeps several complete Game fixtures
-    # alive at once. Give the test process room for those value-type snapshots
-    # instead of intermittently overflowing Windows' 1 MiB default stack.
-    target_link_options(MultiplayerProtocolTest PRIVATE "/STACK:8388608")
-endif()
-
 add_executable(
     MultiplayerDeterminismTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/multiplayer_determinism_test.cpp"
@@ -431,23 +424,13 @@ target_compile_features(MarkerPillarGeometryTest PRIVATE cxx_std_17)
 add_executable(SlopeTraversalFixtureTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/slope_traversal_fixture_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
 target_include_directories(SlopeTraversalFixtureTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(SlopeTraversalFixtureTest PRIVATE cxx_std_17)
-if(MSVC)
-    target_link_options(SlopeTraversalFixtureTest PRIVATE /STACK:8388608)
-endif()
-
 add_executable(FieldIslandTraversalTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/field_island_traversal_test.cpp" "${DB_GAME_ROOT}/Game.cpp")
 target_include_directories(FieldIslandTraversalTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(FieldIslandTraversalTest PRIVATE cxx_std_17)
-if(MSVC)
-    target_link_options(FieldIslandTraversalTest PRIVATE /STACK:8388608)
-endif()
 
 add_executable(NdraResidueExperiment "${CMAKE_CURRENT_SOURCE_DIR}/tests/ndra_residue_experiment.cpp" "${DB_GAME_ROOT}/Game.cpp")
 target_include_directories(NdraResidueExperiment PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(NdraResidueExperiment PRIVATE cxx_std_17)
-if(MSVC)
-    target_link_options(NdraResidueExperiment PRIVATE /STACK:8388608)
-endif()
 
 add_executable(RenderContractsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/render_contracts_test.cpp")
 target_include_directories(RenderContractsTest PRIVATE "${DB_GAME_ROOT}")

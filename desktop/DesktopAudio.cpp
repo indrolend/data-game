@@ -131,7 +131,8 @@ void DesktopAudio::update(const GameState& state) {
         // The attract simulation may die and reset repeatedly, but it is still
         // one continuous title presentation.  Its music belongs to the title,
         // not to the disposable demo session.
-        const bool shouldPlayMenuMusic=!state.started||state.attractMode;
+        const bool shouldPlayMenuMusic=music_director::menuMusicAllowed(
+            state.started,state.dead,state.attractMode);
         const bool submenuOpen=state.localSettings.menuPage!=LocalMenuPage::Main;
         const int menuTheme=shouldPlayMenuMusic?static_cast<int>(music_director::menuTheme(submenuOpen)):-1;
         impl_->menuCuePulse=std::max(0.0f,impl_->menuCuePulse-0.018f);impl_->menuCueBend*=0.92f;

@@ -172,7 +172,7 @@ int main() {
 
     // A native enemy hit must drive the phone's damage-reactive display state;
     // presentation adapters only consume this signal and must not infer damage.
-    GameState& damageFixture = game.networkMutableState();
+    GameState& damageFixture = game.fixtureMutableState();
     damageFixture.player.pos = {0.0f, 0.08f, 0.0f};
     damageFixture.player.vel = {};
     damageFixture.player.battery = 100.0f;

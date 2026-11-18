@@ -5,7 +5,18 @@
 #include "VisualIdentity.hpp"
 
 enum class ParticleMaterial : unsigned char { Impact, Flesh, Environment, Soul, Data, SignalResidue };
-enum class SemanticSurface : unsigned char { Default, FieldGround, CityAsphalt, SterilePanel, PhoneMetal, PhoneGlass, Organic };
+enum class SemanticSurface : unsigned char { Default, FieldGround, FieldVegetation, FieldLawn, FieldRock, CityAsphalt, SterilePanel, PhoneMetal, PhoneGlass, Organic };
+
+namespace field_material_family {
+inline constexpr float GroundTextureWorldScale=6.4f;
+inline constexpr float RockTextureWorldScale=1.35f;
+inline constexpr VisualColor GroundTint{1.0f,1.0f,1.0f};
+inline constexpr VisualColor BladeRoot{0.20f,0.34f,0.20f};
+inline constexpr VisualColor BladeTip{0.27f,0.43f,0.25f};
+// Rock remains mineral-first. Field influence belongs at contacts and in
+// localized growth, not as a green multiplier over the entire stone.
+inline constexpr VisualColor RockTint{0.72f,0.74f,0.68f};
+}
 
 inline constexpr render_contract::MaterialDefinition semanticMaterial(
     SemanticSurface surface,VisualColor baseColor={1.0f,1.0f,1.0f},float opacity=1.0f){
@@ -13,7 +24,10 @@ inline constexpr render_contract::MaterialDefinition semanticMaterial(
     using render_contract::ShadingModel;
     using render_contract::TextureId;
     switch(surface){
-        case SemanticSurface::FieldGround:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::FieldGrass,render_contract::FieldOpenGround.textureWorldScale,{0.015f,0.020f,0.012f},2.0f,{}};
+        case SemanticSurface::FieldGround:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::FieldGrass,field_material_family::GroundTextureWorldScale,{0.015f,0.020f,0.012f},2.0f,{}};
+        case SemanticSurface::FieldVegetation:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::None,1.0f,{0.012f,0.016f,0.010f},2.0f,{}};
+        case SemanticSurface::FieldLawn:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::FieldGrass,field_material_family::GroundTextureWorldScale,{0.015f,0.020f,0.012f},2.0f,{}};
+        case SemanticSurface::FieldRock:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::None,field_material_family::RockTextureWorldScale,{0.035f,0.034f,0.030f},5.0f,{}};
         case SemanticSurface::CityAsphalt:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::CityAsphalt,render_contract::CityGround.textureWorldScale,{0.025f,0.030f,0.035f},4.0f,{}};
         case SemanticSurface::SterilePanel:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::None,1.0f,{0.16f,0.19f,0.21f},16.0f,{}};
         case SemanticSurface::PhoneMetal:return {baseColor,ShadingModel::NormalLit,opacity,true,TextureId::None,1.0f,{0.38f,0.44f,0.48f},36.0f,{}};

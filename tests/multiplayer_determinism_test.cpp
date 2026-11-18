@@ -119,7 +119,7 @@ struct RunResult {
 };
 
 void setSeed(Game& game, std::uint32_t seed) {
-  game.networkMutableState().roomSeed = static_cast<int>(seed);
+  game.fixtureMutableState().roomSeed = static_cast<int>(seed);
 }
 
 void scheduleMovement(Game& guest, std::uint32_t tick) {
@@ -185,7 +185,7 @@ RunResult runScenario(const NetworkProfile& profile) {
       if (dbnet::decodeSnapshot(packet.bytes.data(), packet.bytes.size(), header,
                                 snapshot) &&
           snapshot.world == world) {
-        dbnet::applyWorld(guest.networkMutableState(), snapshot, 1);
+        dbnet::applyWorld(guest.fixtureMutableState(), snapshot, 1);
         queue.summary().lastSnapshot = header.sequence;
       }
       return;
@@ -331,7 +331,7 @@ struct MeleeRunResult {
 };
 
 void configureMeleeFixture(Game& game, bool host) {
-  GameState& state = game.networkMutableState();
+  GameState& state = game.fixtureMutableState();
   for (auto& target : state.targets) target.alive = false;
   state.player.pos = host ? Vec3{8.0f, 0.08f, 8.0f}
                           : Vec3{0.0f, 0.08f, 0.0f};
@@ -416,7 +416,7 @@ MeleeRunResult runMeleeScenario(const NetworkProfile& profile) {
       if (dbnet::decodeSnapshot(packet.bytes.data(), packet.bytes.size(), header,
                                 snapshot) &&
           snapshot.world == world) {
-        dbnet::applyWorld(guest.networkMutableState(), snapshot, 1);
+        dbnet::applyWorld(guest.fixtureMutableState(), snapshot, 1);
         queue.summary().lastSnapshot = header.sequence;
       }
       return;
@@ -616,20 +616,20 @@ VacuumRunResult runVacuumDischarge(const NetworkProfile& profile) {
   host.configureNetworkHost();host.setNetworkPeerActive(1,true);
   guest.configureNetworkGuest(1);
   setSeed(host,EXPLICIT_SEED+2);setSeed(guest,EXPLICIT_SEED+2);
-  for(auto& target:host.networkMutableState().targets)target.alive=false;
-  for(auto& target:guest.networkMutableState().targets)target.alive=false;
-  auto& peer=host.networkMutableState().multiplayer.peers[1];
+  for(auto& target:host.fixtureMutableState().targets)target.alive=false;
+  for(auto& target:guest.fixtureMutableState().targets)target.alive=false;
+  auto& peer=host.fixtureMutableState().multiplayer.peers[1];
   peer.player.pos={0,0.08f,0};peer.player.battery=100;peer.player.grounded=true;
-  peer.camera.yaw=0;host.networkMutableState().player.pos={8,0.08f,8};
+  peer.camera.yaw=0;host.fixtureMutableState().player.pos={8,0.08f,8};
   for(Game* game:{&host,&guest}){
-    auto& state=game->networkMutableState();
+    auto& state=game->fixtureMutableState();
     state.player.pos={0,0.08f,0};state.player.battery=100;
     auto& target=state.targets[0];target=TargetState{};target.alive=true;
     target.slurpable=true;target.soulMorph=1.0f;
     target.pos={0,0.55f,-0.72f};target.walkTarget=target.pos;
     target.attackCooldown=1000.0f;
   }
-  host.networkMutableState().player.pos={8,0.08f,8};
+  host.fixtureMutableState().player.pos={8,0.08f,8};
   const dbnet::NetworkWorldContext world{EXPLICIT_SEED+2,1,1,1};
   DeterministicPacketQueue queue(profile,EXPLICIT_SEED+2);
   dbnet::GameplayEventTracker tracker;tracker.reset(world);
@@ -649,7 +649,7 @@ VacuumRunResult runVacuumDischarge(const NetworkProfile& profile) {
     if(packet.type==dbnet::MessageType::Snapshot){
       dbnet::WorldSnapshot snapshot;
       if(dbnet::decodeSnapshot(packet.bytes.data(),packet.bytes.size(),header,snapshot)&&snapshot.world==world){
-        dbnet::applyWorld(guest.networkMutableState(),snapshot,1);
+        dbnet::applyWorld(guest.fixtureMutableState(),snapshot,1);
         queue.summary().lastSnapshot=header.sequence;
       }return;
     }
@@ -815,7 +815,7 @@ RoomRunResult runRoomRollover(const NetworkProfile& profile,std::uint32_t seed){
   Game host;Game guest;host.reset();guest.reset();
   host.configureNetworkHost();host.setNetworkPeerActive(1,true);
   guest.configureNetworkGuest(1);
-  auto& hostState=host.networkMutableState();
+  auto& hostState=host.fixtureMutableState();
   hostState.roomIndex=1;hostState.roomSeed=static_cast<int>(seed);
   hostState.requiredSouls=1;hostState.depositedSouls=0;hostState.roomClear=false;
   for(auto& capture:hostState.captures)capture=CapturePointState{};
@@ -832,8 +832,8 @@ RoomRunResult runRoomRollover(const NetworkProfile& profile,std::uint32_t seed){
   dbnet::NetworkWorldContext guestWorld=hostWorld;
   auto initial=dbnet::captureWorld(host.state(),dbnet::capturePlayers(host.state()),0);
   initial.world=hostWorld;
-  dbnet::applyWorld(guest.networkMutableState(),initial,1);
-  guest.networkMutableState().multiplayer.localPredictionCorrection={4,0,4};
+  dbnet::applyWorld(guest.fixtureMutableState(),initial,1);
+  guest.fixtureMutableState().multiplayer.localPredictionCorrection={4,0,4};
 
   RoomRunResult result;result.oldWorld=hostWorld;
   result.initialWorldHash=dbnet::durableSectionHashes(initial).world;
@@ -879,7 +879,7 @@ RoomRunResult runRoomRollover(const NetworkProfile& profile,std::uint32_t seed){
         ++result.staleSnapshots;return;
       }
       interpolator.push(snapshot,static_cast<std::int64_t>(snapshot.tick)*17);
-      dbnet::applyWorld(guest.networkMutableState(),snapshot,1);
+      dbnet::applyWorld(guest.fixtureMutableState(),snapshot,1);
       queue.summary().lastSnapshot=header.sequence;return;
     }
     dbnet::GameplayEvent event;
@@ -1091,7 +1091,7 @@ LifecycleRunResult runLifecycle(const NetworkProfile& profile){
   Game host;Game guest;host.reset();guest.reset();
   host.configureNetworkHost();host.setNetworkPeerActive(1,true);
   guest.configureNetworkGuest(1);
-  auto& hostState=host.networkMutableState();
+  auto& hostState=host.fixtureMutableState();
   hostState.roomSeed=static_cast<int>(seed);
   hostState.progression.run.batteryRegenLock=100.0f;
   hostState.player.pos={0,0.08f,1.0f};
@@ -1107,7 +1107,7 @@ LifecycleRunResult runLifecycle(const NetworkProfile& profile){
   dbnet::NetworkWorldContext guestWorld=hostWorld;
   auto initial=dbnet::captureWorld(host.state(),dbnet::capturePlayers(host.state()),0);
   initial.world=hostWorld;
-  dbnet::applyWorld(guest.networkMutableState(),initial,1);
+  dbnet::applyWorld(guest.fixtureMutableState(),initial,1);
   LifecycleRunResult result;result.oldWorld=hostWorld;
   DeterministicPacketQueue queue(profile,seed);
   dbnet::GameplayEventTracker tracker;tracker.reset(guestWorld);
@@ -1152,7 +1152,7 @@ LifecycleRunResult runLifecycle(const NetworkProfile& profile){
         ++result.staleSnapshots;return;
       }
       interpolator.push(snapshot,static_cast<std::int64_t>(snapshot.tick)*17);
-      dbnet::applyWorld(guest.networkMutableState(),snapshot,1);
+      dbnet::applyWorld(guest.fixtureMutableState(),snapshot,1);
       queue.summary().lastSnapshot=header.sequence;return;
     }
     dbnet::GameplayEvent event;
@@ -1426,7 +1426,7 @@ SessionRunResult runSessionContinuity(const NetworkProfile& profile){
                                 snapshot)||snapshot.world!=world){
         ++result.rejectedStaleSnapshots;return;
       }
-      dbnet::applyWorld(guest.networkMutableState(),snapshot,1);
+      dbnet::applyWorld(guest.fixtureMutableState(),snapshot,1);
       queue.summary().lastSnapshot=header.sequence;
     }
   };

@@ -108,7 +108,7 @@ int main() {
         if(roomPlan.scale==room_environment::RoomScale::Large){sawLargeFormation=true;if(usesOnlyLegacyInitialGrid(roomStart))return fail(iteration,"large_formation_not_composed",roomStart);}
 
         for (int shot = 0; shot < required; ++shot) {
-            GameState& state = game.networkMutableState();
+            GameState& state = game.fixtureMutableState();
             const float tileOrigin = static_cast<float>(state.topology.currentTileIndex) * kRoomDepth;
             BulletState& bullet = state.bullets[0];
             bullet = BulletState{};
@@ -137,7 +137,7 @@ int main() {
             return fail(iteration, "duplicate_goal_reward", game.state());
         }
 
-        GameState& crossing = game.networkMutableState();
+        GameState& crossing = game.fixtureMutableState();
         const float tileOrigin = static_cast<float>(crossing.topology.currentTileIndex) * kRoomDepth;
         crossing.player.pos = {0, PHONE_MODEL_HEIGHT * 0.5f, tileOrigin - 20.8f};
         crossing.player.vel = {0, 0, -20.0f};
@@ -162,7 +162,7 @@ int main() {
         if (!game.chooseTemporaryUpgrade((iteration - 1) % 3)) {
             return fail(iteration, "upgrade_choice_failed", game.state());
         }
-        GameState& resumed = game.networkMutableState();
+        GameState& resumed = game.fixtureMutableState();
         resumed.player.pos.x += 3.1f;
         step(game);
         if (game.state().doorTransition.active || game.state().uiPaused ||

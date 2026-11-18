@@ -51,7 +51,7 @@ int main(){
     }
     assert(remnantCollider>=0);
     {
-        auto& state=game.networkMutableState();
+        auto& state=game.fixtureMutableState();
         for(auto& target:state.targets)target=TargetState{};
         const auto& ledge=state.roomColliders[remnantCollider];
         state.player.pos={ledge.maxX+gameplay::PHONE_BODY.collisionRadius,ledge.topY-PHONE_BODY_HEIGHT*0.5f,ledge.center.z};

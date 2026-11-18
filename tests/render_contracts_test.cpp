@@ -27,6 +27,13 @@ int main(){
     static_assert(resolveShadowQuality(forcedOff,2,true,true)==ShadowQuality::Off);
     static_assert(resolveShadowQuality(forcedCheap,2,true,true)==ShadowQuality::Cheap);
     static_assert(resolveShadowQuality(forcedNormal,0,false,false)==ShadowQuality::MappedNormal);
+    static_assert(!allowsMappedSceneShadows(true,false,false,false,false,true));
+    static_assert(!allowsMappedSceneShadows(false,false,false,false,false,false));
+    static_assert(!allowsMappedSceneShadows(true,true,false,false,false,false));
+    static_assert(!allowsMappedSceneShadows(true,false,true,false,false,false));
+    static_assert(allowsMappedSceneShadows(true,false,false,false,false,false));
+    static_assert(allowsMappedSceneShadows(true,false,false,true,false,true));
+    static_assert(allowsMappedSceneShadows(true,false,false,false,true,true));
     static_assert(usesProceduralGroundShadows(ShadowQuality::Cheap));
     static_assert(!usesProceduralGroundShadows(ShadowQuality::MappedNormal));
     static_assert(!usesProceduralGroundShadows(ShadowQuality::MappedPretty));
@@ -89,14 +96,14 @@ int main(){
     const auto sterileAtmosphere=settingAtmosphere(progressiveOpening,room_environment::RoomSetting::Sterile,AtmosphereProfile::ProgressiveCandidate);
     const auto coastalAtmosphere=settingAtmosphere(progressiveDeep,room_environment::RoomSetting::Coastal,AtmosphereProfile::ProgressiveCandidate);
     if(!(fieldAtmosphere.ambient.g>progressiveDeep.ambient.g&&fieldAtmosphere.ambient.r<progressiveDeep.ambient.r&&cityAtmosphere.ambient.b>progressiveDeep.ambient.b&&
-        sterileAtmosphere.ambient.r==0.086f&&sterileAtmosphere.ambient.g==0.105f&&sterileAtmosphere.ambient.b==0.101f&&
+        sterileAtmosphere.ambient.r==0.420f&&sterileAtmosphere.ambient.g==0.500f&&sterileAtmosphere.ambient.b==0.470f&&sterileAtmosphere.fogDensity==0.014f&&
         coastalAtmosphere.fog.b>progressiveDeep.fog.b)){
         std::fputs("RENDER_CONTRACTS_FAIL setting atmosphere identity\n",stderr);return 1;
     }
     const auto staticSterile=settingAtmosphere(unpowered,room_environment::RoomSetting::Sterile,AtmosphereProfile::ReadableStatic);
     const auto explicitSterile=settingAtmosphere(progressiveOpening,room_environment::RoomSetting::Sterile,AtmosphereProfile::ProgressiveCandidate,atmosphereChannelBit(AtmosphereChannel::Ambient));
-    if(staticSterile.ambient.r!=unpowered.ambient.r||explicitSterile.ambient.r!=progressiveOpening.ambient.r){
-        std::fputs("RENDER_CONTRACTS_FAIL setting atmosphere fallback\n",stderr);return 1;
+    if(staticSterile.ambient.r!=0.420f||staticSterile.fogDensity!=0.014f||explicitSterile.ambient.r!=progressiveOpening.ambient.r){
+        std::fputs("RENDER_CONTRACTS_FAIL sterile atmosphere identity and override\n",stderr);return 1;
     }
     const auto calmResponse=scene_lighting_response::resolve({0.0f,0.0f,9999.0f,0.0f,0.0f,false});
     const auto activeResponse=scene_lighting_response::resolve({1.0f,1.0f,0.0f,1.0f,1.0f,true});

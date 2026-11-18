@@ -15,6 +15,8 @@ func _run() -> void:
 	root.add_child(world)
 	await process_frame
 	await physics_frame
+	check(world.AUTHORITY_CLASSIFICATION == "isolated_godot_prototype_non_product",
+		"Godot-only encounter remains explicitly classified as a non-product prototype")
 	await _capture("01-opening")
 	check(world.player != null and world.enemy != null, "playable scene spawns one player and one enemy")
 	check(world.player.camera.global_position.z > world.player.global_position.z + 1.0,

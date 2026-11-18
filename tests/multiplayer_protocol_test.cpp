@@ -69,7 +69,7 @@ int main() {
         decodedVacuumEvent.targetEntityId==1 &&
         eventTracker.accept(decodedVacuumEvent) &&
         !eventTracker.accept(decodedVacuumEvent);
-  Game commandGame;
+  auto commandGameStorage=std::make_unique<Game>(); Game& commandGame=*commandGameStorage;
   commandGame.reset();
   commandGame.setTouchControls(0.25f, 1.0f, 0.0f, 0.0f, true, true,
                                true, true, false, false);
@@ -80,7 +80,7 @@ int main() {
         (canonical.buttons & CommandJump) != 0 &&
         (canonical.buttons & CommandVacuum) != 0 &&
         (canonical.buttons & CommandMelee) != 0;
-  Game game;
+  auto gameStorage=std::make_unique<Game>(); Game& game=*gameStorage;
   game.reset();
   std::array<PlayerSnapshot, MAX_PLAYERS> players{};
   players[0].active = true;
@@ -219,10 +219,10 @@ int main() {
         std::abs(roundtrip.bullets[0].pos.z + 4.0f) < 0.0001f &&
         roundtrip.tvAvailable &&
         snapshotBytes.size() <= MAX_SNAPSHOT_BYTES;
-  Game completeGuest;
+  auto completeGuestStorage=std::make_unique<Game>(); Game& completeGuest=*completeGuestStorage;
   completeGuest.reset();
   completeGuest.configureNetworkGuest(1);
-  applyWorld(completeGuest.networkMutableState(), roundtrip, 1);
+  applyWorld(completeGuest.fixtureMutableState(), roundtrip, 1);
   ok &= completeGuest.state().player.ledgeHanging &&
         completeGuest.state().player.storedSoulBrute[0] &&
         completeGuest.state().energy.supplementalActive &&
@@ -243,7 +243,7 @@ int main() {
   auto modernGuest=std::make_unique<Game>();
   modernGuest->reset();
   modernGuest->configureNetworkGuest(1);
-  applyWorld(modernGuest->networkMutableState(),*modernInventoryRoundtrip,1);
+  applyWorld(modernGuest->fixtureMutableState(),*modernInventoryRoundtrip,1);
   ok &= !modernGuest->state().player.storedSoulBrute[0]&&
       modernGuest->state().player.storedSoulBrute[12];
   auto legacyInventory=std::make_unique<WorldSnapshot>(roundtrip);
@@ -252,7 +252,7 @@ int main() {
   auto legacyGuest=std::make_unique<Game>();
   legacyGuest->reset();
   legacyGuest->configureNetworkGuest(1);
-  applyWorld(legacyGuest->networkMutableState(),*legacyInventory,1);
+  applyWorld(legacyGuest->fixtureMutableState(),*legacyInventory,1);
   ok &= legacyGuest->state().player.storedSoulBrute[0];
   game.configureNetworkHost();
   game.setNetworkPeerActive(1, true);
@@ -270,7 +270,7 @@ int main() {
   game.update(1.0f/60.0f);
   ok &= game.state().frame>pausedHostFrame;
   game.setUiPaused(false);
-  Game combat;
+  auto combatStorage=std::make_unique<Game>(); Game& combat=*combatStorage;
   combat.reset();
   combat.configureNetworkHost();
   combat.setNetworkPeerActive(1, true);
@@ -292,10 +292,10 @@ int main() {
   ok &= combat.state().multiplayer.peers[1].player.battery < 95 &&
         std::abs(combat.state().player.battery - hostBattery) < 0.01f &&
         combat.state().targets[0].humanBodyPresentation().authoritative();
-  Game guestCombat;
+  auto guestCombatStorage=std::make_unique<Game>(); Game& guestCombat=*guestCombatStorage;
   guestCombat.reset();
   guestCombat.configureNetworkGuest(1);
-  GameState& guestCombatState=guestCombat.networkMutableState();
+  GameState& guestCombatState=guestCombat.fixtureMutableState();
   for(auto& target:guestCombatState.targets)target.alive=false;
   guestCombatState.targets[0]=TargetState{};
   guestCombatState.targets[0].alive=true;
@@ -306,10 +306,10 @@ int main() {
   guestCombatState.meleeVisual.hitRadius=2.0f;
   guestCombat.update(1.0f/60.0f);
   ok &= std::abs(guestCombat.state().targets[0].armor-2.0f)<0.0001f;
-  Game guestVacuum;
+  auto guestVacuumStorage=std::make_unique<Game>(); Game& guestVacuum=*guestVacuumStorage;
   guestVacuum.reset();
   guestVacuum.configureNetworkGuest(1);
-  GameState& guestVacuumState=guestVacuum.networkMutableState();
+  GameState& guestVacuumState=guestVacuum.fixtureMutableState();
   guestVacuumState.targets[1]=TargetState{};
   guestVacuumState.targets[1].alive=true;
   guestVacuumState.targets[1].slurpable=true;
@@ -322,10 +322,10 @@ int main() {
         guestVacuum.state().targets[1].captureQueued &&
         guestVacuum.state().targets[1].alive &&
         guestVacuum.state().player.souls==0;
-  Game hostCapture;
+  auto hostCaptureStorage=std::make_unique<Game>(); Game& hostCapture=*hostCaptureStorage;
   hostCapture.reset();
   hostCapture.configureNetworkHost();
-  GameState& hostCaptureState=hostCapture.networkMutableState();
+  GameState& hostCaptureState=hostCapture.fixtureMutableState();
   hostCaptureState.targets[1]=TargetState{};
   hostCaptureState.targets[1].alive=true;
   hostCaptureState.targets[1].slurpable=true;
@@ -337,22 +337,22 @@ int main() {
   auto capturedWorld=captureWorld(hostCapture.state(),
                                   capturePlayers(hostCapture.state()),401);
   capturedWorld.world={17,2,5,4};
-  applyWorld(guestVacuum.networkMutableState(),capturedWorld,1);
+  applyWorld(guestVacuum.fixtureMutableState(),capturedWorld,1);
   ok &= !guestVacuum.state().targets[1].alive &&
         guestVacuum.state().targets[1].soulState==SoulState::Free;
-  Game guestDischarge;
+  auto guestDischargeStorage=std::make_unique<Game>(); Game& guestDischarge=*guestDischargeStorage;
   guestDischarge.reset();
   guestDischarge.configureNetworkGuest(1);
-  guestDischarge.networkMutableState().player.souls=1;
+  guestDischarge.fixtureMutableState().player.souls=1;
   guestDischarge.setTouchControls(0,0,0,0,false,false,false,false,true,false);
   guestDischarge.update(1.0f/60.0f);
   ok &= guestDischarge.state().player.souls==1 &&
         guestDischarge.state().energy.dischargeTimer>0.0f &&
         guestDischarge.state().energy.dischargePositionAmount>0.0f;
-  Game hostDischarge;
+  auto hostDischargeStorage=std::make_unique<Game>(); Game& hostDischarge=*hostDischargeStorage;
   hostDischarge.reset();
   hostDischarge.configureNetworkHost();
-  hostDischarge.networkMutableState().player.souls=1;
+  hostDischarge.fixtureMutableState().player.souls=1;
   hostDischarge.setTouchControls(0,0,0,0,false,false,false,false,true,false);
   for(int i=0;i<12;++i)hostDischarge.update(1.0f/60.0f);
   bool projectileSpawned=false;
@@ -375,13 +375,13 @@ int main() {
   projectileRoundtrip.players[1].actionFlags&=
       static_cast<std::uint8_t>(~2u);
   projectileRoundtrip.players[1].vacuumTarget=-1;
-  applyWorld(guestDischarge.networkMutableState(),projectileRoundtrip,1);
+  applyWorld(guestDischarge.fixtureMutableState(),projectileRoundtrip,1);
   bool projectileRecovered=false;
   for(const auto& bullet:guestDischarge.state().bullets)
     projectileRecovered|=bullet.alive;
   ok &= !projectileRecovered&&!guestDischarge.state().vacuum.active &&
         guestDischarge.state().vacuum.target==-1;
-  Game hostProgression;
+  auto hostProgressionStorage=std::make_unique<Game>(); Game& hostProgression=*hostProgressionStorage;
   hostProgression.setPersistentProgression(0, 4, 3, 2);
   hostProgression.reset();
   hostProgression.configureNetworkHost();
@@ -406,15 +406,15 @@ int main() {
         progressionRoundtrip.tvSignal == 11 &&
         progressionRoundtrip.tvDamage == 2 && progressionRoundtrip.tvBroken &&
         std::abs(progressionRoundtrip.roomHeat - 0.75f) < 0.0001f;
-  Game guestProgression;
+  auto guestProgressionStorage=std::make_unique<Game>(); Game& guestProgression=*guestProgressionStorage;
   guestProgression.reset();
   guestProgression.configureNetworkGuest(1);
   progressionWorld.captures[0] = true;
-  guestProgression.networkMutableState().frame = 777;
-  guestProgression.networkMutableState().time = 12.5f;
-  guestProgression.networkMutableState().camera.pitch = 0.37f;
-  guestProgression.networkMutableState().camera.firstPerson = true;
-  applyWorld(guestProgression.networkMutableState(), progressionWorld, 1);
+  guestProgression.fixtureMutableState().frame = 777;
+  guestProgression.fixtureMutableState().time = 12.5f;
+  guestProgression.fixtureMutableState().camera.pitch = 0.37f;
+  guestProgression.fixtureMutableState().camera.firstPerson = true;
+  applyWorld(guestProgression.fixtureMutableState(), progressionWorld, 1);
   ok &= guestProgression.state().progression.permanent.tokens == 0 &&
         guestProgression.state().upgradeMenu.active &&
         guestProgression.state().frame == 777 &&
@@ -425,28 +425,28 @@ int main() {
                 .progression.run.networkSharedPermanentLevels[0] == 4;
   ok &= std::abs(guestProgression.state().targets[0].humanAnimationTime -
                  progressionWorld.targets[0].animationTime) < 0.0001f;
-  Game predictionGuest;
+  auto predictionGuestStorage=std::make_unique<Game>(); Game& predictionGuest=*predictionGuestStorage;
   predictionGuest.reset();
   predictionGuest.configureNetworkGuest(1);
   auto predictionWorld=captureWorld(predictionGuest.state(),capturePlayers(predictionGuest.state()),299);
   predictionWorld.players[1].active=true;
   predictionWorld.players[1].id=1;
   predictionWorld.players[1].pos=predictionGuest.state().player.pos;
-  applyWorld(predictionGuest.networkMutableState(),predictionWorld,1);
+  applyWorld(predictionGuest.fixtureMutableState(),predictionWorld,1);
   predictionGuest.setTouchControls(0,0,0,0,false,false,true,false,false,false);
   predictionGuest.update(1.0f/60.0f);
   const float immediateJumpY=predictionGuest.state().player.pos.y;
   predictionWorld.tick=300;
   predictionWorld.players[1].pos=predictionGuest.state().player.pos+Vec3{0.1f,0,0};
   const Vec3 predictedBefore=predictionGuest.state().player.pos;
-  applyWorld(predictionGuest.networkMutableState(),predictionWorld,1);
+  applyWorld(predictionGuest.fixtureMutableState(),predictionWorld,1);
   ok &= immediateJumpY>0.08f &&
         length(predictionGuest.state().player.pos-predictedBefore)<0.001f &&
         length(predictionGuest.state().multiplayer.localPredictionCorrection)>0.09f;
   progressionWorld.captures[0] = false;
-  applyWorld(guestProgression.networkMutableState(), progressionWorld, 1);
+  applyWorld(guestProgression.fixtureMutableState(), progressionWorld, 1);
   progressionWorld.captures[0] = true;
-  applyWorld(guestProgression.networkMutableState(), progressionWorld, 1);
+  applyWorld(guestProgression.fixtureMutableState(), progressionWorld, 1);
   ok &= guestProgression.state().progression.permanent.tokens == 1 &&
         guestProgression.state().progression.permanent.revision > 0;
   if (!snapshotBytes.empty()) {
@@ -516,7 +516,7 @@ int main() {
   auto interpolationGame=std::make_unique<Game>();
   interpolationGame->reset();
   interpolationGame->configureNetworkGuest(1);
-  applyWorld(interpolationGame->networkMutableState(),*interpolationB,1);
+  applyWorld(interpolationGame->fixtureMutableState(),*interpolationB,1);
   auto visualState=std::make_unique<GameState>(interpolationGame->state());
   interpolator->apply(*visualState,1,1100);
   ok &= std::abs(visualState->multiplayer.peers[0].player.pos.x-1.0f)<0.001f &&

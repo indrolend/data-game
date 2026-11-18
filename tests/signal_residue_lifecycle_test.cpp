@@ -18,7 +18,7 @@ bool near(float a,float b,float epsilon=0.001f) { return std::fabs(a-b)<=epsilon
 int main() {
     Game surfaceGame;
     surfaceGame.debugStartSlopeLab();
-    GameState& surfaceState=surfaceGame.networkMutableState();
+    GameState& surfaceState=surfaceGame.fixtureMutableState();
     for(auto& particle:surfaceState.particles)particle=ParticleState{};
     const SlopeSupport slope=surfaceState.slopeSupports[0];
     ParticleState& surfaceResidue=surfaceState.particles[0];
@@ -36,7 +36,7 @@ int main() {
 
     Game game;
     game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     for(auto& target:state.targets)target=TargetState{};
     for(auto& particle:state.particles)particle=ParticleState{};
     state.nextParticle=0;

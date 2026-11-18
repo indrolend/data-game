@@ -3019,10 +3019,14 @@ void Game::updateCamera(float dt) {
     const float cp = std::cos(camera.pitch);
     const Vec3 aimForward = normalized({-std::sin(camera.yaw) * cp, std::sin(camera.pitch), -std::cos(camera.yaw) * cp});
     const float horizontalSpeed=std::sqrt(player.vel.x*player.vel.x+player.vel.z*player.vel.z);
-    const float motionFov=clampf((horizontalSpeed-2.0f)*1.22f,0.0f,16.0f)+(!player.grounded?3.2f:0.0f)+(state_.meleeVisual.airLungeLandingPending?7.0f:0.0f);
+    // Speed may widen the view slightly, but action states must not stack large
+    // FOV jumps on top of it. The former airborne + landing-lunge bonuses could
+    // add 26.2 degrees and visibly distort the skybox during a momentum skid.
+    const float motionFov=clampf((horizontalSpeed-3.0f)*0.70f,0.0f,6.0f);
     const bool mobile = state_.localSettings.mobileFraming;
-    const float targetFov=camera.firstPerson?(mobile?60.0f:64.0f):(mobile?56.0f:60.0f)+motionFov*(mobile?0.72f:1.0f);
-    if(dt>0.0f)camera.verticalFovDegrees+=(targetFov-camera.verticalFovDegrees)*(1.0f-std::exp(-(targetFov>camera.verticalFovDegrees?5.2f:2.8f)*dt));else camera.verticalFovDegrees=targetFov;
+    const float baseFov=camera.firstPerson?(mobile?60.0f:64.0f):(mobile?56.0f:60.0f);
+    const float targetFov=baseFov+motionFov*(mobile?0.72f:1.0f);
+    if(dt>0.0f)camera.verticalFovDegrees+=(targetFov-camera.verticalFovDegrees)*(1.0f-std::exp(-6.0f*dt));else camera.verticalFovDegrees=targetFov;
     if (player.inSecretRoom) {
         camera.spectatedPlayerId = -1;
         camera.firstPerson = false;

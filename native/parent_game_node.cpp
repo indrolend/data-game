@@ -850,6 +850,10 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
     result["grass"] = snapshot.grass;
     result["sidewalks"] = snapshot.sidewalks;
     result["grass_amount"] = snapshot.grassAmount;
+    result["grass_root_color"] = Color(field_material_family::BladeRoot.r,
+        field_material_family::BladeRoot.g, field_material_family::BladeRoot.b);
+    result["grass_tip_color"] = Color(field_material_family::BladeTip.r,
+        field_material_family::BladeTip.g, field_material_family::BladeTip.b);
     result["presentation_time"] = snapshot.presentationTime;
     Dictionary field_island;
     field_island["enabled"] = snapshot.fieldIsland;
@@ -942,9 +946,10 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
         if (object.primitive == room_environment::EnvironmentPrimitive::LawnFragment) {
             const auto prop = room_environment::environmentProp(
                 roomPlan, snapshot.roomSeed, snapshot.roomIndex, object.propIndex);
-            item["visual_color"] = Color(0.72f, 0.84f, 0.70f);
+            item["visual_color"] = Color(field_material_family::GroundTint.r,
+                field_material_family::GroundTint.g, field_material_family::GroundTint.b);
             item["visual_texture"] = "field_grass";
-            item["visual_texture_world_scale"] = 1.45f;
+            item["visual_texture_world_scale"] = field_material_family::GroundTextureWorldScale;
             item["visual_texture_phase"] = std::fmod(prop.variant * 0.219f, 1.0f);
         }
         if (object.primitive == room_environment::EnvironmentPrimitive::House) {
@@ -1008,13 +1013,15 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
                 normals.set(vertex, Vector3(mesh.normals[offset], mesh.normals[offset + 1],
                     mesh.normals[offset + 2]));
             }
-            const auto substrate = roomSubstrateColor(roomPlan.setting);
+            const bool fieldRock = roomPlan.setting == room_environment::RoomSetting::Field;
+            const auto color = fieldRock ? field_material_family::RockTint
+                : roomSubstrateColor(roomPlan.setting);
             item["visual_mesh_vertices"] = vertices;
             item["visual_mesh_normals"] = normals;
-            item["visual_color"] = Color(substrate.r * 0.82f,
-                substrate.g * 0.82f, substrate.b * 0.82f);
+            item["visual_color"] = Color(color.r, color.g, color.b);
             item["visual_texture"] = "stone";
-            item["visual_texture_world_scale"] = 1.35f;
+            item["visual_texture_world_scale"] = fieldRock
+                ? field_material_family::RockTextureWorldScale : 1.35f;
         }
         objects.push_back(item);
     }

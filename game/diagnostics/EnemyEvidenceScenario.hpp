@@ -12,7 +12,7 @@ inline constexpr float EnemyRadius = 0.5f;
 
 inline void configureEnemyObstruction(Game& game) {
     game.reset();
-    GameState& state=game.networkMutableState();
+    GameState& state=game.fixtureMutableState();
     state.started=true;
     state.uiPaused=false;
     state.attractMode=false;

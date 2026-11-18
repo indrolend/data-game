@@ -14,7 +14,7 @@ bool near(float a, float b, float epsilon = 0.0005f) {
 
 void prepare(Game& game, int souls, float battery) {
     game.reset();
-    GameState& state = game.networkMutableState();
+    GameState& state = game.fixtureMutableState();
     state.player.souls = souls;
     state.player.battery = battery;
     state.player.grounded = true;
@@ -90,7 +90,7 @@ int main() {
     firedSoul.setTouchControls(0.0f, 0.0f, 0.0f, 0.0f, false, false, false, false, true, false);
     firedSoul.update(kDt);
     ok &= firedSoul.state().player.souls == PHONE_CAPACITY / 2 - 1;
-    GameState& afterShot = firedSoul.networkMutableState();
+    GameState& afterShot = firedSoul.fixtureMutableState();
     afterShot.input = {};
     afterShot.player.battery = 20.0f;
     afterShot.progression.run.batteryRegenLock = 0.0f;

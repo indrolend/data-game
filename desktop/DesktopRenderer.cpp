@@ -1950,14 +1950,14 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             }
             }
         }
-        else if(prop.primitive==EnvironmentPrimitive::LawnFragment)drawTexturedBox(fieldGrassTexture_,p,prop.size,0,prop.yaw,0,{0.72f,0.84f,0.70f},1.45f,std::fmod(prop.variant*0.219f,1.0f));
+        else if(prop.primitive==EnvironmentPrimitive::LawnFragment){const ScopedMaterial material(semanticMaterial(SemanticSurface::FieldLawn));drawTexturedBox(fieldGrassTexture_,p,prop.size,0,prop.yaw,0,field_material_family::GroundTint,field_material_family::GroundTextureWorldScale,std::fmod(prop.variant*0.219f,1.0f));}
         else if(prop.primitive==EnvironmentPrimitive::Ruin){int ruinIndex=0;for(const auto& part:ruin_geometry::parts(prop,z0)){const float phase=std::fmod((prop.variant+ruinIndex)*0.137f,1.0f);const float weather=0.88f+0.055f*static_cast<float>((ruinIndex++ + prop.variant)%3);const VisualColor color=part.surface==0?VisualColor{0.84f*weather,0.82f*weather,0.72f*weather}:VisualColor{0.70f*weather,0.70f*weather,0.66f*weather};drawTexturedBox(stoneTexture_,part.center,part.size,0,0,0,color,1.25f,phase);if(part.size.y>0.42f)drawBox({part.center.x,part.center.y-part.size.y*0.39f,part.center.z-part.size.z*0.505f},{part.size.x*0.74f,0.045f,0.024f},0,0,0,0.20f,0.27f,0.20f);}}
-        else if(prop.primitive==EnvironmentPrimitive::Rock){const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(prop,state.roomSeed,state.roomIndex,i,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f},stoneTexture_,1.35f);}
+        else if(prop.primitive==EnvironmentPrimitive::Rock){const bool fieldRock=plan.setting==room_environment::RoomSetting::Field;const ScopedMaterial material(semanticMaterial(fieldRock?SemanticSurface::FieldRock:SemanticSurface::Default));const VisualColor tint=fieldRock?field_material_family::RockTint:roomSubstrateColor(plan.setting);drawFacetedRock(prop,state.roomSeed,state.roomIndex,i,z0,tint,stoneTexture_,fieldRock?field_material_family::RockTextureWorldScale:1.35f);}
         else {for(const auto& part:marker_pillar_geometry::parts(prop,z0)){const VisualColor color=part.surface==0?VisualColor{0.70f,0.76f,0.78f}:VisualColor{0.72f,0.90f,0.94f};if(part.surface==0)drawTexturedBox(metalTexture_,part.center,part.size,0,0,0,color,0.92f);else drawBox(part.center,part.size,0,0,0,color.r,color.g,color.b);}}
     }
     // Bird sprites are withheld until their atlas rows, schedules, and world
     // placement form a complete behavior instead of intermittent billboards.
-    if(plan.grass&&!shadowGeometryPass_){const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:VisualIdentity::GrassRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:VisualIdentity::GrassTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
+    if(plan.grass&&!shadowGeometryPass_){const ScopedMaterial material(semanticMaterial(SemanticSurface::FieldVegetation));const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:field_material_family::BladeRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:field_material_family::BladeTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
 }
 
 void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
@@ -2285,7 +2285,9 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     }
     if(captureActivity<=0.001f&&completionWeight>0.001f)capturePosition=completionPosition*(1.0f/completionWeight);
     const auto lightingResponse=scene_lighting_response::resolve({state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear,captureActivity,completionAfterglow});
-    const bool menuPresentation=(((!state.started&&!state.dead)||state.dead||state.cinematic.introActive)&&!state.multiplayer.enabled&&!state.upgradeMenu.active);
+    const bool menuPresentation=!render_contract::allowsMappedSceneShadows(
+        state.started,state.dead,state.cinematic.introActive,state.multiplayer.enabled,
+        state.upgradeMenu.active,state.attractMode);
     auto shadowQuality=render_contract::resolveShadowQuality(shadowControl_,state.localSettings.graphicsPreset,state.localSettings.shadows,true);
     const auto requestedShadowQuality=shadowQuality;
     const bool mappedRequested=shadowQuality==render_contract::ShadowQuality::MappedNormal||shadowQuality==render_contract::ShadowQuality::MappedPretty;
@@ -2602,10 +2604,26 @@ void DesktopRenderer::drawDeveloperCodec(const DeveloperCodecState& codec) const
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();
     const auto quad=[](float x,float y,float w,float h,float r,float g,float b,float a){glColor4f(r,g,b,a);glBegin(GL_QUADS);glVertex2f(x,y);glVertex2f(x+w,y);glVertex2f(x+w,y+h);glVertex2f(x,y+h);glEnd();};
     const auto text=[&](const std::string& value,float x,float y,float scale,float r,float g,float b,float a){float pen=x;for(char c:value){if(c==' '){pen+=6*scale;continue;}const auto rows=bitmapGlyph(c);for(int row=0;row<7;++row)for(int col=0;col<5;++col)if(rows[row]&(1u<<(4-col)))quad(pen+col*scale,y+row*scale,scale,scale,r,g,b,a);pen+=6*scale;}};
-    const float w=std::min(860.0f,static_cast<float>(width_)-32.0f),h=250.0f,x=(width_-w)*0.5f,y=height_-h-22.0f;
-    quad(x,y,w,h,0.005f,0.012f,0.016f,0.92f);quad(x,y,w,2,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.90f);
-    text("DEVELOPER CODEC  LOCAL / ALLOWLISTED",x+14,y+12,1.25f,0.72f,0.96f,1.0f,0.95f);
-    float lineY=y+38.0f;for(int i=0;i<codec.outputCount;++i,lineY+=17.0f)text(codec.output[i],x+14,lineY,1.05f,0.78f,0.90f,0.92f,0.92f);
-    quad(x+10,y+h-38,w-20,26,0.01f,0.02f,0.025f,0.96f);text("> "+codec.input+"_",x+18,y+h-31,1.18f,VisualIdentity::AcidChartreuse.r,VisualIdentity::AcidChartreuse.g,VisualIdentity::AcidChartreuse.b,1.0f);
+    quad(0,0,static_cast<float>(width_),static_cast<float>(height_),0,0,0,0.54f);
+    const float w=std::min(1120.0f,static_cast<float>(width_)-32.0f),h=std::min(610.0f,static_cast<float>(height_)-32.0f),x=(width_-w)*0.5f,y=(height_-h)*0.5f;
+    quad(x,y,w,h,0.005f,0.012f,0.016f,0.96f);quad(x,y,w,3,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.94f);
+    text("DEVELOPER DECK",x+18,y+14,1.60f,0.78f,0.98f,1.0f,0.98f);
+    text("LOCAL / ALLOWLISTED / GAMEPLAY PAUSED",x+18,y+35,0.92f,0.52f,0.72f,0.76f,0.88f);
+    const std::string focus=codec.actionFocus?"ACTION FOCUS  ARROWS MOVE  ENTER RUN  TAB COMMAND":"COMMAND FOCUS  TYPE + ENTER  TAB ACTIONS";
+    text(focus,x+18,y+54,0.94f,codec.actionFocus?VisualIdentity::AcidChartreuse.r:0.72f,codec.actionFocus?VisualIdentity::AcidChartreuse.g:0.96f,codec.actionFocus?VisualIdentity::AcidChartreuse.b:1.0f,0.96f);
+    const float split=x+w*0.58f,leftX=x+16,leftW=split-leftX-12,rightX=split+12;
+    quad(split,y+78,1,h-138,0.18f,0.38f,0.42f,0.54f);
+    text("QUICK ACTIONS",leftX,y+82,1.08f,0.72f,0.94f,1.0f,0.92f);
+    const float gridY=y+105,rowH=39.0f,gap=8.0f,columnW=(leftW-gap)*0.5f;
+    for(int i=0;i<static_cast<int>(DeveloperCodecQuickActions.size());++i){
+        const int column=i%2,row=i/2;const float bx=leftX+column*(columnW+gap),by=gridY+row*rowH;const bool selected=codec.actionFocus&&i==codec.quickActionSelection;
+        quad(bx,by,columnW,rowH-6,selected?0.06f:0.012f,selected?0.28f:0.035f,selected?0.34f:0.045f,selected?0.96f:0.82f);
+        quad(bx,by,selected?4.0f:1.0f,rowH-6,selected?VisualIdentity::AcidChartreuse.r:VisualIdentity::MetallicTeal.r,selected?VisualIdentity::AcidChartreuse.g:VisualIdentity::MetallicTeal.g,selected?VisualIdentity::AcidChartreuse.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.52f);
+        text(DeveloperCodecQuickActions[i].label,bx+12,by+11,0.98f,selected?0.88f:0.68f,selected?1.0f:0.82f,selected?0.90f:0.86f,selected?1.0f:0.88f);
+    }
+    text("ACTIVITY",rightX,y+82,1.08f,0.72f,0.94f,1.0f,0.92f);
+    float lineY=y+107.0f;for(int i=0;i<codec.outputCount;++i,lineY+=20.0f)text(codec.output[i],rightX,lineY,0.88f,0.76f,0.88f,0.90f,0.92f);
+    const float commandY=y+h-48;quad(x+14,commandY,w-28,32,codec.actionFocus?0.008f:0.018f,codec.actionFocus?0.018f:0.065f,codec.actionFocus?0.024f:0.070f,0.98f);
+    text(std::string(codec.actionFocus?"TAB COMMAND  > ":"> ")+codec.input+(codec.actionFocus?"":"_"),x+24,commandY+10,1.05f,VisualIdentity::AcidChartreuse.r,VisualIdentity::AcidChartreuse.g,VisualIdentity::AcidChartreuse.b,codec.actionFocus?0.58f:1.0f);
     glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_BLEND);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);
 }

@@ -1,6 +1,9 @@
 extends Node3D
-## Godot-authoritative first encounter. The native Game remains available in the
-## parent-reference scene and is not advanced by this playable scene.
+## Isolated Godot-only prototype fixture. This is not product gameplay and must
+## never be used as the authority behind main.tscn. Product simulation remains
+## owned by the native Game consumed through ParentGameNode.
+
+const AUTHORITY_CLASSIFICATION := "isolated_godot_prototype_non_product"
 
 const PlayerScene = preload("res://scenes/player.tscn")
 const EnemyScene = preload("res://scenes/enemy.tscn")
