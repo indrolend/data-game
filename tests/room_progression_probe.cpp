@@ -162,6 +162,29 @@ int main() {
             return fail(iteration, "upgrade_presentation_did_not_advance_while_paused", game.state());
         }
 
+        if (iteration == 1) {
+            GameState& upgrade = game.fixtureMutableState();
+            const auto tokens = upgrade.progression.permanent.tokens;
+            const auto level = upgrade.progression.permanent.levels[0];
+            const auto temporaryLevel = upgrade.progression.run.temporaryLevels[0];
+            upgrade.multiplayer.enabled = true;
+            upgrade.multiplayer.authoritativeHost = false;
+            if (game.chooseTemporaryUpgrade(0) || game.purchasePermanentUpgrade(0) ||
+                !upgrade.upgradeMenu.active || upgrade.progression.permanent.tokens != tokens ||
+                upgrade.progression.permanent.levels[0] != level ||
+                upgrade.progression.run.temporaryLevels[0] != temporaryLevel) {
+                return fail(iteration, "guest_mutated_room_upgrade", upgrade);
+            }
+            upgrade.multiplayer.authoritativeHost = true;
+            if (!game.purchasePermanentUpgrade(0) || !upgrade.upgradeMenu.active ||
+                upgrade.progression.permanent.tokens != tokens - 1 ||
+                upgrade.progression.permanent.levels[0] != level + 1) {
+                return fail(iteration, "host_permanent_upgrade_failed", upgrade);
+            }
+            upgrade.multiplayer.enabled = false;
+            upgrade.multiplayer.authoritativeHost = false;
+        }
+
         if (!game.chooseTemporaryUpgrade((iteration - 1) % 3)) {
             return fail(iteration, "upgrade_choice_failed", game.state());
         }
