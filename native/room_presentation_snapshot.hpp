@@ -24,8 +24,7 @@ enum class RoomStructureKind : unsigned char {
     CityStreetFixture,
     CityServiceFixture,
     FieldIslandCore,
-    Abyss,
-    GoalPost
+    Abyss
 };
 
 struct RoomStructureRecord {
@@ -199,13 +198,6 @@ struct RoomPresentationSnapshot {
                 addStructure(topIds[i], RoomStructureKind::Floor,
                     {0, world::GroundY - turfThickness * 0.5f, centerZ},
                     {surface.halfWidth * 2.0f, turfThickness, depth}, floorMaterial);
-            }
-            for (int i = 0; i < state.requiredSouls && i < CAPTURE_COUNT; ++i) {
-                const auto id = "island/goal-post/" + std::to_string(i);
-                const Vec3 goal = state.captures[i].pos;
-                addStructure(id.c_str(), RoomStructureKind::GoalPost,
-                    field_island::goalPostCenter(goal) + Vec3{0, 0, z0},
-                    field_island::goalPostSize(goal), frameMaterial);
             }
         }else{
             addStructure("floor", RoomStructureKind::Floor, {0, -0.04f, z0},

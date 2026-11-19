@@ -37,11 +37,8 @@ func _run() -> void:
     check(foot != null and foot.position.x + foot.mesh.size.x * 0.5 <= bridge.mesh.size.x * 0.5 and
         is_equal_approx(foot.position.y - foot.mesh.size.y * 0.5, 0.08),
         "doorway feet fit on the widened landing")
-    for i in range(initial.capture_points.size()):
-        var post: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/island/goal-post/%d" % [tile, i])
-        check(post != null and absf(post.position.x) + post.mesh.size.x * 0.5 <= bridge.mesh.size.x * 0.5 and
-            is_equal_approx(post.position.y - post.mesh.size.y * 0.5, 0.08),
-            "goal post %d is anchored to the landing" % i)
+    for goal in initial.capture_points:
+        check(goal.position.y > 0.08, "goal squares remain suspended above the landing")
     check(initial.field_backdrop_trees.is_empty(), "open-field backdrop trees stay out of the void")
     for object in initial.objects:
         if str(object.id).ends_with("/tree/trunk/0"):

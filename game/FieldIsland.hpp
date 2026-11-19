@@ -44,14 +44,6 @@ inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blad
     return blade;
 }
 
-inline Vec3 goalPostCenter(const Vec3& goal) {
-    return {goal.x, (goal.y + world::GroundY) * 0.5f, goal.z - 0.10f};
-}
-
-inline Vec3 goalPostSize(const Vec3& goal) {
-    return {0.16f, goal.y - world::GroundY, 0.16f};
-}
-
 inline bool hasGroundSupport(float x, float localZ, float radius) {
     const float inset = std::max(0.0f, radius);
     const bool onMain = std::abs(x) <= MainHalfWidth - inset &&

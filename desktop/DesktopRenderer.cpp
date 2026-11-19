@@ -1714,11 +1714,6 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             glPopMatrix();
             drawFieldGrass(surface.halfWidth, minZ, maxZ, world::GroundY, true);
         }
-        for (int i = 0; i < state.requiredSouls && i < CAPTURE_COUNT; ++i) {
-            const Vec3 goal = state.captures[i].pos;
-            drawBox(field_island::goalPostCenter(goal) + Vec3{0, 0, z0},
-                field_island::goalPostSize(goal), 0, 0, 0, 0.20f, 0.27f, 0.22f);
-        }
     } else drawBox({0,-0.04f,z0},{openNatural?ROOM_WIDTH*2.8f:ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
     if(!island&&field&&plan.form==room_environment::RoomForm::Open){
         if(festiveMutation||gummyMutation)drawTexturedBox(sandTexture_,{0,0.005f,z0},{ROOM_WIDTH-0.55f,0.018f,ROOM_DEPTH-0.55f},0,0,0,festiveMutation?VisualColor{0.86f,0.94f,0.98f}:VisualColor{1.0f,0.46f,0.86f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
