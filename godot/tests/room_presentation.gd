@@ -63,8 +63,8 @@ func _initialize() -> void:
                 "Godot recovers the desktop capture surround/recess dimensions and hides an unfilled soul")
     var lawn_records: Array = []
     var backdrop_trees: Array = snapshot.get("field_backdrop_trees", [])
-    check(backdrop_trees.size() == 9,
-        "native Field snapshot supplies the nine desktop perimeter tree records")
+    check(backdrop_trees.size() == (0 if snapshot.field_island.enabled else 9),
+        "the Field perimeter trees require the open field's surrounding ground")
     check(adapter.field_backdrop_tree_count() == backdrop_trees.size(),
         "Godot materializes every native Field backdrop tree as render-only mesh geometry")
     if not backdrop_trees.is_empty():

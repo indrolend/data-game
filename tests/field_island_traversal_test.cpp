@@ -67,8 +67,10 @@ int main(){
 
     auto doorway=std::make_unique<Game>();
     const auto bridgeSupport=doorway->debugPlayerSupportAt(0.0f,-20.0f);
+    const auto doorwayFootSupport=doorway->debugPlayerSupportAt(3.1f,-20.9f);
+    const auto approachSupport=doorway->debugPlayerSupportAt(3.1f,-field_island::MainHalfDepth);
     const auto abyssSupport=doorway->debugPlayerSupportAt(6.0f,-20.0f);
-    if(!bridgeSupport.available||abyssSupport.available){
+    if(!bridgeSupport.available||!doorwayFootSupport.available||!approachSupport.available||abyssSupport.available){
         std::fprintf(stderr,"FIELD_ISLAND_FAIL bridge support=%d side support=%d\n",bridgeSupport.available?1:0,abyssSupport.available?1:0);return 1;
     }
 

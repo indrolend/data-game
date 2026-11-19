@@ -1957,8 +1957,8 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
 }
 
 bool Game::isFieldIslandActive() const {
-    return !state_.rallyLab&&!state_.traversalLab&&!state_.slopeLab&&!state_.roomInspector&&
-        field_island::active(state_.roomSeed,state_.roomIndex);
+    return field_island::active(state_.roomSeed, state_.roomIndex,
+        state_.rallyLab || state_.traversalLab || state_.slopeLab || state_.roomInspector);
 }
 
 WorldSupportSample Game::getPlayerSupport(float x,float z) const {

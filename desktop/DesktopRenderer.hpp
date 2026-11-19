@@ -107,7 +107,7 @@ private:
     void applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
     void drawShadowDepthMap() const;
     void updateCoastalWater(const GameState& state) const;
-    void drawFieldGrass(int tileIndex,const VisualColor& tint={1.0f,1.0f,1.0f}) const;
+    void drawFieldGrass(float halfWidth, float minZ, float maxZ, float y, bool worldAligned = false) const;
     void drawCityGround(int tileIndex) const;
     static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);
     void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;

@@ -11,6 +11,7 @@
 #include "RenderContracts.hpp"
 #include "MaterialResponse.hpp"
 #include "FieldGrassTexture.hpp"
+#include "FieldIsland.hpp"
 #include "CitySurfaceTexture.hpp"
 #include "FacetedRock.hpp"
 #include "CoastalWater.hpp"
@@ -202,7 +203,7 @@ void lookAt(const Vec3& eye, const Vec3& center, const Vec3& up) {
     };
     glMultMatrixf(matrix);
 }
-void cube() {
+void cube(bool drawTop = true) {
     glBegin(GL_QUADS);
     glNormal3f(0,0,1);
     glVertex3f(-.5f,-.5f,.5f); glVertex3f(.5f,-.5f,.5f); glVertex3f(.5f,.5f,.5f); glVertex3f(-.5f,.5f,.5f);
@@ -212,23 +213,30 @@ void cube() {
     glVertex3f(-.5f,-.5f,-.5f); glVertex3f(-.5f,-.5f,.5f); glVertex3f(-.5f,.5f,.5f); glVertex3f(-.5f,.5f,-.5f);
     glNormal3f(1,0,0);
     glVertex3f(.5f,-.5f,.5f); glVertex3f(.5f,-.5f,-.5f); glVertex3f(.5f,.5f,-.5f); glVertex3f(.5f,.5f,.5f);
-    glNormal3f(0,1,0);
-    glVertex3f(-.5f,.5f,.5f); glVertex3f(.5f,.5f,.5f); glVertex3f(.5f,.5f,-.5f); glVertex3f(-.5f,.5f,-.5f);
+    if (drawTop) {
+        glNormal3f(0,1,0);
+        glVertex3f(-.5f,.5f,.5f); glVertex3f(.5f,.5f,.5f); glVertex3f(.5f,.5f,-.5f); glVertex3f(-.5f,.5f,-.5f);
+    }
     glNormal3f(0,-1,0);
     glVertex3f(-.5f,-.5f,-.5f); glVertex3f(.5f,-.5f,-.5f); glVertex3f(.5f,-.5f,.5f); glVertex3f(-.5f,-.5f,.5f);
     glEnd();
 }
 
+bool usesFieldIsland(const GameState& state) {
+    return field_island::active(state.roomSeed, state.roomIndex,
+        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+}
+
 float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,float radius){
     const float localZ=worldZ-std::floor((worldZ+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH;
-    float height=0.0f;
+    float height=usesFieldIsland(state) ? world::GroundY : 0.0f;
     for(int i=0;i<state.debug.colliderCount;++i){const RoomCollider& c=state.roomColliders[i];if(worldX>c.minX-radius&&worldX<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)height=std::max(height,c.topY);}
     for(int i=0;i<state.slopeSupportCount;++i){const auto sample=sampleSlopeSupport(state.slopeSupports[i],worldX,localZ);if(sample.inside&&sample.classification!=SupportClassification::Steep)height=std::max(height,sample.height);}
     for(int i=0;i<state.rockSupportCount;++i){const auto sample=faceted_rock::sampleSupportFootprint(state.rockSupports[i],worldX,localZ,radius);if(sample.inside)height=std::max(height,sample.height);}
     return height;
 }
 
-void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY,const Vec3& sunDirection) {
+void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY,const Vec3& sunDirection,bool island=false) {
     constexpr int segments = 8;
     const float sunXOverY=sunDirection.x/sunDirection.y;
     const float sunZOverY=sunDirection.z/sunDirection.y;
@@ -241,15 +249,58 @@ void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, floa
     const float angle=std::atan2(-sunXOverY,-sunZOverY);
     const float c=std::cos(angle),s=std::sin(angle);
     glColor4f(0.012f,0.018f,0.022f,alpha);
-    glBegin(GL_TRIANGLE_FAN);
-    glVertex3f(center.x,center.y,center.z);
-    for(int i=0;i<=segments;++i){
-        const float a=2.0f*PI*static_cast<float>(i)/static_cast<float>(segments);
-        const float localX=std::cos(a)*(halfWidth+stretch*0.35f);
-        const float localZ=std::sin(a)*(halfDepth+stretch);
-        glVertex3f(center.x+localX*c-localZ*s,center.y,center.z+localX*s+localZ*c);
+    std::array<Vec3, 16> outline{};
+    for (int i = 0; i < segments; ++i) {
+        const float a = 2.0f * PI * static_cast<float>(i) / segments;
+        const float x = std::cos(a) * (halfWidth + stretch * 0.35f);
+        const float z = std::sin(a) * (halfDepth + stretch);
+        outline[i] = {center.x + x*c - z*s, center.y, center.z + x*s + z*c};
     }
-    glEnd();
+    const auto draw = [](const auto& polygon, int count) {
+        if (count < 3) return;
+        glBegin(GL_TRIANGLE_FAN);
+        for (int i = 0; i < count; ++i) {
+            const Vec3& point = polygon[i];
+            glVertex3f(point.x, point.y, point.z);
+        }
+        glEnd();
+    };
+    if (!island) {
+        draw(outline, segments);
+        return;
+    }
+    const int centerTile = static_cast<int>(std::floor((center.z + ROOM_DEPTH * 0.5f) / ROOM_DEPTH));
+    for (int tile = centerTile - 1; tile <= centerTile + 1; ++tile) {
+        const float tileZ = tile * ROOM_DEPTH;
+        for (const auto& surface : field_island::Surfaces) {
+            auto polygon = outline;
+            int count = segments;
+            const auto clip = [&](auto distance) {
+                if (count == 0) return;
+                std::array<Vec3, 16> clipped{};
+                int retained = 0;
+                Vec3 previous = polygon[count - 1];
+                float previousDistance = distance(previous);
+                for (int i = 0; i < count; ++i) {
+                    const Vec3 current = polygon[i];
+                    const float currentDistance = distance(current);
+                    if ((previousDistance >= 0.0f) != (currentDistance >= 0.0f))
+                        clipped[retained++] = previous + (current - previous) *
+                            (previousDistance / (previousDistance - currentDistance));
+                    if (currentDistance >= 0.0f) clipped[retained++] = current;
+                    previous = current;
+                    previousDistance = currentDistance;
+                }
+                polygon = clipped;
+                count = retained;
+            };
+            clip([&](const Vec3& p) { return p.x + surface.halfWidth; });
+            clip([&](const Vec3& p) { return surface.halfWidth - p.x; });
+            clip([&](const Vec3& p) { return p.z - (tileZ + surface.minZ); });
+            clip([&](const Vec3& p) { return tileZ + surface.maxZ - p.z; });
+            draw(polygon, count);
+        }
+    }
 }
 
 void roundedEllipsoid(const Vec3& p, const Vec3& scale, float pitch, float yaw, float roll, float r, float g, float b) {
@@ -1211,13 +1262,21 @@ void DesktopRenderer::drawSoulFlesh(const TargetState& target,const Vec3& center
     if(target.tetherVisible){const Vec3 base=target.tetherAnchor,apex=target.tetherDestination,axis=base-apex;const float len=length(axis);if(len>0.001f){const Vec3 forward=axis*(1.0f/len);const Vec3 reference=std::abs(forward.y)>0.92f?Vec3{1,0,0}:Vec3{0,1,0};const Vec3 right=normalized(cross3(forward,reference)),up=normalized(cross3(right,forward));const float activity=clampf(std::max(target.vacuumPullAmount,target.ingestProgress),0.0f,1.0f),radius=0.11f+target.tetherWidth*0.16f+activity*0.035f;constexpr int segments=20;glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);glBegin(GL_TRIANGLE_FAN);glColor4f(VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.15f+activity*0.10f);glVertex3f(apex.x,apex.y,apex.z);for(int i=0;i<=segments;++i){const float angle=2.0f*PI*static_cast<float>(i)/segments;const Vec3 edge=base+right*(std::cos(angle)*radius)+up*(std::sin(angle)*radius);glColor4f(VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.012f+activity*0.018f);glVertex3f(edge.x,edge.y,edge.z);}glEnd();glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}}
 }
 
-void DesktopRenderer::drawFieldGrass(int tileIndex,const VisualColor& tint) const{
+void DesktopRenderer::drawFieldGrass(float halfWidth, float minZ, float maxZ, float y, bool worldAligned) const {
     if(!fieldGrassTexture_){const auto pixels=field_grass_texture::pixels();glGenTextures(1,&fieldGrassTexture_);glBindTexture(GL_TEXTURE_2D,fieldGrassTexture_);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,field_grass_texture::Size,field_grass_texture::Size,0,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());}
     const auto material=semanticMaterial(SemanticSurface::FieldGround,VisualIdentity::FieldGround);
     const ScopedMaterial applied(material);
-    const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=material.textureWorldScale;
-    glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,fieldGrassTexture_);glColor3f(tint.r,tint.g,tint.b);glNormal3f(0,1,0);glBegin(GL_QUADS);
-    glTexCoord2f(0,0);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,0);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,ROOM_DEPTH/scale);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glTexCoord2f(0,ROOM_DEPTH/scale);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glEnd();glDisable(GL_TEXTURE_2D);
+    const float scale=material.textureWorldScale;
+    const float u0 = worldAligned ? -halfWidth / scale : 0.0f;
+    const float v0 = worldAligned ? minZ / scale : 0.0f;
+    const float u1 = u0 + 2.0f * halfWidth / scale;
+    const float v1 = v0 + (maxZ - minZ) / scale;
+    glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,fieldGrassTexture_);glColor3f(1,1,1);glNormal3f(0,1,0);glBegin(GL_QUADS);
+    glTexCoord2f(u0,v0);glVertex3f(-halfWidth,y,minZ);
+    glTexCoord2f(u1,v0);glVertex3f(halfWidth,y,minZ);
+    glTexCoord2f(u1,v1);glVertex3f(halfWidth,y,maxZ);
+    glTexCoord2f(u0,v1);glVertex3f(-halfWidth,y,maxZ);
+    glEnd();glDisable(GL_TEXTURE_2D);
 }
 
 void DesktopRenderer::drawCityGround(int tileIndex) const{
@@ -1641,10 +1700,29 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         if(sterile){const ScopedMaterial material(semanticMaterial(SemanticSurface::SterilePanel,{r,g,b}));drawTexturedBox(sterileTileTexture_,center,size,pitch,yaw,roll,{r*0.82f,g*0.86f,b*0.88f},1.34f,std::fmod(std::abs(center.x*0.071f+center.z*0.037f),1.0f));}
         else drawBox(center,size,pitch,yaw,roll,r,g,b);
     };
-    drawBox({0,-0.04f,z0},{openNatural?ROOM_WIDTH*2.8f:ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
-    if(field&&plan.form==room_environment::RoomForm::Open){
+    const bool island = usesFieldIsland(state);
+    if (island) {
+        for (const auto& surface : field_island::Surfaces) {
+            const float minZ = z0 + surface.minZ;
+            const float maxZ = z0 + surface.maxZ;
+            const float coreDepth = surface.halfWidth == field_island::MainHalfWidth ? 1.28f : 0.92f;
+            glPushMatrix();
+            glTranslatef(0, world::GroundY - coreDepth * 0.5f, (minZ + maxZ) * 0.5f);
+            glScalef(surface.halfWidth * 2.0f, coreDepth, maxZ - minZ);
+            gradedColor(0.12f, 0.10f, 0.075f);
+            cube(false);
+            glPopMatrix();
+            drawFieldGrass(surface.halfWidth, minZ, maxZ, world::GroundY, true);
+        }
+        for (int i = 0; i < state.requiredSouls && i < CAPTURE_COUNT; ++i) {
+            const Vec3 goal = state.captures[i].pos;
+            drawBox(field_island::goalPostCenter(goal) + Vec3{0, 0, z0},
+                field_island::goalPostSize(goal), 0, 0, 0, 0.20f, 0.27f, 0.22f);
+        }
+    } else drawBox({0,-0.04f,z0},{openNatural?ROOM_WIDTH*2.8f:ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
+    if(!island&&field&&plan.form==room_environment::RoomForm::Open){
         if(festiveMutation||gummyMutation)drawTexturedBox(sandTexture_,{0,0.005f,z0},{ROOM_WIDTH-0.55f,0.018f,ROOM_DEPTH-0.55f},0,0,0,festiveMutation?VisualColor{0.86f,0.94f,0.98f}:VisualColor{1.0f,0.46f,0.86f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
-        else drawFieldGrass(tileIndex);
+        else drawFieldGrass(ROOM_WIDTH * 0.5f, z0 - ROOM_DEPTH * 0.5f, z0 + ROOM_DEPTH * 0.5f, 0.003f);
     }
     if(city){drawCityGround(tileIndex);drawCityStreet(state,tileIndex,plan.form);}
     if(coastal)drawTexturedBox(sandTexture_,{0,0.005f,z0},{23.5f,0.018f,35.5f},0,0,0,festiveMutation?VisualColor{0.80f,0.88f,0.92f}:VisualColor{0.91f,0.84f,0.68f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
@@ -1658,11 +1736,11 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     if(openNatural){
         for(float seam:{-ROOM_DEPTH*0.5f,ROOM_DEPTH*0.5f}){
             const VisualColor frame=field?VisualColor{0.20f,0.27f,0.22f}:VisualColor{0.33f,0.36f,0.34f};
-            drawBox({-doorWidth*0.56f,doorHeight*0.48f,z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
-            drawBox({ doorWidth*0.56f,doorHeight*0.48f,z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
-            drawBox({0,doorHeight*0.96f,z0+seam},{doorWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({-doorWidth*0.56f,doorHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({ doorWidth*0.56f,doorHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({0,doorHeight*0.96f+(island ? world::GroundY : 0.0f),z0+seam},{doorWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
         }
-        if(field)drawFieldBackdrop(state,tileIndex);
+        if(field && !island)drawFieldBackdrop(state,tileIndex);
     }else if(city){
         // City is a continuous exterior world. Buildings and the street section
         // define its edges; reusing the Sterile room shell created the former
@@ -1678,7 +1756,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     }
     // Render-only mid-scale composition. These pieces break up room-sized slabs
     // without changing collision, traversal, or the authored capacity plan.
-    if(field){
+    if(field && !island){
         const float boundaryX=ROOM_WIDTH*0.5f-0.42f;
         for(int side=-1;side<=1;side+=2)for(int marker=0;marker<5;++marker){
             const float localZ=-ROOM_DEPTH*0.38f+static_cast<float>(marker)*ROOM_DEPTH*0.19f;
@@ -1912,7 +1990,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                 // single source of truth for climbing and world scale.
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
                 if(!shadowGeometryPass_&&render_contract::usesProceduralGroundShadows(frameShadowQuality_))
-                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,0.0f,frameSunDirection_);
+                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,island ? world::GroundY : 0.0f,frameSunDirection_,island);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
                 drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
                 const VisualColor bark{0.28f,0.205f,0.13f};
@@ -1969,7 +2047,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     }
     // Bird sprites are withheld until their atlas rows, schedules, and world
     // placement form a complete behavior instead of intermittent billboards.
-    if(plan.grass&&!shadowGeometryPass_){const ScopedMaterial material(semanticMaterial(SemanticSurface::FieldVegetation));const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:field_material_family::BladeRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:field_material_family::BladeTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
+    if(plan.grass&&!shadowGeometryPass_){const ScopedMaterial material(semanticMaterial(SemanticSurface::FieldVegetation));const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:field_material_family::BladeRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:field_material_family::BladeTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);if(island)blade=field_island::placeGrass(blade);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
 }
 
 void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
@@ -2378,14 +2456,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     // A pause menu overlays the live world, so its frozen actors still own their
     // shadows. Only presentations that replace gameplay suppress world shadows.
     if(shadowQuality==render_contract::ShadowQuality::Cheap){
+    const bool island = usesFieldIsland(state);
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f),resolvedSun.direction);
-    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f),resolvedSun.direction);
+    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f),resolvedSun.direction,island);
+    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f),resolvedSun.direction,island);
     if(!menuPresentation){
     const float shadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver,resolvedSun.direction);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver,resolvedSun.direction);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver,resolvedSun.direction);}
-    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f),resolvedSun.direction);}
-    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f),resolvedSun.direction);}
+    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver,resolvedSun.direction,island);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver,resolvedSun.direction,island);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver,resolvedSun.direction,island);}
+    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f),resolvedSun.direction,island);}
+    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f),resolvedSun.direction,island);}
     // Static room geometry already provides the receiving floor and its own
     // lighting. Projecting every collider (including room-scale walls) onto the
     // floor created large overlapping black sheets unrelated to visible casters.

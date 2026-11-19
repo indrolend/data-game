@@ -1051,13 +1051,16 @@ Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
     const auto& state = bridge.state();
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+    const bool island = field_island::active(state.roomSeed, state.roomIndex,
+        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
     Array result;
     if (!plan.grass) return result;
     result.resize(room_environment::GrassBladeCountLow);
     const float tileOffset = static_cast<float>(tile_index) * world::RoomDepth;
     for (int index = 0; index < room_environment::GrassBladeCountLow; ++index) {
-        const auto blade = room_environment::grassBlade(
+        auto blade = room_environment::grassBlade(
             state.roomSeed, state.roomIndex, tile_index, index);
+        if (island) blade = field_island::placeGrass(blade);
         Dictionary item;
         item["root"] = v({blade.root.x, blade.root.y, blade.root.z + tileOffset});
         item["height"] = blade.height;
@@ -1072,6 +1075,8 @@ Array ParentGameNode::grass_blade_tip_presentation_snapshot(int tile_index) cons
     const auto& state = bridge.state();
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
+    const bool island = field_island::active(state.roomSeed, state.roomIndex,
+        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
     Array result;
     if (!plan.grass) return result;
     result.resize(room_environment::GrassBladeCountLow);
@@ -1084,6 +1089,7 @@ Array ParentGameNode::grass_blade_tip_presentation_snapshot(int tile_index) cons
     const float tileOffset = static_cast<float>(tile_index) * world::RoomDepth;
     for (int index = 0; index < room_environment::GrassBladeCountLow; ++index) {
         auto blade = room_environment::grassBlade(state.roomSeed, state.roomIndex, tile_index, index);
+        if (island) blade = field_island::placeGrass(blade);
         blade.root.z += tileOffset;
         result[index] = v(room_environment::grassTip(blade, state.time, inputs));
     }
