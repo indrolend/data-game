@@ -142,6 +142,8 @@ int main() {
         crossing.player.pos = {0, PHONE_MODEL_HEIGHT * 0.5f, tileOrigin - 20.8f};
         crossing.player.vel = {0, 0, -20.0f};
         crossing.player.grounded = true;
+        crossing.hud.menuSelection = 5;
+        crossing.localSettings.menuScroll = 100.0f;
         step(game, 2);
 
         const GameState& advanced = game.state();
@@ -149,6 +151,7 @@ int main() {
         if (advanced.roomIndex != room + 1 || advanced.roomSeed == seed ||
             advanced.roomClear || filledGoals(advanced) != 0 ||
             !advanced.upgradeMenu.active || !advanced.uiPaused ||
+            advanced.hud.menuSelection != 0 || advanced.localSettings.menuScroll != 0.0f ||
             ruleStacks(advanced) != expectedRules || !finiteState(advanced)) {
             return fail(iteration, "invalid_room_advance", advanced);
         }

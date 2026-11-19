@@ -743,8 +743,8 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     cpuClear(canvas, 0.025f + tint.x * 0.18f, 0.045f + tint.y * 0.16f, 0.060f + tint.z * 0.15f, 1.0f);
     cpuRect(canvas, 0, 0, static_cast<float>(canvas.w), static_cast<float>(canvas.h), 0.03f, 0.55f, 0.62f, 0.10f + display.brightness * 0.08f);
 
-    const bool menuVisible = state.cinematic.introActive || !state.started ||
-        (state.started && state.uiPaused && !state.multiplayer.enabled && !state.upgradeMenu.active);
+    const bool menuVisible = state.upgradeMenu.active || state.cinematic.introActive || !state.started ||
+        (state.started && state.uiPaused && !state.multiplayer.enabled);
     if (!menuVisible) {
         const GameplayPhoneModel phone = makeGameplayPhoneModel(state);
         const float vacuum = clampf(state.vacuum.power, 0.0f, 1.0f);
@@ -869,6 +869,8 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             continue;
         }
         const PhoneMenuEmphasis emphasis=phoneMenuEmphasis(row.action);
+        const bool upgradeUnavailable=state.upgradeMenu.active && row.selectableIndex>=3 &&
+            (state.progression.permanent.tokens<=0 || state.progression.permanent.levels[row.selectableIndex-3]>=5);
         const float response=selected?clampf(state.cinematic.textInteraction,0.0f,1.0f):0.0f;
         const int gesture=response>0.035f?state.cinematic.menuPaintGesture:0;
         const VisualColor focusColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
@@ -881,7 +883,8 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
             const float valueWidth=cpuStencilTextWidth(row.value,row.fontPx);
             const float valueLeft=row.valueRightX-valueWidth;
             if(selected)cpuLetterSplatter(canvas,row.value,valueLeft,row.baselineY,row.fontPx,focusColor,0.28f+response*0.26f,gesture);
-            cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,selected?channelAccent.r:VisualIdentity::MetallicTeal.r,selected?channelAccent.g:VisualIdentity::MetallicTeal.g,selected?channelAccent.b:VisualIdentity::MetallicTeal.b,selected?0.98f:0.78f,stencilAge);
+            const VisualColor valueColor=upgradeUnavailable?VisualIdentity::MetallicTeal:(selected?channelAccent:VisualIdentity::MetallicTeal);
+            cpuStencilText(canvas,row.value,valueLeft,row.baselineY,row.fontPx,valueColor.r,valueColor.g,valueColor.b,upgradeUnavailable?0.48f:(selected?0.98f:0.78f),stencilAge);
             const float amount=phoneMenuVisualAmount(row.action,state.localSettings);
             if(amount>=0.0f&&row.horizontal==PhoneMenuHorizontal::Adjust){
                 const float trackW=150.0f,trackH=5.0f;
@@ -923,6 +926,15 @@ std::uint64_t phoneDisplayRenderKey(const GameState& state) {
     hashPhoneDisplayValue(hash, state.started ? 1u : 0u);
     hashPhoneDisplayValue(hash, state.dead ? 1u : 0u);
     hashPhoneDisplayValue(hash, state.uiPaused ? 1u : 0u);
+    hashPhoneDisplayValue(hash, state.upgradeMenu.active ? 1u : 0u);
+    hashPhoneDisplayValue(hash, state.multiplayer.enabled ? 1u : 0u);
+    hashPhoneDisplayValue(hash, state.multiplayer.authoritativeHost ? 1u : 0u);
+    hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max<std::int64_t>(0, state.roomIndex)));
+    hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max<std::int64_t>(0, state.progression.permanent.tokens)));
+    for (int level : state.progression.run.temporaryLevels)
+        hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(0, level)));
+    for (int level : state.progression.permanent.levels)
+        hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(std::max(0, level)));
     hashPhoneDisplayValue(hash, state.cinematic.introActive ? 1u : 0u);
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(state.localSettings.menuPage));
     hashPhoneDisplayFloat(hash, state.localSettings.menuScroll, 10.0f);
@@ -2026,7 +2038,7 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     glOrtho(0.0,static_cast<double>(width_),static_cast<double>(height_),0.0,-1.0,1.0);
     glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity();
     const float menuUiScale=clampf(std::min(static_cast<float>(width_)/1280.0f,static_cast<float>(height_)/720.0f),0.55f,1.8f);
-    const float menuCanvasW=static_cast<float>(width_)/menuUiScale,menuCanvasH=static_cast<float>(height_)/menuUiScale;
+    const float menuCanvasW=static_cast<float>(width_)/menuUiScale;
     if(state.localSettings.fpsCounter){const std::string fps="FPS "+std::to_string(static_cast<int>(std::round(displayedFps)));text(fps,width_-fps.size()*7.2f-12,68,1.2f,0.72f,1.0f,0.90f);}
     if(state.attractMode){
         const float cx=width_*0.5f;
@@ -2134,51 +2146,13 @@ void DesktopRenderer::drawHud(const GameState& state) const {
     center=rotateCenter(-spread,0); rotatedQuad(center.x,center.y,arm,thick,angle,rr,rg,rb,reticleAlpha);
     center=rotateCenter(spread,0); rotatedQuad(center.x,center.y,arm,thick,angle,rr,rg,rb,reticleAlpha);
 
-    if(state.upgradeMenu.active){
-        quad(0,0,static_cast<float>(width_),static_cast<float>(height_),0.0f,0.012f,0.018f,0.54f);
-        glPushMatrix();glScalef(menuUiScale,menuUiScale,1.0f);
-        const float pw=std::min(680.0f,menuCanvasW-24.0f),ph=300.0f,px=(menuCanvasW-pw)*0.5f,py=(menuCanvasH-ph)*0.5f;
-        const float arrival=clampf(state.upgradeMenu.presentationTime/0.42f,0.0f,1.0f);
-        const float reveal=arrival*arrival*(3.0f-2.0f*arrival);
-        quad(px,py,pw,ph,0.008f,0.022f,0.030f,0.70f*reveal);
-        // A single compile trace communicates arrival. Showing the entire
-        // palette here made authored material roles read like a color legend.
-        quad(px+18.0f,py+8.0f,(pw-36.0f)*reveal,2.0f,
-            VisualIdentity::ComputedOutput.r,VisualIdentity::ComputedOutput.g,
-            VisualIdentity::ComputedOutput.b,0.66f*reveal);
-        text("ROOM "+std::to_string(state.roomIndex)+" / RECOMPILE",px+18,py+20,1.55f,0.82f,0.97f,1.0f,0.96f*reveal);
-        const bool remoteChoice=state.multiplayer.enabled&&!state.multiplayer.authoritativeHost;
-        text(remoteChoice?"HOST HOLDS RULE AUTHORITY":"RUN MUTATION / SELECT ONE",px+18,py+46,1.08f,0.62f,0.88f,0.94f,0.88f*reveal);
-        const float cellW=(pw-24.0f)/3.0f;const std::string labels[3]={"SHOT","LUNGE","ATTACK"};
-        const auto choice=[&](int item,float top,float height){
-            const int track=item%3;const bool permanent=item>=3,selected=state.hud.menuSelection==item;
-            const int level=permanent?state.progression.permanent.levels[track]:state.progression.run.temporaryLevels[track];
-            const bool available=!permanent||(state.progression.permanent.tokens>0&&level<5);
-            const float response=selected?clampf(state.cinematic.textInteraction,0,1):0.0f;
-            const float cx=px+12+track*cellW+(cellW-4)*0.5f,cy=py+top+height*0.5f;
-            const float tilt=selected&&!permanent?std::sin(state.upgradeMenu.presentationTime*2.5f+item*1.7f)*0.018f:0.0f;
-            const VisualColor focus=permanent?VisualIdentity::AcidChartreuse:VisualIdentity::ElectricCyan;
-            const VisualColor dim=VisualIdentity::MetallicTeal;
-            const VisualColor color=available?focus:dim;
-            rotatedQuad(cx,cy,cellW-6,height,tilt,color.r,color.g,color.b,(selected?0.15f+response*0.05f:0.035f)*reveal);
-            rotatedQuad(cx,cy+height*0.5f-1,cellW-22,2,tilt,color.r,color.g,color.b,(selected?0.82f:0.24f)*reveal);
-            const std::string& label=labels[track];const float labelScale=1.75f+response*0.06f;
-            text(label,cx-label.size()*6*labelScale*0.5f,cy-18.0f,labelScale,selected?0.94f:0.72f,selected?1.0f:0.88f,1.0f,(selected?0.98f:0.72f)*reveal);
-            const std::string detail=permanent?("PERM "+std::to_string(level)+"/5"):("RUN "+std::to_string(level)+" / NEXT "+std::to_string(std::min(12,level+1)));
-            const float detailScale=0.92f;
-            text(detail,cx-detail.size()*6*detailScale*0.5f,cy+12.0f,detailScale,color.r,color.g,color.b,(available?0.88f:0.48f)*reveal);
-        };
-        for(int i=0;i<3;++i)choice(i,66,76);
-        text("PERMANENT MEMORY / TOKENS "+std::to_string(state.progression.permanent.tokens),px+18,py+158,1.08f,VisualIdentity::AcidChartreuse.r,VisualIdentity::AcidChartreuse.g,VisualIdentity::AcidChartreuse.b,0.86f*reveal);
-        for(int i=3;i<6;++i)choice(i,184,66);
-        text(remoteChoice?"WAITING FOR HOST":"ARROWS TUNE   ENTER / A LOCK",px+18,py+276,0.94f,0.58f,0.82f,0.88f,0.72f*reveal);
-    } else if(state.uiPaused&&state.multiplayer.enabled){
+    if(state.uiPaused&&state.multiplayer.enabled&&!state.upgradeMenu.active){
         glPushMatrix();glScalef(menuUiScale,menuUiScale,1.0f);
         const float pw=360.0f,ph=116.0f,px=menuCanvasW-pw-12.0f,py=48.0f;
         quad(px,py,pw,ph,0.01f,0.03f,0.04f,0.16f);quad(px,py,pw,1,1,1,1,0.55f);quad(px,py+ph-1,pw,1,1,1,1,0.40f);quad(px,py,1,ph,1,1,1,0.42f);quad(px+pw-1,py,1,ph,1,1,1,0.42f);
         text("PAUSED",px+12,py+12,2.0f);const float pauseTilt=std::sin(state.time*2.4f)*0.018f,pulse=clampf(state.cinematic.textInteraction,0,1),buttonScale=2.45f+pulse*0.06f;rotatedQuad(px+pw*0.5f,py+63,pw-24,58,pauseTilt,0.16f,0.86f,1.0f,0.18f);text("RESUME",px+pw*0.5f-6*6*buttonScale*0.5f,py+54-3.5f*buttonScale,buttonScale,0.92f,1.0f,1.0f);
     }
-    if(state.upgradeMenu.active||state.uiPaused)glPopMatrix();
+    if(state.uiPaused&&state.multiplayer.enabled&&!state.upgradeMenu.active)glPopMatrix();
 
     glMatrixMode(GL_MODELVIEW); glPopMatrix();
     glMatrixMode(GL_PROJECTION); glPopMatrix();
@@ -2418,7 +2392,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
 
-    if (state.phoneVisual.visible) {
+    if (state.phoneVisual.visible || state.upgradeMenu.active) {
         const Vec3 phonePos=state.phoneTransform.position;
         const auto& pv=state.phoneVisual;
         const Quat phoneOrientation=state.phoneTransform.orientation;
@@ -2587,7 +2561,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
             drawBox(particle.pos,{size,size,size},particle.life*8.0f,particle.life*4.0f,particle.life*6.0f,color.r,color.g,color.b,(particle.material==ParticleMaterial::Environment?0.82f*t:0.9f));
         }
     }
-    if(state.localSettings.particles||state.localSettings.portalWindow)drawDoorDataMosh(state);
+    if(!state.upgradeMenu.active&&(state.localSettings.particles||state.localSettings.portalWindow))drawDoorDataMosh(state);
     if(codec&&codec->showColliders){
         glDisable(GL_LIGHTING);glDisable(GL_CULL_FACE);glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);glLineWidth(2.0f);
         const float z0=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;

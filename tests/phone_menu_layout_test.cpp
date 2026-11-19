@@ -213,6 +213,39 @@ int main() {
     assert(join.selectableCount == 0);
     assert(join.joinCode);
 
+    state.started = true;
+    state.dead = false;
+    state.uiPaused = true;
+    state.upgradeMenu.active = true;
+    state.multiplayer.enabled = false;
+    state.localSettings.menuScroll = 0.0f;
+    state.progression.run.temporaryLevels = {2, 1, 3};
+    state.progression.permanent.levels = {1, 5, 0};
+    state.progression.permanent.tokens = 0;
+    PhoneDisplayMenuLayout upgradesTop = makePhoneDisplayMenuLayout(state);
+    assert(upgradesTop.selectableCount == 6);
+    assert(upgradesTop.rowCount == 8);
+    assert(upgradesTop.maxScroll > 0.0f);
+    assert(selectionRow(upgradesTop, 0).label == "SHOT");
+    assert(selectionRow(upgradesTop, 0).value == "RUN 2 / NEXT 3");
+    state.hud.menuSelection = 5;
+    state.localSettings.menuScroll = phoneDisplayScrollForSelection(upgradesTop, 5);
+    PhoneDisplayMenuLayout upgradesBottom = makePhoneDisplayMenuLayout(state);
+    assert(upgradesBottom.scrollOffset > 0.0f);
+    assert(selectionRow(upgradesBottom, 3).value == "PERM 1/5 / UNAVAILABLE");
+    assert(selectionRow(upgradesBottom, 4).value == "PERM 5/5 / UNAVAILABLE");
+    assert(selectionRow(upgradesBottom, 5).value == "PERM 0/5 / UNAVAILABLE");
+    expectVisibleRowsInsideSafe(upgradesBottom);
+
+    state.multiplayer.enabled = true;
+    state.multiplayer.authoritativeHost = false;
+    assert(makePhoneDisplayMenuLayout(state).navigationHint == "WAITING FOR HOST");
+    state.multiplayer.authoritativeHost = true;
+    state.progression.permanent.tokens = 1;
+    const auto hostUpgrades = makePhoneDisplayMenuLayout(state);
+    assert(selectionRow(hostUpgrades, 3).value == "PERM 1/5");
+    assert(selectionRow(hostUpgrades, 4).value == "PERM 5/5 / UNAVAILABLE");
+
     state.dead = true;
     state.started = false;
     state.localSettings.menuPage = LocalMenuPage::Main;

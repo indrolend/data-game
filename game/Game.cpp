@@ -157,8 +157,9 @@ constexpr float FLOWER_VACUUM_DIRECTION_RESPONSE = 2.4f;
 constexpr float FLOWER_VACUUM_CAPTURE_RADIUS = 0.52f;
 
 bool localPhoneMenuPresentation(const GameState& state) {
-    return (((!state.started && !state.dead) || state.cinematic.introActive || state.uiPaused) &&
-        !state.multiplayer.enabled && !state.upgradeMenu.active);
+    return state.upgradeMenu.active ||
+        (((!state.started && !state.dead) || state.cinematic.introActive || state.uiPaused) &&
+        !state.multiplayer.enabled);
 }
 
 constexpr float FLOWER_BOB_HEIGHT = 0.16f;
@@ -2215,6 +2216,8 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
         state_.upgradeMenu.active=true;
         state_.upgradeMenu.presentationTime=0.0f;
         state_.uiPaused=true;
+        state_.hud.menuSelection=0;
+        state_.localSettings.menuScroll=0.0f;
         clearInputState();
     } else if(!state_.roomClear) {
         chargeClosedDoorLoop();
