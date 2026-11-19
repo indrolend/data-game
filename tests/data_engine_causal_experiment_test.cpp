@@ -173,4 +173,3 @@ int main() {
     if (!ok) std::fprintf(stderr, "EXPERIMENT_003_FAIL causal_contract\n");
     return ok ? 0 : 1;
 }
-
