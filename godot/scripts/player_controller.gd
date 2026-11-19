@@ -13,8 +13,7 @@ const ATTACK_WINDOW := 0.17
 const MAX_HEALTH := 5
 
 @onready var camera_pivot: Node3D = $CameraPivot
-@onready var camera_arm: SpringArm3D = $CameraPivot/CameraArm
-@onready var camera: Camera3D = $CameraPivot/CameraArm/Camera3D
+@onready var camera: Camera3D = $CameraPivot/CameraMount/Camera3D
 @onready var melee_hitbox: Area3D = $MeleeHitbox
 
 var health := MAX_HEALTH
@@ -50,7 +49,6 @@ func _ready() -> void:
 	melee_hitbox.set_collision_mask_value(2, true)
 	melee_hitbox.set_collision_layer_value(1, false)
 	melee_hitbox.set_collision_layer_value(2, false)
-	camera_arm.add_excluded_object(get_rid())
 	_configure_camera()
 
 func add_look_input(relative: Vector2) -> void:
@@ -120,18 +118,13 @@ func _configure_camera() -> void:
 	camera_pivot.rotation.x = _pitch
 	camera.current = true
 	if first_person:
-		camera_arm.spring_length = 0.01
 		camera.position = Vector3.ZERO
-		camera_arm.rotation.y = 0.0
 		camera.rotation.y = 0.0
 		_world_phone.visible = false
 		_view_phone.visible = true
 	else:
-		# Use the authored offset for this prototype: the spring-arm query was
-		# clipping against the player's own body in headless runs.
-		camera_arm.spring_length = 0.01
+		# The prototype camera uses a fixed offset from the pivot.
 		camera.position = Vector3(0.0, 0.0, 4.2)
-		camera_arm.rotation.y = 0.0
 		camera.rotation.y = 0.0
 		_world_phone.visible = true
 		_view_phone.visible = false

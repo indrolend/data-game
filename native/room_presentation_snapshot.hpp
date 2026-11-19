@@ -122,8 +122,8 @@ struct RoomPresentationSnapshot {
         snapshot.sidewalks = plan.sidewalks;
         snapshot.grassAmount = plan.grassAmount;
         snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
-        snapshot.fieldIsland = !state.rallyLab && !state.traversalLab && !state.slopeLab &&
-            !state.roomInspector && field_island::active(state.roomSeed, state.roomIndex);
+        snapshot.fieldIsland = field_island::active(state.roomSeed, state.roomIndex,
+            state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
         snapshot.fieldIslandMainHalfWidth = field_island::MainHalfWidth;
         snapshot.fieldIslandMainHalfDepth = field_island::MainHalfDepth;
         snapshot.fieldIslandBridgeHalfWidth = field_island::DoorBridgeHalfWidth;
@@ -184,23 +184,21 @@ struct RoomPresentationSnapshot {
         if(snapshot.fieldIsland){
             const auto islandCoreMaterial=semanticMaterial(SemanticSurface::Default,
                 VisualColor{0.12f,0.10f,0.075f});
-            const auto abyssMaterial=semanticMaterial(SemanticSurface::Default,
-                VisualColor{0.008f,0.018f,0.024f});
-            addStructure("island/core",RoomStructureKind::FieldIslandCore,{0,-0.60f,z0},
-                {field_island::MainHalfWidth*2.0f,1.2f,field_island::MainHalfDepth*2.0f},islandCoreMaterial);
-            addStructure("floor",RoomStructureKind::Floor,{0,0.04f,z0},
-                {field_island::MainHalfWidth*2.0f,0.08f,field_island::MainHalfDepth*2.0f},floorMaterial);
-            const float bridgeSegmentDepth=field_island::DoorBridgeHalfDepth-field_island::MainHalfDepth;
-            const float bridgeSegmentCenter=field_island::MainHalfDepth+bridgeSegmentDepth*0.5f;
-            for(const auto& bridge : {std::pair<const char*,float>{"front",bridgeSegmentCenter},
-                                      std::pair<const char*,float>{"back",-bridgeSegmentCenter}}){
-                addStructure((std::string("island/bridge-core/")+bridge.first).c_str(),RoomStructureKind::FieldIslandCore,
-                    {0,-0.42f,z0+bridge.second},{field_island::DoorBridgeHalfWidth*2.0f,0.84f,bridgeSegmentDepth},islandCoreMaterial);
-                addStructure((std::string("island/bridge-top/")+bridge.first).c_str(),RoomStructureKind::Floor,
-                    {0,0.04f,z0+bridge.second},{field_island::DoorBridgeHalfWidth*2.0f,0.08f,bridgeSegmentDepth},floorMaterial);
+            const char* coreIds[] = {"island/core", "island/bridge-core/front", "island/bridge-core/back"};
+            const char* topIds[] = {"floor", "island/bridge-top/front", "island/bridge-top/back"};
+            constexpr float turfThickness = 0.08f;
+            for (std::size_t i = 0; i < field_island::Surfaces.size(); ++i) {
+                const auto& surface = field_island::Surfaces[i];
+                const float centerZ = z0 + (surface.minZ + surface.maxZ) * 0.5f;
+                const float depth = surface.maxZ - surface.minZ;
+                const float coreDepth = i == 0 ? 1.2f : 0.84f;
+                addStructure(coreIds[i], RoomStructureKind::FieldIslandCore,
+                    {0, world::GroundY - turfThickness - coreDepth * 0.5f, centerZ},
+                    {surface.halfWidth * 2.0f, coreDepth, depth}, islandCoreMaterial);
+                addStructure(topIds[i], RoomStructureKind::Floor,
+                    {0, world::GroundY - turfThickness * 0.5f, centerZ},
+                    {surface.halfWidth * 2.0f, turfThickness, depth}, floorMaterial);
             }
-            addStructure("abyss",RoomStructureKind::Abyss,{0,field_island::AbyssRecoveryY-1.5f,z0},
-                {world::RoomWidth*5.0f,0.05f,world::RoomDepth*3.0f},abyssMaterial);
         }else{
             addStructure("floor", RoomStructureKind::Floor, {0, -0.04f, z0},
                 {openNatural ? world::RoomWidth * 2.8f : world::RoomWidth, 0.08f, world::RoomDepth},
@@ -214,13 +212,13 @@ struct RoomPresentationSnapshot {
             for (float seam : {-world::RoomDepth * 0.5f, world::RoomDepth * 0.5f}) {
                 const std::string prefix = "door-frame/" + std::to_string(seamIndex++);
                 addStructure((prefix + "/left").c_str(), RoomStructureKind::DoorFrame,
-                    {-doorWidth * 0.56f, doorHeight * 0.48f, z0 + seam},
+                    {-doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
                     {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/right").c_str(), RoomStructureKind::DoorFrame,
-                    {doorWidth * 0.56f, doorHeight * 0.48f, z0 + seam},
+                    {doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
                     {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/top").c_str(), RoomStructureKind::DoorFrame,
-                    {0, doorHeight * 0.96f, z0 + seam},
+                    {0, doorHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
                     {doorWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
             }
         } else if (!city) {
@@ -494,7 +492,7 @@ struct RoomPresentationSnapshot {
         }
         // Match the renderer's non-physical Field perimeter dressing. The
         // generated records are presentation-only, not collision objects.
-        if (field) {
+        if (field && !snapshot.fieldIsland) {
             const unsigned int key = room_environment::roomKey(state.roomSeed, state.roomIndex) ^
                 static_cast<unsigned int>((tileIndex + 5) * 0x9e3779b9u);
             const float driftA = (room_environment::unit(key + 1u) - 0.5f) * 2.4f;

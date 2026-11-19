@@ -85,7 +85,39 @@ inline void addPhoneDisplayRow(PhoneDisplayMenuLayout& layout, PhoneDisplayMenuR
 }
 
 inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state,PhoneDisplayTextMeasure measure=estimatePhoneDisplayTextWidth) {
-    const PhoneMenuPageViewModel page = makePhoneMenuPageModel(state);
+    PhoneMenuPageViewModel page = makePhoneMenuPageModel(state);
+    if (state.upgradeMenu.active && !state.dead) {
+        page = {};
+        page.title = "ROOM " + std::to_string(state.roomIndex) + " / RECOMPILE";
+        page.navigationHint = state.multiplayer.enabled && !state.multiplayer.authoritativeHost
+            ? "WAITING FOR HOST"
+            : "UP / DOWN SELECT   ENTER / A CONFIRM";
+        page.tablePage = true;
+        const std::array<std::string, 3> labels{"SHOT", "LUNGE", "ATTACK"};
+        addPhoneMenuSection(page, state.multiplayer.enabled && !state.multiplayer.authoritativeHost
+            ? "TEMPORARY / HOST AUTHORITY"
+            : "TEMPORARY / SELECT ONE");
+        for (int track = 0; track < 3; ++track) {
+            PhoneMenuElement element;
+            element.kind = PhoneMenuRowKind::TwoColumn;
+            element.label = labels[track];
+            const int level = state.progression.run.temporaryLevels[track];
+            element.value = "RUN " + std::to_string(level) + " / NEXT " + std::to_string(std::min(12, level + 1));
+            element.selectable = true;
+            addPhoneMenuElement(page, element);
+        }
+        addPhoneMenuSection(page, "PERMANENT / TOKENS " + std::to_string(state.progression.permanent.tokens));
+        for (int track = 0; track < 3; ++track) {
+            PhoneMenuElement element;
+            element.kind = PhoneMenuRowKind::TwoColumn;
+            element.label = labels[track];
+            const int level = state.progression.permanent.levels[track];
+            element.value = "PERM " + std::to_string(level) + "/5";
+            if (state.progression.permanent.tokens <= 0 || level >= 5) element.value += " / UNAVAILABLE";
+            element.selectable = true;
+            addPhoneMenuElement(page, element);
+        }
+    }
     PhoneDisplayMenuLayout layout;
     layout.title = page.title;
     layout.navigationHint = page.navigationHint;

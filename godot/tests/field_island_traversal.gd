@@ -24,8 +24,35 @@ func _run() -> void:
         scene.room_adapter.structure("room/%d/structure/island/core" % tile) != null and
         scene.room_adapter.structure("room/%d/structure/island/bridge-top/front" % tile) != null and
         scene.room_adapter.structure("room/%d/structure/island/bridge-top/back" % tile) != null and
-        scene.room_adapter.structure("room/%d/structure/abyss" % tile) != null,
-        "Godot materializes the native island top, visible core, bridge, and abyss")
+        scene.room_adapter.structure("room/%d/structure/abyss" % tile) == null,
+        "Godot materializes the finite island and bridges with open space below")
+    var floor_node: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/floor" % tile)
+    var bridge: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/island/bridge-top/back" % tile)
+    var foot: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/door-frame/0/right" % tile)
+    check(is_equal_approx(floor_node.position.y + floor_node.mesh.size.y * 0.5,
+        bridge.position.y + bridge.mesh.size.y * 0.5) and
+        is_equal_approx(floor_node.position.z - floor_node.mesh.size.z * 0.5,
+            bridge.position.z + bridge.mesh.size.z * 0.5),
+        "the walkway meets the island at the same height without a gap")
+    check(foot != null and foot.position.x + foot.mesh.size.x * 0.5 <= bridge.mesh.size.x * 0.5 and
+        is_equal_approx(foot.position.y - foot.mesh.size.y * 0.5, 0.08),
+        "doorway feet fit on the widened landing")
+    for goal in initial.capture_points:
+        check(goal.position.y > 0.08, "goal squares remain suspended above the landing")
+    check(initial.field_backdrop_trees.is_empty(), "open-field backdrop trees stay out of the void")
+    for object in initial.objects:
+        if str(object.id).ends_with("/tree/trunk/0"):
+            var trunk: Vector3 = object.center
+            var size: Vector3 = object.size
+            check(absf(trunk.x) + size.x * 0.5 <= float(initial.field_island.main_half_width) and
+                absf(trunk.z - floor_node.position.z) + size.z * 0.5 <= float(initial.field_island.main_half_depth) and
+                trunk.y - size.y * 0.5 <= 0.08 and trunk.y + size.y * 0.5 >= 0.08,
+                "the retained landmark tree trunk intersects supported grass")
+    for blade in scene_runtime.grass_blade_presentation_snapshot(tile):
+        var blade_root: Vector3 = blade.root
+        check(absf(blade_root.x) < float(initial.field_island.main_half_width) and
+            absf(blade_root.z - floor_node.position.z) < float(initial.field_island.main_half_depth) and
+            is_equal_approx(blade_root.y, 0.08), "grass roots stay inside the island top")
 
     var runtime = ClassDB.instantiate("ParentGameNode")
     runtime.start_field_island_fixture()

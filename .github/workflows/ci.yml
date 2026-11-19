@@ -51,8 +51,9 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
             -DDB_BUILD_GODOT_PRESENTATION=ON \
             -DGODOT_CPP_DIR="$RUNNER_TEMP/godot-cpp" \
-            -DGODOTCPP_DEFAULT_API_VERSION=4.7
-          cmake --build build/godot --config Release --target DigitalBreakdownGodot --parallel
+            -DGODOTCPP_CUSTOM_API_FILE="$RUNNER_TEMP/godot-cpp/gdextension/extension_api-4-7.json" \
+            -DGODOTCPP_BUILD_PROFILE="$GITHUB_WORKSPACE/godot/native-build-profile.json"
+          cmake --build build/godot --config Release --target DigitalBreakdownGodot --parallel 3
           file godot/bin/digital_breakdown_parent.dylib | tee build/godot-extension.txt
           grep -q arm64 build/godot-extension.txt
       - name: Install pinned Godot editor
@@ -65,7 +66,7 @@ jobs:
       - name: Parse and exercise Godot gameplay
         run: |
           "$GODOT" --version | grep -q '^4.7.2.stable'
-          "$GODOT" --headless --path godot --editor --quit
+          "$GODOT" --headless --path godot --import
           "$GODOT" --headless --path godot --script res://tests/parent_smoke.gd
           "$GODOT" --headless --path godot --script res://tests/playable_encounter.gd
           "$GODOT" --headless --path godot --script res://tests/sfx_presentation.gd

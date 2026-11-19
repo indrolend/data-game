@@ -531,8 +531,8 @@ void interpolatePresentation(GameState& renderState,const FramePresentationSampl
 }
 
 int phoneMenuItemAt(const GameState& state,float cursorX,float cursorY,int fw,int fh){
-    if(state.upgradeMenu.active||state.camera.firstPerson)return -1;
-    if(state.started&&!soloPauseMenu(state))return -1;
+    if(state.camera.firstPerson&&!state.upgradeMenu.active)return -1;
+    if(state.started&&!soloPauseMenu(state)&&!state.upgradeMenu.active)return -1;
     const PhoneDisplayMenuLayout layout=makePhoneDisplayMenuLayout(state);
     if(layout.selectableCount<=0)return -1;
     const PhoneTransformState& phone=state.phoneTransform;
@@ -650,17 +650,11 @@ int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double wi
     const float framebufferX=static_cast<float>(windowX)*fw/std::max(1,ww),framebufferY=static_cast<float>(windowY)*fh/std::max(1,wh);
     const float x=framebufferX/uiScale,y=framebufferY/uiScale;
     const GameState& state=host.game.state();
-    if(state.upgradeMenu.active){
-        const float pw=std::min(680.0f,canvasW-24.0f),ph=300.0f,px=(canvasW-pw)*0.5f,py=(canvasH-ph)*0.5f;
-        if(y>=py+66&&y<=py+142)for(int column=0;column<3;++column){const float left=px+12+column*(pw-24)/3;if(x>=left&&x<left+(pw-24)/3)return column;}
-        if(y>=py+184&&y<=py+250)for(int column=0;column<3;++column){const float left=px+12+column*(pw-24)/3;if(x>=left&&x<left+(pw-24)/3)return 3+column;}
-        return -1;
-    }
     const int deathItem=deathMenuItemAt(state,x,y,canvasW,canvasH);
     if(deathItem>=0)return deathItem;
     const int phoneItem=phoneMenuItemAt(state,framebufferX,framebufferY,fw,fh);
     if(phoneItem>=0)return phoneItem;
-    if(!state.started||soloPauseMenu(state))return -1;
+    if(!state.started||soloPauseMenu(state)||state.upgradeMenu.active)return -1;
     if(state.uiPaused){const float pw=360.0f,px=canvasW-pw-12.0f,py=48.0f;if(x>=px+12&&x<=px+pw-12&&y>=py+34&&y<=py+92)return 0;}
     return -1;
 }
@@ -913,15 +907,12 @@ DesktopGamepadInput pollGamepad(GLFWwindow* window,HostState& host){
         const int verticalDirection=menuDown?1:(menuUp?-1:0);
         if(dbmenu::menuRepeatMove(host.controllerVerticalMenuRepeat,verticalDirection,glfwGetTime())){
             const int current=host.game.state().hud.menuSelection;
-            const int next=host.game.state().upgradeMenu.active
-                ?dbmenu::moveUpgradeGridSelection(current,0,verticalDirection)
-                :current+verticalDirection;
-            setMenuSelection(host,next);
+            setMenuSelection(host,current+verticalDirection);
             rumblePulse(host.game.state().localSettings,0.03f,0.14f,18);
         }else if((menuLeft&&!host.previousGamepadMenuLeft)||(menuRight&&!host.previousGamepadMenuRight)){
             const int direction=menuRight?1:-1;
             if(host.game.state().upgradeMenu.active)
-                setMenuSelection(host,dbmenu::moveUpgradeGridSelection(host.game.state().hud.menuSelection,direction,0));
+                setMenuSelection(host,dbmenu::moveUpgradeGridSelection(host.game.state().hud.menuSelection,0,direction));
             else if(!adjustMenuSetting(host,direction))
                 toggleMenuSetting(host);
             rumblePulse(host.game.state().localSettings,0.05f,0.20f,22);
@@ -1147,13 +1138,18 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             const int direction=down?1:-1;
             if(!dbmenu::menuRepeatMove(host->keyboardVerticalMenuRepeat,direction,glfwGetTime()))return;
             const int current=host->game.state().hud.menuSelection;
-            setMenuSelection(*host,host->game.state().upgradeMenu.active
-                ?dbmenu::moveUpgradeGridSelection(current,0,direction)
-                :current+direction);
+            setMenuSelection(*host,current+direction);
             return;
         }
         if(action!=GLFW_PRESS)return;
-        if((left||right)){if(!adjustMenuSetting(*host,right?1:-1))toggleMenuSetting(*host);return;}
+        if((left||right)){
+            const int direction=right?1:-1;
+            if(host->game.state().upgradeMenu.active)
+                setMenuSelection(*host,dbmenu::moveUpgradeGridSelection(host->game.state().hud.menuSelection,0,direction));
+            else if(!adjustMenuSetting(*host,direction))
+                toggleMenuSetting(*host);
+            return;
+        }
         if(key==GLFW_KEY_ENTER||key==GLFW_KEY_SPACE||key==GLFW_KEY_F){activateMenuSelection(window,*host);return;}
         if(host->game.state().upgradeMenu.active&&key>=GLFW_KEY_1&&key<=GLFW_KEY_6){setMenuSelection(*host,key-GLFW_KEY_1);activateMenuSelection(window,*host);}
         return;

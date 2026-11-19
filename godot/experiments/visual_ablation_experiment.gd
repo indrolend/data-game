@@ -118,6 +118,12 @@ func _apply_ablation(world: Node3D, variant: String) -> void:
             world.scene_environment.ambient_light_energy = 0.0
         "no_fog":
             world.scene_environment.fog_enabled = false
+        "fog_density_0_012":
+            world.scene_environment.fog_density = 0.012
+        "fog_density_0_014":
+            world.scene_environment.fog_density = 0.014
+        "fog_density_0_016":
+            world.scene_environment.fog_density = 0.016
         "no_structures":
             _set_dictionary_nodes_visible(room._nodes, false)
         "no_grass":
@@ -197,7 +203,7 @@ func _capture(path: String) -> void:
     if image != null and not image.is_empty():
         check(image.save_png(path) == OK, "save %s" % path)
 
-func _run_trial(scenario: Dictionary, variant: String) -> Dictionary:
+func _run_trial(scenario: Dictionary, variant: String, warmup_frames: int, sample_frames: int) -> Dictionary:
     var world: Node3D = load("res://scenes/parent_reference.tscn").instantiate()
     world.agent_playtest = true
     root.add_child(world)
@@ -214,7 +220,7 @@ func _run_trial(scenario: Dictionary, variant: String) -> Dictionary:
     var counts := _family_counts(world)
     var initial_digest := _native_digest(world)
 
-    for frame in range(WARMUP_FRAMES):
+    for frame in range(warmup_frames):
         var cycle := frame % 90
         world.agent_step(1, 0.22 if cycle < 45 else -0.22, 0.55, 0.06, 0.01,
             cycle >= 20 and cycle < 45, cycle < 30, false, cycle == 12, false, false)
@@ -227,8 +233,8 @@ func _run_trial(scenario: Dictionary, variant: String) -> Dictionary:
     var room_adapter_us: Array[float] = []
     var draw_calls: Array[float] = []
     var primitives: Array[float] = []
-    for frame in range(SAMPLE_FRAMES):
-        var cycle := (frame + WARMUP_FRAMES) % 90
+    for frame in range(sample_frames):
+        var cycle := (frame + warmup_frames) % 90
         var started := Time.get_ticks_usec()
         world.agent_step(1, 0.22 if cycle < 45 else -0.22, 0.55, 0.06, 0.01,
             cycle >= 20 and cycle < 45, cycle < 30, false, cycle == 12, false, false)
@@ -252,6 +258,11 @@ func _run_trial(scenario: Dictionary, variant: String) -> Dictionary:
         "variant": variant,
         "family_counts_before_ablation": counts,
         "production_shadow_state": production_shadow_state,
+        "environment": {
+            "fog_enabled": bool(world.scene_environment.fog_enabled),
+            "fog_density": float(world.scene_environment.fog_density),
+            "ambient_light_energy": float(world.scene_environment.ambient_light_energy),
+        },
         "fixture_first_sync_us": fixture_sync_us,
         "initial_native_digest": initial_digest,
         "final_native_digest": final_digest,
@@ -299,15 +310,45 @@ func _run() -> void:
                 "no_point_lights", "no_ambient", "no_fog", "no_structures", "no_trees",
                 "no_houses", "no_city_facades", "no_capture_points"],
         },
+        {
+            "name": "sterile",
+            "fixture": "start_sterile_room_fixture",
+            "variants": ["baseline", "no_shadows", "no_sun", "no_fill", "no_drama_spot",
+                "no_point_lights", "no_ambient", "no_fog", "fog_density_0_012",
+                "fog_density_0_014", "fog_density_0_016", "no_structures", "no_capture_points"],
+        },
     ]
-    if "--focused-static" in OS.get_cmdline_user_args():
+    var user_args := OS.get_cmdline_user_args()
+    var warmup_frames := 2 if "--capture-only" in user_args else WARMUP_FRAMES
+    var sample_frames := 2 if "--capture-only" in user_args else SAMPLE_FRAMES
+    if "--focused-static" in user_args:
         for scenario in scenarios:
             scenario["variants"] = ["baseline", "freeze_static_geometry"]
+    var requested_scenario := ""
+    var requested_variants: Array[String] = []
+    for argument in user_args:
+        if argument.begins_with("--scenario="):
+            requested_scenario = argument.trim_prefix("--scenario=")
+        elif argument.begins_with("--variants="):
+            for variant in argument.trim_prefix("--variants=").split(",", false):
+                requested_variants.append(variant)
+    if not requested_scenario.is_empty():
+        scenarios = scenarios.filter(func(scenario: Dictionary) -> bool:
+            return str(scenario.name) == requested_scenario)
+        check(not scenarios.is_empty(), "requested scenario exists: %s" % requested_scenario)
+    if not requested_variants.is_empty():
+        check("baseline" in requested_variants, "targeted variants include baseline authority")
+        for scenario in scenarios:
+            scenario["variants"] = scenario.variants.filter(func(variant: String) -> bool:
+                return variant in requested_variants)
+        for variant in requested_variants:
+            check(scenarios.any(func(scenario: Dictionary) -> bool:
+                return variant in scenario.variants), "requested variant exists: %s" % variant)
     var results: Array[Dictionary] = []
     for scenario in scenarios:
         var baseline_final: Dictionary = {}
         for variant in scenario.variants:
-            var result := await _run_trial(scenario, variant)
+            var result := await _run_trial(scenario, variant, warmup_frames, sample_frames)
             if not _has_relevant_family(result.family_counts_before_ablation, variant):
                 print("SKIP %s/%s absent family" % [scenario.name, variant])
                 continue
@@ -324,8 +365,8 @@ func _run() -> void:
     var evidence := {
         "schema": "digital-breakdown.visual-ablation/v1",
         "engine": Engine.get_version_info(),
-        "warmup_frames": WARMUP_FRAMES,
-        "sample_frames": SAMPLE_FRAMES,
+        "warmup_frames": warmup_frames,
+        "sample_frames": sample_frames,
         "fixed_input_cycle_frames": 90,
         "results": results,
         "failures": failures,

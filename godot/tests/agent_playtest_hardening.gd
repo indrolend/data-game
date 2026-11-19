@@ -10,13 +10,16 @@ func check(condition: bool, message: String) -> void:
 func _initialize() -> void:
     var script = load("res://scripts/agent_playtest.gd").new()
     check(script.SCHEMA == 5, "agent observation schema includes authoritative state identity")
-    var parsed: Dictionary = script._parse_command("assert room=2 deposited=5 clear=1 tokens=5 upgrade=1")
+    var parsed: Dictionary = script._parse_command("assert room=2 setting=CITY form=CORRIDOR deposited=5 clear=1 tokens=5 upgrade=1")
     check(not parsed.has("error") and parsed.kind == "assert", "semantic assertion command parses")
     check(int(parsed.expectations.room) == 2 and int(parsed.expectations.deposited) == 5 and
         int(parsed.expectations.clear) == 1 and int(parsed.expectations.tokens) == 5 and
-        int(parsed.expectations.upgrade) == 1, "assertion values remain exact integers")
+        int(parsed.expectations.upgrade) == 1 and str(parsed.expectations.setting) == "CITY" and
+        str(parsed.expectations.form) == "CORRIDOR", "assertions preserve typed room identity")
     check(script._parse_command("assert clear=true").has("error"),
         "assertions reject ambiguous non-integer booleans")
+    check(script._parse_command("assert setting=FOREST").has("error") and
+        script._parse_command("assert form=TUNNEL").has("error"), "invalid room names are rejected")
     check(script._parse_command("assert unknown=1").has("error"),
         "assertions reject unsupported snapshot keys")
     check(script._parse_command("assert room=1 room=2").has("error"),

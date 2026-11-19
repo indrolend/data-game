@@ -63,8 +63,8 @@ func _initialize() -> void:
                 "Godot recovers the desktop capture surround/recess dimensions and hides an unfilled soul")
     var lawn_records: Array = []
     var backdrop_trees: Array = snapshot.get("field_backdrop_trees", [])
-    check(backdrop_trees.size() == 9,
-        "native Field snapshot supplies the nine desktop perimeter tree records")
+    check(backdrop_trees.size() == (0 if snapshot.field_island.enabled else 9),
+        "the Field perimeter trees require the open field's surrounding ground")
     check(adapter.field_backdrop_tree_count() == backdrop_trees.size(),
         "Godot materializes every native Field backdrop tree as render-only mesh geometry")
     if not backdrop_trees.is_empty():
@@ -215,9 +215,12 @@ func _initialize() -> void:
             "native FieldGrass identity resolves to a rendered Godot texture")
         if grass_texture != null:
             var grass_image := grass_texture.get_image()
-            check(grass_image.get_width() == 64 and grass_image.get_height() == 64 and
-                grass_image.get_data() == grass_pixels,
-                "Godot floor texture pixels are the native generated RGB texture")
+            grass_image.convert(Image.FORMAT_RGB8)
+            var photo_pixels := FileAccess.get_file_as_bytes(
+                "res://../models/materials/photo-grass.rgb")
+            check(grass_image.get_size() == Vector2i(512, 512) and
+                grass_image.get_data() == photo_pixels,
+                "Godot floor texture pixels are the native photo grass texture")
             check(material.uv1_triplanar and
                 absf(material.uv1_scale.x - 1.0 / 6.4) <= 0.000001,
                 "native 6.4 world-scale texture is projected at the native scale")

@@ -129,8 +129,8 @@ func _initialize() -> void:
     check(int(room_snapshot.room_index) == 1, "room presentation uses native room index")
     check(bool(room_snapshot.field_island.enabled),
         "starting native Field room enables the finite island contract")
-    check((room_snapshot.structures as Array).size() == 14,
-        "native Field island produces core, finite top, bridge, abyss, two door frames, and traversal surface")
+    check((room_snapshot.structures as Array).size() == 13,
+        "native Field island produces its top and core, bridges, door frames, and traversal surface")
     check((room_snapshot.objects as Array).size() > 0, "native room produces computed scene objects")
     check((room_snapshot.objects as Array).size() == (room_snapshot_again.objects as Array).size(),
         "native computed room object count is deterministic")
