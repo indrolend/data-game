@@ -768,7 +768,7 @@ Dictionary ParentGameNode::music_presentation_snapshot() const {
     Dictionary result;
     const float volume = state.localSettings.musicMuted ? 0.0f :
         clampf(state.localSettings.musicVolume, 0.0f, 1.0f);
-    const bool menu = !state.started || state.attractMode;
+    const bool menu = music_director::menuMusicAllowed(state.started, state.dead, state.attractMode);
     const bool stage = state.started && !state.attractMode && !state.dead;
     int theme = -1;
     String key;
