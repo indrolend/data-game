@@ -442,6 +442,8 @@ func _assert_state(expectations: Dictionary) -> bool:
     var loop: Dictionary = world.runtime.gameplay_loop_snapshot()
     var actual := {
         "room": int(loop.room_index),
+        "setting": str(loop.setting_name),
+        "form": str(loop.form_name),
         "deposited": int(loop.deposited_souls),
         "required": int(loop.required_souls),
         "clear": int(loop.room_clear),
@@ -480,12 +482,23 @@ func _parse_command(line: String) -> Dictionary:
                 return {"error": "assert_expected_key_value"}
             var key := token.left(equals)
             var value := token.substr(equals + 1)
-            if key not in ["room", "deposited", "required", "clear", "tokens", "upgrade",
+            if key not in ["room", "setting", "form", "deposited", "required", "clear", "tokens", "upgrade",
                     "souls", "grounded", "first_person", "vacuum"]:
                 return {"error": "assert_unknown_key:%s" % key}
-            if expectations.has(key) or not value.is_valid_int():
+            if expectations.has(key):
                 return {"error": "assert_invalid_value:%s" % key}
-            expectations[key] = int(value)
+            if key == "setting":
+                if value not in ["FIELD", "CITY", "STERILE", "COASTAL"]:
+                    return {"error": "assert_invalid_value:%s" % key}
+                expectations[key] = value
+            elif key == "form":
+                if value not in ["OPEN", "CORRIDOR", "COURTYARD", "CANYON", "CHAMBER", "SHORE", "SKYLINE"]:
+                    return {"error": "assert_invalid_value:%s" % key}
+                expectations[key] = value
+            else:
+                if not value.is_valid_int():
+                    return {"error": "assert_invalid_value:%s" % key}
+                expectations[key] = int(value)
             raw_parts.append(token)
         return {"kind": verb, "expectations": expectations, "raw": " ".join(raw_parts)}
     if verb == "upgrade_select":
