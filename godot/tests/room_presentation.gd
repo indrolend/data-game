@@ -215,9 +215,12 @@ func _initialize() -> void:
             "native FieldGrass identity resolves to a rendered Godot texture")
         if grass_texture != null:
             var grass_image := grass_texture.get_image()
-            check(grass_image.get_width() == 64 and grass_image.get_height() == 64 and
-                grass_image.get_data() == grass_pixels,
-                "Godot floor texture pixels are the native generated RGB texture")
+            grass_image.convert(Image.FORMAT_RGB8)
+            var photo_pixels := FileAccess.get_file_as_bytes(
+                "res://../models/materials/photo-grass.rgb")
+            check(grass_image.get_size() == Vector2i(512, 512) and
+                grass_image.get_data() == photo_pixels,
+                "Godot floor texture pixels are the native photo grass texture")
             check(material.uv1_triplanar and
                 absf(material.uv1_scale.x - 1.0 / 6.4) <= 0.000001,
                 "native 6.4 world-scale texture is projected at the native scale")
