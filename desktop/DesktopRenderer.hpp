@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Game.hpp"
+#include "RoomEnvironment.hpp"
 #include "ModelData.hpp"
 #include "HumanModelData.hpp"
 #include "DeveloperCodec.hpp"
@@ -86,6 +87,7 @@ private:
     mutable int shadowMapSize_ = 0;
     mutable bool shadowSupportChecked_ = false;
     mutable bool shadowMapSupported_ = false;
+    mutable room_environment::RoomGeometryCapacityPlan frameRoomGeometry_{};
     mutable bool shadowGeometryPass_ = false;
     mutable render_contract::ShadowQuality frameShadowQuality_ = render_contract::ShadowQuality::Off;
     mutable float shadowProjection_[16]{};

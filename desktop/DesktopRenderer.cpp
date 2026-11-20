@@ -1965,7 +1965,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     for(int i=0;i<state.slopeSupportCount;++i)drawSlopeWedge(state.slopeSupports[i],z0,{0.39f,0.42f,0.36f});
     if(state.slopeLab)for(int i=0;i<state.rockSupportCount;++i){const auto& rock=state.rockSupports[i];const VisualColor substrate=roomSubstrateColor(plan.setting);drawFacetedRock(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex,z0,{substrate.r*0.82f,substrate.g*0.82f,substrate.b*0.82f},stoneTexture_,1.35f);}
     const auto traversalPresentation=room_environment::traversalPresentationFor(plan.setting,state.roomInspector||state.traversalLab);
-    const auto geometry=state.slopeLab?room_environment::RoomGeometryCapacityPlan{}:room_environment::roomGeometryCapacityPlan(plan,state.roomSeed,state.roomIndex,ROOM_COLLIDER_COUNT);
+    const auto& geometry = frameRoomGeometry_;
     for(int i=0;i<plan.traversal.surfaceCount;++i){const auto& surface=plan.traversal.surfaces[i];if(!geometry.traversalIncluded[i]||room_environment::usesShallowElevation(plan,surface))continue;const auto spec=room_environment::physicalTraversalObstacle(surface);
         drawBox(spec.center+Vec3{0,0,z0},spec.size,0,0,0,traversalPresentation.color.x,traversalPresentation.color.y,traversalPresentation.color.z);
     }
@@ -2345,6 +2345,10 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const float phoneIllumination=0.16f+state.phoneDisplay.localLightIntensity*0.58f+state.vacuum.power*0.42f+state.energy.dischargePositionAmount;
     const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,phoneIllumination});
     const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    frameRoomGeometry_ = state.slopeLab
+        ? room_environment::RoomGeometryCapacityPlan{}
+        : room_environment::acceptedRoomGeometry(roomPlan, state.roomSeed, state.roomIndex,
+            ROOM_COLLIDER_COUNT);
     auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
     const bool openSky=roomPlan.setting!=room_environment::RoomSetting::Sterile;
     const auto resolvedSun=render_contract::resolveSunState(atmosphereInputs.time,openSky,lightRig.sunDirection);

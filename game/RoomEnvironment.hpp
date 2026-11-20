@@ -513,6 +513,12 @@ inline bool requiredRouteIsTraversable(const RoomEnvironmentPlan& plan,int roomS
     return true;
 }
 
+inline RoomGeometryCapacityPlan acceptedRoomGeometry(
+    const RoomEnvironmentPlan& plan, int roomSeed, int roomIndex, int capacity) {
+    if (!requiredRouteIsTraversable(plan, roomSeed, roomIndex)) return {};
+    return roomGeometryCapacityPlan(plan, roomSeed, roomIndex, capacity);
+}
+
 inline GrassBlade grassBlade(int roomSeed,int roomIndex,int tileIndex,int index) {
     const std::uint32_t room=roomKey(roomSeed,roomIndex)^static_cast<std::uint32_t>(tileIndex*4099);
     const std::uint32_t key=room^static_cast<std::uint32_t>(index*131);

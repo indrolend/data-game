@@ -22,6 +22,15 @@ int main(){
         return 1;
     }
 
+    const auto city = roomPlan(16, 12);
+    const auto accepted = acceptedRoomGeometry(city, 16, 12, 15);
+    if (selectedEnvironmentPropCount(city, accepted) == 0) return 1;
+    auto invalidRoute = city;
+    invalidRoute.traversal.surfaces[0].center.x = 100.0f;
+    const auto rejected = acceptedRoomGeometry(invalidRoute, 16, 12, 15);
+    if (rejected.totalColliderCount != 0 ||
+        selectedEnvironmentPropCount(invalidRoute, rejected) != 0) return 1;
+
     bool sawField=false,sawCity=false,sawSterile=false,sawCoastal=false,sawRecovery=false,sawCourtyard=false,sawCanyon=false,sawSkyline=false,sawChamber=false,sawCapacityPressure=false;
     bool sawCompactCourtyard=false,sawStandardCourtyard=false,sawLargeCourtyard=false;
     bool sawPlayground=false,sawFunnel=false,sawOrbit=false,sawVertical=false;

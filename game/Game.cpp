@@ -1278,8 +1278,8 @@ void Game::buildRoomColliders() {
     // Completeness is never randomized. If a future grammar combination fails
     // its conservative required-route contract, retain the room shell and
     // objectives but reject its optional obstacle geometry.
-    const bool routeValid=room_environment::requiredRouteIsTraversable(plan,state_.roomSeed,state_.roomIndex);
-    const auto geometry=routeValid?room_environment::roomGeometryCapacityPlan(plan,state_.roomSeed,state_.roomIndex,ROOM_COLLIDER_COUNT):room_environment::RoomGeometryCapacityPlan{};
+    const auto geometry = room_environment::acceptedRoomGeometry(
+        plan, state_.roomSeed, state_.roomIndex, ROOM_COLLIDER_COUNT);
     state_.roomColliderCount=geometry.authoredColliderCount;
     for (auto& c : state_.roomColliders) c = RoomCollider{};
     for(auto& slope:state_.slopeSupports)slope=SlopeSupport{};state_.slopeSupportCount=0;
@@ -1293,7 +1293,7 @@ void Game::buildRoomColliders() {
         c.bottomY = 0.0f; c.topY = h;
         c.width = w; c.depth = d; c.height = h; c.center = {px, h * 0.5f, pz};
     }
-    if(routeValid)for(int i=0;i<plan.traversal.surfaceCount&&state_.roomColliderCount<ROOM_COLLIDER_COUNT;++i){
+    for(int i=0;i<plan.traversal.surfaceCount&&state_.roomColliderCount<ROOM_COLLIDER_COUNT;++i){
         const auto& surface=plan.traversal.surfaces[i];if(!geometry.traversalIncluded[i])continue;
         const auto spec=room_environment::physicalTraversalObstacle(surface);
         if(room_environment::usesShallowElevation(plan,surface)&&state_.slopeSupportCount<SLOPE_SUPPORT_COUNT){

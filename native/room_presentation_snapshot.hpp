@@ -164,7 +164,7 @@ struct RoomPresentationSnapshot {
         if (!includeStatic) return snapshot;
         const auto capacity = state.slopeLab
             ? room_environment::RoomGeometryCapacityPlan{}
-            : room_environment::roomGeometryCapacityPlan(
+            : room_environment::acceptedRoomGeometry(
                 plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         const VisualColor floorColor = field ? VisualIdentity::FieldGround
             : (sterile ? VisualColor{0.58f, 0.61f, 0.63f}
