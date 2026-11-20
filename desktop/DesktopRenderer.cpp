@@ -1702,8 +1702,10 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     const auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
     const float z0 = static_cast<float>(tileIndex) * ROOM_DEPTH;
-    const float doorWidth = 5.35f;
-    const float doorHeight = 3.95f;
+    constexpr float doorWidth = world::DoorwayHalfWidth * 2.0f;
+    constexpr float frameWidth = 5.35f;
+    constexpr float doorHeight = world::DoorwayLintelY;
+    constexpr float frameHeight = 3.95f;
     const float sideW = (ROOM_WIDTH - doorWidth) * 0.5f;
     const float sideX = doorWidth * 0.5f + sideW * 0.5f;
     const float topH = ROOM_WALL_HEIGHT - doorHeight;
@@ -1757,9 +1759,9 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
     if(openNatural){
         for(float seam:{-ROOM_DEPTH*0.5f,ROOM_DEPTH*0.5f}){
             const VisualColor frame=field?VisualColor{0.20f,0.27f,0.22f}:VisualColor{0.33f,0.36f,0.34f};
-            drawBox({-doorWidth*0.56f,doorHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
-            drawBox({ doorWidth*0.56f,doorHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,doorHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
-            drawBox({0,doorHeight*0.96f+(island ? world::GroundY : 0.0f),z0+seam},{doorWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({-frameWidth*0.56f,frameHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,frameHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({ frameWidth*0.56f,frameHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,frameHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({0,frameHeight*0.96f+(island ? world::GroundY : 0.0f),z0+seam},{frameWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
         }
         if(field && !island)drawFieldBackdrop(state,tileIndex);
     }else if(city){

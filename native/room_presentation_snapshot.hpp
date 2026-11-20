@@ -140,8 +140,10 @@ struct RoomPresentationSnapshot {
             state.player.pos.x, state.player.pos.z - currentTileOffset) &&
             snapshot.waterSourceSpeed >= 0.35f;
         const float z0 = static_cast<float>(tileIndex) * world::RoomDepth;
-        const float doorWidth = 5.35f;
-        const float doorHeight = 3.95f;
+        constexpr float doorWidth = world::DoorwayHalfWidth * 2.0f;
+        constexpr float frameWidth = 5.35f;
+        constexpr float doorHeight = world::DoorwayLintelY;
+        constexpr float frameHeight = 3.95f;
         const bool field = plan.setting == room_environment::RoomSetting::Field;
         const bool city = plan.setting == room_environment::RoomSetting::City;
         const bool sterile = plan.setting == room_environment::RoomSetting::Sterile;
@@ -212,14 +214,14 @@ struct RoomPresentationSnapshot {
             for (float seam : {-world::RoomDepth * 0.5f, world::RoomDepth * 0.5f}) {
                 const std::string prefix = "door-frame/" + std::to_string(seamIndex++);
                 addStructure((prefix + "/left").c_str(), RoomStructureKind::DoorFrame,
-                    {-doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
+                    {-frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/right").c_str(), RoomStructureKind::DoorFrame,
-                    {doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
+                    {frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/top").c_str(), RoomStructureKind::DoorFrame,
-                    {0, doorHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {doorWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
+                    {0, frameHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {frameWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
             }
         } else if (!city) {
             const float sideWidth = (world::RoomWidth - doorWidth) * 0.5f;
