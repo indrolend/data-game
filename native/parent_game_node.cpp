@@ -821,6 +821,30 @@ Dictionary ParentGameNode::audio_presentation_snapshot() const {
     result["muted"] = state.localSettings.sfxMuted;
     return result;
 }
+// Dependencies of the static records. City masses and facade modules use
+// accepted native collider placement, including same-room fixture replacements.
+static Array roomStaticGeometryKey(const GameState& state, int tileIndex,
+                                   room_environment::RoomSetting setting) {
+    Array key;
+    key.append(state.roomSeed);
+    key.append(state.roomIndex);
+    key.append(tileIndex);
+    key.append(state.rallyLab);
+    key.append(state.traversalLab);
+    key.append(state.slopeLab);
+    key.append(state.roomInspector);
+    if (setting == room_environment::RoomSetting::City) {
+        key.append(state.localSettings.graphicsPreset);
+        for (int i = 0; i < state.debug.colliderCount; ++i) {
+            const auto& collider = state.roomColliders[i];
+            key.append(Vector3(collider.center.x, collider.center.y, collider.center.z));
+            key.append(Vector3(collider.width, collider.height, collider.depth));
+            key.append(collider.bottomY);
+        }
+    }
+    return key;
+}
+
 Dictionary ParentGameNode::room_presentation_identity_snapshot(int tile_index) const {
     const auto& state=bridge.state();
     if(tile_index<0) tile_index=state.topology.currentTileIndex;
@@ -830,11 +854,12 @@ Dictionary ParentGameNode::room_presentation_identity_snapshot(int tile_index) c
     result["room_index"]=state.roomIndex;
     result["tile_index"]=tile_index;
     result["grass"]=plan.grass;
+    result["static_geometry_key"] = roomStaticGeometryKey(state, tile_index, plan.setting);
     return result;
 }
 Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool include_static) const {
     if(tile_index<0)tile_index=bridge.state().topology.currentTileIndex;
-    const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index);
+    const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index, include_static);
     Dictionary result;
     result["room_seed"] = snapshot.roomSeed;
     result["room_index"] = snapshot.roomIndex;
@@ -876,19 +901,6 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
     coastal_water["source_speed"] = snapshot.waterSourceSpeed;
     coastal_water["source_active"] = snapshot.waterSourceActive;
     result["coastal_water"] = coastal_water;
-    result["static_geometry_included"] = include_static;
-    if(include_static) {
-    Array structures;
-    for (const auto& structure : snapshot.structures) {
-        Dictionary item;
-        item["id"] = structure.id.c_str();
-        item["kind"] = static_cast<int>(structure.kind);
-        item["center"] = v(structure.center);
-        item["size"] = v(structure.size);
-        item["material"] = material_dictionary(structure.material);
-        structures.push_back(item);
-    }
-    result["structures"] = structures;
     Array capture_points;
     for(const auto& capture:snapshot.capturePoints){
         Dictionary item;
@@ -901,6 +913,21 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
         capture_points.push_back(item);
     }
     result["capture_points"]=capture_points;
+    result["static_geometry_included"] = include_static;
+    if(include_static) {
+    result["static_geometry_key"] = roomStaticGeometryKey(bridge.state(), tile_index,
+        static_cast<room_environment::RoomSetting>(snapshot.setting));
+    Array structures;
+    for (const auto& structure : snapshot.structures) {
+        Dictionary item;
+        item["id"] = structure.id.c_str();
+        item["kind"] = static_cast<int>(structure.kind);
+        item["center"] = v(structure.center);
+        item["size"] = v(structure.size);
+        item["material"] = material_dictionary(structure.material);
+        structures.push_back(item);
+    }
+    result["structures"] = structures;
     Array city_facade_modules;
     for (const auto& module : snapshot.cityFacadeModules) {
         Dictionary item;

@@ -44,7 +44,7 @@ var fill_light: DirectionalLight3D
 var drama_spotlight: SpotLight3D
 var native_point_lights: Array[OmniLight3D] = []
 var _grass_snapshot_key := ""
-var _room_static_snapshot_key := ""
+var _room_static_snapshot_key: Array = []
 var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
 var projectile_nodes := {}
@@ -456,8 +456,7 @@ func _sync() -> void:
     _sync_lighting(lighting_snapshot)
     var room_bridge_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     var room_identity: Dictionary = runtime.room_presentation_identity_snapshot(-1)
-    var room_static_key := "%d:%d:%d" % [int(room_identity.room_seed),
-        int(room_identity.room_index), int(room_identity.tile_index)]
+    var room_static_key: Array = room_identity.static_geometry_key
     var include_room_static := OS.get_environment("DB_DISABLE_ROOM_STATIC_SPLIT") == "1" or \
         room_static_key != _room_static_snapshot_key
     var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1, include_room_static)

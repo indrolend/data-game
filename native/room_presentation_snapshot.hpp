@@ -100,13 +100,9 @@ struct RoomPresentationSnapshot {
     std::vector<CapturePointPresentationRecord> capturePoints;
     std::vector<computed_scene::Object> objects;
 
-    static RoomPresentationSnapshot from(const GameState& state, int tileIndex) {
+    static RoomPresentationSnapshot from(const GameState& state, int tileIndex, bool includeStatic = true) {
         RoomPresentationSnapshot snapshot;
         const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-        const auto capacity = state.slopeLab
-            ? room_environment::RoomGeometryCapacityPlan{}
-            : room_environment::roomGeometryCapacityPlan(
-                plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         snapshot.roomSeed = state.roomSeed;
         snapshot.roomIndex = state.roomIndex;
         snapshot.tileIndex = tileIndex;
@@ -155,6 +151,21 @@ struct RoomPresentationSnapshot {
                 "room/" + std::to_string(tileIndex) + "/structure/" + suffix,
                 kind, center, size, material});
         };
+        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
+            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
+        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
+        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
+        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
+            const auto& capture=state.captures[captureIndex];
+            snapshot.capturePoints.push_back({
+                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
+                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
+        }
+        if (!includeStatic) return snapshot;
+        const auto capacity = state.slopeLab
+            ? room_environment::RoomGeometryCapacityPlan{}
+            : room_environment::roomGeometryCapacityPlan(
+                plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         const VisualColor floorColor = field ? VisualIdentity::FieldGround
             : (sterile ? VisualColor{0.58f, 0.61f, 0.63f}
                 : (coastal ? roomSubstrateColor(plan.setting)
@@ -173,16 +184,6 @@ struct RoomPresentationSnapshot {
             plan.setting, state.roomInspector).color;
         const auto traversalMaterial = semanticMaterial(SemanticSurface::Default,
             {traversalColor.x, traversalColor.y, traversalColor.z});
-        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
-            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
-        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
-        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
-        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
-            const auto& capture=state.captures[captureIndex];
-            snapshot.capturePoints.push_back({
-                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
-                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
-        }
         if(snapshot.fieldIsland){
             const auto islandCoreMaterial=semanticMaterial(SemanticSurface::Default,
                 VisualColor{0.12f,0.10f,0.075f});
