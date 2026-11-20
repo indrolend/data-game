@@ -10,6 +10,7 @@
 #include "LightingStateSnapshot.hpp"
 #include "CoastalWaterSimulation.hpp"
 
+#include <array>
 #include <filesystem>
 #include <vector>
 #include "../game/TvGifWall.hpp"
@@ -57,7 +58,8 @@ private:
     unsigned int cityWallCornerModelList_ = 0;
     unsigned int cityCrownModelList_ = 0;
     HumanModelData humanModel_;
-    mutable std::vector<float> humanVertices_;
+    mutable std::array<std::vector<float>, TARGET_COUNT> humanVerticesBySlot_;
+    mutable std::array<bool, TARGET_COUNT> humanVerticesReady_{};
     mutable unsigned int datamoshTexture_ = 0;
     mutable unsigned int tvScreenTexture_ = 0;
     mutable unsigned int phoneDisplayTexture_ = 0;
@@ -118,7 +120,7 @@ private:
     void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form,bool finite) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
-    void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;
+    void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, std::size_t slot, bool shadow = false) const;
     static void drawEnemyReactionBillboard(const GameState& state,const TargetState& target);
     static void drawSoulFlesh(const TargetState& target,const Vec3& center);
     void drawSecretTvScreen(const GameState& state, float phoneProximity) const;

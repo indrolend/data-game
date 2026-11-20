@@ -1172,20 +1172,25 @@ void DesktopRenderer::drawStaticModel(unsigned int list, const Vec3& p, const Ve
     glPushMatrix(); glTranslatef(p.x,p.y,p.z); glMultMatrixf(matrix); glScalef(s.x,s.y,s.z); glCallList(list); glPopMatrix();
 }
 
-void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_environment::RoomSetting setting,bool shadow) const {
+void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_environment::RoomSetting setting,std::size_t slot,bool shadow) const {
     const ScopedMaterial material(semanticMaterial(SemanticSurface::Organic),!shadow);
     const HumanBodyPresentation body=target.humanBodyPresentation();
-    const Vec3 leftFoot=body.leftFootTarget(),rightFoot=body.rightFootTarget();
-    HumanModelFootTargets footTargets{};
-    footTargets.left[0]=leftFoot.x;footTargets.left[1]=leftFoot.y;footTargets.left[2]=leftFoot.z;
-    footTargets.right[0]=rightFoot.x;footTargets.right[1]=rightFoot.y;footTargets.right[2]=rightFoot.z;
-    footTargets.leftContact=body.leftFootContact();footTargets.rightContact=body.rightFootContact();
-    footTargets.active=body.authoritative();
-    const auto& reaction=target.visualReaction;
-    humanModel_.skin(target.humanAnimationTime,target.attackTimer,target.attackVariant,
-        humanVertices_,{target.hitFlash,target.hitDirectionLocal,time,reaction.locomotionPhase,
-            reaction.locomotionAmount,reaction.commitment,reaction.searchAmount,reaction.disruption,
-            reaction.vacuumPullAmount,reaction.individuality},footTargets);if(humanVertices_.empty())return;
+    const auto& reaction = target.visualReaction;
+    auto& vertices = humanVerticesBySlot_[slot];
+    if (!humanVerticesReady_[slot]) {
+        const Vec3 leftFoot=body.leftFootTarget(),rightFoot=body.rightFootTarget();
+        HumanModelFootTargets footTargets{};
+        footTargets.left[0]=leftFoot.x;footTargets.left[1]=leftFoot.y;footTargets.left[2]=leftFoot.z;
+        footTargets.right[0]=rightFoot.x;footTargets.right[1]=rightFoot.y;footTargets.right[2]=rightFoot.z;
+        footTargets.leftContact=body.leftFootContact();footTargets.rightContact=body.rightFootContact();
+        footTargets.active=body.authoritative();
+        humanModel_.skin(target.humanAnimationTime,target.attackTimer,target.attackVariant,
+            vertices,{target.hitFlash,target.hitDirectionLocal,time,reaction.locomotionPhase,
+                reaction.locomotionAmount,reaction.commitment,reaction.searchAmount,reaction.disruption,
+                reaction.vacuumPullAmount,reaction.individuality},footTargets);
+        humanVerticesReady_[slot] = true;
+    }
+    if (vertices.empty()) return;
     const bool aliveHuman=!target.slurpable;const HumanVisualPose pose=makeHumanVisualPose(target.visualYaw,target.scale,time,target.visualReaction,aliveHuman,body);
     const float attackT=target.attackTimer>0?1-clampf(target.attackTimer/HUMAN_SWING_ATTACK_DURATION,0.0f,1.0f):0;
     const float low=target.attackVariant>=2?1.0f:0.0f;
@@ -1212,7 +1217,7 @@ void DesktopRenderer::drawHumanModel(const TargetState& target,float time,room_e
     const bool parryCue=target.attackTimer>0&&attackT>=0.22f&&attackT<=0.46f;const float cue=parryCue?(0.10f+0.05f*std::sin(time*28.0f)):0.0f;const float cueColor[4]={signalColor.r+(0.55f-signalColor.r)*cue,signalColor.g+(0.96f-signalColor.g)*cue,signalColor.b+(1.0f-signalColor.b)*cue,humanModel_.color[3]};
     glPushMatrix();glTranslatef(root.x,root.y,root.z);glMultMatrixf(matrix);glScalef(pose.scale*pose.expressiveScale.x,pose.scale*pose.expressiveScale.y,pose.scale*pose.expressiveScale.z);if(shadow)glColor4f(0.012f,0.018f,0.022f,0.28f);else gradedColor(cueColor[0],cueColor[1],cueColor[2],cueColor[3]);glBegin(GL_TRIANGLES);
     const float thinning=humanShellThinningAmount(target.armor,target.brute?4.0f:2.0f,target.slurpable);
-    for(std::size_t i=0;i+8<humanVertices_.size();i+=9){const std::size_t triangle=i/9;const Vec3 rawA{humanVertices_[i],humanVertices_[i+1],humanVertices_[i+2]},rawB{humanVertices_[i+3],humanVertices_[i+4],humanVertices_[i+5]},rawC{humanVertices_[i+6],humanVertices_[i+7],humanVertices_[i+8]},center=(rawA+rawB+rawC)*(1.0f/3.0f);if(humanShellTriangleMissingTowardCrit(triangle,thinning,center))continue;const Vec3 a=humanShellAbsorbTowardCrit(rawA,triangle,thinning),b=humanShellAbsorbTowardCrit(rawB,triangle,thinning),c=humanShellAbsorbTowardCrit(rawC,triangle,thinning);Vec3 n{};triangle_geometry::faceNormal(a,b,c,n);glNormal3f(n.x,n.y,n.z);glVertex3f(a.x,a.y,a.z);glVertex3f(b.x,b.y,b.z);glVertex3f(c.x,c.y,c.z);}glEnd();glPopMatrix();
+    for(std::size_t i=0;i+8<vertices.size();i+=9){const std::size_t triangle=i/9;const Vec3 rawA{vertices[i],vertices[i+1],vertices[i+2]},rawB{vertices[i+3],vertices[i+4],vertices[i+5]},rawC{vertices[i+6],vertices[i+7],vertices[i+8]},center=(rawA+rawB+rawC)*(1.0f/3.0f);if(humanShellTriangleMissingTowardCrit(triangle,thinning,center))continue;const Vec3 a=humanShellAbsorbTowardCrit(rawA,triangle,thinning),b=humanShellAbsorbTowardCrit(rawB,triangle,thinning),c=humanShellAbsorbTowardCrit(rawC,triangle,thinning);Vec3 n{};triangle_geometry::faceNormal(a,b,c,n);glNormal3f(n.x,n.y,n.z);glVertex3f(a.x,a.y,a.z);glVertex3f(b.x,b.y,b.z);glVertex3f(c.x,c.y,c.z);}glEnd();glPopMatrix();
 }
 
 void DesktopRenderer::drawEnemyReactionBillboard(const GameState& state,const TargetState& target){
@@ -1606,7 +1611,17 @@ void DesktopRenderer::drawShadowGeometry(const GameState& state,const scene_ligh
     if(!state.camera.firstPerson&&state.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,state.phoneTransform.position,state.phoneVisual.bodyScale,state.phoneTransform.orientation);else drawBox(state.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},state.phoneTransform.orientation,0,0,0);}
     if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,peer.phoneVisual.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0,0,0);}
     const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;
-    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive&&!target.slurpable){target.pos.z=tileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(humanModel_.valid())drawHumanModel(target,state.time,setting,true);else drawProceduralHumanDesktop(target,state.time,0,0,0);}
+    for (int offset = -1; offset <= 1; ++offset) {
+        for (std::size_t slot = 0; slot < state.targets.size(); ++slot) {
+            const auto& source = state.targets[slot];
+            if (!source.alive || source.slurpable) continue;
+            auto target = source;
+            target.pos.z = tileOrigin + static_cast<float>(offset) * ROOM_DEPTH +
+                (target.pos.z - std::floor((target.pos.z + ROOM_DEPTH * 0.5f) / ROOM_DEPTH) * ROOM_DEPTH);
+            if (humanModel_.valid()) drawHumanModel(target, state.time, setting, slot, true);
+            else drawProceduralHumanDesktop(target, state.time, 0, 0, 0);
+        }
+    }
     shadowGeometryPass_=false;
 }
 
@@ -2336,6 +2351,8 @@ lighting_evidence::GlFixedFunctionState observeGlFixedFunctionState(const char* 
 }
 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
+    // All passes use this draw's pose inputs. Mirrored instances only translate the result.
+    humanVerticesReady_.fill(false);
     updateCoastalWater(state);
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
@@ -2544,7 +2561,9 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     std::array<TranslucentSoulDraw,TARGET_COUNT*3> translucentSouls{};
     int translucentSoulCount=0;
     const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int offset=-1;offset<=1;++offset)for (auto target:state.targets) if (target.alive) {
+    for(int offset=-1;offset<=1;++offset)for (std::size_t slot = 0; slot < state.targets.size(); ++slot) {
+        if (!state.targets[slot].alive) continue;
+        auto target = state.targets[slot];
         Vec3 p=target.pos; p.z=tileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);
         if(!actorVisible(p))continue;
         const float mirrorShift=p.z-target.pos.z;
@@ -2552,7 +2571,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         target.pos = p;
         if (!target.slurpable) {
             const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;const VisualColor damageColor=humanDamageSurfaceColor(enemyShellColor(target.brute,target.attackVariant,state.roomIndex),setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
-            if(humanModel_.valid())drawHumanModel(target,state.time,setting);else drawProceduralHumanDesktop(target,state.time,damageColor.r,damageColor.g,damageColor.b);
+            if(humanModel_.valid())drawHumanModel(target,state.time,setting,slot);else drawProceduralHumanDesktop(target,state.time,damageColor.r,damageColor.g,damageColor.b);
         }
         if (target.slurpable && target.soulCubeAmount > 0.001f) {
             const auto& sv=target.soulVisual;
