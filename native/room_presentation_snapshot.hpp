@@ -100,13 +100,9 @@ struct RoomPresentationSnapshot {
     std::vector<CapturePointPresentationRecord> capturePoints;
     std::vector<computed_scene::Object> objects;
 
-    static RoomPresentationSnapshot from(const GameState& state, int tileIndex) {
+    static RoomPresentationSnapshot from(const GameState& state, int tileIndex, bool includeStatic = true) {
         RoomPresentationSnapshot snapshot;
         const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-        const auto capacity = state.slopeLab
-            ? room_environment::RoomGeometryCapacityPlan{}
-            : room_environment::roomGeometryCapacityPlan(
-                plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         snapshot.roomSeed = state.roomSeed;
         snapshot.roomIndex = state.roomIndex;
         snapshot.tileIndex = tileIndex;
@@ -140,8 +136,10 @@ struct RoomPresentationSnapshot {
             state.player.pos.x, state.player.pos.z - currentTileOffset) &&
             snapshot.waterSourceSpeed >= 0.35f;
         const float z0 = static_cast<float>(tileIndex) * world::RoomDepth;
-        const float doorWidth = 5.35f;
-        const float doorHeight = 3.95f;
+        constexpr float doorWidth = world::DoorwayHalfWidth * 2.0f;
+        constexpr float frameWidth = 5.35f;
+        constexpr float doorHeight = world::DoorwayLintelY;
+        constexpr float frameHeight = 3.95f;
         const bool field = plan.setting == room_environment::RoomSetting::Field;
         const bool city = plan.setting == room_environment::RoomSetting::City;
         const bool sterile = plan.setting == room_environment::RoomSetting::Sterile;
@@ -153,6 +151,21 @@ struct RoomPresentationSnapshot {
                 "room/" + std::to_string(tileIndex) + "/structure/" + suffix,
                 kind, center, size, material});
         };
+        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
+            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
+        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
+        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
+        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
+            const auto& capture=state.captures[captureIndex];
+            snapshot.capturePoints.push_back({
+                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
+                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
+        }
+        if (!includeStatic) return snapshot;
+        const auto capacity = state.slopeLab
+            ? room_environment::RoomGeometryCapacityPlan{}
+            : room_environment::roomGeometryCapacityPlan(
+                plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         const VisualColor floorColor = field ? VisualIdentity::FieldGround
             : (sterile ? VisualColor{0.58f, 0.61f, 0.63f}
                 : (coastal ? roomSubstrateColor(plan.setting)
@@ -171,16 +184,6 @@ struct RoomPresentationSnapshot {
             plan.setting, state.roomInspector).color;
         const auto traversalMaterial = semanticMaterial(SemanticSurface::Default,
             {traversalColor.x, traversalColor.y, traversalColor.z});
-        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
-            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
-        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
-        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
-        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
-            const auto& capture=state.captures[captureIndex];
-            snapshot.capturePoints.push_back({
-                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
-                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
-        }
         if(snapshot.fieldIsland){
             const auto islandCoreMaterial=semanticMaterial(SemanticSurface::Default,
                 VisualColor{0.12f,0.10f,0.075f});
@@ -212,14 +215,14 @@ struct RoomPresentationSnapshot {
             for (float seam : {-world::RoomDepth * 0.5f, world::RoomDepth * 0.5f}) {
                 const std::string prefix = "door-frame/" + std::to_string(seamIndex++);
                 addStructure((prefix + "/left").c_str(), RoomStructureKind::DoorFrame,
-                    {-doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
+                    {-frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/right").c_str(), RoomStructureKind::DoorFrame,
-                    {doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
+                    {frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/top").c_str(), RoomStructureKind::DoorFrame,
-                    {0, doorHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {doorWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
+                    {0, frameHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {frameWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
             }
         } else if (!city) {
             const float sideWidth = (world::RoomWidth - doorWidth) * 0.5f;
