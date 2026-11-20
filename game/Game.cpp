@@ -2049,10 +2049,10 @@ void Game::resolvePlayerObstacleCollisions(float previousX,float previousZ) {
 void Game::resolveDoorwayCollisions(float previousX,float previousZ){
     PlayerState& player=state_.player;
     const float radius=PLAYER_COLLISION_RADIUS;
-    const float safeHalfWidth=2.1f-radius;
+    const float safeHalfWidth=world::DoorwayHalfWidth-radius;
     const int previousTile=getRoomTileIndex(previousZ);
     const int currentTile=getRoomTileIndex(player.pos.z);
-    const bool apertureHeight=player.pos.y>=GROUND_Y-0.12f&&player.pos.y<=3.72f+0.22f;
+    const bool apertureHeight=player.pos.y>=GROUND_Y-0.12f&&player.pos.y<=world::DoorwayLintelY+0.22f;
     if(previousTile!=currentTile&&(!apertureHeight||std::abs(player.pos.x)>safeHalfWidth)){
         const float seam=previousTile<currentTile
             ? getRoomTileOriginZ(previousTile)+ROOM_DEPTH*0.5f
@@ -2164,7 +2164,7 @@ bool Game::updateTreeClimb(float dt,float forwardAxis,float strafeAxis){
     return true;
 }
 bool Game::isInsideDoorAperture(const Vec3& position, float pad) const {
-    return std::abs(position.x) <= 2.1f + pad && position.y >= GROUND_Y - 0.12f && position.y <= 3.72f + 0.22f;
+    return std::abs(position.x) <= world::DoorwayHalfWidth + pad && position.y >= GROUND_Y - 0.12f && position.y <= world::DoorwayLintelY + 0.22f;
 }
 
 void Game::updateRoomTopology(float previousZ, float currentZ) {
@@ -2974,8 +2974,8 @@ void Game::constrainThirdPersonCamera(Vec3& desired, const Vec3& lookBase) const
         for(int step=firstStep;step<=MarchSteps;++step){const float t=static_cast<float>(step)/MarchSteps;if(t>=nearestT)break;const bool currentBlocked=blocked(t);if(currentBlocked&&!previousBlocked){float low=previousT,high=t;for(int refine=0;refine<6;++refine){const float middle=(low+high)*0.5f;if(blocked(middle))high=middle;else low=middle;}nearestT=std::min(nearestT,high);break;}previousT=t;previousBlocked=currentBlocked;}
     }
 
-    const float doorX0 = -2.1f;
-    const float doorX1 = 2.1f;
+    const float doorX0 = -world::DoorwayHalfWidth;
+    const float doorX1 = world::DoorwayHalfWidth;
     const float wallPad = 0.3f;
     const auto makeBounds = [](float minX, float maxX, float minZ, float maxZ, float bottomY, float topY) {
         RoomCollider c{};
@@ -2987,10 +2987,10 @@ void Game::constrainThirdPersonCamera(Vec3& desired, const Vec3& lookBase) const
         makeBounds( ROOM_WIDTH * 0.5f - 0.5f,  ROOM_WIDTH * 0.5f + 0.3f, -ROOM_DEPTH * 0.5f, ROOM_DEPTH * 0.5f, GROUND_Y, ROOM_WALL_HEIGHT),
         makeBounds(-ROOM_WIDTH * 0.5f, doorX0, -ROOM_DEPTH * 0.5f - wallPad, -ROOM_DEPTH * 0.5f + 0.5f, GROUND_Y, ROOM_WALL_HEIGHT),
         makeBounds(doorX1, ROOM_WIDTH * 0.5f, -ROOM_DEPTH * 0.5f - wallPad, -ROOM_DEPTH * 0.5f + 0.5f, GROUND_Y, ROOM_WALL_HEIGHT),
-        makeBounds(doorX0, doorX1, -ROOM_DEPTH * 0.5f - wallPad, -ROOM_DEPTH * 0.5f + 0.5f, 3.72f, ROOM_WALL_HEIGHT),
+        makeBounds(doorX0, doorX1, -ROOM_DEPTH * 0.5f - wallPad, -ROOM_DEPTH * 0.5f + 0.5f, world::DoorwayLintelY, ROOM_WALL_HEIGHT),
         makeBounds(-ROOM_WIDTH * 0.5f, doorX0, ROOM_DEPTH * 0.5f - 0.5f, ROOM_DEPTH * 0.5f + wallPad, GROUND_Y, ROOM_WALL_HEIGHT),
         makeBounds(doorX1, ROOM_WIDTH * 0.5f, ROOM_DEPTH * 0.5f - 0.5f, ROOM_DEPTH * 0.5f + wallPad, GROUND_Y, ROOM_WALL_HEIGHT),
-        makeBounds(doorX0, doorX1, ROOM_DEPTH * 0.5f - 0.5f, ROOM_DEPTH * 0.5f + wallPad, 3.72f, ROOM_WALL_HEIGHT)
+        makeBounds(doorX0, doorX1, ROOM_DEPTH * 0.5f - 0.5f, ROOM_DEPTH * 0.5f + wallPad, world::DoorwayLintelY, ROOM_WALL_HEIGHT)
     };
     for (const RoomCollider& c : roomBounds) {
         const float t = cameraHit(c, CAMERA_COLLISION_RADIUS * 0.8f);
