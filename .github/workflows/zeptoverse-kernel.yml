@@ -1,0 +1,39 @@
+name: Zeptoverse bounded kernel trial
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/zeptoverse-machine-minimization-20261120
+    paths:
+      - 'experiments/zeptoverse/**'
+      - 'game/gameplay/EnemyPerception.hpp'
+      - 'game/Math.hpp'
+      - '.github/workflows/zeptoverse-kernel.yml'
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        optimization: ['-O2', '-O3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile actual game header and trial
+        run: ${{ matrix.compiler }} -std=c++17 ${{ matrix.optimization }} -Igame experiments/zeptoverse/segment_box_trial.cpp -o /tmp/zeptoverse-kernel
+      - name: Verify reference behavior and record local timings
+        run: /tmp/zeptoverse-kernel
+      - name: Record compiled section sizes
+        run: size /tmp/zeptoverse-kernel
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile actual game header with MSVC
+        shell: cmd
+        run: cl /nologo /std:c++17 /O2 /EHsc /I game experiments\zeptoverse\segment_box_trial.cpp /Fe:zeptoverse-kernel.exe
+      - name: Verify reference behavior and record local timings
+        shell: pwsh
+        run: .\zeptoverse-kernel.exe
