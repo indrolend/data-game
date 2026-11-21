@@ -1,0 +1,33 @@
+name: STOKE binary recovery trial
+on:
+  push:
+    branches: [experiment/zeptoverse-machine-minimization-20261120]
+    paths: ['.github/workflows/stoke-binary-recovery.yml']
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Probe official STOKE image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker pull stanfordpl/stoke:latest
+          docker run --rm --entrypoint /bin/bash stanfordpl/stoke:latest -lc 'command -v stoke; stoke --help | head -30'
+      - name: Extract image filesystem and STOKE executable
+        if: success()
+        shell: bash
+        run: |
+          set -euxo pipefail
+          id=$(docker create --entrypoint /bin/bash stanfordpl/stoke:latest)
+          mkdir -p recovery
+          docker export "$id" | gzip -1 > recovery/stoke-rootfs.tar.gz
+          docker rm "$id"
+          sha256sum recovery/stoke-rootfs.tar.gz > recovery/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: stoke-rootfs
+          path: recovery/
+          retention-days: 3
