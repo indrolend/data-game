@@ -1,0 +1,6 @@
+# Player camera input followed by settling frames; no debug or fixture commands.
+observe
+step frames=1 lookX=120 lookY=-40
+step frames=30
+observe
+quit
