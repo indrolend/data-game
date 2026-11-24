@@ -469,6 +469,22 @@ inline int selectedEnvironmentRoleCount(const RoomEnvironmentPlan& plan,int room
 inline bool requiredRouteIsTraversable(const RoomEnvironmentPlan& plan,int roomSeed,int roomIndex,
                                        const gameplay::TraversalCapabilities& capabilities=gameplay::TRAVERSAL_CAPABILITIES) {
     if(!gameplay::validTraversalGraphTopology(plan.traversal))return false;
+    const auto& graph = plan.traversal;
+    std::array<bool, gameplay::TraversalGraph::SurfaceCapacity> reachable{};
+    reachable[0] = true;
+    for (int pass = 0; pass < graph.surfaceCount - 1; ++pass) {
+        bool advanced = false;
+        for (int i = 0; i < graph.edgeCount; ++i) {
+            const auto& edge = graph.edges[i];
+            if (gameplay::isRequired(edge) && reachable[edge.from] && !reachable[edge.to]) {
+                reachable[edge.to] = true;
+                advanced = true;
+            }
+        }
+        if (!advanced) break;
+    }
+    for (int i = 0; i < graph.surfaceCount; ++i)
+        if (graph.surfaces[i].required && !reachable[i]) return false;
     const float clearance=capabilities.comfortableClearanceRadius;
     for(int point=0;point<plan.traversal.surfaceCount;++point){
         const Vec3 p=plan.traversal.surfaces[point].center;

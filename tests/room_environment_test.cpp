@@ -12,7 +12,15 @@ int main(){
     assert(first.setting==RoomSetting::Field&&first.form==RoomForm::Open&&first.grass&&!first.sidewalks);
     assert(first.obstacleCount==0&&!first.recovery());
     assert(first.traversalIntent==RoomTraversalIntent::Playground);
-    assert(requiredRouteIsTraversable(first,12345,1));
+    if (!requiredRouteIsTraversable(first, 12345, 1)) return 1;
+    auto broken = first;
+    auto& graph = broken.traversal;
+    for (int i = 1; i + 1 < graph.edgeCount; ++i) graph.edges[i] = graph.edges[i + 1];
+    --graph.edgeCount;
+    if (requiredRouteIsTraversable(broken, 12345, 1)) {
+        std::fprintf(stderr, "disconnected required traversal accepted\n");
+        return 1;
+    }
 
     bool sawField=false,sawCity=false,sawSterile=false,sawCoastal=false,sawRecovery=false,sawCourtyard=false,sawCanyon=false,sawSkyline=false,sawChamber=false,sawCapacityPressure=false;
     bool sawCompactCourtyard=false,sawStandardCourtyard=false,sawLargeCourtyard=false;
