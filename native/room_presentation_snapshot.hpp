@@ -360,7 +360,7 @@ struct RoomPresentationSnapshot {
             // The desktop renderer draws the native City obstacle boxes as
             // building masses. Keep the same authoritative boxes visible in
             // Godot; these records are presentation only and add no collision.
-            const int authoredObstacleCount = std::min(state.debug.colliderCount, plan.obstacleCount);
+            const int authoredObstacleCount = std::min(state.roomColliderCount, plan.obstacleCount);
             for (int obstacleIndex = 0; obstacleIndex < authoredObstacleCount; ++obstacleIndex) {
                 const auto& obstacle = state.roomColliders[obstacleIndex];
                 const VisualColor plaster = (obstacleIndex % 3) == 0
@@ -430,7 +430,7 @@ struct RoomPresentationSnapshot {
             // native collision/support mass; these module records are visual.
             const int authoredCadence = state.localSettings.graphicsPreset >= 2 ? 2 : 3;
             const float storyLimit = state.localSettings.graphicsPreset >= 2 ? 3.0f : 2.0f;
-            for (int obstacleIndex = 0; obstacleIndex < state.debug.colliderCount; ++obstacleIndex) {
+            for (int obstacleIndex = 0; obstacleIndex < state.roomColliderCount; ++obstacleIndex) {
                 const auto& obstacle = state.roomColliders[obstacleIndex];
                 const unsigned int facadeKey = room_environment::roomKey(
                     state.roomSeed, state.roomIndex) ^

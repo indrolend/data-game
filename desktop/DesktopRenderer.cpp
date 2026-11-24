@@ -230,7 +230,7 @@ bool usesFieldIsland(const GameState& state) {
 float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,float radius){
     const float localZ=worldZ-std::floor((worldZ+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH;
     float height=usesFieldIsland(state) ? world::GroundY : 0.0f;
-    for(int i=0;i<state.debug.colliderCount;++i){const RoomCollider& c=state.roomColliders[i];if(worldX>c.minX-radius&&worldX<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)height=std::max(height,c.topY);}
+    for(int i=0;i<state.roomColliderCount;++i){const RoomCollider& c=state.roomColliders[i];if(worldX>c.minX-radius&&worldX<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)height=std::max(height,c.topY);}
     for(int i=0;i<state.slopeSupportCount;++i){const auto sample=sampleSlopeSupport(state.slopeSupports[i],worldX,localZ);if(sample.inside&&sample.classification!=SupportClassification::Steep)height=std::max(height,sample.height);}
     for(int i=0;i<state.rockSupportCount;++i){const auto sample=faceted_rock::sampleSupportFootprint(state.rockSupports[i],worldX,localZ,radius);if(sample.inside)height=std::max(height,sample.height);}
     return height;
@@ -1791,7 +1791,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
         const VisualColor guide=sterile?VisualColor{0.62f,0.88f,0.94f}:VisualColor{0.72f,0.90f,0.82f};
         glDisable(GL_LIGHTING);drawBox({0,doorHeight+0.12f,z0-ROOM_DEPTH*0.5f+0.27f},{doorWidth,0.12f,0.08f},0,0,0,guide.r*(0.38f+lightingResponse.exitGlow*0.62f),guide.g*(0.38f+lightingResponse.exitGlow*0.62f),guide.b*(0.38f+lightingResponse.exitGlow*0.62f));glEnable(GL_LIGHTING);
     }
-    const int authoredObstacleCount=(state.traversalLab||state.slopeLab)?state.debug.colliderCount:std::min(state.debug.colliderCount,plan.obstacleCount);
+    const int authoredObstacleCount=(state.traversalLab||state.slopeLab)?state.roomColliderCount:std::min(state.roomColliderCount,plan.obstacleCount);
     for (int i=0;i<authoredObstacleCount;++i) {
         const RoomCollider& c=state.roomColliders[i];
         const float materialPhase=0.5f+0.5f*std::sin(static_cast<float>(state.roomSeed*3+state.roomIndex*11+i*17));
@@ -2013,7 +2013,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
                 drawTaperedSegment(branchStart,branchEnd,baseRadius*0.34f,baseRadius*0.085f,{0.36f,0.29f,0.20f},7);
             }
             bool activeClimb=false;
-            if(state.player.treeClimbing&&tileIndex==state.topology.currentTileIndex&&state.player.treeCollider>=0&&state.player.treeCollider<state.debug.colliderCount){
+            if(state.player.treeClimbing&&tileIndex==state.topology.currentTileIndex&&state.player.treeCollider>=0&&state.player.treeCollider<state.roomColliderCount){
                 const RoomCollider& climbTree=state.roomColliders[state.player.treeCollider];
                 activeClimb=climbTree.kind==RoomColliderKind::TreeTrunk&&std::abs(climbTree.center.x-prop.center.x)<0.05f&&std::abs(climbTree.center.z-prop.center.z)<0.05f;
             }
@@ -2639,7 +2639,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(codec&&codec->showColliders){
         glDisable(GL_LIGHTING);glDisable(GL_CULL_FACE);glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);glLineWidth(2.0f);
         const float z0=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-        for(int i=0;i<state.debug.colliderCount;++i){const auto& c=state.roomColliders[i];drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,VisualIdentity::ElectricMagenta.r,VisualIdentity::ElectricMagenta.g,VisualIdentity::ElectricMagenta.b);}
+        for(int i=0;i<state.roomColliderCount;++i){const auto& c=state.roomColliders[i];drawBox({c.center.x,c.center.y,z0+c.center.z},{c.width,c.height,c.depth},0,0,0,VisualIdentity::ElectricMagenta.r,VisualIdentity::ElectricMagenta.g,VisualIdentity::ElectricMagenta.b);}
         glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);glEnable(GL_CULL_FACE);glEnable(GL_LIGHTING);
     }
     if(hudVisible_)drawHud(state);

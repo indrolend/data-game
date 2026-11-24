@@ -50,7 +50,7 @@ const char* invalidState(const GameState& state) {
         return "energy";
     if (state.vacuum.target < -1 || state.vacuum.target >= TARGET_COUNT ||
         !finite(state.vacuum.power) || !finite(state.vacuum.pose)) return "vacuum";
-    if (state.debug.colliderCount < 0 || state.debug.colliderCount > ROOM_COLLIDER_COUNT)
+    if (state.roomColliderCount < 0 || state.roomColliderCount > ROOM_COLLIDER_COUNT)
         return "colliders";
     for (const TargetState& target : state.targets) {
         if (!finite(target.pos) || !finite(target.vel) || !finite(target.walkTarget) ||

@@ -485,7 +485,7 @@ captureWorld(const GameState &state,
   s.tvSignal=state.secretTv.signal;s.tvDamage=state.secretTv.damage;s.tvTolerance=state.secretTv.tolerance;s.tvBroken=state.secretTv.broken;
   s.tvAvailable=state.secretTv.available;s.tvEntrancePos=state.secretTv.entrancePos;s.tvEntranceNormal=state.secretTv.entranceNormal;
   s.topology=state.topology;s.doorTransition=state.doorTransition;
-  s.roomColliderCount=static_cast<std::uint8_t>(std::max(0,std::min(ROOM_COLLIDER_COUNT,state.debug.colliderCount)));
+  s.roomColliderCount=static_cast<std::uint8_t>(std::max(0,std::min(ROOM_COLLIDER_COUNT,state.roomColliderCount)));
   s.roomColliders=state.roomColliders;
   s.players = players;
   for (int i = 0; i < TARGET_COUNT; ++i) {
@@ -577,7 +577,7 @@ void applyWorld(GameState &state, const WorldSnapshot &s,
   state.secretTv.signal=s.tvSignal;state.secretTv.damage=s.tvDamage;state.secretTv.tolerance=s.tvTolerance;state.secretTv.broken=s.tvBroken;
   state.secretTv.available=s.tvAvailable;state.secretTv.entrancePos=s.tvEntrancePos;state.secretTv.entranceNormal=s.tvEntranceNormal;
   state.topology=s.topology;state.doorTransition=s.doorTransition;
-  state.debug.colliderCount=s.roomColliderCount;state.roomColliders=s.roomColliders;
+  state.roomColliderCount=s.roomColliderCount;state.roomColliders=s.roomColliders;
   for (auto &peer : state.multiplayer.peers)
     peer = NetworkPeerState{};
   for (const auto &p : s.players)

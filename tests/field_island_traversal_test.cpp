@@ -37,7 +37,7 @@ int main(){
 
     auto platform=std::make_unique<Game>();
     auto& platformState=platform->fixtureMutableState();
-    platformState.debug.colliderCount=1;
+    platformState.roomColliderCount=1;
     RoomCollider& collider=platformState.roomColliders[0];
     collider.minX=14.0f;collider.maxX=16.0f;collider.minZ=-1.0f;collider.maxZ=1.0f;collider.topY=1.5f;
     platformState.player.pos={15.0f,3.0f,0.0f};platformState.player.vel={};platformState.player.jumpVel=-1.0f;platformState.player.grounded=false;

@@ -22,10 +22,10 @@ void primeEnemyPursuit(Game& game,int index=0){
     auto& state=game.fixtureMutableState();
     faceTarget(state.targets[index],state.player.pos);
     const PlayerState player=state.player;const TargetState enemy=state.targets[index];
-    const int colliderCount=state.debug.colliderCount,rockCount=state.rockSupportCount;
-    state.debug.colliderCount=0;state.rockSupportCount=0;
+    const int colliderCount=state.roomColliderCount,rockCount=state.rockSupportCount;
+    state.roomColliderCount=0;state.rockSupportCount=0;
     for(int frame=0;frame<120;++frame){game.update(Dt);state.player=player;state.targets[index]=enemy;}
-    state.debug.colliderCount=colliderCount;state.rockSupportCount=rockCount;state.player=player;state.targets[index]=enemy;
+    state.roomColliderCount=colliderCount;state.rockSupportCount=rockCount;state.player=player;state.targets[index]=enemy;
 }
 float horizontalSpeed(const Vec3& velocity){return std::sqrt(velocity.x*velocity.x+velocity.z*velocity.z);}
 float exactRockHeight(const faceted_rock::Mesh& mesh,float x,float z,float radius){const auto sample=faceted_rock::sampleEnvelopeFootprint(mesh,x,z,radius);return sample.inside?sample.height:-1.0f;}
@@ -52,7 +52,7 @@ PhoneWorldBounds phoneWorldBounds(const GameState& state){
 int main(int argc,char** argv){
     const bool boundedCheck=argc==2&&std::string_view(argv[1])=="--check";
     auto ascentStorage=std::make_unique<Game>();Game& ascent=*ascentStorage;ascent.debugStartSlopeLab();const auto fixture=ascent.state().slopeSupports[0];
-    if(!ascent.state().slopeLab||ascent.state().slopeSupportCount!=1||ascent.state().debug.colliderCount!=1||classifySupport(fixture)!=SupportClassification::TraversableSlope){std::fprintf(stderr,"SLOPE_FIXTURE_FAIL authority\n");return 1;}
+    if(!ascent.state().slopeLab||ascent.state().slopeSupportCount!=1||ascent.state().roomColliderCount!=1||classifySupport(fixture)!=SupportClassification::TraversableSlope){std::fprintf(stderr,"SLOPE_FIXTURE_FAIL authority\n");return 1;}
     bool crossedSlope=false,reachedPlateau=false;float previousY=ascent.state().player.pos.y;Vec3 previousCamera=ascent.state().camera.pos;
     for(int frame=0;frame<600;++frame){input(ascent,0,1);const auto& p=ascent.state().player;const Vec3 cameraDelta=ascent.state().camera.pos-previousCamera;if(!std::isfinite(ascent.state().camera.pos.x)||!std::isfinite(ascent.state().camera.pos.y)||!std::isfinite(ascent.state().camera.pos.z)||(frame>0&&length(cameraDelta)>1.0f)||horizontalSpeed(p.vel)>7.0f){std::fprintf(stderr,"SLOPE_FIXTURE_FAIL bounded camera/speed frame=%d\n",frame);return 1;}previousCamera=ascent.state().camera.pos;if(p.pos.z<fixture.maxZ&&p.pos.z>fixture.minZ){const auto support=sampleSlopeSupport(fixture,p.pos.x,p.pos.z);crossedSlope=true;if(!p.grounded||!near(p.pos.y,support.height+0.08f)||p.pos.y+0.001f<previousY){std::fprintf(stderr,"SLOPE_FIXTURE_FAIL ascent frame=%d pos=(%.3f,%.3f,%.3f)\n",frame,p.pos.x,p.pos.y,p.pos.z);return 1;}}previousY=p.pos.y;if(p.pos.z<fixture.minZ-0.3f){reachedPlateau=p.grounded&&near(p.pos.y,1.68f);break;}}
     if(!crossedSlope||!reachedPlateau){const auto& p=ascent.state().player;std::fprintf(stderr,"SLOPE_FIXTURE_FAIL seam ascent crossed=%d plateau=%d pos=(%.3f,%.3f,%.3f) grounded=%d\n",crossedSlope?1:0,reachedPlateau?1:0,p.pos.x,p.pos.y,p.pos.z,p.grounded?1:0);return 1;}
@@ -82,7 +82,7 @@ int main(int argc,char** argv){
     if(!runEnemySlope(11.5f,7.0f,true)||!runEnemySlope(3.0f,7.5f,false))return 1;
     {
         auto edgeRun=std::make_unique<Game>();edgeRun->debugStartSlopeLab();auto& state=edgeRun->fixtureMutableState();for(auto& target:state.targets)target=TargetState{};for(auto& collider:state.roomColliders)collider=RoomCollider{};
-        state.debug.colliderCount=0;
+        state.roomColliderCount=0;
         state.player.pos={0.0f,0.08f,0.0f};state.player.vel={};state.player.grounded=true;TargetState& enemy=state.targets[0];enemy.alive=true;enemy.pos={0.0f,slopeHeightAt(fixture,0.0f,5.0f)+0.08f,5.0f};enemy.walkTarget=enemy.pos;enemy.armor=2.0f;enemy.attackCooldown=999.0f;primeEnemyPursuit(*edgeRun);
         bool departedHighEdge=false,airborne=false,landed=false;float maximumY=enemy.pos.y;
         for(int frame=0;frame<420;++frame){edgeRun->setTouchControls(0,0,0,0,false,false,false,false,false,false);edgeRun->update(Dt);const auto& observed=edgeRun->state().targets[0];maximumY=std::max(maximumY,observed.pos.y);departedHighEdge|=observed.pos.z<fixture.minZ;airborne|=departedHighEdge&&observed.pos.y>0.10f&&observed.vel.y<0.0f;landed|=departedHighEdge&&near(observed.pos.y,0.08f,0.002f)&&near(observed.vel.y,0.0f,0.002f);}
@@ -90,7 +90,7 @@ int main(int argc,char** argv){
     }
     {
         auto platformRun=std::make_unique<Game>();platformRun->debugStartSlopeLab();auto& state=platformRun->fixtureMutableState();for(auto& target:state.targets)target=TargetState{};for(auto& collider:state.roomColliders)collider=RoomCollider{};state.slopeSupportCount=0;state.rockSupportCount=0;
-        RoomCollider& platform=state.roomColliders[0];platform.minX=-2.0f;platform.maxX=2.0f;platform.minZ=-1.0f;platform.maxZ=1.0f;platform.bottomY=0.0f;platform.topY=1.0f;state.debug.colliderCount=1;
+        RoomCollider& platform=state.roomColliders[0];platform.minX=-2.0f;platform.maxX=2.0f;platform.minZ=-1.0f;platform.maxZ=1.0f;platform.bottomY=0.0f;platform.topY=1.0f;state.roomColliderCount=1;
         state.player.pos={3.5f,0.08f,0.0f};state.player.vel={};state.player.grounded=true;TargetState& enemy=state.targets[0];enemy.alive=true;enemy.pos={0.0f,1.08f,0.0f};enemy.walkTarget=enemy.pos;enemy.armor=2.0f;enemy.attackCooldown=999.0f;primeEnemyPursuit(*platformRun);
         bool crossedTop=false,departed=false,airborne=false,landed=false;
         for(int frame=0;frame<420;++frame){platformRun->setTouchControls(0,0,0,0,false,false,false,false,false,false);platformRun->update(Dt);const auto& observed=platformRun->state().targets[0];crossedTop|=observed.pos.x>1.0f&&near(observed.pos.y,1.08f,0.002f);departed|=observed.pos.x>2.10f;airborne|=departed&&observed.pos.y>0.10f&&observed.vel.y<0.0f;landed|=departed&&near(observed.pos.y,0.08f,0.002f)&&near(observed.vel.y,0.0f,0.002f);}
@@ -110,7 +110,7 @@ int main(int argc,char** argv){
     if(faceted_rock::sampleSupport(rockAuthority,emptyX,emptyZ).inside||!near(rock.debugPlayerSupportAt(emptyX,emptyZ).height,0.08f)){std::fprintf(stderr,"ROCK_SUPPORT_FAIL invisible box top\n");return 1;}
     {
         auto enemyRock=std::make_unique<Game>();enemyRock->debugStartSlopeLab();auto& state=enemyRock->fixtureMutableState();for(auto& target:state.targets)target=TargetState{};for(auto& collider:state.roomColliders)collider=RoomCollider{};state.slopeSupportCount=0;
-        state.debug.colliderCount=0;
+        state.roomColliderCount=0;
         const auto start=faceted_rock::sampleSupportFootprint(rockAuthority,rockProp.center.x,rockProp.center.z,0.10f);state.player.pos={rockProp.center.x+3.5f,0.08f,rockProp.center.z};state.player.vel={};state.player.grounded=true;TargetState& enemy=state.targets[0];enemy.alive=true;enemy.pos={rockProp.center.x,start.height+0.08f,rockProp.center.z};enemy.walkTarget=enemy.pos;enemy.armor=2.0f;enemy.attackCooldown=999.0f;primeEnemyPursuit(*enemyRock);
         bool crossedFacet=false,leftRock=false,airborne=false,landed=false;
         for(int frame=0;frame<480;++frame){enemyRock->setTouchControls(0,0,0,0,false,false,false,false,false,false);enemyRock->update(Dt);const auto& observed=enemyRock->state().targets[0];const auto support=faceted_rock::sampleSupportFootprint(enemyRock->state().rockSupports[0],observed.pos.x,observed.pos.z,0.10f);const auto worldSupport=enemyRock->debugWorldSupportAt(observed.pos.x,observed.pos.z,0.10f);if(support.inside){crossedFacet|=observed.pos.x>rockProp.center.x+0.45f;const float expected=support.height+0.08f;if(!near(worldSupport.height,expected,0.001f)||observed.pos.y<worldSupport.height-0.01f||observed.pos.y>worldSupport.height+0.02f){std::fprintf(stderr,"ENEMY_ROCK_FAIL facet support frame=%d pos=(%.3f,%.3f) y=%.3f world=%.3f visible=%.3f velY=%.3f\n",frame,observed.pos.x,observed.pos.z,observed.pos.y,worldSupport.height,expected,observed.vel.y);return 1;}}else if(crossedFacet){leftRock=true;airborne|=observed.pos.y>0.10f&&observed.vel.y<0.0f;landed|=near(observed.pos.y,0.08f,0.002f)&&near(observed.vel.y,0.0f,0.002f);}}

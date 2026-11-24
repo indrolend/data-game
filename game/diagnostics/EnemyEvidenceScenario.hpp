@@ -36,7 +36,7 @@ inline void configureEnemyObstruction(Game& game) {
     obstruction.bottomY=0.0f;obstruction.topY=2.2f;
     obstruction.width=3.0f;obstruction.depth=3.0f;obstruction.height=2.2f;
     obstruction.center={0.0f,1.1f,0.0f};
-    state.debug.colliderCount=0;
+    state.roomColliderCount=0;
 
     state.player.pos={5.0f,0.08f,0.0f};
     state.player.vel={};
@@ -62,7 +62,7 @@ inline void configureEnemyObstruction(Game& game) {
         game.update(1.0f/60.0f);
         enemy.pos={-5.0f,0.08f,0.0f};enemy.vel={};enemy.walkTarget=state.player.pos;
     }
-    state.debug.colliderCount=1;
+    state.roomColliderCount=1;
 }
 
 inline bool finite(const Vec3& value) {

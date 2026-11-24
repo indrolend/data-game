@@ -25,12 +25,12 @@ void isolate(Game& game) {
     state.player.storedSoulBrute.fill(false);
     state.player.storedSouls.fill(SoulRecord{});
     state.vacuum=VacuumState{};
-    state.debug.colliderCount=0;
+    state.roomColliderCount=0;
     for(auto& collider:state.roomColliders)collider=RoomCollider{};
 }
 
 void box(Game& game,int index,Vec3 center,Vec3 size){
-    auto& state=game.fixtureMutableState();state.debug.colliderCount=std::max(state.debug.colliderCount,index+1);
+    auto& state=game.fixtureMutableState();state.roomColliderCount=std::max(state.roomColliderCount,index+1);
     auto& c=state.roomColliders[index];c.center=center;c.width=size.x;c.height=size.y;c.depth=size.z;
     c.minX=center.x-size.x*0.5f;c.maxX=center.x+size.x*0.5f;c.bottomY=center.y-size.y*0.5f;c.topY=center.y+size.y*0.5f;c.minZ=center.z-size.z*0.5f;c.maxZ=center.z+size.z*0.5f;
 }
@@ -109,7 +109,7 @@ int main(){
     const auto playgroundPlan=room_environment::roomPlan(ps.roomSeed,ps.roomIndex);const int playgroundCollider=playgroundPlan.obstacleCount;const RoomCollider& platform=ps.roomColliders[playgroundCollider];
     auto& pb=soul(playground,484);pb.pos={platform.minX-1.0f,platform.center.y,platform.center.z};pb.vel={90,0,0};SoulProjectileLifecycleAccess::bullets(playground,1.0f/30.0f);
     ok&=playgroundPlan.setting==room_environment::RoomSetting::City&&playgroundPlan.form==room_environment::RoomForm::Corridor&&playgroundPlan.traversalIntent==room_environment::RoomTraversalIntent::Playground&&
-        playgroundCollider<ps.debug.colliderCount&&pb.alive&&!pb.dropped&&pb.vel.x<0&&pb.soul.id==484;
+        playgroundCollider<ps.roomColliderCount&&pb.alive&&!pb.dropped&&pb.vel.x<0&&pb.soul.id==484;
 
     if(!ok){std::fprintf(stderr,"SOUL_PROJECTILE_LIFECYCLE_FAILED wall=%.2f ceiling=%.2f melee=%.2f lunge=%.2f recovered=%d replay=%llu/%llu\n",wb.vel.x,cb.vel.y,speed(mb.vel),speed(lb.vel),rs.player.souls,static_cast<unsigned long long>(a.soul.id),static_cast<unsigned long long>(b.soul.id));return 1;}
     std::printf("SOUL_PROJECTILE_LIFECYCLE_OK wall=REFLECT ceiling=REFLECT floor=DROP melee=%.2f lunge=%.2f recovery_id=%llu deterministic=MATCH\n",speed(mb.vel),speed(lb.vel),static_cast<unsigned long long>(rs.player.storedSouls[0].id));

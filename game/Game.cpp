@@ -588,7 +588,7 @@ void Game::debugStartTraversalLab() {
     box(0,0,15,5,4,0.45f);box(1,0,9.5f,5,4,0.45f);box(2,0,3.5f,5,4,0.45f);box(3,0,-3,5,4,0.45f);
     box(4,7,14.5f,3.4f,3.4f,0.25f);box(5,7,9.8f,3.4f,3.4f,0.55f);box(6,7,4.8f,3.4f,3.4f,0.90f);box(7,7,-0.6f,3.4f,3.4f,1.30f);
     box(8,-7,13.5f,3.8f,3,0.55f);box(9,-7,8.5f,3.8f,3,1.05f);box(10,-7,3.5f,3.8f,3,1.55f);box(11,-7,-1.5f,3.8f,3,2.05f);
-    state_.debug.colliderCount=12;
+    state_.roomColliderCount=12;
     state_.player.pos={0,0.53f,16};state_.player.vel={};state_.player.jumpVel=0;state_.player.grounded=true;
     state_.player.airJumpsRemaining=1;state_.player.battery=100;
     state_.camera.yaw=0;state_.camera.pitch=-0.08f;state_.camera.firstPerson=false;
@@ -601,7 +601,7 @@ void Game::debugStartSlopeLab(){
     for(auto& target:state_.targets)target=TargetState{};for(auto& capture:state_.captures)capture=CapturePointState{};
     for(auto& collider:state_.roomColliders)collider=RoomCollider{};for(auto& slope:state_.slopeSupports)slope=SlopeSupport{};for(auto& rock:state_.rockSupports)rock=faceted_rock::Support{};
     state_.slopeSupports[0]={-3.0f,3.0f,2.0f,12.0f,0.0f,1.6f,SlopeAxis::NegativeZ};state_.slopeSupportCount=1;
-    RoomCollider& plateau=state_.roomColliders[0];plateau.minX=-3.0f;plateau.maxX=3.0f;plateau.minZ=-8.0f;plateau.maxZ=2.0f;plateau.bottomY=0.0f;plateau.topY=1.6f;plateau.width=6.0f;plateau.depth=10.0f;plateau.height=1.6f;plateau.center={0.0f,0.8f,-3.0f};state_.debug.colliderCount=1;
+    RoomCollider& plateau=state_.roomColliders[0];plateau.minX=-3.0f;plateau.maxX=3.0f;plateau.minZ=-8.0f;plateau.maxZ=2.0f;plateau.bottomY=0.0f;plateau.topY=1.6f;plateau.width=6.0f;plateau.depth=10.0f;plateau.height=1.6f;plateau.center={0.0f,0.8f,-3.0f};state_.roomColliderCount=1;
     const room_environment::EnvironmentPropSpec rock{room_environment::EnvironmentPrimitive::Rock,room_environment::EnvironmentRole::Mass,{6.0f,0.0f,7.0f},{3.2f,0.62f,3.0f},0.24f,0};
     state_.rockSupports[0]={rock,73,4,0};state_.rockSupportCount=1;
     state_.player.pos={0.0f,GROUND_Y,16.0f};state_.player.vel={};state_.player.jumpVel=0.0f;state_.player.grounded=true;state_.player.airJumpsRemaining=1;state_.player.battery=100.0f;
@@ -672,7 +672,7 @@ void Game::refreshRoomInspectorReport(bool seedSelectionValid){
     report.requiredRouteValid=room_environment::requiredRouteIsTraversable(plan,state_.roomSeed,state_.roomIndex);
     report.traversalSurfaceCount=plan.traversal.surfaceCount;report.traversalEdgeCount=plan.traversal.edgeCount;
     for(int i=0;i<plan.traversal.edgeCount;++i)if(gameplay::isRequired(plan.traversal.edges[i]))++report.requiredEdgeCount;
-    report.colliderCount=state_.debug.colliderCount;
+    report.colliderCount=state_.roomColliderCount;
     const auto geometry=report.requiredRouteValid?room_environment::roomGeometryCapacityPlan(plan,state_.roomSeed,state_.roomIndex,ROOM_COLLIDER_COUNT):room_environment::RoomGeometryCapacityPlan{};
     report.presentationPropCount=room_environment::selectedEnvironmentPropCount(plan,geometry);
     for(int role=0;role<static_cast<int>(room_environment::EnvironmentRole::Count);++role)report.environmentRoleCounts[role]=room_environment::selectedEnvironmentRoleCount(plan,state_.roomSeed,state_.roomIndex,geometry,static_cast<room_environment::EnvironmentRole>(role));
@@ -1280,11 +1280,11 @@ void Game::buildRoomColliders() {
     // objectives but reject its optional obstacle geometry.
     const bool routeValid=room_environment::requiredRouteIsTraversable(plan,state_.roomSeed,state_.roomIndex);
     const auto geometry=routeValid?room_environment::roomGeometryCapacityPlan(plan,state_.roomSeed,state_.roomIndex,ROOM_COLLIDER_COUNT):room_environment::RoomGeometryCapacityPlan{};
-    state_.debug.colliderCount=geometry.authoredColliderCount;
+    state_.roomColliderCount=geometry.authoredColliderCount;
     for (auto& c : state_.roomColliders) c = RoomCollider{};
     for(auto& slope:state_.slopeSupports)slope=SlopeSupport{};state_.slopeSupportCount=0;
     for(auto& rock:state_.rockSupports)rock=faceted_rock::Support{};state_.rockSupportCount=0;
-    for (int i = 0; i < state_.debug.colliderCount; ++i) {
+    for (int i = 0; i < state_.roomColliderCount; ++i) {
         const auto spec=room_environment::obstacle(plan,state_.roomSeed,state_.roomIndex,i);
         const float px=spec.center.x,pz=spec.center.z,w=spec.size.x,h=spec.size.y,d=spec.size.z;
         RoomCollider& c = state_.roomColliders[i];
@@ -1293,24 +1293,24 @@ void Game::buildRoomColliders() {
         c.bottomY = 0.0f; c.topY = h;
         c.width = w; c.depth = d; c.height = h; c.center = {px, h * 0.5f, pz};
     }
-    if(routeValid)for(int i=0;i<plan.traversal.surfaceCount&&state_.debug.colliderCount<ROOM_COLLIDER_COUNT;++i){
+    if(routeValid)for(int i=0;i<plan.traversal.surfaceCount&&state_.roomColliderCount<ROOM_COLLIDER_COUNT;++i){
         const auto& surface=plan.traversal.surfaces[i];if(!geometry.traversalIncluded[i])continue;
         const auto spec=room_environment::physicalTraversalObstacle(surface);
         if(room_environment::usesShallowElevation(plan,surface)&&state_.slopeSupportCount<SLOPE_SUPPORT_COUNT){
             state_.slopeSupports[state_.slopeSupportCount++]={spec.center.x-spec.size.x*0.5f,spec.center.x+spec.size.x*0.5f,spec.center.z-spec.size.z*0.5f,spec.center.z+spec.size.z*0.5f,0.0f,spec.size.y,surface.center.x<0.0f?SlopeAxis::NegativeX:SlopeAxis::PositiveX};
             continue;
         }
-        RoomCollider& c=state_.roomColliders[state_.debug.colliderCount++];
+        RoomCollider& c=state_.roomColliders[state_.roomColliderCount++];
         c.minX=spec.center.x-spec.size.x*0.5f;c.maxX=spec.center.x+spec.size.x*0.5f;
         c.minZ=spec.center.z-spec.size.z*0.5f;c.maxZ=spec.center.z+spec.size.z*0.5f;
         c.bottomY=0.0f;c.topY=spec.size.y;
         c.width=spec.size.x;c.depth=spec.size.z;c.height=spec.size.y;c.center=spec.center;
     }
-    for(int i=0;i<room_environment::environmentPropCount(plan)&&state_.debug.colliderCount<ROOM_COLLIDER_COUNT;++i){
+    for(int i=0;i<room_environment::environmentPropCount(plan)&&state_.roomColliderCount<ROOM_COLLIDER_COUNT;++i){
         const auto prop=room_environment::environmentProp(plan,state_.roomSeed,state_.roomIndex,i);if(!geometry.propIncluded[i]||!room_environment::environmentPropSolid(prop))continue;
         if(prop.primitive==room_environment::EnvironmentPrimitive::Ruin){
             for(const auto& part:ruin_geometry::parts(prop)){
-                const auto spec=ruin_geometry::collider(part);RoomCollider& c=state_.roomColliders[state_.debug.colliderCount++];
+                const auto spec=ruin_geometry::collider(part);RoomCollider& c=state_.roomColliders[state_.roomColliderCount++];
                 c.minX=spec.center.x-spec.size.x*0.5f;c.maxX=spec.center.x+spec.size.x*0.5f;c.minZ=spec.center.z-spec.size.z*0.5f;c.maxZ=spec.center.z+spec.size.z*0.5f;
                 c.bottomY=spec.center.y-spec.size.y*0.5f;c.topY=spec.center.y+spec.size.y*0.5f;c.width=spec.size.x;c.depth=spec.size.z;c.height=spec.size.y;c.center=spec.center;
             }
@@ -1319,7 +1319,7 @@ void Game::buildRoomColliders() {
         if(plan.setting==room_environment::RoomSetting::Field&&prop.primitive==room_environment::EnvironmentPrimitive::House){
             for(const auto& part:house_geometry::parts(prop)){
                 if(!part.physical)continue;
-                const auto spec=house_geometry::collider(part);RoomCollider& c=state_.roomColliders[state_.debug.colliderCount++];
+                const auto spec=house_geometry::collider(part);RoomCollider& c=state_.roomColliders[state_.roomColliderCount++];
                 c.minX=spec.center.x-spec.size.x*0.5f;c.maxX=spec.center.x+spec.size.x*0.5f;c.minZ=spec.center.z-spec.size.z*0.5f;c.maxZ=spec.center.z+spec.size.z*0.5f;
                 c.bottomY=spec.center.y-spec.size.y*0.5f;c.topY=spec.center.y+spec.size.y*0.5f;c.width=spec.size.x;c.depth=spec.size.z;c.height=spec.size.y;c.center=spec.center;
             }
@@ -1327,7 +1327,7 @@ void Game::buildRoomColliders() {
         }
         if(prop.primitive==room_environment::EnvironmentPrimitive::MarkerPillar){
             for(const auto& part:marker_pillar_geometry::parts(prop)){
-                const auto spec=marker_pillar_geometry::collider(part);RoomCollider& c=state_.roomColliders[state_.debug.colliderCount++];
+                const auto spec=marker_pillar_geometry::collider(part);RoomCollider& c=state_.roomColliders[state_.roomColliderCount++];
                 c.minX=spec.center.x-spec.size.x*0.5f;c.maxX=spec.center.x+spec.size.x*0.5f;c.minZ=spec.center.z-spec.size.z*0.5f;c.maxZ=spec.center.z+spec.size.z*0.5f;
                 c.bottomY=spec.center.y-spec.size.y*0.5f;c.topY=spec.center.y+spec.size.y*0.5f;c.width=spec.size.x;c.depth=spec.size.z;c.height=spec.size.y;c.center=spec.center;
             }
@@ -1337,7 +1337,7 @@ void Game::buildRoomColliders() {
             state_.rockSupports[state_.rockSupportCount++]={prop,state_.roomSeed,state_.roomIndex,i};
             continue;
         }
-        const auto spec=room_environment::environmentPropCollider(prop);RoomCollider& c=state_.roomColliders[state_.debug.colliderCount++];
+        const auto spec=room_environment::environmentPropCollider(prop);RoomCollider& c=state_.roomColliders[state_.roomColliderCount++];
         c.minX=spec.center.x-spec.size.x*0.5f;c.maxX=spec.center.x+spec.size.x*0.5f;c.minZ=spec.center.z-spec.size.z*0.5f;c.maxZ=spec.center.z+spec.size.z*0.5f;
         c.bottomY=0;c.topY=spec.size.y;c.width=spec.size.x;c.depth=spec.size.z;c.height=spec.size.y;c.center=spec.center;
         if(prop.primitive==room_environment::EnvironmentPrimitive::Tree){
@@ -1358,7 +1358,7 @@ void Game::chooseSecretTvEntrance() {
     for (int attempt = 0; attempt < 8; ++attempt) {
         const float localZ = -12.0f + seededRoomValue(2230.0f + static_cast<float>(attempt) * 19.0f) * 24.0f;
         float clearance = 99.0f;
-        for (int i = 0; i < state_.debug.colliderCount; ++i) {
+        for (int i = 0; i < state_.roomColliderCount; ++i) {
             const RoomCollider& c = state_.roomColliders[i];
             const float dx = std::max(std::max(c.minX - x, 0.0f), x - c.maxX);
             const float dz = std::max(std::max(c.minZ - localZ, 0.0f), localZ - c.maxZ);
@@ -1937,7 +1937,7 @@ float Game::getPlayerCeilingLimit() const {
 WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
     WorldSupportSample support{};
     const float localZ = wrapZ(z);
-    for (int i = 0; i < state_.debug.colliderCount; ++i) {
+    for (int i = 0; i < state_.roomColliderCount; ++i) {
         const RoomCollider& c = state_.roomColliders[i];
         if (x > c.minX - radius && x < c.maxX + radius && localZ > c.minZ - radius && localZ < c.maxZ + radius){const float candidate=c.topY+GROUND_Y;if(candidate>support.height){support.height=candidate;support.normal={0,1,0};support.classification=SupportClassification::Ordinary;support.identity={SupportSource::Collider,i};}}
     }
@@ -1982,7 +1982,7 @@ void Game::resolvePlayerObstacleCollisions(float previousX,float previousZ) {
     const float previousLocalZ=previousZ-getRoomTileOriginZ(getRoomTileIndex(previousZ));
     if(player.supportIdentity.source==SupportSource::Generated){const int index=player.supportIdentity.index;if(index<0||index>=state_.rockSupportCount||!faceted_rock::sampleEnvelopeFootprint(state_.rockSupports[index],previousX,previousLocalZ,radius).inside)player.supportIdentity={};}
     else if(player.supportIdentity.source==SupportSource::Slope){const int index=player.supportIdentity.index;if(index<0||index>=state_.slopeSupportCount||!surface_geometry::sample(makeSlopeWedgeMesh(state_.slopeSupports[index]),previousX,previousLocalZ,radius,0.819152f).inside)player.supportIdentity={};}
-    for (int i = 0; i < state_.debug.colliderCount; ++i) {
+    for (int i = 0; i < state_.roomColliderCount; ++i) {
         const RoomCollider& c = state_.roomColliders[i];
         // Side blocking ends only once the phone's solid lower edge has cleared
         // the collider top.  Using the center height here allowed the phone to
@@ -2090,7 +2090,7 @@ bool Game::tryBeginTreeClimb(const Vec3& move) {
     const float tileOriginZ=getRoomTileOriginZ(getRoomTileIndex(p.pos.z));
     const float localZ=p.pos.z-tileOriginZ;
     int best=-1;float bestGap=PLAYER_COLLISION_RADIUS+0.10f;Vec3 bestNormal;
-    for(int i=0;i<state_.debug.colliderCount;++i){
+    for(int i=0;i<state_.roomColliderCount;++i){
         const RoomCollider& c=state_.roomColliders[i];
         if(c.kind!=RoomColliderKind::TreeTrunk||p.pos.y<c.bottomY+GROUND_Y-0.10f||p.pos.y>c.climbTopY+0.10f)continue;
         const float centerLane=std::min(TREE_CLIMB_CENTER_LANE_MAX,std::min(c.width,c.depth)*0.30f);
@@ -2135,7 +2135,7 @@ void Game::releaseTreeClimb(bool jumpAway){
 bool Game::updateTreeClimb(float dt,float forwardAxis,float strafeAxis){
     PlayerState& p=state_.player;
     if(!p.treeClimbing)return false;
-    if(p.treeCollider<0||p.treeCollider>=state_.debug.colliderCount||state_.roomColliders[p.treeCollider].kind!=RoomColliderKind::TreeTrunk){releaseTreeClimb(false);return false;}
+    if(p.treeCollider<0||p.treeCollider>=state_.roomColliderCount||state_.roomColliders[p.treeCollider].kind!=RoomColliderKind::TreeTrunk){releaseTreeClimb(false);return false;}
     const RoomCollider& c=state_.roomColliders[p.treeCollider];
     const float vertical=forwardAxis>=0.0f?forwardAxis*TREE_CLIMB_SPEED:forwardAxis*TREE_CLIMB_DESCENT_SPEED;
     p.pos.y=clampf(p.pos.y+vertical*dt,GROUND_Y,c.climbTopY);
@@ -2296,7 +2296,7 @@ bool Game::tryBeginLedgeHang() {
     const float localZ=p.pos.z-tileOriginZ;
     int best=-1; float bestDistance=LEDGE_GRAB_REACH;
     Vec3 bestNormal; Vec3 bestTangent;
-    for(int i=0;i<state_.debug.colliderCount;++i){
+    for(int i=0;i<state_.roomColliderCount;++i){
         const RoomCollider& c=state_.roomColliders[i];
         if(phoneTop<c.topY-LEDGE_GRAB_VERTICAL_BELOW||phoneTop>c.topY+LEDGE_GRAB_VERTICAL_ABOVE)continue;
         auto candidate=[&](float distance,const Vec3& normal,const Vec3& tangent,bool within){
@@ -2321,7 +2321,7 @@ bool Game::tryBeginLedgeHang() {
                 return point.x>other.minX-padding&&point.x<other.maxX+padding&&
                        pointLocalZ>other.minZ-padding&&pointLocalZ<other.maxZ+padding;
             };
-            for(int j=0;j<state_.debug.colliderCount;++j){
+            for(int j=0;j<state_.roomColliderCount;++j){
                 if(j==i)continue;
                 const RoomCollider& other=state_.roomColliders[j];
                 const bool coversGrip=other.bottomY<c.topY-0.01f&&other.topY>c.topY-0.04f&&
@@ -2377,7 +2377,7 @@ void Game::releaseLedgeHang(bool mantle) {
     const int collider=p.ledgeCollider; const Vec3 normal=p.ledgeNormal; const Vec3 tangent=p.ledgeTangent;
     const float shimmy=p.ledgeShimmySpeed;
     p.ledgeHanging=false; p.ledgeCollider=-1; p.ledgeGrabCooldown=LEDGE_REGRAB_COOLDOWN;
-    if(mantle&&collider>=0&&collider<state_.debug.colliderCount){
+    if(mantle&&collider>=0&&collider<state_.roomColliderCount){
         const RoomCollider& c=state_.roomColliders[collider];
         p.pos-=normal*(PLAYER_SUPPORT_RADIUS+PHONE_BODY_DEPTH*0.5f+0.08f);
         p.pos.y=c.topY+GROUND_Y; p.grounded=true; p.jumpVel=0.0f;
@@ -2394,7 +2394,7 @@ void Game::releaseLedgeHang(bool mantle) {
 bool Game::updateLedgeHang(float dt,float forwardAxis,float strafeAxis) {
     PlayerState& p=state_.player;
     if(!p.ledgeHanging)return false;
-    if(p.ledgeCollider<0||p.ledgeCollider>=state_.debug.colliderCount){p.ledgeHanging=false;return false;}
+    if(p.ledgeCollider<0||p.ledgeCollider>=state_.roomColliderCount){p.ledgeHanging=false;return false;}
     p.ledgeHangTime+=dt;
     Vec3 move=cameraForwardFlat()*forwardAxis+cameraRightFlat()*strafeAxis;
     if(lengthSq(move)>1.0f)move=normalized(move);
@@ -2707,7 +2707,7 @@ void Game::updatePhoneActionPose(float dt, bool running, float forwardAxis, floa
     if(state_.player.treeClimbing){
         bool holdingTip=false;
         const int colliderIndex=state_.player.treeCollider;
-        if(colliderIndex>=0&&colliderIndex<state_.debug.colliderCount){
+        if(colliderIndex>=0&&colliderIndex<state_.roomColliderCount){
             const RoomCollider& tree=state_.roomColliders[colliderIndex];
             holdingTip=tree.kind==RoomColliderKind::TreeTrunk&&state_.player.pos.y>=tree.climbTopY-TREE_TIP_HEIGHT_EPSILON;
         }
@@ -2890,7 +2890,7 @@ SoulColliderHit Game::sweepSoulAgainstRoomColliders(const Vec3& start, const Vec
     const float tileOrigin=getRoomTileOriginZ(getRoomTileIndex(start.z));
     const float origin[3]={start.x,start.y,start.z};
     const float delta[3]={end.x-start.x,end.y-start.y,end.z-start.z};
-    for(int index=0;index<state_.debug.colliderCount;++index){
+    for(int index=0;index<state_.roomColliderCount;++index){
         if(index==ignoredCollider)continue;
         const RoomCollider& collider=state_.roomColliders[index];
         const float mins[3]={collider.minX-radius,collider.bottomY-radius,tileOrigin+collider.minZ-radius};
@@ -2940,7 +2940,7 @@ void Game::constrainThirdPersonCamera(Vec3& desired, const Vec3& lookBase) const
     };
 
     float nearestT = 1.0f;
-    for (int i = 0; i < state_.debug.colliderCount; ++i) {
+    for (int i = 0; i < state_.roomColliderCount; ++i) {
         const float t = cameraHit(state_.roomColliders[i], CAMERA_COLLISION_RADIUS);
         if (t >= 0.0f && t < nearestT) nearestT = t;
     }
@@ -3775,7 +3775,7 @@ Vec3 Game::chooseHumanSpawnPoint(int index, const Vec3* avoid) const {
 bool Game::isHumanPointBlocked(float x,float z,float radius) const {
     const float localZ=wrapZ(z);
     if(x < -ROOM_WIDTH*0.5f+radius || x > ROOM_WIDTH*0.5f-radius) return true;
-    for(int i=0;i<state_.debug.colliderCount;++i){const RoomCollider& c=state_.roomColliders[i];
+    for(int i=0;i<state_.roomColliderCount;++i){const RoomCollider& c=state_.roomColliders[i];
         if(x>c.minX-radius && x<c.maxX+radius && localZ>c.minZ-radius && localZ<c.maxZ+radius) return true;}
     for(int i=0;i<state_.rockSupportCount;++i){
         const auto& rock=state_.rockSupports[i];const auto mesh=faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex);
@@ -3787,7 +3787,7 @@ bool Game::isHumanPointBlocked(float x,float z,float radius) const {
 bool Game::isHumanMovementBlocked(float x,float z,float feetY,float radius,Vec3* obstructionNormal) const {
     const float localZ=wrapZ(z);
     if(x < -ROOM_WIDTH*0.5f+radius || x > ROOM_WIDTH*0.5f-radius)return true;
-    for(int i=0;i<state_.debug.colliderCount;++i){const RoomCollider& c=state_.roomColliders[i];
+    for(int i=0;i<state_.roomColliderCount;++i){const RoomCollider& c=state_.roomColliders[i];
         if(feetY>=c.topY+GROUND_Y-0.06f)continue;
         if(x>c.minX-radius&&x<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)return true;
     }
@@ -3946,7 +3946,7 @@ void Game::updateTargets(float dt) {
                     const Vec3 localHead{headOrigin.x,headOrigin.y,localHeadZ};
                     const Vec3 localTarget{targetPoint.x,targetPoint.y,localHeadZ+targetDeltaZ};
                     float nearestOpaque=2.0f;
-                    for(int colliderIndex=0;colliderIndex<state_.debug.colliderCount;++colliderIndex){
+                    for(int colliderIndex=0;colliderIndex<state_.roomColliderCount;++colliderIndex){
                         const RoomCollider& collider=state_.roomColliders[colliderIndex];
                         for(int tileOffset=-1;tileOffset<=1;++tileOffset){
                             float entry=1.0f;const float zOffset=static_cast<float>(tileOffset)*ROOM_DEPTH;
@@ -4059,7 +4059,7 @@ void Game::updateTargets(float dt) {
             const RoomCollider* pursuedTree=nullptr;
             Vec3 treeGripPoint{};
             if(perception.confirmed&&attackedPlayer->treeClimbing&&
-               attackedPlayer->treeCollider>=0&&attackedPlayer->treeCollider<state_.debug.colliderCount){
+               attackedPlayer->treeCollider>=0&&attackedPlayer->treeCollider<state_.roomColliderCount){
                 const RoomCollider& tree=state_.roomColliders[attackedPlayer->treeCollider];
                 if(tree.kind==RoomColliderKind::TreeTrunk){
                     pursuedTree=&tree;
@@ -4154,7 +4154,7 @@ void Game::updateTargets(float dt) {
                     if(playerDist<noticeRange){
                         const Vec3 collisionDirection=physicalPursuit?motionDir:dir;
                         const float tileOrigin=getRoomTileOriginZ(getRoomTileIndex(t.pos.z));float nearestEntry=dist+1.0f;
-                        for(int colliderIndex=0;colliderIndex<state_.debug.colliderCount;++colliderIndex){const RoomCollider& c=state_.roomColliders[colliderIndex];
+                        for(int colliderIndex=0;colliderIndex<state_.roomColliderCount;++colliderIndex){const RoomCollider& c=state_.roomColliders[colliderIndex];
                             if(t.pos.y>=c.topY+GROUND_Y-0.06f)continue;
                             const float bounds[4]={c.minX-HUMAN_PURSUIT_CLEARANCE_RADIUS,c.maxX+HUMAN_PURSUIT_CLEARANCE_RADIUS,tileOrigin+c.minZ-HUMAN_PURSUIT_CLEARANCE_RADIUS,tileOrigin+c.maxZ+HUMAN_PURSUIT_CLEARANCE_RADIUS};float enter=0.0f,exit=dist;Vec3 entryNormal{};bool intersects=true;
                             const float origins[2]={t.pos.x,t.pos.z},directions[2]={collisionDirection.x,collisionDirection.z};

@@ -148,7 +148,7 @@ int main() {
   worldState.topology.advancing = true;
   worldState.doorTransition.active = true;
   worldState.doorTransition.progress = 0.6f;
-  worldState.debug.colliderCount = 1;
+  worldState.roomColliderCount = 1;
   worldState.roomColliders[0].center = {2,0.5f,-3};
   worldState.roomColliders[0].width = 1.5f;
   worldState.captures[0].pos = {-1.25f,3.05f,-15};
@@ -227,7 +227,7 @@ int main() {
         completeGuest.state().player.storedSoulBrute[0] &&
         completeGuest.state().energy.supplementalActive &&
         completeGuest.state().multiplayer.peers[0].active &&
-        completeGuest.state().debug.colliderCount == 1 &&
+        completeGuest.state().roomColliderCount == 1 &&
         completeGuest.state().topology.currentTileIndex == -2 &&
         completeGuest.state().doorTransition.active &&
         std::abs(completeGuest.state().captures[0].pos.x + 1.25f) < 0.0001f;

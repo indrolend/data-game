@@ -630,7 +630,6 @@ struct PlayerDebugState {
     float phoneLift = 0.0f;
     float phoneForward = 0.0f;
     float phoneSide = 0.0f;
-    int colliderCount = 0;
 };
 
 enum class RoomReviewRating : unsigned char { Keep, Tune, Redesign, Remove };
@@ -740,6 +739,7 @@ struct GameState {
     AudioState audio;
     std::array<int, 5> captureSoundSlots{{0,1,2,3,4}};
     std::array<RoomCollider, ROOM_COLLIDER_COUNT> roomColliders;
+    int roomColliderCount = 0;
     std::array<SlopeSupport, SLOPE_SUPPORT_COUNT> slopeSupports;
     int slopeSupportCount = 0;
     std::array<faceted_rock::Support, ROCK_SUPPORT_COUNT> rockSupports;
