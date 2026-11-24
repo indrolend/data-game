@@ -1022,7 +1022,7 @@ void Game::updateParticles(float dt) {
             const WorldSupportSample support=getWorldSupport(
                 particle.pos.x,particle.pos.z,std::max(0.015f,particle.size*0.35f));
             const float settledHeight=support.height+0.025f;
-            if(particle.pos.y>settledHeight){particle.surfaceFlags&=static_cast<std::uint8_t>(~1u);}
+            if(!support.available||particle.pos.y>settledHeight){particle.surfaceFlags&=static_cast<std::uint8_t>(~1u);}
             else {
                 particle.pos.y=settledHeight;particle.vel.y=0.0f;
                 setParticleSurface(particle,support.normal,true);
@@ -1952,6 +1952,11 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
         if(!sample.inside)continue;const float candidate=sample.height+GROUND_Y;
         if(candidate>support.height+0.0001f){support.height=candidate;support.normal=sample.normal;support.classification=SupportClassification::TraversableSlope;support.identity={SupportSource::Generated,i};}
     }
+    if (support.identity.source == SupportSource::Ground &&
+        isFieldIslandActive() && !field_island::hasGroundSupport(x, localZ, radius)) {
+        support.available = false;
+        support.height = -std::numeric_limits<float>::infinity();
+    }
     return support;
 }
 
@@ -1963,12 +1968,6 @@ bool Game::isFieldIslandActive() const {
 WorldSupportSample Game::getPlayerSupport(float x,float z) const {
     WorldSupportSample support=getWorldSupport(x,z,PLAYER_SUPPORT_RADIUS);
     support.height=std::min(support.height,getPlayerCeilingLimit());
-    if(isFieldIslandActive()&&
-       support.identity.source==SupportSource::Ground&&
-       !field_island::hasGroundSupport(x,wrapZ(z),PLAYER_SUPPORT_RADIUS)){
-        support.available=false;
-        support.height=-std::numeric_limits<float>::infinity();
-    }
     return support;
 }
 
@@ -3852,7 +3851,7 @@ void Game::updateTargets(float dt) {
         } else {
             t.soulMorph = 0.0f;
             const WorldSupportSample supportBefore=getWorldSupport(t.pos.x,t.pos.z,HUMAN_SUPPORT_RADIUS);
-            const bool supportedBefore=std::abs(t.pos.y-supportBefore.height)<=0.06f&&t.vel.y<=0.0f;
+            const bool supportedBefore=supportBefore.available&&std::abs(t.pos.y-supportBefore.height)<=0.06f&&t.vel.y<=0.0f;
             if(supportedBefore){t.pos.y=supportBefore.height;t.vel.y=0.0f;}
             const auto advanceEmbodiedMovement=[&](const Vec3& desiredVelocity,float desiredYaw,float brace){
                 auto& locomotion=enemyRuntimeState.locomotions[i];
@@ -3862,8 +3861,8 @@ void Game::updateTargets(float dt) {
                     const bool reachableHeight=std::abs(support.height-t.pos.y)<=0.40f;
                     const bool terrainSurface=support.identity.source==SupportSource::Slope
                         ||support.identity.source==SupportSource::Generated;
-                    const bool clear=terrainSurface||!isHumanMovementBlocked(
-                        candidate.x,candidate.z,support.height,HUMAN_BODY_RADIUS*0.52f);
+                    const bool clear=support.available&&(terrainSurface||!isHumanMovementBlocked(
+                        candidate.x,candidate.z,support.height,HUMAN_BODY_RADIUS*0.52f));
                     return gameplay::EnemyFootSupport{
                         {candidate.x,support.height,candidate.z},support.normal,
                         reachableHeight&&clear};
@@ -4229,8 +4228,12 @@ void Game::updateTargets(float dt) {
             }
             if(!attachedToTreeThisFrame){
                 const WorldSupportSample supportAfter=getWorldSupport(t.pos.x,t.pos.z,HUMAN_SUPPORT_RADIUS);
-                if(supportedBefore&&supportAfter.height>=supportBefore.height-0.12f){t.pos.y=supportAfter.height;t.vel.y=0.0f;}
-                else {t.vel.y-=GRAVITY*dt;t.pos.y+=t.vel.y*dt;if(t.pos.y<=supportAfter.height){t.pos.y=supportAfter.height;t.vel.y=0.0f;}}
+                if(supportedBefore&&supportAfter.available&&supportAfter.height>=supportBefore.height-0.12f){t.pos.y=supportAfter.height;t.vel.y=0.0f;}
+                else {t.vel.y-=GRAVITY*dt;t.pos.y+=t.vel.y*dt;if(supportAfter.available&&t.pos.y<=supportAfter.height){t.pos.y=supportAfter.height;t.vel.y=0.0f;}}
+                if (!supportAfter.available && t.pos.y < field_island::AbyssRecoveryY) {
+                    respawnTarget(i);
+                    continue;
+                }
             }
         }
         t.soulCubeAmount = t.slurpable ? smooth01(t.soulMorph) : 0.0f;

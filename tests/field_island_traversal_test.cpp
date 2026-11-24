@@ -1,5 +1,6 @@
 #include "Game.hpp"
 #include "FieldIsland.hpp"
+#include "gameplay/PhoneBody.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -82,6 +83,52 @@ int main(){
     const auto abyssSupport=doorway->debugPlayerSupportAt(6.0f,-20.0f);
     if(!bridgeSupport.available||!doorwayFootSupport.available||!approachSupport.available||abyssSupport.available){
         std::fprintf(stderr,"FIELD_ISLAND_FAIL bridge support=%d side support=%d\n",bridgeSupport.available?1:0,abyssSupport.available?1:0);return 1;
+    }
+
+    for (const float x : {12.5f, 13.0f, 13.5f}) {
+        auto game = std::make_unique<Game>();
+        game->debugStartGeneratedRoomFixture(12345, 1);
+        auto& state = game->fixtureMutableState();
+        state.roomColliderCount = state.slopeSupportCount = state.rockSupportCount = 0;
+        for (auto& target : state.targets) target = TargetState{};
+        auto& enemy = state.targets[0];
+        enemy.alive = true;
+        enemy.armor = 2.0f;
+        enemy.health = 1.0f;
+        enemy.attackCooldown = 999.0f;
+        enemy.pos = enemy.walkTarget = {x, world::GroundY, 0.0f};
+        auto& particle = state.particles[0];
+        particle.material = ParticleMaterial::Environment;
+        particle.life = particle.maxLife = 2.0f;
+        particle.size = 0.05f;
+        particle.pos = {x, 0.12f, 0.0f};
+
+        bool visible = false;
+        for (const auto& surface : field_island::Surfaces) {
+            visible |= x <= surface.halfWidth && surface.minZ <= 0 && surface.maxZ >= 0;
+        }
+        const bool expectedSupport = x < field_island::MainHalfWidth;
+        if (game->debugWorldSupportAt(x, 0.0f, 0.0f).available != visible ||
+            game->debugWorldSupportAt(x, 0.0f, gameplay::PHONE_BODY.supportRadius).available != expectedSupport ||
+            game->debugPlayerSupportAt(x, 0.0f).available != expectedSupport) {
+            std::fprintf(stderr, "FIELD_ISLAND_FAIL geometry/support at x=%.2f\n", x);
+            return 1;
+        }
+        neutral(*game, 24);
+        const bool settled = (particle.surfaceFlags & 1u) != 0;
+        if (settled != expectedSupport ||
+            (expectedSupport ? !near(enemy.pos.y, world::GroundY) : enemy.pos.y >= -0.5f)) {
+            std::fprintf(stderr, "FIELD_ISLAND_FAIL enemy or settling particle at x=%.2f\n", x);
+            return 1;
+        }
+        if (!expectedSupport) {
+            neutral(*game, 55);
+            if (!enemy.alive || !game->debugWorldSupportAt(enemy.pos.x, enemy.pos.z, 0.10f).available ||
+                enemy.pos.y < world::GroundY - 0.06f) {
+                std::fprintf(stderr, "FIELD_ISLAND_FAIL enemy abyss recovery at x=%.2f\n", x);
+                return 1;
+            }
+        }
     }
 
     std::printf("FIELD_ISLAND_PASS walkoff jump elevated recovery preservation bridge\n");
