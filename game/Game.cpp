@@ -1953,7 +1953,7 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
         if(candidate>support.height+0.0001f){support.height=candidate;support.normal=sample.normal;support.classification=SupportClassification::TraversableSlope;support.identity={SupportSource::Generated,i};}
     }
     if (support.identity.source == SupportSource::Ground &&
-        isFieldIslandActive() && !field_island::hasGroundSupport(x, localZ, radius)) {
+        !hasBaseGroundSupport(x, localZ, radius)) {
         support.available = false;
         support.height = -std::numeric_limits<float>::infinity();
     }
@@ -1963,6 +1963,10 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
 bool Game::isFieldIslandActive() const {
     return field_island::active(state_.roomIndex,
         state_.rallyLab || state_.traversalLab || state_.slopeLab || state_.roomInspector);
+}
+
+bool Game::hasBaseGroundSupport(float x, float localZ, float radius) const {
+    return !isFieldIslandActive() || field_island::hasGroundSupport(x, localZ, radius);
 }
 
 WorldSupportSample Game::getPlayerSupport(float x,float z) const {
@@ -4493,7 +4497,14 @@ void Game::updateBullets(float dt) {
                 b.vel+=toPhone*(BULLET_VACUUM_ACCELERATION/std::max(distance,0.2f)*dt);
             }
         }
-        if(b.dropped){b.pos.y=BULLET_DROP_Y;b.vel={};b.spin+=dt*1.8f;continue;}
+        if (b.dropped) {
+            if (getWorldSupport(b.pos.x, b.pos.z, BULLET_RADIUS).available) {
+                b.vel = {};
+                b.spin += dt * 1.8f;
+                continue;
+            }
+            b.dropped = false;
+        }
         b.life-=dt;
         b.vel.y-=BULLET_GRAVITY*dt;
         const float drag=std::pow(BULLET_AIR_DRAG_PER_SECOND,dt);
@@ -4515,10 +4526,15 @@ void Game::updateBullets(float dt) {
             };
             if(end.x<minX)planeHit(start.x,end.x,minX,{1,0,0});else if(end.x>maxX)planeHit(start.x,end.x,maxX,{-1,0,0});
             if(end.z<minZ)planeHit(start.z,end.z,minZ,{0,0,1});else if(end.z>maxZ)planeHit(start.z,end.z,maxZ,{0,0,-1});
-            if(end.y<floorY)planeHit(start.y,end.y,floorY,{0,1,0});else if(end.y>ceiling)planeHit(start.y,end.y,ceiling,{0,-1,0});
+            if (end.y < floorY && end.y < start.y) {
+                const float time = start.y < floorY ? 0.0f : (floorY-start.y)/(end.y-start.y);
+                const Vec3 impact = start+(end-start)*time;
+                if (hasBaseGroundSupport(impact.x, wrapZ(impact.z), BULLET_RADIUS))
+                    planeHit(start.y,end.y,floorY,{0,1,0});
+            } else if(end.y>ceiling)planeHit(start.y,end.y,ceiling,{0,-1,0});
             if(!best.hit){b.pos=end;break;}
             b.pos=best.position;
-            if(best.normal.y>0.5f){b.pos.y=best.position.y;b.vel={};b.dropped=true;b.life=BULLET_LIFE;break;}
+            if(best.normal.y>0.5f){if(best.colliderIndex<0)b.pos.y=floorY;b.vel={};b.dropped=true;b.life=BULLET_LIFE;break;}
             b.vel=(b.vel-best.normal*(2.0f*dot3(b.vel,best.normal)))*BULLET_WALL_RETENTION;
             b.pos+=best.normal*BULLET_CONTACT_EPSILON;
             b.contactCooldown=BULLET_CONTACT_COOLDOWN;
@@ -4528,6 +4544,16 @@ void Game::updateBullets(float dt) {
         }
         b.spin+=dt*10.0f;
         if(b.dropped)continue;
+        if (isFieldIslandActive() && b.pos.y < field_island::AbyssRecoveryY) {
+            // Like player recovery, preserve the resource and return it to the
+            // supported entrance lane in the active tile.
+            b.pos = {0.0f, BULLET_DROP_Y,
+                getRoomTileOriginZ(state_.topology.currentTileIndex)+ROOM_START_Z};
+            b.vel = {};
+            b.dropped = true;
+            b.life = BULLET_LIFE;
+            continue;
+        }
 
         bool deposited=false;
         if(!state_.roomClear){

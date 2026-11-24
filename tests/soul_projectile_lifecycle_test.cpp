@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdio>
+#include <memory>
 
 #include "Game.hpp"
 
@@ -57,6 +58,29 @@ int main(){
     Game floor;isolate(floor);auto& fb=soul(floor);fb.pos={0,0.20f,0};fb.vel={0,-8,0};
     SoulProjectileLifecycleAccess::bullets(floor,kDt);
     ok&=fb.alive&&fb.dropped&&near(speed(fb.vel),0.0f)&&fb.soul.id==77;
+
+    auto abyss = std::make_unique<Game>();
+    isolate(*abyss);
+    auto& fallen = soul(*abyss, 911);
+    fallen.pos = {13.5f, 0.34f, 0.0f};
+    fallen.vel = {0.0f,-4.0f,0.0f};
+    for (int frame=0;frame<12;++frame) SoulProjectileLifecycleAccess::bullets(*abyss,kDt);
+    ok &= fallen.alive && !fallen.dropped && fallen.pos.y<0.0f && fallen.soul.id==911;
+    for (int frame=0;frame<180;++frame) SoulProjectileLifecycleAccess::bullets(*abyss,kDt);
+    ok &= fallen.alive && fallen.dropped && near(fallen.pos.x,0.0f) &&
+        fallen.pos.y>0.08f && fallen.soul.id==911;
+
+    auto shelf = std::make_unique<Game>();
+    isolate(*shelf);
+    box(*shelf,0,{0.0f,0.75f,0.0f},{2.0f,1.5f,2.0f});
+    auto& landed=soul(*shelf,912);
+    landed.pos={0.0f,1.8f,0.0f};
+    landed.vel={0.0f,-8.0f,0.0f};
+    SoulProjectileLifecycleAccess::bullets(*shelf,kDt);
+    const float shelfContact=landed.pos.y;
+    SoulProjectileLifecycleAccess::bullets(*shelf,kDt);
+    ok &= landed.dropped && shelfContact>1.5f && near(landed.pos.y,shelfContact) &&
+        landed.soul.id==912;
 
     Game melee;isolate(melee);auto& mb=soul(melee);mb.pos={0,0.45f,-1.0f};mb.vel={0,0,1};
     auto& ms=melee.fixtureMutableState();ms.player.pos={0,0.08f,0};ms.phoneTransform.position={0,0.45f,0};

@@ -991,6 +991,7 @@ private:
     WorldSupportSample getWorldSupport(float x,float z,float radius) const;
     WorldSupportSample getPlayerSupport(float x, float z) const;
     bool isFieldIslandActive() const;
+    bool hasBaseGroundSupport(float x, float localZ, float radius) const;
     float getPlayerSupportY(float x, float z) const { return getPlayerSupport(x,z).height; }
     void resolvePlayerObstacleCollisions(float previousX, float previousZ);
     void resolveDoorwayCollisions(float previousX, float previousZ);
