@@ -46,11 +46,16 @@ inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blad
 
 inline bool hasGroundSupport(float x, float localZ, float radius) {
     const float inset = std::max(0.0f, radius);
-    const bool onMain = std::abs(x) <= MainHalfWidth - inset &&
-        std::abs(localZ) <= MainHalfDepth - inset;
-    const bool onDoorBridge = std::abs(x) <= DoorBridgeHalfWidth - inset &&
-        std::abs(localZ) <= DoorBridgeHalfDepth;
-    return onMain || onDoorBridge;
+    const auto& main = Surfaces[0];
+    const auto& frontBridge = Surfaces[1];
+    const auto& backBridge = Surfaces[2];
+    const bool onMain = std::abs(x) <= main.halfWidth - inset &&
+        localZ >= main.minZ + inset && localZ <= main.maxZ - inset;
+    // The narrow lane continues across the main surface so the radius inset
+    // does not open a gap where each bridge joins the island.
+    const bool onBridgeLane = std::abs(x) <= frontBridge.halfWidth - inset &&
+        localZ >= backBridge.minZ && localZ <= frontBridge.maxZ;
+    return onMain || onBridgeLane;
 }
 
 } // namespace field_island

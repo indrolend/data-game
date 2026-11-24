@@ -231,6 +231,13 @@ int main() {
         completeGuest.state().topology.currentTileIndex == -2 &&
         completeGuest.state().doorTransition.active &&
         std::abs(completeGuest.state().captures[0].pos.x + 1.25f) < 0.0001f;
+  auto invalidColliderSnapshot = std::make_unique<WorldSnapshot>(roundtrip);
+  invalidColliderSnapshot->roomColliderCount = ROOM_COLLIDER_COUNT + 1;
+  const auto invalidColliderBytes = encodeSnapshot(0, *invalidColliderSnapshot, 9);
+  auto rejectedColliderSnapshot = std::make_unique<WorldSnapshot>();
+  ok &= !invalidColliderBytes.empty() &&
+        !decodeSnapshot(invalidColliderBytes.data(), invalidColliderBytes.size(), h,
+                        *rejectedColliderSnapshot);
   auto modernInventory=std::make_unique<WorldSnapshot>(roundtrip);
   modernInventory->players[1].storedSoulBruteMask=1;
   modernInventory->players[1].storedSouls[0]={7001,false,3};

@@ -46,6 +46,16 @@ int main(){
         std::fprintf(stderr,"FIELD_ISLAND_FAIL elevated landing y=%.3f grounded=%d support=%d\n",platform->state().player.pos.y,platform->state().player.grounded?1:0,static_cast<int>(platform->state().player.supportIdentity.source));return 1;
     }
 
+    collider.topY = world::RoomWallHeight;
+    const auto worldTop = platform->debugWorldSupportAt(15.0f, 0.0f, 0.0f);
+    const auto playerTop = platform->debugPlayerSupportAt(15.0f, 0.0f);
+    if (!worldTop.available || worldTop.identity.source != SupportSource::Collider ||
+        !near(worldTop.height, world::RoomWallHeight + world::GroundY, 0.0001f) ||
+        playerTop.identity.source != SupportSource::Collider || playerTop.height >= worldTop.height) {
+        std::fprintf(stderr, "FIELD_ISLAND_FAIL world surface must precede player ceiling clearance\n");
+        return 1;
+    }
+
     auto recovery=std::make_unique<Game>();
     auto& recoveryState=recovery->fixtureMutableState();
     recoveryState.player.souls=2;

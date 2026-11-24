@@ -1952,7 +1952,6 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
         if(!sample.inside)continue;const float candidate=sample.height+GROUND_Y;
         if(candidate>support.height+0.0001f){support.height=candidate;support.normal=sample.normal;support.classification=SupportClassification::TraversableSlope;support.identity={SupportSource::Generated,i};}
     }
-    support.height=std::min(support.height,getPlayerCeilingLimit());
     return support;
 }
 
@@ -1963,6 +1962,7 @@ bool Game::isFieldIslandActive() const {
 
 WorldSupportSample Game::getPlayerSupport(float x,float z) const {
     WorldSupportSample support=getWorldSupport(x,z,PLAYER_SUPPORT_RADIUS);
+    support.height=std::min(support.height,getPlayerCeilingLimit());
     if(isFieldIslandActive()&&
        support.identity.source==SupportSource::Ground&&
        !field_island::hasGroundSupport(x,wrapZ(z),PLAYER_SUPPORT_RADIUS)){
