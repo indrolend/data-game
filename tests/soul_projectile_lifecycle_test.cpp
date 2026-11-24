@@ -82,6 +82,20 @@ int main(){
     ok &= landed.dropped && shelfContact>1.5f && near(landed.pos.y,shelfContact) &&
         landed.soul.id==912;
 
+    auto raisedEnemy = std::make_unique<Game>();
+    isolate(*raisedEnemy);
+    auto& target = raisedEnemy->fixtureMutableState().targets[0];
+    target.alive=true;target.health=1.0f;target.armor=2.0f;target.pos={0.0f,3.0f,0.0f};
+    auto& highShot=soul(*raisedEnemy,913);
+    highShot.pos={-0.4f,3.57f,0.0f};highShot.vel={12.0f,0.0f,0.0f};
+    SoulProjectileLifecycleAccess::bullets(*raisedEnemy,kDt);
+    ok &= target.armor<2.0f;
+    const float armorAfterHighShot=target.armor;
+    auto& lowShot=soul(*raisedEnemy,914);
+    lowShot.pos={-0.4f,0.65f,0.0f};lowShot.vel={12.0f,0.0f,0.0f};
+    SoulProjectileLifecycleAccess::bullets(*raisedEnemy,kDt);
+    ok &= target.armor==armorAfterHighShot;
+
     Game melee;isolate(melee);auto& mb=soul(melee);mb.pos={0,0.45f,-1.0f};mb.vel={0,0,1};
     auto& ms=melee.fixtureMutableState();ms.player.pos={0,0.08f,0};ms.phoneTransform.position={0,0.45f,0};
     ms.camera.forward=normalized(Vec3{0,0.25f,-1});

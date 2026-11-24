@@ -4598,7 +4598,7 @@ void Game::updateBullets(float dt) {
         for(int i=0;i<TARGET_COUNT && b.alive;++i) {
             TargetState& target=state_.targets[i];
             if(!target.alive || target.slurpable || target.captureQueued || target.captureCommitted) continue;
-            const Vec3 shellCenter{target.pos.x,0.65f,target.pos.z};
+            const Vec3 shellCenter = target.pos + Vec3{0,0.65f-GROUND_Y,0};
             const float hitRadius=b.brute?0.95f:0.72f;
             const Vec3 headCenter=targetHeadCenter(target);
             const float headRadius=HUMAN_VISUAL_SPEC.headRadius*target.scale+BULLET_HEAD_CONTACT_RADIUS;
