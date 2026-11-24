@@ -28,6 +28,10 @@ inline const char* conditionName(RoomCondition condition){switch(condition){case
 inline const char* traversalIntentName(RoomTraversalIntent intent){switch(intent){case RoomTraversalIntent::Playground:return "PLAYGROUND";case RoomTraversalIntent::Funnel:return "FUNNEL";case RoomTraversalIntent::Orbit:return "ORBIT (REPRESENTED)";case RoomTraversalIntent::Vertical:return "VERTICAL (REPRESENTED)";}return "UNKNOWN";}
 inline const char* premiseName(RoomPremise premise){switch(premise){case RoomPremise::FieldOpen:return "FIELD_OPEN";case RoomPremise::CityCorridor:return "CITY_CORRIDOR";case RoomPremise::CityCourtyard:return "CITY_COURTYARD";case RoomPremise::CityCanyon:return "CITY_CANYON";case RoomPremise::CitySkyline:return "CITY_SKYLINE";case RoomPremise::SterileCorridor:return "STERILE_CORRIDOR";case RoomPremise::SterileChamber:return "STERILE_CHAMBER";case RoomPremise::CoastalShore:return "COASTAL_SHORE";case RoomPremise::Count:break;}return "UNKNOWN";}
 
+// The opening room is authored as an island. This is a generation choice;
+// the ground geometry and support queries work independently of room setting.
+constexpr bool authoredFiniteGround(int roomIndex) { return roomIndex == 1; }
+
 struct RoomEnvironmentPlan {
     // Setting owns visual vocabulary; form owns spatial composition; scale
     // owns footprint/distances; condition owns encounter pressure/pacing; and

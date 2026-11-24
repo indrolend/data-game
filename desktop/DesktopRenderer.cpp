@@ -223,7 +223,7 @@ void cube(bool drawTop = true) {
 }
 
 bool usesFieldIsland(const GameState& state) {
-    return field_island::active(state.roomSeed, state.roomIndex,
+    return field_island::active(state.roomIndex,
         state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
 }
 

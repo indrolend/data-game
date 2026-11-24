@@ -9,7 +9,6 @@
 
 namespace field_island {
 
-constexpr int StageRoomIndex = 1;
 constexpr float MainHalfWidth = 13.0f;
 constexpr float MainHalfDepth = 17.5f;
 constexpr float DoorBridgeHalfWidth = 4.0f;
@@ -28,13 +27,8 @@ inline constexpr std::array<Surface, 3> Surfaces{{
     {DoorBridgeHalfWidth, -DoorBridgeHalfDepth, -MainHalfDepth},
 }};
 
-inline bool active(int roomSeed, int roomIndex) {
-    return roomIndex == StageRoomIndex &&
-        room_environment::roomPlan(roomSeed, roomIndex).setting == room_environment::RoomSetting::Field;
-}
-
-inline bool active(int seed, int room, bool fixtureOverride) {
-    return !fixtureOverride && active(seed, room);
+inline bool active(int roomIndex, bool fixtureOverride) {
+    return !fixtureOverride && room_environment::authoredFiniteGround(roomIndex);
 }
 
 inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blade) {

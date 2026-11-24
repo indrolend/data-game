@@ -1051,7 +1051,7 @@ Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
     const auto& state = bridge.state();
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-    const bool island = field_island::active(state.roomSeed, state.roomIndex,
+    const bool island = field_island::active(state.roomIndex,
         state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
     Array result;
     if (!plan.grass) return result;
@@ -1075,7 +1075,7 @@ Array ParentGameNode::grass_blade_tip_presentation_snapshot(int tile_index) cons
     const auto& state = bridge.state();
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-    const bool island = field_island::active(state.roomSeed, state.roomIndex,
+    const bool island = field_island::active(state.roomIndex,
         state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
     Array result;
     if (!plan.grass) return result;
