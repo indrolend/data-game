@@ -261,8 +261,13 @@ struct RoomPresentationSnapshot {
                 plan.form, key, state.localSettings.graphicsPreset);
             const auto addStreetBox = [&](const std::string& suffix, Vec3 center, Vec3 size,
                                           VisualColor color) {
-                addStructure(suffix.c_str(), RoomStructureKind::CityStreet,
-                    center, size, semanticMaterial(SemanticSurface::Default, color));
+                field_island::forEachGroundOverlay(center,size,z0,snapshot.fieldIsland,
+                    [&](std::size_t part,Vec3 p,Vec3 dims){
+                        const auto id = snapshot.fieldIsland
+                            ? suffix + "/surface-" + std::to_string(part) : suffix;
+                        addStructure(id.c_str(), RoomStructureKind::CityStreet,
+                            p, dims, semanticMaterial(SemanticSurface::Default, color));
+                    });
             };
             const float sidewalkCenter = street.roadHalfWidth + street.sidewalkWidth * 0.5f;
             addStreetBox("city/road", {0, 0.010f, z0},

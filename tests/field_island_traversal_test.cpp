@@ -131,6 +131,27 @@ int main(){
         }
     }
 
+    // City overlays and local shadow receivers both use this projection.
+    const float tileZ = 2.0f * world::RoomDepth;
+    int clips = 0, controls = 0;
+    bool clipsStayOnGround = true;
+    field_island::forEachGroundOverlay({0,0,tileZ},{world::RoomWidth,0.01f,world::RoomDepth},
+        tileZ,true,[&](std::size_t,Vec3 center,Vec3 size){
+            ++clips;
+            for (const float sideX : {-1.0f,1.0f})
+                for (const float sideZ : {-1.0f,1.0f}) {
+                    clipsStayOnGround &= field_island::hasGroundSupport(
+                        center.x+sideX*size.x*0.5f,
+                        center.z-tileZ+sideZ*size.z*0.5f,0.0f);
+                }
+        });
+    field_island::forEachGroundOverlay({6,0,tileZ+20},{1,0.01f,1},tileZ,true,
+        [&](std::size_t,Vec3,Vec3){++controls;});
+    if (clips != 3 || !clipsStayOnGround || controls != 0) {
+        std::fprintf(stderr,"FIELD_ISLAND_FAIL ground overlays extend beyond support\n");
+        return 1;
+    }
+
     std::printf("FIELD_ISLAND_PASS walkoff jump elevated recovery preservation bridge\n");
     return 0;
 }

@@ -1279,13 +1279,24 @@ void DesktopRenderer::drawFieldGrass(float halfWidth, float minZ, float maxZ, fl
     glEnd();glDisable(GL_TEXTURE_2D);
 }
 
-void DesktopRenderer::drawCityGround(int tileIndex) const{
+void DesktopRenderer::drawCityGround(int tileIndex, bool finite) const{
     if(!citySurfaceTexture_){const auto pixels=city_surface_texture::pixels();glGenTextures(1,&citySurfaceTexture_);glBindTexture(GL_TEXTURE_2D,citySurfaceTexture_);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,city_surface_texture::Size,city_surface_texture::Size,0,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());}
     const auto material=semanticMaterial(SemanticSurface::CityAsphalt,render_contract::CityGround.baseColor);
     const ScopedMaterial applied(material);
     const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH,scale=material.textureWorldScale;
     glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,citySurfaceTexture_);glColor3f(1,1,1);glNormal3f(0,1,0);glBegin(GL_QUADS);
-    glTexCoord2f(0,0);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,0);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0-ROOM_DEPTH*0.5f);glTexCoord2f(ROOM_WIDTH/scale,ROOM_DEPTH/scale);glVertex3f(ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glTexCoord2f(0,ROOM_DEPTH/scale);glVertex3f(-ROOM_WIDTH*0.5f,0.003f,z0+ROOM_DEPTH*0.5f);glEnd();glDisable(GL_TEXTURE_2D);
+    field_island::forEachGroundOverlay({0,0.003f,z0},{ROOM_WIDTH,0,ROOM_DEPTH},z0,finite,
+        [&](std::size_t,Vec3 center,Vec3 size){
+            const float x0=center.x-size.x*0.5f,x1=center.x+size.x*0.5f;
+            const float nearZ=center.z-size.z*0.5f,farZ=center.z+size.z*0.5f;
+            const float u0=(x0+ROOM_WIDTH*0.5f)/scale,u1=(x1+ROOM_WIDTH*0.5f)/scale;
+            const float v0=(nearZ-z0+ROOM_DEPTH*0.5f)/scale,v1=(farZ-z0+ROOM_DEPTH*0.5f)/scale;
+            glTexCoord2f(u0,v0);glVertex3f(x0,center.y,nearZ);
+            glTexCoord2f(u1,v0);glVertex3f(x1,center.y,nearZ);
+            glTexCoord2f(u1,v1);glVertex3f(x1,center.y,farZ);
+            glTexCoord2f(u0,v1);glVertex3f(x0,center.y,farZ);
+        });
+    glEnd();glDisable(GL_TEXTURE_2D);
 }
 
 void DesktopRenderer::drawBirdFlocks(const GameState& state,int tileIndex,room_environment::RoomSetting setting) const{
@@ -1414,38 +1425,49 @@ void DesktopRenderer::drawFieldBackdrop(const GameState& state,int tileIndex) co
     }
 }
 
-void DesktopRenderer::drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form) const{
+void DesktopRenderer::drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form,bool finite) const{
     const float z0=static_cast<float>(tileIndex)*ROOM_DEPTH;
     const std::uint32_t key=room_environment::roomKey(state.roomSeed,state.roomIndex)^static_cast<std::uint32_t>((tileIndex+11)*0x9e3779b9u);
     const auto street=city_street::plan(form,key,state.localSettings.graphicsPreset);
     const float sidewalkCenter=street.roadHalfWidth+street.sidewalkWidth*0.5f;
 
+    const auto streetOverlay=[&](Vec3 center,Vec3 size,float pitch,float yaw,float roll,float r,float g,float b){
+        field_island::forEachGroundOverlay(center,size,z0,finite,[&](std::size_t,Vec3 p,Vec3 dims){
+            drawBox(p,dims,pitch,yaw,roll,r,g,b);
+        });
+    };
+    const auto texturedOverlay=[&](Vec3 center,Vec3 size,float pitch,float yaw,float roll,VisualColor color,float scale,float phase){
+        field_island::forEachGroundOverlay(center,size,z0,finite,[&](std::size_t,Vec3 p,Vec3 dims){
+            drawTexturedBox(citySurfaceTexture_,p,dims,pitch,yaw,roll,color,scale,phase);
+        });
+    };
+
     // The street section is one construction system: recessed asphalt, raised
     // pedestrian edges, a transverse intersection, gutters, and markings.
-    drawTexturedBox(citySurfaceTexture_,{0,0.010f,z0},{street.roadHalfWidth*2.0f,0.022f,ROOM_DEPTH},0,0,0,{0.68f,0.70f,0.71f},2.15f,std::fmod((tileIndex+7)*0.173f,1.0f));
+    texturedOverlay({0,0.010f,z0},{street.roadHalfWidth*2.0f,0.022f,ROOM_DEPTH},0,0,0,{0.68f,0.70f,0.71f},2.15f,std::fmod((tileIndex+7)*0.173f,1.0f));
     for(float side:{-1.0f,1.0f}){
-        drawBox({side*sidewalkCenter,0.050f,z0},{street.sidewalkWidth,0.10f,ROOM_DEPTH-0.28f},0,0,0,0.40f,0.405f,0.39f);
-        drawBox({side*(street.roadHalfWidth+0.055f),0.082f,z0},{0.11f,0.164f,ROOM_DEPTH-0.20f},0,0,0,0.54f,0.53f,0.49f);
-        drawBox({side*(street.roadHalfWidth-0.12f),0.022f,z0},{0.16f,0.024f,ROOM_DEPTH-0.36f},0,0,0,0.075f,0.085f,0.09f);
+        streetOverlay({side*sidewalkCenter,0.050f,z0},{street.sidewalkWidth,0.10f,ROOM_DEPTH-0.28f},0,0,0,0.40f,0.405f,0.39f);
+        streetOverlay({side*(street.roadHalfWidth+0.055f),0.082f,z0},{0.11f,0.164f,ROOM_DEPTH-0.20f},0,0,0,0.54f,0.53f,0.49f);
+        streetOverlay({side*(street.roadHalfWidth-0.12f),0.022f,z0},{0.16f,0.024f,ROOM_DEPTH-0.36f},0,0,0,0.075f,0.085f,0.09f);
     }
-    drawTexturedBox(citySurfaceTexture_,{0,0.025f,z0+street.intersectionCenter},{ROOM_WIDTH-0.7f,0.026f,street.intersectionWidth},0,0,0,{0.61f,0.63f,0.64f},2.15f,std::fmod((tileIndex+13)*0.127f,1.0f));
+    texturedOverlay({0,0.025f,z0+street.intersectionCenter},{ROOM_WIDTH-0.7f,0.026f,street.intersectionWidth},0,0,0,{0.61f,0.63f,0.64f},2.15f,std::fmod((tileIndex+13)*0.127f,1.0f));
     for(int approach:{-1,1})for(int stripe=0;stripe<7;++stripe){
         const float x=-street.roadHalfWidth+0.58f+static_cast<float>(stripe)*(street.roadHalfWidth*2.0f-1.16f)/6.0f;
         const float z=z0+street.intersectionCenter+static_cast<float>(approach)*(street.intersectionWidth*0.5f+0.42f);
-        drawBox({x,0.041f,z},{0.34f,0.014f,0.68f},0,0,0,0.72f,0.71f,0.64f);
+        streetOverlay({x,0.041f,z},{0.34f,0.014f,0.68f},0,0,0,0.72f,0.71f,0.64f);
     }
     for(int dash=0;dash<8;++dash){
         const float localZ=-17.5f+static_cast<float>(dash)*5.0f;
         if(std::abs(localZ-street.intersectionCenter)<street.intersectionWidth*0.62f)continue;
         const float wear=0.76f+0.12f*room_environment::unit(key+static_cast<std::uint32_t>(dash)*13u);
-        drawBox({0,0.032f,z0+localZ},{0.075f,0.012f,1.75f},0,0,0,0.62f*wear,0.50f*wear,0.22f*wear);
+        streetOverlay({0,0.032f,z0+localZ},{0.075f,0.012f,1.75f},0,0,0,0.62f*wear,0.50f*wear,0.22f*wear);
     }
     // Drain covers repeat by civil-engineering rhythm rather than random
     // scatter. They sit in the gutter and visually explain water/wear.
     for(float side:{-1.0f,1.0f})for(int drain=0;drain<4;++drain){
         const float localZ=-14.5f+static_cast<float>(drain)*9.7f+(side>0?1.6f:0.0f);
-        drawBox({side*(street.roadHalfWidth-0.16f),0.038f,z0+localZ},{0.28f,0.016f,0.62f},0,0,0,0.07f,0.085f,0.09f);
-        for(int slot=0;slot<3;++slot)drawBox({side*(street.roadHalfWidth-0.16f),0.048f,z0+localZ-0.20f+slot*0.20f},{0.19f,0.006f,0.035f},0,0,0,0.20f,0.22f,0.22f);
+        streetOverlay({side*(street.roadHalfWidth-0.16f),0.038f,z0+localZ},{0.28f,0.016f,0.62f},0,0,0,0.07f,0.085f,0.09f);
+        for(int slot=0;slot<3;++slot)streetOverlay({side*(street.roadHalfWidth-0.16f),0.048f,z0+localZ-0.20f+slot*0.20f},{0.19f,0.006f,0.035f},0,0,0,0.20f,0.22f,0.22f);
     }
 
     // Optional inhabited-edge repetition scales with quality, while the street
@@ -1593,7 +1615,9 @@ void DesktopRenderer::drawLocalShadowReceivers(const GameState& state) const{
     // Local fixture light is already accounted for by fixed-function lighting
     // on walls and props. Restrict its shadow compositor to the walkable floor
     // so it adds cast silhouettes instead of double-darkening whole surfaces.
-    drawBox({0,0.020f,tileOrigin},{ROOM_WIDTH-0.55f,0.002f,ROOM_DEPTH-0.55f},0,0,0,0,0,0);
+    field_island::forEachGroundOverlay({0,0.020f,tileOrigin},
+        {ROOM_WIDTH-0.55f,0.002f,ROOM_DEPTH-0.55f},tileOrigin,usesFieldIsland(state),
+        [&](std::size_t,Vec3 center,Vec3 size){drawBox(center,size,0,0,0,0,0,0);});
 }
 
 bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
@@ -1712,16 +1736,18 @@ void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const sc
             gradedColor(0.12f, 0.10f, 0.075f);
             cube(false);
             glPopMatrix();
-            drawFieldGrass(surface.halfWidth, minZ, maxZ, world::GroundY, true);
+            if (field) drawFieldGrass(surface.halfWidth, minZ, maxZ, world::GroundY, true);
         }
     } else drawBox({0,-0.04f,z0},{openNatural?ROOM_WIDTH*2.8f:ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
     if(!island&&field&&plan.form==room_environment::RoomForm::Open){
         if(festiveMutation||gummyMutation)drawTexturedBox(sandTexture_,{0,0.005f,z0},{ROOM_WIDTH-0.55f,0.018f,ROOM_DEPTH-0.55f},0,0,0,festiveMutation?VisualColor{0.86f,0.94f,0.98f}:VisualColor{1.0f,0.46f,0.86f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
         else drawFieldGrass(ROOM_WIDTH * 0.5f, z0 - ROOM_DEPTH * 0.5f, z0 + ROOM_DEPTH * 0.5f, 0.003f);
     }
-    if(city){drawCityGround(tileIndex);drawCityStreet(state,tileIndex,plan.form);}
-    if(coastal)drawTexturedBox(sandTexture_,{0,0.005f,z0},{23.5f,0.018f,35.5f},0,0,0,festiveMutation?VisualColor{0.80f,0.88f,0.92f}:VisualColor{0.91f,0.84f,0.68f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));
-    if(sterile)drawTexturedBox(sterileTileTexture_,{0,0.006f,z0},{ROOM_WIDTH-0.55f,0.016f,ROOM_DEPTH-0.55f},0,0,0,{0.76f,0.79f,0.78f},1.34f,std::fmod(state.roomIndex*0.113f,1.0f));
+    if(city){drawCityGround(tileIndex,island);drawCityStreet(state,tileIndex,plan.form,island);}
+    if (coastal) field_island::forEachGroundOverlay({0,0.005f,z0},{23.5f,0.018f,35.5f},z0,island,
+        [&](std::size_t,Vec3 center,Vec3 size){drawTexturedBox(sandTexture_,center,size,0,0,0,festiveMutation?VisualColor{0.80f,0.88f,0.92f}:VisualColor{0.91f,0.84f,0.68f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));});
+    if (sterile) field_island::forEachGroundOverlay({0,0.006f,z0},{ROOM_WIDTH-0.55f,0.016f,ROOM_DEPTH-0.55f},z0,island,
+        [&](std::size_t,Vec3 center,Vec3 size){drawTexturedBox(sterileTileTexture_,center,size,0,0,0,{0.76f,0.79f,0.78f},1.34f,std::fmod(state.roomIndex*0.113f,1.0f));});
     if(sterile){
         drawStructuralBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
         glDisable(GL_LIGHTING);

@@ -108,12 +108,12 @@ private:
     void drawShadowDepthMap() const;
     void updateCoastalWater(const GameState& state) const;
     void drawFieldGrass(float halfWidth, float minZ, float maxZ, float y, bool worldAligned = false) const;
-    void drawCityGround(int tileIndex) const;
+    void drawCityGround(int tileIndex, bool finite) const;
     static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);
     void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;
     void drawFoliageCards(const Vec3& center,const Vec3& size,float yaw,const VisualColor& tint,unsigned int seed) const;
     void drawFieldBackdrop(const GameState& state,int tileIndex) const;
-    void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form) const;
+    void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form,bool finite) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
     void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;
