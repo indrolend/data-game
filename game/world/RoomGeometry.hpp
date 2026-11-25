@@ -26,17 +26,24 @@ struct Surface {
     float maxZ;
 };
 
-inline constexpr std::array<Surface, 3> Surfaces{{
-    {MainHalfWidth, -MainHalfDepth, MainHalfDepth},
-    {DoorBridgeHalfWidth, MainHalfDepth, DoorBridgeHalfDepth},
-    {DoorBridgeHalfWidth, -DoorBridgeHalfDepth, -MainHalfDepth},
-}};
+struct Footprint {
+    float halfWidth = MainHalfWidth;
+    float halfDepth = MainHalfDepth;
 
-inline bool hasGroundSupport(float x, float localZ, float radius) {
+    constexpr std::array<Surface,3> surfaces() const {
+        return {{
+            {halfWidth,-halfDepth,halfDepth},
+            {DoorBridgeHalfWidth,halfDepth,DoorBridgeHalfDepth},
+            {DoorBridgeHalfWidth,-DoorBridgeHalfDepth,-halfDepth},
+        }};
+    }
+};
+
+inline constexpr auto Surfaces = Footprint{}.surfaces();
+
+inline bool hasGroundSupport(float x, float localZ, float radius, Footprint footprint = {}) {
     const float inset = std::max(0.0f, radius);
-    const auto& main = Surfaces[0];
-    const auto& frontBridge = Surfaces[1];
-    const auto& backBridge = Surfaces[2];
+    const auto [main,frontBridge,backBridge] = footprint.surfaces();
     const bool onMain = std::abs(x) <= main.halfWidth - inset &&
         localZ >= main.minZ + inset && localZ <= main.maxZ - inset;
     // The narrow lane continues across the main surface so the radius inset

@@ -51,6 +51,23 @@ int main(){
             const auto enclosed=acceptedRoomGeometry(plan,seed,12,32);
             plan.boundary=RoomBoundary::Floating;
             const auto finite=acceptedRoomGeometry(plan,seed,12,32);
+            if (form==RoomForm::Canyon) {
+                const auto footprint=roomGroundFootprint(plan,seed,12);
+                assert(footprint.halfWidth > 13.0f && footprint.halfWidth < 14.0f);
+                assert(footprint.halfDepth > world::finite_ground::MainHalfDepth && footprint.halfDepth < 19.6f);
+                assert(finite.authoredColliderCount==enclosed.authoredColliderCount);
+                for(int i=0;i<enclosed.authoredColliderCount;++i) {
+                    const auto box=obstacle(plan,seed,12,i);
+                    assert(world::finite_ground::hasGroundSupport(
+                        std::abs(box.center.x)+box.size.x*0.5f,
+                        std::abs(box.center.z)+box.size.z*0.5f,0.0f,footprint));
+                }
+                for(int i=0;i<EnvironmentPropCapacity;++i)
+                    assert(finite.propIncluded[i]==enclosed.propIncluded[i]);
+                assert(world::finite_ground::hasGroundSupport(0,21,0.5f,footprint));
+                assert(!world::finite_ground::hasGroundSupport(5,21,0,footprint));
+            }
+
             int outside=0;
             for(int i=0;i<enclosed.authoredColliderCount;++i) {
                 const auto box=obstacle(plan,seed,12,i);

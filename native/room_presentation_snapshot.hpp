@@ -120,8 +120,10 @@ struct RoomPresentationSnapshot {
         snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
         snapshot.fieldIsland = room_environment::hasFiniteGround(plan.boundary,
             state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
-        snapshot.fieldIslandMainHalfWidth = field_island::MainHalfWidth;
-        snapshot.fieldIslandMainHalfDepth = field_island::MainHalfDepth;
+        const auto footprint = room_environment::roomGroundFootprint(plan,state.roomSeed,state.roomIndex);
+        const auto surfaces = footprint.surfaces();
+        snapshot.fieldIslandMainHalfWidth = footprint.halfWidth;
+        snapshot.fieldIslandMainHalfDepth = footprint.halfDepth;
         snapshot.fieldIslandBridgeHalfWidth = field_island::DoorBridgeHalfWidth;
         snapshot.fieldIslandBridgeHalfDepth = field_island::DoorBridgeHalfDepth;
         snapshot.abyssRecoveryY = field_island::AbyssRecoveryY;
@@ -190,8 +192,8 @@ struct RoomPresentationSnapshot {
             const char* coreIds[] = {"island/core", "island/bridge-core/front", "island/bridge-core/back"};
             const char* topIds[] = {"floor", "island/bridge-top/front", "island/bridge-top/back"};
             constexpr float turfThickness = 0.08f;
-            for (std::size_t i = 0; i < field_island::Surfaces.size(); ++i) {
-                const auto& surface = field_island::Surfaces[i];
+            for (std::size_t i = 0; i < surfaces.size(); ++i) {
+                const auto& surface = surfaces[i];
                 const float centerZ = z0 + (surface.minZ + surface.maxZ) * 0.5f;
                 const float depth = surface.maxZ - surface.minZ;
                 const float coreDepth = i == 0 ? 1.2f : 0.84f;
@@ -270,7 +272,7 @@ struct RoomPresentationSnapshot {
                             ? suffix + "/surface-" + std::to_string(part) : suffix;
                         addStructure(id.c_str(), RoomStructureKind::CityStreet,
                             p, dims, semanticMaterial(SemanticSurface::Default, color));
-                    });
+                    },footprint);
             };
             const float sidewalkCenter = street.roadHalfWidth + street.sidewalkWidth * 0.5f;
             addStreetBox("city/road", {0, 0.010f, z0},

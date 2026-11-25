@@ -993,6 +993,10 @@ private:
     WorldSupportSample getWorldSupport(float x,float z,float radius) const;
     WorldSupportSample getPlayerSupport(float x, float z) const;
     bool isFieldIslandActive() const;
+    world::finite_ground::Footprint groundFootprint() const;
+    mutable int footprintSeed_ = 0;
+    mutable int footprintRoom_ = -1;
+    mutable world::finite_ground::Footprint groundFootprint_{};
     bool hasBaseGroundSupport(float x, float localZ, float radius) const;
     float getPlayerSupportY(float x, float z) const { return getPlayerSupport(x,z).height; }
     void resolvePlayerObstacleCollisions(float previousX, float previousZ);

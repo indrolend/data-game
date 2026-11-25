@@ -1353,7 +1353,7 @@ void Game::chooseSecretTvEntrance() {
     // Keep the existing TV schedule. In an eligible floating room the
     // membrane stands on the deck instead of at the absent lateral wall.
     const float edge = isFieldIslandActive() && secretTvAppearsInRoom(state_.roomIndex)
-        ? field_island::MainHalfWidth : ROOM_WIDTH * 0.5f;
+        ? groundFootprint().halfWidth : ROOM_WIDTH * 0.5f;
     const float x = (rightWall ? 1.0f : -1.0f) * (edge - 1.10f);
     const Vec3 normal = rightWall ? Vec3{-1.0f, 0.0f, 0.0f} : Vec3{1.0f, 0.0f, 0.0f};
 
@@ -1978,8 +1978,18 @@ bool Game::isFieldIslandActive() const {
         state_.rallyLab || state_.traversalLab || state_.slopeLab || state_.roomInspector);
 }
 
+world::finite_ground::Footprint Game::groundFootprint() const {
+    if (footprintSeed_ != state_.roomSeed || footprintRoom_ != state_.roomIndex) {
+        footprintSeed_ = state_.roomSeed;
+        footprintRoom_ = state_.roomIndex;
+        const auto plan = room_environment::roomPlan(footprintSeed_,footprintRoom_);
+        groundFootprint_ = room_environment::roomGroundFootprint(plan,footprintSeed_,footprintRoom_);
+    }
+    return groundFootprint_;
+}
+
 bool Game::hasBaseGroundSupport(float x, float localZ, float radius) const {
-    return !isFieldIslandActive() || field_island::hasGroundSupport(x, localZ, radius);
+    return !isFieldIslandActive() || field_island::hasGroundSupport(x, localZ, radius, groundFootprint());
 }
 
 WorldSupportSample Game::getPlayerSupport(float x,float z) const {

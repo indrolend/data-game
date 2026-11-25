@@ -426,12 +426,35 @@ inline int environmentRoleCount(const RoomEnvironmentPlan& plan,int roomSeed,int
     return count;
 }
 
-inline bool solidPropHasGround(const RoomEnvironmentPlan& plan, const EnvironmentPropSpec& prop) {
+inline world::finite_ground::Footprint roomGroundFootprint(
+    const RoomEnvironmentPlan& plan, int roomSeed, int roomIndex) {
+    world::finite_ground::Footprint footprint;
+    if (!hasFiniteGround(plan.boundary) || plan.setting != RoomSetting::City ||
+        plan.form != RoomForm::Canyon) return footprint;
+    // Preserve the authored end rows and perimeter houses. The fixed
+    // bridge width and tile boundary are independent of the deck extent.
+    constexpr float foundationMargin = 0.05f;
+    const auto include = [&](const ObstacleSpec& box) {
+        footprint.halfWidth = std::max(footprint.halfWidth,
+            std::abs(box.center.x) + box.size.x*0.5f + foundationMargin);
+        footprint.halfDepth = std::max(footprint.halfDepth,
+            std::abs(box.center.z) + box.size.z*0.5f + foundationMargin);
+    };
+    for (int i=0;i<plan.obstacleCount;++i) include(obstacle(plan,roomSeed,roomIndex,i));
+    for (int i=0;i<environmentPropCount(plan);++i) {
+        const auto prop=environmentProp(plan,roomSeed,roomIndex,i);
+        if (environmentPropSolid(prop)) include(environmentPropCollider(prop));
+    }
+    return footprint;
+}
+
+inline bool solidPropHasGround(const RoomEnvironmentPlan& plan, const EnvironmentPropSpec& prop,
+                               world::finite_ground::Footprint footprint = {}) {
     if (!hasFiniteGround(plan.boundary) || !environmentPropSolid(prop)) return true;
     const auto box = environmentPropCollider(prop);
     for (float x : {box.center.x - box.size.x * 0.5f, box.center.x + box.size.x * 0.5f}) {
         for (float z : {box.center.z - box.size.z * 0.5f, box.center.z + box.size.z * 0.5f}) {
-            if (!world::finite_ground::hasGroundSupport(x,z,0.0f)) return false;
+            if (!world::finite_ground::hasGroundSupport(x,z,0.0f,footprint)) return false;
         }
     }
     return true;
@@ -482,12 +505,13 @@ inline RoomGeometryCapacityPlan roomGeometryCapacityPlan(const RoomEnvironmentPl
     result.authoredColliderCount=std::min(result.colliderCapacity,std::max(0,plan.obstacleCount));
     result.requiredGeometryComplete=result.authoredColliderCount==std::max(0,plan.obstacleCount);
     int remaining=result.colliderCapacity-result.authoredColliderCount;
+    const auto footprint = roomGroundFootprint(plan,roomSeed,roomIndex);
     const bool propsValid=environmentPropsValid(plan,roomSeed,roomIndex);
     const int propCount=std::min(EnvironmentPropCapacity,environmentPropCount(plan));
     if(propsValid)for(int index=0;index<propCount;++index)if(!environmentPropSolid(environmentProp(plan,roomSeed,roomIndex,index)))result.propIncluded[index]=true;
     constexpr float separation=0.55f;
     const auto overlaps=[&](const ObstacleSpec& a,const ObstacleSpec& b){return a.center.x+a.size.x*0.5f+separation>b.center.x-b.size.x*0.5f&&a.center.x-a.size.x*0.5f-separation<b.center.x+b.size.x*0.5f&&a.center.z+a.size.z*0.5f+separation>b.center.z-b.size.z*0.5f&&a.center.z-a.size.z*0.5f-separation<b.center.z+b.size.z*0.5f;};
-    const auto reserveProps=[&](EnvironmentRole role,int& count,bool avoidTraversal){if(!propsValid)return;for(int index=0;index<propCount&&remaining>0;++index){const auto prop=environmentProp(plan,roomSeed,roomIndex,index);if(!environmentPropSolid(prop)||prop.role!=role||!solidPropHasGround(plan,prop))continue;const int colliderCost=environmentPropColliderCount(plan.setting,prop);if(colliderCost>remaining)continue;if(avoidTraversal){bool blocked=false;const auto propBox=environmentPropCollider(prop);for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount;++surfaceIndex)if(result.traversalIncluded[surfaceIndex]&&overlaps(propBox,physicalTraversalObstacle(plan.traversal.surfaces[surfaceIndex]))){blocked=true;break;}if(blocked)continue;}result.propIncluded[index]=true;count+=colliderCost;remaining-=colliderCost;}};
+    const auto reserveProps=[&](EnvironmentRole role,int& count,bool avoidTraversal){if(!propsValid)return;for(int index=0;index<propCount&&remaining>0;++index){const auto prop=environmentProp(plan,roomSeed,roomIndex,index);if(!environmentPropSolid(prop)||prop.role!=role||!solidPropHasGround(plan,prop,footprint))continue;const int colliderCost=environmentPropColliderCount(plan.setting,prop);if(colliderCost>remaining)continue;if(avoidTraversal){bool blocked=false;const auto propBox=environmentPropCollider(prop);for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount;++surfaceIndex)if(result.traversalIncluded[surfaceIndex]&&overlaps(propBox,physicalTraversalObstacle(plan.traversal.surfaces[surfaceIndex]))){blocked=true;break;}if(blocked)continue;}result.propIncluded[index]=true;count+=colliderCost;remaining-=colliderCost;}};
     reserveProps(EnvironmentRole::Landmark,result.identityColliderCount,false);
     reserveProps(EnvironmentRole::Mass,result.identityColliderCount,false);
     for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount&&remaining>0;++surfaceIndex){const auto& surface=plan.traversal.surfaces[surfaceIndex];if(!physicalTraversalSurface(plan,surface))continue;const auto traversalBox=physicalTraversalObstacle(surface);bool blockedByIdentity=false;for(int propIndex=0;propIndex<propCount;++propIndex)if(result.propIncluded[propIndex]){const auto prop=environmentProp(plan,roomSeed,roomIndex,propIndex);if(environmentPropSolid(prop)&&overlaps(traversalBox,environmentPropCollider(prop))){blockedByIdentity=true;break;}}if(blockedByIdentity)continue;result.traversalIncluded[surfaceIndex]=true;++result.optionalTraversalColliderCount;--remaining;}
@@ -527,6 +551,7 @@ inline bool requiredRouteIsTraversable(const RoomEnvironmentPlan& plan,int roomS
     for (int i = 0; i < graph.surfaceCount; ++i)
         if (graph.surfaces[i].required && !reachable[i]) return false;
     const float clearance=capabilities.comfortableClearanceRadius;
+    const auto footprint=roomGroundFootprint(plan,roomSeed,roomIndex);
     for(int point=0;point<plan.traversal.surfaceCount;++point){
         const Vec3 p=plan.traversal.surfaces[point].center;
         if(std::abs(p.x)>15.0f-clearance||std::abs(p.z)>21.0f-clearance)return false;
@@ -540,7 +565,7 @@ inline bool requiredRouteIsTraversable(const RoomEnvironmentPlan& plan,int roomS
         const int samples=std::max(1,static_cast<int>(std::ceil(length/0.25f)));
         for(int sample=0;sample<=samples;++sample){
             const float t=static_cast<float>(sample)/static_cast<float>(samples),x=a.x+dx*t,z=a.z+dz*t;
-            if (hasFiniteGround(plan.boundary) && !world::finite_ground::hasGroundSupport(x,z,clearance)) return false;
+            if (hasFiniteGround(plan.boundary) && !world::finite_ground::hasGroundSupport(x,z,clearance,footprint)) return false;
             for(int index=0;index<plan.obstacleCount;++index){
                 const ObstacleSpec spec=obstacle(plan,roomSeed,roomIndex,index);
                 if(x>spec.center.x-spec.size.x*0.5f-clearance&&x<spec.center.x+spec.size.x*0.5f+clearance&&

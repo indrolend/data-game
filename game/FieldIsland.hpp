@@ -27,14 +27,15 @@ inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blad
 // Split an axis-aligned surface overlay at the same tile-local footprint
 // edges used by support. World Z is restored only for the emitted pieces.
 template<class Emit>
-void forEachGroundOverlay(Vec3 center, Vec3 size, float tileZ, bool finite, Emit emit) {
+void forEachGroundOverlay(Vec3 center, Vec3 size, float tileZ, bool finite, Emit emit, world::finite_ground::Footprint footprint = {}) {
     if (!finite) {
         emit(0, center, size);
         return;
     }
     const float localZ = center.z-tileZ;
-    for (std::size_t i=0;i<Surfaces.size();++i) {
-        const auto& surface=Surfaces[i];
+    const auto surfaces = footprint.surfaces();
+    for (std::size_t i=0;i<surfaces.size();++i) {
+        const auto& surface=surfaces[i];
         const float minX=std::max(center.x-size.x*0.5f,-surface.halfWidth);
         const float maxX=std::min(center.x+size.x*0.5f,surface.halfWidth);
         const float minZ=std::max(localZ-size.z*0.5f,surface.minZ);

@@ -91,6 +91,7 @@ private:
     mutable bool shadowSupportChecked_ = false;
     mutable bool shadowMapSupported_ = false;
     mutable room_environment::RoomGeometryCapacityPlan frameRoomGeometry_{};
+    mutable world::finite_ground::Footprint frameGroundFootprint_{};
     mutable bool shadowGeometryPass_ = false;
     mutable render_contract::ShadowQuality frameShadowQuality_ = render_contract::ShadowQuality::Off;
     mutable float shadowProjection_[16]{};

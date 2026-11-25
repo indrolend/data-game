@@ -236,7 +236,7 @@ float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,floa
     return height;
 }
 
-void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY,const Vec3& sunDirection,bool island=false) {
+void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, float height, float alpha,float receiverY,const Vec3& sunDirection,bool island=false, world::finite_ground::Footprint footprint = {}) {
     constexpr int segments = 8;
     const float sunXOverY=sunDirection.x/sunDirection.y;
     const float sunZOverY=sunDirection.z/sunDirection.y;
@@ -272,7 +272,7 @@ void drawGroundShadow(const Vec3& caster, float halfWidth, float halfDepth, floa
     const int centerTile = static_cast<int>(std::floor((center.z + ROOM_DEPTH * 0.5f) / ROOM_DEPTH));
     for (int tile = centerTile - 1; tile <= centerTile + 1; ++tile) {
         const float tileZ = tile * ROOM_DEPTH;
-        for (const auto& surface : field_island::Surfaces) {
+        for (const auto& surface : footprint.surfaces()) {
             auto polygon = outline;
             int count = segments;
             const auto clip = [&](auto distance) {
@@ -1300,7 +1300,7 @@ void DesktopRenderer::drawCityGround(int tileIndex, bool finite) const{
             glTexCoord2f(u1,v0);glVertex3f(x1,center.y,nearZ);
             glTexCoord2f(u1,v1);glVertex3f(x1,center.y,farZ);
             glTexCoord2f(u0,v1);glVertex3f(x0,center.y,farZ);
-        });
+        },frameGroundFootprint_);
     glEnd();glDisable(GL_TEXTURE_2D);
 }
 
@@ -1439,12 +1439,12 @@ void DesktopRenderer::drawCityStreet(const GameState& state,int tileIndex,room_e
     const auto streetOverlay=[&](Vec3 center,Vec3 size,float pitch,float yaw,float roll,float r,float g,float b){
         field_island::forEachGroundOverlay(center,size,z0,finite,[&](std::size_t,Vec3 p,Vec3 dims){
             drawBox(p,dims,pitch,yaw,roll,r,g,b);
-        });
+        },frameGroundFootprint_);
     };
     const auto texturedOverlay=[&](Vec3 center,Vec3 size,float pitch,float yaw,float roll,VisualColor color,float scale,float phase){
         field_island::forEachGroundOverlay(center,size,z0,finite,[&](std::size_t,Vec3 p,Vec3 dims){
             drawTexturedBox(citySurfaceTexture_,p,dims,pitch,yaw,roll,color,scale,phase);
-        });
+        },frameGroundFootprint_);
     };
 
     // The street section is one construction system: recessed asphalt, raised
@@ -1632,7 +1632,7 @@ void DesktopRenderer::drawLocalShadowReceivers(const GameState& state) const{
     // so it adds cast silhouettes instead of double-darkening whole surfaces.
     field_island::forEachGroundOverlay({0,0.020f,tileOrigin},
         {ROOM_WIDTH-0.55f,0.002f,ROOM_DEPTH-0.55f},tileOrigin,usesFieldIsland(state),
-        [&](std::size_t,Vec3 center,Vec3 size){drawBox(center,size,0,0,0,0,0,0);});
+        [&](std::size_t,Vec3 center,Vec3 size){drawBox(center,size,0,0,0,0,0,0);},frameGroundFootprint_);
 }
 
 bool DesktopRenderer::renderShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
@@ -1741,10 +1741,10 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
     };
     const bool island = usesFieldIsland(state);
     if (island) {
-        for (const auto& surface : field_island::Surfaces) {
+        for (const auto& surface : frameGroundFootprint_.surfaces()) {
             const float minZ = z0 + surface.minZ;
             const float maxZ = z0 + surface.maxZ;
-            const float coreDepth = surface.halfWidth == field_island::MainHalfWidth ? 1.28f : 0.92f;
+            const float coreDepth = surface.halfWidth == frameGroundFootprint_.halfWidth ? 1.28f : 0.92f;
             glPushMatrix();
             glTranslatef(0, world::GroundY - coreDepth * 0.5f, (minZ + maxZ) * 0.5f);
             glScalef(surface.halfWidth * 2.0f, coreDepth, maxZ - minZ);
@@ -1760,9 +1760,9 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
     }
     if(city){drawCityGround(tileIndex,island);drawCityStreet(state,tileIndex,plan.form,island);}
     if (coastal) field_island::forEachGroundOverlay({0,0.005f,z0},{23.5f,0.018f,35.5f},z0,island,
-        [&](std::size_t,Vec3 center,Vec3 size){drawTexturedBox(sandTexture_,center,size,0,0,0,festiveMutation?VisualColor{0.80f,0.88f,0.92f}:VisualColor{0.91f,0.84f,0.68f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));});
+        [&](std::size_t,Vec3 center,Vec3 size){drawTexturedBox(sandTexture_,center,size,0,0,0,festiveMutation?VisualColor{0.80f,0.88f,0.92f}:VisualColor{0.91f,0.84f,0.68f},2.8f,std::fmod(state.roomIndex*0.173f,1.0f));},frameGroundFootprint_);
     if (sterile) field_island::forEachGroundOverlay({0,0.006f,z0},{ROOM_WIDTH-0.55f,0.016f,ROOM_DEPTH-0.55f},z0,island,
-        [&](std::size_t,Vec3 center,Vec3 size){drawTexturedBox(sterileTileTexture_,center,size,0,0,0,{0.76f,0.79f,0.78f},1.34f,std::fmod(state.roomIndex*0.113f,1.0f));});
+        [&](std::size_t,Vec3 center,Vec3 size){drawTexturedBox(sterileTileTexture_,center,size,0,0,0,{0.76f,0.79f,0.78f},1.34f,std::fmod(state.roomIndex*0.113f,1.0f));},frameGroundFootprint_);
     if(sterile){
         drawStructuralBox({0,ROOM_WALL_HEIGHT+0.08f,z0},{ROOM_WIDTH,0.16f,ROOM_DEPTH},0,0,0,wallR,wallG,wallB);
         glDisable(GL_LIGHTING);
@@ -2026,7 +2026,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
                 // single source of truth for climbing and world scale.
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
                 if(!shadowGeometryPass_&&render_contract::usesProceduralGroundShadows(frameShadowQuality_))
-                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,island ? world::GroundY : 0.0f,frameSunDirection_,island);
+                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,island ? world::GroundY : 0.0f,frameSunDirection_,island,frameGroundFootprint_);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
                 drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
                 const VisualColor bark{0.28f,0.205f,0.13f};
@@ -2360,6 +2360,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     // light but keeps the phone present in night and sealed-room lighting.
     const float phoneIllumination=0.16f+state.phoneDisplay.localLightIntensity*0.58f+state.vacuum.power*0.42f+state.energy.dischargePositionAmount;
     const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,phoneIllumination});
+    frameGroundFootprint_ = room_environment::roomGroundFootprint(plan,state.roomSeed,state.roomIndex);
     frameRoomGeometry_ = state.slopeLab
         ? room_environment::RoomGeometryCapacityPlan{}
         : room_environment::acceptedRoomGeometry(plan, state.roomSeed, state.roomIndex,
@@ -2500,13 +2501,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(shadowQuality==render_contract::ShadowQuality::Cheap){
     const bool island = usesFieldIsland(state);
     glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
-    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f),resolvedSun.direction,island);
-    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f),resolvedSun.direction,island);
+    if(!menuPresentation&&!state.camera.firstPerson&&state.player.alive)drawGroundShadow(state.phoneTransform.position,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,state.player.pos.x,state.player.pos.z,0.12f),resolvedSun.direction,island,frameGroundFootprint_);
+    if(!menuPresentation&&state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive)drawGroundShadow(peer.player.pos,0.25f,0.18f,0.95f,0.20f,shadowReceiverHeight(state,peer.player.pos.x,peer.player.pos.z,0.12f),resolvedSun.direction,island,frameGroundFootprint_);
     if(!menuPresentation){
     const float shadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
-    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver,resolvedSun.direction,island);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver,resolvedSun.direction,island);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver,resolvedSun.direction,island);}
-    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f),resolvedSun.direction,island);}
-    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f),resolvedSun.direction,island);}
+    for(int offset=-1;offset<=1;++offset)for(auto target:state.targets)if(target.alive){target.pos.z=shadowTileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);if(!actorVisible(target.pos))continue;const float receiver=shadowReceiverHeight(state,target.pos.x,target.pos.z,0.14f);if(!target.slurpable){drawGroundShadow(target.pos,0.30f*target.scale,0.22f*target.scale,1.1f*target.scale,0.13f,receiver,resolvedSun.direction,island,frameGroundFootprint_);drawGroundShadow(target.pos,0.19f*target.scale,0.12f*target.scale,0.08f*target.scale,0.16f+target.visualReaction.commitment*0.05f,receiver,resolvedSun.direction,island,frameGroundFootprint_);}else if(target.soulVisual.visible&&target.soulCubeAmount>0.001f)drawGroundShadow(target.pos,0.26f*target.scale,0.26f*target.scale,0.72f*target.scale,0.16f,receiver,resolvedSun.direction,island,frameGroundFootprint_);}
+    for(const auto& flower:state.flowers)if(flower.active){const Vec3 p{flower.pos.x,flower.pos.y,flower.pos.z+shadowTileOrigin};drawGroundShadow(p,0.27f,0.27f,0.72f,0.16f,shadowReceiverHeight(state,p.x,p.z,0.12f),resolvedSun.direction,island,frameGroundFootprint_);}
+    for(const auto& bullet:state.bullets)if(bullet.alive){const float radius=0.40f*(bullet.brute?1.7f:1.0f);drawGroundShadow(bullet.pos,radius,radius,radius*2.0f,0.14f,shadowReceiverHeight(state,bullet.pos.x,bullet.pos.z,0.10f),resolvedSun.direction,island,frameGroundFootprint_);}
     // Static room geometry already provides the receiving floor and its own
     // lighting. Projecting every collider (including room-scale walls) onto the
     // floor created large overlapping black sheets unrelated to visible casters.
