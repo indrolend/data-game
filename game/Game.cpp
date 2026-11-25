@@ -1961,7 +1961,7 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
 }
 
 bool Game::isFieldIslandActive() const {
-    return field_island::active(state_.roomIndex,
+    return room_environment::hasFiniteGround(room_environment::roomBoundary(state_.roomIndex),
         state_.rallyLab || state_.traversalLab || state_.slopeLab || state_.roomInspector);
 }
 

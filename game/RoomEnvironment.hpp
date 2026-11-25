@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "Math.hpp"
+#include "world/RoomGeometry.hpp"
 #include "gameplay/TraversalCapabilities.hpp"
 #include "gameplay/TraversalGraph.hpp"
 #include "gameplay/WorldScale.hpp"
@@ -30,13 +31,22 @@ inline const char* premiseName(RoomPremise premise){switch(premise){case RoomPre
 
 // The opening room is authored as an island. This is a generation choice;
 // the ground geometry and support queries work independently of room setting.
-constexpr bool authoredFiniteGround(int roomIndex) { return roomIndex == 1; }
+enum class RoomBoundary : unsigned char { Enclosed, Floating };
+
+constexpr RoomBoundary roomBoundary(int roomIndex) {
+    return roomIndex == 1 ? RoomBoundary::Floating : RoomBoundary::Enclosed;
+}
+
+constexpr bool hasFiniteGround(RoomBoundary boundary, bool fixtureOverride = false) {
+    return !fixtureOverride && boundary == RoomBoundary::Floating;
+}
 
 struct RoomEnvironmentPlan {
     // Setting owns visual vocabulary; form owns spatial composition; scale
     // owns footprint/distances; condition owns encounter pressure/pacing; and
     // traversalIntent owns optional graph-generation intent. It does not imply
     // that every represented motif is physically materialized.
+    RoomBoundary boundary = RoomBoundary::Enclosed;
     RoomSetting setting = RoomSetting::Field;
     RoomForm form = RoomForm::Open;
     RoomScale scale = RoomScale::Standard;
@@ -220,6 +230,7 @@ inline float funnelEncounterCandidateBias(const RoomEnvironmentPlan& plan,int ta
 
 inline RoomEnvironmentPlan roomPlan(int roomSeed,int roomIndex) {
     RoomEnvironmentPlan plan;
+    plan.boundary = roomBoundary(roomIndex);
     const std::uint32_t key=roomKey(roomSeed,roomIndex);
     const float recoveryChance=std::min(0.22f,0.10f+std::max(0,roomIndex-4)*0.004f);
     plan.condition=roomIndex>=4&&unit(key+91u)<recoveryChance?RoomCondition::Recovery:RoomCondition::Normal;
@@ -503,6 +514,7 @@ inline bool requiredRouteIsTraversable(const RoomEnvironmentPlan& plan,int roomS
         const int samples=std::max(1,static_cast<int>(std::ceil(length/0.25f)));
         for(int sample=0;sample<=samples;++sample){
             const float t=static_cast<float>(sample)/static_cast<float>(samples),x=a.x+dx*t,z=a.z+dz*t;
+            if (hasFiniteGround(plan.boundary) && !world::finite_ground::hasGroundSupport(x,z,clearance)) return false;
             for(int index=0;index<plan.obstacleCount;++index){
                 const ObstacleSpec spec=obstacle(plan,roomSeed,roomIndex,index);
                 if(x>spec.center.x-spec.size.x*0.5f-clearance&&x<spec.center.x+spec.size.x*0.5f+clearance&&

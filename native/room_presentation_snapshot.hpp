@@ -118,7 +118,7 @@ struct RoomPresentationSnapshot {
         snapshot.sidewalks = plan.sidewalks;
         snapshot.grassAmount = plan.grassAmount;
         snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
-        snapshot.fieldIsland = field_island::active(state.roomIndex,
+        snapshot.fieldIsland = room_environment::hasFiniteGround(plan.boundary,
             state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
         snapshot.fieldIslandMainHalfWidth = field_island::MainHalfWidth;
         snapshot.fieldIslandMainHalfDepth = field_island::MainHalfDepth;

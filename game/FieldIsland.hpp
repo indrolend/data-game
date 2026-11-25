@@ -9,27 +9,13 @@
 
 namespace field_island {
 
-constexpr float MainHalfWidth = 13.0f;
-constexpr float MainHalfDepth = 17.5f;
-constexpr float DoorBridgeHalfWidth = 4.0f;
-constexpr float DoorBridgeHalfDepth = world::RoomDepth * 0.5f;
+using world::finite_ground::MainHalfWidth;
+using world::finite_ground::MainHalfDepth;
+using world::finite_ground::DoorBridgeHalfWidth;
+using world::finite_ground::DoorBridgeHalfDepth;
+using world::finite_ground::Surfaces;
+using world::finite_ground::hasGroundSupport;
 constexpr float AbyssRecoveryY = -8.0f;
-
-struct Surface {
-    float halfWidth;
-    float minZ;
-    float maxZ;
-};
-
-inline constexpr std::array<Surface, 3> Surfaces{{
-    {MainHalfWidth, -MainHalfDepth, MainHalfDepth},
-    {DoorBridgeHalfWidth, MainHalfDepth, DoorBridgeHalfDepth},
-    {DoorBridgeHalfWidth, -DoorBridgeHalfDepth, -MainHalfDepth},
-}};
-
-inline bool active(int roomIndex, bool fixtureOverride) {
-    return !fixtureOverride && room_environment::authoredFiniteGround(roomIndex);
-}
 
 inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blade) {
     blade.root.x *= (MainHalfWidth - 0.15f) / 13.2f;
@@ -57,20 +43,6 @@ void forEachGroundOverlay(Vec3 center, Vec3 size, float tileZ, bool finite, Emit
         emit(i,{(minX+maxX)*0.5f,center.y+world::GroundY,tileZ+(minZ+maxZ)*0.5f},
             {maxX-minX,size.y,maxZ-minZ});
     }
-}
-
-inline bool hasGroundSupport(float x, float localZ, float radius) {
-    const float inset = std::max(0.0f, radius);
-    const auto& main = Surfaces[0];
-    const auto& frontBridge = Surfaces[1];
-    const auto& backBridge = Surfaces[2];
-    const bool onMain = std::abs(x) <= main.halfWidth - inset &&
-        localZ >= main.minZ + inset && localZ <= main.maxZ - inset;
-    // The narrow lane continues across the main surface so the radius inset
-    // does not open a gap where each bridge joins the island.
-    const bool onBridgeLane = std::abs(x) <= frontBridge.halfWidth - inset &&
-        localZ >= backBridge.minZ && localZ <= frontBridge.maxZ;
-    return onMain || onBridgeLane;
 }
 
 } // namespace field_island

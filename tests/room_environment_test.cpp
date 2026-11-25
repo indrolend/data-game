@@ -13,6 +13,14 @@ int main(){
     assert(first.obstacleCount==0&&!first.recovery());
     assert(first.traversalIntent==RoomTraversalIntent::Playground);
     if (!requiredRouteIsTraversable(first, 12345, 1)) return 1;
+    assert(first.boundary == RoomBoundary::Floating);
+    auto unsupported = first;
+    unsupported.traversal.surfaces[3].center.x = 6.0f;
+    assert(!requiredRouteIsTraversable(unsupported, 12345, 1));
+    // The same unobstructed route is valid when the whole room has ground.
+    unsupported.boundary = RoomBoundary::Enclosed;
+    assert(requiredRouteIsTraversable(unsupported, 12345, 1));
+
     auto broken = first;
     auto& graph = broken.traversal;
     for (int i = 1; i + 1 < graph.edgeCount; ++i) graph.edges[i] = graph.edges[i + 1];
