@@ -38,6 +38,40 @@ int main(){
     assert(!solidPropHasGround(floatingCity,cityProp));
     const auto finiteCity = acceptedRoomGeometry(floatingCity,16,12,15);
     assert(!finiteCity.propIncluded[0]);
+
+    // Compare the actual accepted City geometry, retaining every authored
+    // building in the compatibility probe rather than silently deleting it.
+    constexpr RoomForm cityForms[] = {RoomForm::Corridor,RoomForm::Courtyard,RoomForm::Canyon,RoomForm::Skyline};
+    for (const auto form : cityForms) {
+        int cases=0, unsupportedBuildings=0, lostProps=0, rejectedRoutes=0;
+        int exampleSeed=0, exampleOutside=0;
+        for (int seed=1;seed<=128;++seed) {
+            auto plan=roomPlan(seed,12);
+            if(plan.setting!=RoomSetting::City || plan.form!=form) continue;
+            const auto enclosed=acceptedRoomGeometry(plan,seed,12,32);
+            plan.boundary=RoomBoundary::Floating;
+            const auto finite=acceptedRoomGeometry(plan,seed,12,32);
+            int outside=0;
+            for(int i=0;i<enclosed.authoredColliderCount;++i) {
+                const auto box=obstacle(plan,seed,12,i);
+                bool supported=true;
+                for(float x : {box.center.x-box.size.x*0.5f,box.center.x+box.size.x*0.5f})
+                    for(float z : {box.center.z-box.size.z*0.5f,box.center.z+box.size.z*0.5f})
+                        supported &= world::finite_ground::hasGroundSupport(x,z,0.0f);
+                if(!supported) ++outside;
+            }
+            if (!cases) { exampleSeed=seed; exampleOutside=outside; }
+            ++cases;
+            unsupportedBuildings+=outside;
+            rejectedRoutes+=!requiredRouteIsTraversable(plan,seed,12);
+            for(int i=0;i<EnvironmentPropCapacity;++i)
+                lostProps+=enclosed.propIncluded[i]&&!finite.propIncluded[i];
+            assert(roomBoundary(seed,12)==RoomBoundary::Enclosed);
+        }
+        assert(cases>0);
+        std::printf("FIXED_FOOTPRINT_CITY form=%s cases=%d unsupported_buildings=%d lost_props=%d rejected_routes=%d example_seed=%d example_unsupported=%d\n",
+            formName(form),cases,unsupportedBuildings,lostProps,rejectedRoutes,exampleSeed,exampleOutside);
+    }
     const auto accepted = acceptedRoomGeometry(city, 16, 12, 15);
     if (selectedEnvironmentPropCount(city, accepted) == 0) return 1;
     auto invalidRoute = city;

@@ -29,13 +29,7 @@ inline const char* conditionName(RoomCondition condition){switch(condition){case
 inline const char* traversalIntentName(RoomTraversalIntent intent){switch(intent){case RoomTraversalIntent::Playground:return "PLAYGROUND";case RoomTraversalIntent::Funnel:return "FUNNEL";case RoomTraversalIntent::Orbit:return "ORBIT (REPRESENTED)";case RoomTraversalIntent::Vertical:return "VERTICAL (REPRESENTED)";}return "UNKNOWN";}
 inline const char* premiseName(RoomPremise premise){switch(premise){case RoomPremise::FieldOpen:return "FIELD_OPEN";case RoomPremise::CityCorridor:return "CITY_CORRIDOR";case RoomPremise::CityCourtyard:return "CITY_COURTYARD";case RoomPremise::CityCanyon:return "CITY_CANYON";case RoomPremise::CitySkyline:return "CITY_SKYLINE";case RoomPremise::SterileCorridor:return "STERILE_CORRIDOR";case RoomPremise::SterileChamber:return "STERILE_CHAMBER";case RoomPremise::CoastalShore:return "COASTAL_SHORE";case RoomPremise::Count:break;}return "UNKNOWN";}
 
-// The opening room is authored as an island. This is a generation choice;
-// the ground geometry and support queries work independently of room setting.
 enum class RoomBoundary : unsigned char { Enclosed, Floating };
-
-constexpr RoomBoundary roomBoundary(int roomIndex) {
-    return roomIndex == 1 ? RoomBoundary::Floating : RoomBoundary::Enclosed;
-}
 
 constexpr bool hasFiniteGround(RoomBoundary boundary, bool fixtureOverride = false) {
     return !fixtureOverride && boundary == RoomBoundary::Floating;
@@ -228,17 +222,38 @@ inline float funnelEncounterCandidateBias(const RoomEnvironmentPlan& plan,int ta
     return std::max(0.0f,BiasAtPreferredRadius-std::abs(distance-PreferredRadius)*BiasFalloffPerMeter);
 }
 
+inline RoomCondition roomCondition(std::uint32_t key, int roomIndex) {
+    const float recoveryChance=std::min(0.22f,0.10f+std::max(0,roomIndex-4)*0.004f);
+    return roomIndex>=4 && unit(key+91u)<recoveryChance ? RoomCondition::Recovery : RoomCondition::Normal;
+}
+
+inline RoomSetting roomSetting(std::uint32_t key, int roomIndex, RoomCondition condition) {
+    if (roomIndex==1 || condition==RoomCondition::Recovery) return RoomSetting::Field;
+    const float roll=unit(key+17u);
+    if (roomIndex<8) return roll<0.42f?RoomSetting::Field:(roll<0.74f?RoomSetting::City:(roll<0.91f?RoomSetting::Sterile:RoomSetting::Coastal));
+    return roll<0.27f?RoomSetting::Field:(roll<0.60f?RoomSetting::City:(roll<0.82f?RoomSetting::Sterile:RoomSetting::Coastal));
+}
+
+inline RoomBoundary roomBoundary(std::uint32_t key, int roomIndex, RoomSetting setting) {
+    // The opening island remains authored. Until other settings validate
+    // their perimeter structures, select later islands from Field only.
+    constexpr float LaterFieldFloatingChance = 0.125f;
+    return roomIndex==1 || (roomIndex>1 && setting==RoomSetting::Field && unit(key+467u)<LaterFieldFloatingChance)
+        ? RoomBoundary::Floating : RoomBoundary::Enclosed;
+}
+
+inline RoomBoundary roomBoundary(int roomSeed, int roomIndex) {
+    const auto key = roomKey(roomSeed,roomIndex);
+    return roomBoundary(key,roomIndex,roomSetting(key,roomIndex,roomCondition(key,roomIndex)));
+}
+
 inline RoomEnvironmentPlan roomPlan(int roomSeed,int roomIndex) {
     RoomEnvironmentPlan plan;
-    plan.boundary = roomBoundary(roomIndex);
-    const std::uint32_t key=roomKey(roomSeed,roomIndex);
-    const float recoveryChance=std::min(0.22f,0.10f+std::max(0,roomIndex-4)*0.004f);
-    plan.condition=roomIndex>=4&&unit(key+91u)<recoveryChance?RoomCondition::Recovery:RoomCondition::Normal;
+    const auto key=roomKey(roomSeed,roomIndex);
+    plan.condition=roomCondition(key,roomIndex);
+    plan.setting=roomSetting(key,roomIndex,plan.condition);
+    plan.boundary=roomBoundary(key,roomIndex,plan.setting);
     plan.traversalIntent=roomTraversalIntent(roomSeed,roomIndex);
-    const float roll=unit(key+17u);
-    if(roomIndex==1||plan.recovery()) plan.setting=RoomSetting::Field;
-    else if(roomIndex<8) plan.setting=roll<0.42f?RoomSetting::Field:(roll<0.74f?RoomSetting::City:(roll<0.91f?RoomSetting::Sterile:RoomSetting::Coastal));
-    else plan.setting=roll<0.27f?RoomSetting::Field:(roll<0.60f?RoomSetting::City:(roll<0.82f?RoomSetting::Sterile:RoomSetting::Coastal));
 
     plan.scale=unit(key+143u)<0.18f?RoomScale::Compact:(unit(key+143u)<0.82f?RoomScale::Standard:RoomScale::Large);
     if(plan.setting==RoomSetting::Field){plan.form=RoomForm::Open;plan.composition=static_cast<unsigned char>(mix(key+197u)%3u);plan.obstacleCount=0;plan.grass=true;plan.grassAmount=plan.recovery()?1.0f:0.82f;plan.enemyAdjustment=plan.recovery()?-2:0;}

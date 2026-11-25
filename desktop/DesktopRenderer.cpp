@@ -223,7 +223,7 @@ void cube(bool drawTop = true) {
 }
 
 bool usesFieldIsland(const GameState& state) {
-    return room_environment::hasFiniteGround(room_environment::roomBoundary(state.roomIndex),
+    return room_environment::hasFiniteGround(room_environment::roomBoundary(state.roomSeed,state.roomIndex),
         state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
 }
 

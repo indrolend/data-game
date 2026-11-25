@@ -15,6 +15,12 @@ bool near(float a,float b,float tolerance=0.04f){return std::abs(a-b)<=tolerance
 
 struct FieldIslandTraversalAccess {
     static void populate(Game& game) { game.resetRoom(); }
+    static int requested(const Game& game) { return game.activeHumanTarget(); }
+    static void queue(Game& game) { game.queueHumanRespawn(game.state().player.pos); }
+    static void population(Game& game) { game.updateRoomPopulation(1.0f/60.0f); }
+    static void crossing(Game& game) { game.updateRoomTopology(-20.9f,-21.1f); }
+    static void television(Game& game) { game.updateSecretTv(1.0f/60.0f); }
+
     static bool blocked(const Game& game,float x,float z,float radius) {
         return game.isHumanPointBlocked(x,z,radius);
     }
@@ -185,6 +191,102 @@ int main(){
     if (!FieldIslandTraversalAccess::blocked(*blockedRoom,13.5f,0.0f,0.7f) ||
         FieldIslandTraversalAccess::spawn(*blockedRoom,0)) return 1;
     std::printf("FINITE_PLACEMENT_OK seeds=6 unsupported_edge=reject blocked_fallback=reject\n");
+
+
+    using namespace room_environment;
+    auto later = std::make_unique<Game>();
+    bool coverage[3][2][4][3]{};
+    bool transitionCoverage[2][2]{};
+    bool tvCovered = false;
+    int cases = 0, maxRequested = 0, maxRetryTicks = 0;
+    for (int room : {2, 3, 5, 9, 17, 25}) {
+        for (int seed = 1; seed <= 350; ++seed) {
+            const auto plan = roomPlan(seed,room);
+            const bool floating = hasFiniteGround(plan.boundary);
+            if (floating) {
+                bool& covered = coverage[static_cast<int>(plan.scale)][static_cast<int>(plan.condition)]
+                    [static_cast<int>(plan.traversalIntent)][plan.composition];
+                if (!covered || (!tvCovered && room==3)) {
+                    covered = true;
+                    later->debugStartGeneratedRoomFixture(seed,room);
+                    auto& state = later->fixtureMutableState();
+                    state.runRules.requiredSlotStacks = 3;
+                    state.runRules.crowdedRoomStacks = 4;
+                    FieldIslandTraversalAccess::populate(*later);
+                    const int requested = FieldIslandTraversalAccess::requested(*later);
+                    int live = 0;
+                    for (const auto& target : state.targets) {
+                        if (!target.alive) continue;
+                        ++live;
+                        if (FieldIslandTraversalAccess::blocked(*later,target.pos.x,target.pos.z,0.7f)) return 1;
+                    }
+                    if (live != requested || !requiredRouteIsTraversable(plan,seed,room) ||
+                        later->debugWorldSupportAt(14.0f,0.0f,0).available) return 1;
+                    for (int i=0;i<state.requiredSouls;++i) {
+                        const auto& goal=state.captures[i].pos;
+                        if (!later->debugWorldSupportAt(goal.x,goal.z,0.5f).available) return 1;
+                    }
+                    state.targets[0] = TargetState{};
+                    FieldIslandTraversalAccess::queue(*later);
+                    int ticks=0;
+                    while (!state.targets[0].alive && ticks < 600) {
+                        FieldIslandTraversalAccess::population(*later);
+                        ++ticks;
+                    }
+                    if (!state.targets[0].alive ||
+                        FieldIslandTraversalAccess::blocked(*later,state.targets[0].pos.x,state.targets[0].pos.z,0.7f))
+                        return 1;
+                    maxRequested = std::max(maxRequested,requested);
+                    maxRetryTicks = std::max(maxRetryTicks,ticks);
+                    ++cases;
+                    std::printf("FLOATING_FIELD seed=%d room=%d scale=%s recovery=%d intent=%s composition=%d active=%d goals=%d spawn_ticks=%d\n",
+                        seed,room,scaleName(plan.scale),plan.recovery(),traversalIntentName(plan.traversalIntent),
+                        plan.composition,live,state.requiredSouls,ticks);
+                    if (!tvCovered && room==3) {
+                        state.roomClear=true;
+                        const auto entrance=state.secretTv.entrancePos;
+                        const auto normal=state.secretTv.entranceNormal;
+                        state.player.pos=entrance+normal;
+                        if (!later->debugPlayerSupportAt(state.player.pos.x,state.player.pos.z).available) return 1;
+                        FieldIslandTraversalAccess::television(*later);
+                        if (!state.player.inSecretRoom) return 1;
+                        state.player.pos.x=43.5f;
+                        FieldIslandTraversalAccess::television(*later);
+                        if (state.player.inSecretRoom ||
+                            !later->debugPlayerSupportAt(state.player.pos.x,state.player.pos.z).available ||
+                            !near(state.player.pos.x,entrance.x+normal.x*0.72f)) return 1;
+                        tvCovered=true;
+                    }
+                }
+            }
+            if (transitionCoverage[floating][0] && transitionCoverage[floating][1]) continue;
+            later->debugStartGeneratedRoomFixture(seed,room);
+            FieldIslandTraversalAccess::populate(*later);
+            auto& state = later->fixtureMutableState();
+            state.player.pos = {0,world::GroundY,-21.1f};
+            state.player.battery=50;
+            if (floating) {
+                FieldIslandTraversalAccess::crossing(*later);
+                if (state.roomIndex != room || !near(state.player.battery,34)) return 1;
+            }
+            state.roomClear=true;
+            FieldIslandTraversalAccess::crossing(*later);
+            if (state.roomIndex != room+1 || !state.upgradeMenu.active ||
+                !later->debugPlayerSupportAt(0,-21.1f).available) return 1;
+            const bool next = hasFiniteGround(roomPlan(state.roomSeed,state.roomIndex).boundary);
+            if (later->debugWorldSupportAt(14.0f,-42.0f,0).available == next ||
+                !later->chooseTemporaryUpgrade(0) || state.upgradeMenu.active) return 1;
+            if (!transitionCoverage[floating][next]) {
+                std::printf("BOUNDARY_TRANSITION seed=%d room=%d %d->%d next=%d battery=%.2f\n",
+                    seed,room,floating,next,state.roomSeed,state.player.battery);
+            }
+            transitionCoverage[floating][next] = true;
+        }
+    }
+    if (!tvCovered || !transitionCoverage[0][1] || !transitionCoverage[1][0] || !transitionCoverage[1][1])
+        return 1;
+    std::printf("LATER_FIELD_OK cases=%d peak_population=%d max_respawn_ticks=%d tv_entry_return=1\n",
+        cases,maxRequested,maxRetryTicks);
 
     // City overlays and local shadow receivers both use this projection.
     const float tileZ = 2.0f * world::RoomDepth;

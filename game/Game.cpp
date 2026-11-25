@@ -1974,7 +1974,7 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
 }
 
 bool Game::isFieldIslandActive() const {
-    return room_environment::hasFiniteGround(room_environment::roomBoundary(state_.roomIndex),
+    return room_environment::hasFiniteGround(room_environment::roomBoundary(state_.roomSeed,state_.roomIndex),
         state_.rallyLab || state_.traversalLab || state_.slopeLab || state_.roomInspector);
 }
 
@@ -2193,6 +2193,7 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
     Vec3 local = state_.player.pos; local.z = wrapZ(local.z);
     if (!isInsideDoorAperture(local, 0.04f)) return;
     if (state_.roomClear && currentTile < previousTile) {
+        const bool wasFloating = isFieldIslandActive();
         state_.doorTransition.active=true; state_.doorTransition.progress=1.0f;
         state_.doorTransition.distanceTravelled=0.0f; state_.doorTransition.lastPlayerPos=state_.player.pos;
         auto& permanent=state_.progression.permanent;
@@ -2227,6 +2228,7 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
         for(auto& pending:state_.pendingShots) pending=PendingShotState{};
         for(auto& flower:state_.flowers) flower=FlowerPowerupState{};
         buildRoomColliders();
+        if (wasFloating || isFieldIslandActive()) chooseSecretTvEntrance();
         for(auto& request:state_.respawnQueue) request=HumanRespawnRequest{};
         for(int i=0;i<TARGET_COUNT;++i) {
             if(i<activeHumanTarget()) {
