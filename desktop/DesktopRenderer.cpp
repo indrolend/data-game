@@ -2362,7 +2362,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,phoneIllumination});
     frameRoomGeometry_ = state.slopeLab
         ? room_environment::RoomGeometryCapacityPlan{}
-        : room_environment::acceptedRoomGeometry(roomPlan, state.roomSeed, state.roomIndex,
+        : room_environment::acceptedRoomGeometry(plan, state.roomSeed, state.roomIndex,
             ROOM_COLLIDER_COUNT);
     auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
     const bool openSky=plan.setting!=room_environment::RoomSetting::Sterile;

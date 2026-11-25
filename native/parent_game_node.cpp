@@ -835,7 +835,7 @@ static Array roomStaticGeometryKey(const GameState& state, int tileIndex,
     key.append(state.roomInspector);
     if (setting == room_environment::RoomSetting::City) {
         key.append(state.localSettings.graphicsPreset);
-        for (int i = 0; i < state.debug.colliderCount; ++i) {
+        for (int i = 0; i < state.roomColliderCount; ++i) {
             const auto& collider = state.roomColliders[i];
             key.append(Vector3(collider.center.x, collider.center.y, collider.center.z));
             key.append(Vector3(collider.width, collider.height, collider.depth));
