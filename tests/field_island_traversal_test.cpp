@@ -13,6 +13,16 @@ void neutral(Game& game,int frames=1){for(int i=0;i<frames;++i)game.update(Dt);}
 bool near(float a,float b,float tolerance=0.04f){return std::abs(a-b)<=tolerance;}
 }
 
+struct FieldIslandTraversalAccess {
+    static void populate(Game& game) { game.resetRoom(); }
+    static bool blocked(const Game& game,float x,float z,float radius) {
+        return game.isHumanPointBlocked(x,z,radius);
+    }
+    static std::optional<Vec3> spawn(const Game& game,int index) {
+        return game.chooseHumanSpawnPoint(index);
+    }
+};
+
 int main(){
     auto walk=std::make_unique<Game>();
     auto& walkState=walk->fixtureMutableState();
@@ -102,6 +112,9 @@ int main(){
         particle.life = particle.maxLife = 2.0f;
         particle.size = 0.05f;
         particle.pos = {x, 0.12f, 0.0f};
+        auto& residue = state.particles[1];
+        residue = particle;
+        residue.material = ParticleMaterial::SignalResidue;
 
         bool visible = false;
         for (const auto& surface : field_island::Surfaces) {
@@ -117,6 +130,8 @@ int main(){
         neutral(*game, 24);
         const bool settled = (particle.surfaceFlags & 1u) != 0;
         if (settled != expectedSupport ||
+            ((residue.surfaceFlags & 1u) != 0) != expectedSupport ||
+            !std::isfinite(residue.pos.y) || !std::isfinite(enemy.pos.y) ||
             (expectedSupport ? !near(enemy.pos.y, world::GroundY) : enemy.pos.y >= -0.5f)) {
             std::fprintf(stderr, "FIELD_ISLAND_FAIL enemy or settling particle at x=%.2f\n", x);
             return 1;
@@ -130,6 +145,46 @@ int main(){
             }
         }
     }
+
+    // Initial formations and the scored search use the same ground clearance.
+    for (const int seed : {1, 37, 142, 999, 12345, 424242}) {
+        auto game = std::make_unique<Game>();
+        game->debugStartGeneratedRoomFixture(seed, 1);
+        FieldIslandTraversalAccess::populate(*game);
+        const auto& state = game->fixtureMutableState();
+        for (int i = 0; i < TARGET_COUNT; ++i) {
+            const auto& target = state.targets[i];
+            if (!target.alive) continue;
+            const auto spawn = FieldIslandTraversalAccess::spawn(*game,i);
+            if (!spawn ||
+                FieldIslandTraversalAccess::blocked(*game,target.pos.x,target.pos.z,0.7f) ||
+                FieldIslandTraversalAccess::blocked(*game,spawn->x,spawn->z,0.7f) ||
+                !game->debugWorldSupportAt(target.walkTarget.x,target.walkTarget.z,0.1f).available) {
+                std::fprintf(stderr,"FINITE_PLACEMENT_FAIL seed=%d slot=%d spawn=%d pos=(%.2f,%.2f) walk=(%.2f,%.2f)\n",
+                    seed,i,spawn.has_value(),target.pos.x,target.pos.z,target.walkTarget.x,target.walkTarget.z);
+                return 1;
+            }
+        }
+        for (int i = 0; i < state.requiredSouls; ++i) {
+            const auto& goal = state.captures[i].pos;
+            if (!game->debugWorldSupportAt(goal.x,goal.z,0.5f).available ||
+                goal.y <= world::GroundY) {
+                std::fprintf(stderr,"FINITE_OBJECTIVE_FAIL seed=%d slot=%d goal=(%.2f,%.2f,%.2f)\n",seed,i,goal.x,goal.y,goal.z);
+                return 1;
+            }
+        }
+    }
+
+    auto blockedRoom = std::make_unique<Game>();
+    blockedRoom->debugStartGeneratedRoomFixture(12345, 1);
+    auto& blockedState = blockedRoom->fixtureMutableState();
+    blockedState.roomColliderCount = 1;
+    auto& barrier = blockedState.roomColliders[0];
+    barrier.minX = -12; barrier.maxX = 12;
+    barrier.minZ = -16; barrier.maxZ = 16;
+    if (!FieldIslandTraversalAccess::blocked(*blockedRoom,13.5f,0.0f,0.7f) ||
+        FieldIslandTraversalAccess::spawn(*blockedRoom,0)) return 1;
+    std::printf("FINITE_PLACEMENT_OK seeds=6 unsupported_edge=reject blocked_fallback=reject\n");
 
     // City overlays and local shadow receivers both use this projection.
     const float tileZ = 2.0f * world::RoomDepth;

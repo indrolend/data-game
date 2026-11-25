@@ -1350,7 +1350,11 @@ void Game::buildRoomColliders() {
 void Game::chooseSecretTvEntrance() {
     SecretTvState& tv = state_.secretTv;
     const bool rightWall = seededRoomValue(2210.0f + static_cast<float>(state_.roomIndex) * 17.0f) >= 0.5f;
-    const float x = rightWall ? ROOM_WIDTH * 0.5f - 1.10f : -ROOM_WIDTH * 0.5f + 1.10f;
+    // Keep the existing TV schedule. In an eligible floating room the
+    // membrane stands on the deck instead of at the absent lateral wall.
+    const float edge = isFieldIslandActive() && secretTvAppearsInRoom(state_.roomIndex)
+        ? field_island::MainHalfWidth : ROOM_WIDTH * 0.5f;
+    const float x = (rightWall ? 1.0f : -1.0f) * (edge - 1.10f);
     const Vec3 normal = rightWall ? Vec3{-1.0f, 0.0f, 0.0f} : Vec3{1.0f, 0.0f, 0.0f};
 
     float bestZ = 4.8f;
@@ -1421,7 +1425,16 @@ void Game::resetRoom() {
         target.attackVariant = static_cast<int>(seededRoomValue(480 + i) * 4.0f) % 4;
         const Vec3 legacyPosition{-8.0f+static_cast<float>(i%5)*4.0f,GROUND_Y,-12.0f+static_cast<float>(i/5)*4.5f};
         const bool legacyBlocked=target.alive&&isHumanPointBlocked(legacyPosition.x,legacyPosition.z,0.7f);
-        target.pos=target.alive&&(scaledInitialFormation||legacyBlocked)?chooseHumanSpawnPoint(i):legacyPosition;
+        target.pos=legacyPosition;
+        if (target.alive && (scaledInitialFormation || legacyBlocked)) {
+            const auto spawn = chooseHumanSpawnPoint(i);
+            if (spawn) target.pos = *spawn;
+            else {
+                target = TargetState{};
+                queueHumanRespawn(legacyPosition);
+                continue;
+            }
+        }
         resetSoulLattice(target);
         chooseHumanWalkTarget(i);
         syncTargetReactionVisual(target);
@@ -2215,7 +2228,14 @@ void Game::updateRoomTopology(float previousZ, float currentZ) {
         for(auto& flower:state_.flowers) flower=FlowerPowerupState{};
         buildRoomColliders();
         for(auto& request:state_.respawnQueue) request=HumanRespawnRequest{};
-        for(int i=0;i<TARGET_COUNT;++i){if(i<activeHumanTarget()) respawnTarget(i); else state_.targets[i]=TargetState{};}
+        for(int i=0;i<TARGET_COUNT;++i) {
+            if(i<activeHumanTarget()) {
+                if (!respawnTarget(i)) {
+                    state_.targets[i] = TargetState{};
+                    queueHumanRespawn(state_.player.pos);
+                }
+            } else state_.targets[i]=TargetState{};
+        }
         state_.upgradeMenu.active=true;
         state_.upgradeMenu.presentationTime=0.0f;
         state_.uiPaused=true;
@@ -3712,12 +3732,15 @@ void Game::updateRoomPopulation(float dt) {
         int slot=-1;
         for(int i=0;i<TARGET_COUNT;++i){const TargetState& target=state_.targets[i]; if(!target.alive && !target.captureQueued && !target.captureCommitted && target.soulState==SoulState::Free){slot=i;break;}}
         if(slot<0) break;
-        respawnTarget(slot);
+        if (!respawnTarget(slot)) { request.delay = 0.25f; continue; }
         TargetState& target=state_.targets[slot];
-        target.pos=chooseHumanSpawnPoint(slot,&request.avoid); chooseHumanWalkTarget(slot); request=HumanRespawnRequest{}; ++active;
+        if (const auto spawn = chooseHumanSpawnPoint(slot,&request.avoid)) target.pos = *spawn;
+        chooseHumanWalkTarget(slot); request=HumanRespawnRequest{}; ++active;
     }
 }
-void Game::respawnTarget(int index) {
+bool Game::respawnTarget(int index) {
+    const auto spawn = chooseHumanSpawnPoint(index);
+    if (!spawn) return false;
     enemyRuntime().perceptions[index]={};
     enemyRuntime().behaviors[index]={};
     enemyRuntime().locomotions[index]={};
@@ -3728,7 +3751,7 @@ void Game::respawnTarget(int index) {
     t.armor = t.brute ? SOUL_ARMOR_BRUTE : SOUL_ARMOR_NORMAL;
     t.scale = t.brute ? HUMAN_SCALE_BRUTE : 1.0f;
     t.health = 1.0f;
-    t.pos = chooseHumanSpawnPoint(index);
+    t.pos = *spawn;
     t.visualYaw = seededRoomValue(540 + index) * DB_PI * 2.0f;
     t.visualWalkPhase = seededRoomValue(560 + index) * DB_PI * 2.0f;
     t.floatOffset=seededRoomValue(565+index)*DB_PI*2.0f;
@@ -3738,9 +3761,10 @@ void Game::respawnTarget(int index) {
     resetSoulLattice(t);
     chooseHumanWalkTarget(index);
     syncTargetReactionVisual(t);
+    return true;
 }
 
-Vec3 Game::chooseHumanSpawnPoint(int index, const Vec3* avoid) const {
+std::optional<Vec3> Game::chooseHumanSpawnPoint(int index, const Vec3* avoid) const {
     const float tileOrigin=getRoomTileOriginZ(state_.topology.currentTileIndex);
     const float playerLocalZ=wrapZ(state_.player.pos.z);
     const auto plan=room_environment::roomPlan(state_.roomSeed,state_.roomIndex);
@@ -3772,12 +3796,23 @@ Vec3 Game::chooseHumanSpawnPoint(int index, const Vec3* avoid) const {
         if(score>bestScore){bestScore=score;best=candidate;}
         if(!composeScaleFormation&&!composeFunnelEncounter&&playerDistSq>=64.0f&&oldDistSq>=36.0f&&overlapPenalty<=0.0f)return candidate;
     }
-    return best;
+    if (bestScore > -1.0e9f || !isFieldIslandActive()) return best;
+    // Try the legacy fallback, then scan the supported encounter area.
+    // Keep conventional room behavior and scoring intact.
+    if (!isHumanPointBlocked(best.x,best.z,0.7f)) return best;
+    for (float z = ROOM_MIN_SPAWN_Z; z <= ROOM_MAX_SPAWN_Z; z += 1.0f) {
+        for (float x = -10.0f; x <= 10.0f; x += 1.0f) {
+            if (!isHumanPointBlocked(x,tileOrigin+z,0.7f))
+                return Vec3{x,GROUND_Y,tileOrigin+z};
+        }
+    }
+    return std::nullopt;
 }
 
 bool Game::isHumanPointBlocked(float x,float z,float radius) const {
     const float localZ=wrapZ(z);
     if(x < -ROOM_WIDTH*0.5f+radius || x > ROOM_WIDTH*0.5f-radius) return true;
+    if (!hasBaseGroundSupport(x,localZ,radius)) return true;
     for(int i=0;i<state_.roomColliderCount;++i){const RoomCollider& c=state_.roomColliders[i];
         if(x>c.minX-radius && x<c.maxX+radius && localZ>c.minZ-radius && localZ<c.maxZ+radius) return true;}
     for(int i=0;i<state_.rockSupportCount;++i){
@@ -4235,7 +4270,11 @@ void Game::updateTargets(float dt) {
                 if(supportedBefore&&supportAfter.available&&supportAfter.height>=supportBefore.height-0.12f){t.pos.y=supportAfter.height;t.vel.y=0.0f;}
                 else {t.vel.y-=GRAVITY*dt;t.pos.y+=t.vel.y*dt;if(supportAfter.available&&t.pos.y<=supportAfter.height){t.pos.y=supportAfter.height;t.vel.y=0.0f;}}
                 if (!supportAfter.available && t.pos.y < field_island::AbyssRecoveryY) {
-                    respawnTarget(i);
+                    if (!respawnTarget(i)) {
+                        const Vec3 avoid = t.pos;
+                        t = TargetState{};
+                        queueHumanRespawn(avoid);
+                    }
                     continue;
                 }
             }

@@ -31,6 +31,13 @@ int main(){
     }
 
     const auto city = roomPlan(16, 12);
+    auto floatingCity = city;
+    floatingCity.boundary = RoomBoundary::Floating;
+    const auto cityProp = environmentProp(city,16,12,0);
+    assert(solidPropHasGround(city,cityProp));
+    assert(!solidPropHasGround(floatingCity,cityProp));
+    const auto finiteCity = acceptedRoomGeometry(floatingCity,16,12,15);
+    assert(!finiteCity.propIncluded[0]);
     const auto accepted = acceptedRoomGeometry(city, 16, 12, 15);
     if (selectedEnvironmentPropCount(city, accepted) == 0) return 1;
     auto invalidRoute = city;

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "HumanVisual.hpp"
@@ -867,6 +868,7 @@ private:
     friend struct HostRemotePeerSimulationIsolationAccess;
     friend struct SoulProjectileLifecycleAccess;
     friend struct SignalResidueLifecycleAccess;
+    friend struct FieldIslandTraversalAccess;
     enum class BatteryReason { Continuous, Jump, DoubleJump, Melee, Shoot, Hit, Climb, Ingest, NextRoom, Combo, Chain, Headshot, Loop };
     GameState state_;
     int simulationPlayerId_ = 0;
@@ -912,7 +914,7 @@ private:
     void updatePhoneDisplay(float dt);
     void updateTargets(float dt);
     void chooseHumanWalkTarget(int index);
-    Vec3 chooseHumanSpawnPoint(int index, const Vec3* avoid = nullptr) const;
+    std::optional<Vec3> chooseHumanSpawnPoint(int index, const Vec3* avoid = nullptr) const;
     bool isHumanPointBlocked(float x, float z, float radius) const;
     bool isHumanMovementBlocked(float x,float z,float feetY,float radius,Vec3* obstructionNormal=nullptr) const;
     void updateMeleeDash(float dt);
@@ -977,7 +979,7 @@ private:
     void captureSoul(int index);
     void queueSoulCapture(int index);
     void processQueuedSoulCaptures();
-    void respawnTarget(int index);
+    bool respawnTarget(int index);
     int activeHumanTarget() const;
     void queueHumanRespawn(const Vec3& avoid);
     void advanceRunRulesForRoom();
