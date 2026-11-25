@@ -1,3 +1,4 @@
+#include "../game/RoomEnvironment.hpp"
 #pragma once
 
 #include "Game.hpp"
@@ -102,15 +103,15 @@ private:
     mutable int coastalWaterRoom_ = -1;
     mutable Vec3 coastalWaterPreviousPlayer_{};
 
-    void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
+    void drawRoomTile(const GameState& state, const room_environment::RoomEnvironmentPlan& plan, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
     bool ensureShadowMap(int size) const;
-    bool renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
-    bool renderLocalShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const;
-    void drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
+    bool renderShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
+    bool renderLocalShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const;
+    void drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
     void drawLocalShadowReceivers(const GameState& state) const;
-    void applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
+    void applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
     void drawShadowDepthMap() const;
-    void updateCoastalWater(const GameState& state) const;
+    void updateCoastalWater(const GameState& state, const room_environment::RoomEnvironmentPlan& plan) const;
     void drawFieldGrass(float halfWidth, float minZ, float maxZ, float y, bool worldAligned = false) const;
     void drawCityGround(int tileIndex, bool finite) const;
     static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);

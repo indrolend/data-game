@@ -1604,13 +1604,13 @@ bool DesktopRenderer::ensureShadowMap(int size) const{
     return shadowMapSupported_;
 }
 
-void DesktopRenderer::drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const{
+void DesktopRenderer::drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const{
     shadowGeometryPass_=true;
     const int horizon=quality==render_contract::ShadowQuality::MappedPretty?2:1;
-    for(int tile=state.topology.currentTileIndex-horizon;tile<=state.topology.currentTileIndex+horizon;++tile)drawRoomTile(state,tile,response);
+    for(int tile=state.topology.currentTileIndex-horizon;tile<=state.topology.currentTileIndex+horizon;++tile)drawRoomTile(state,plan,tile,response);
     if(!state.camera.firstPerson&&state.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,state.phoneTransform.position,state.phoneVisual.bodyScale,state.phoneTransform.orientation);else drawBox(state.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},state.phoneTransform.orientation,0,0,0);}
     if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,peer.phoneVisual.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0,0,0);}
-    const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;
+    const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;const auto setting=plan.setting;
     for (int offset = -1; offset <= 1; ++offset) {
         for (std::size_t slot = 0; slot < state.targets.size(); ++slot) {
             const auto& source = state.targets[slot];
@@ -1635,7 +1635,7 @@ void DesktopRenderer::drawLocalShadowReceivers(const GameState& state) const{
         [&](std::size_t,Vec3 center,Vec3 size){drawBox(center,size,0,0,0,0,0,0);});
 }
 
-bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
+bool DesktopRenderer::renderShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const{
     const int size=shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(quality);if(!ensureShadowMap(size))return false;
     const float coverage=render_contract::shadowCoverage(quality)*shadowControl_.coverageScale,texel=coverage*2.0f/static_cast<float>(size);
     Vec3 center=state.player.pos;center.x=std::round(center.x/texel)*texel;center.z=std::round(center.z/texel)*texel;center.y=2.8f;
@@ -1645,11 +1645,11 @@ bool DesktopRenderer::renderShadowDepth(const GameState& state,const scene_light
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(-coverage,coverage,-coverage,coverage,1.0f,110.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
     glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(eye,center,{0,1,0});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
     float lightProjection[16];multiplyMatrix(shadowProjection_,shadowView_,lightProjection);shadowProjectionHash_=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,lightProjection,sizeof(lightProjection));
-    drawShadowGeometry(state,response,quality);
+    drawShadowGeometry(state,plan,response,quality);
     glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
 }
 
-bool DesktopRenderer::renderLocalShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const{
+bool DesktopRenderer::renderLocalShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const{
     const int size=shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(quality);if(!source.enabled||!ensureShadowMap(size))return false;
     const float coverage=source.coverage*shadowControl_.coverageScale;
     const Vec3 target{source.worldPosition.x,0.0f,source.worldPosition.z};
@@ -1659,7 +1659,7 @@ bool DesktopRenderer::renderLocalShadowDepth(const GameState& state,const scene_
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glFrustum(-halfNear,halfNear,-halfNear,halfNear,nearPlane,source.worldPosition.y+1.0f);glGetFloatv(GL_PROJECTION_MATRIX,shadowProjection_);
     glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();lookAt(source.worldPosition,target,{0,0,-1});glGetFloatv(GL_MODELVIEW_MATRIX,shadowView_);
     float lightProjection[16];multiplyMatrix(shadowProjection_,shadowView_,lightProjection);shadowProjectionHash_=lighting_evidence::fnv1a(lighting_evidence::Fnv1aOffset,lightProjection,sizeof(lightProjection));
-    drawShadowGeometry(state,response,quality);
+    drawShadowGeometry(state,plan,response,quality);
     glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_POLYGON_OFFSET_FILL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);shadowBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width_,height_);return true;
 }
 
@@ -1675,7 +1675,7 @@ void DesktopRenderer::drawShadowDepthMap() const{
     glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glEnable(GL_FOG);glEnable(GL_LIGHTING);
 }
 
-void DesktopRenderer::applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const{
+void DesktopRenderer::applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const{
     if(!shadowMapSupported_||!shadowDepthTexture_||strength<=0.001f)return;
     float cameraView[16],inverseCamera[16],lightVp[16],worldToShadow[16];glGetFloatv(GL_MODELVIEW_MATRIX,cameraView);invertRigidMatrix(cameraView,inverseCamera);multiplyMatrix(shadowProjection_,shadowView_,lightVp);multiplyMatrix(lightVp,inverseCamera,worldToShadow);
     const float bias[16]={0.5f,0,0,0, 0,0.5f,0,0, 0,0,0.5f,0, 0.5f,0.5f,0.5f,1};float textureMatrix[16];multiplyMatrix(bias,worldToShadow,textureMatrix);
@@ -1684,15 +1684,14 @@ void DesktopRenderer::applyMappedShadow(const GameState& state,const scene_light
     shadowActiveTexture(GL_TEXTURE1);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_COMBINE);glTexEnvi(GL_TEXTURE_ENV,GL_COMBINE_ALPHA,GL_REPLACE);glTexEnvi(GL_TEXTURE_ENV,GL_SOURCE0_ALPHA,GL_TEXTURE);glTexEnvi(GL_TEXTURE_ENV,GL_OPERAND0_ALPHA,GL_SRC_ALPHA);
     glMatrixMode(GL_TEXTURE);glPushMatrix();glLoadMatrixf(textureMatrix);glMatrixMode(GL_MODELVIEW);
     glPushMatrix();glLoadIdentity();const GLfloat sPlane[]{1,0,0,0},tPlane[]{0,1,0,0},rPlane[]{0,0,1,0},qPlane[]{0,0,0,1};glTexGenfv(GL_S,GL_EYE_PLANE,sPlane);glTexGenfv(GL_T,GL_EYE_PLANE,tPlane);glTexGenfv(GL_R,GL_EYE_PLANE,rPlane);glTexGenfv(GL_Q,GL_EYE_PLANE,qPlane);glPopMatrix();glEnable(GL_TEXTURE_GEN_S);glEnable(GL_TEXTURE_GEN_T);glEnable(GL_TEXTURE_GEN_R);glEnable(GL_TEXTURE_GEN_Q);shadowActiveTexture(GL_TEXTURE0);
-    if(shadowObservation_.localFixture)drawLocalShadowReceivers(state);else drawShadowGeometry(state,response,quality);
+    if(shadowObservation_.localFixture)drawLocalShadowReceivers(state);else drawShadowGeometry(state,plan,response,quality);
     shadowActiveTexture(GL_TEXTURE1);glDisable(GL_TEXTURE_GEN_S);glDisable(GL_TEXTURE_GEN_T);glDisable(GL_TEXTURE_GEN_R);glDisable(GL_TEXTURE_GEN_Q);glMatrixMode(GL_TEXTURE);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_TEXTURE_2D);shadowActiveTexture(GL_TEXTURE0);
     glDisable(GL_ALPHA_TEST);glDepthFunc(GL_LEQUAL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glStencilMask(0);glStencilFunc(GL_EQUAL,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);glDisable(GL_DEPTH_TEST);glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();glColor4f(0.015f,0.020f,0.028f,strength);glBegin(GL_QUADS);glVertex2f(0,0);glVertex2f(static_cast<float>(width_),0);glVertex2f(static_cast<float>(width_),static_cast<float>(height_));glVertex2f(0,static_cast<float>(height_));glEnd();glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);
     glDisable(GL_BLEND);glDisable(GL_STENCIL_TEST);glEnable(GL_DEPTH_TEST);glEnable(GL_LIGHTING);
 }
 
-void DesktopRenderer::updateCoastalWater(const GameState& state) const{
-    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+void DesktopRenderer::updateCoastalWater(const GameState& state, const room_environment::RoomEnvironmentPlan& plan) const{
     if(plan.setting!=room_environment::RoomSetting::Coastal){coastalWaterTime_=state.time;return;}
     const bool changed=coastalWaterRoom_!=state.roomIndex||coastalWaterSeed_!=state.roomSeed||coastalWaterTime_<0.0f||state.time<coastalWaterTime_;
     if(changed){coastalWaterSimulation_.reset();coastalWaterRoom_=state.roomIndex;coastalWaterSeed_=state.roomSeed;coastalWaterTime_=state.time;coastalWaterPreviousPlayer_=state.player.pos;return;}
@@ -1713,8 +1712,7 @@ void DesktopRenderer::updateCoastalWater(const GameState& state) const{
     coastalWaterTime_=state.time;
 }
 
-void DesktopRenderer::drawRoomTile(const GameState& state,int tileIndex,const scene_lighting_response::Response& lightingResponse) const {
-    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+void DesktopRenderer::drawRoomTile(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,int tileIndex,const scene_lighting_response::Response& lightingResponse) const {
     const auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
     const float z0 = static_cast<float>(tileIndex) * ROOM_DEPTH;
     constexpr float doorWidth = world::DoorwayHalfWidth * 2.0f;
@@ -2353,7 +2351,8 @@ lighting_evidence::GlFixedFunctionState observeGlFixedFunctionState(const char* 
 void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* codec) const {
     // All passes use this draw's pose inputs. Mirrored instances only translate the result.
     humanVerticesReady_.fill(false);
-    updateCoastalWater(state);
+    const auto plan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
+    updateCoastalWater(state,plan);
     ++fpsFrames;const auto now=std::chrono::steady_clock::now();const float elapsed=std::chrono::duration<float>(now-fpsWindowStart).count();if(elapsed>=0.5f){displayedFps=fpsFrames/elapsed;fpsFrames=0;fpsWindowStart=now;}
     const auto atmosphere=resolvedAtmosphere(state);
     // The screen is an always-on physical object, not an effect that only
@@ -2361,13 +2360,12 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     // light but keeps the phone present in night and sealed-room lighting.
     const float phoneIllumination=0.16f+state.phoneDisplay.localLightIntensity*0.58f+state.vacuum.power*0.42f+state.energy.dischargePositionAmount;
     const auto atmosphereInputs=render_contract::effectiveAtmosphereInputs(lightingControl_,{state.time,state.roomIndex,phoneIllumination});
-    const auto roomPlan=room_environment::roomPlan(state.roomSeed,state.roomIndex);
     frameRoomGeometry_ = state.slopeLab
         ? room_environment::RoomGeometryCapacityPlan{}
         : room_environment::acceptedRoomGeometry(roomPlan, state.roomSeed, state.roomIndex,
             ROOM_COLLIDER_COUNT);
-    auto lightRig=room_lighting::roomLightRig(roomPlan.setting,roomPlan.form);
-    const bool openSky=roomPlan.setting!=room_environment::RoomSetting::Sterile;
+    auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
+    const bool openSky=plan.setting!=room_environment::RoomSetting::Sterile;
     const auto resolvedSun=render_contract::resolveSunState(atmosphereInputs.time,openSky,lightRig.sunDirection);
     lightRig.sunDirection=resolvedSun.direction;frameSunDirection_=resolvedSun.direction;
     const float objectiveProgress=state.requiredSouls>0?static_cast<float>(state.depositedSouls)/static_cast<float>(state.requiredSouls):0.0f;
@@ -2390,8 +2388,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const float fixtureShadowTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
     auto localShadowSource=room_lighting::primaryLocalShadowSource(lightRig,fixtureShadowTileOrigin);
     if(localShadowSource.enabled&&((lightingControl_.localLightMask&(1u<<localShadowSource.lightIndex))==0||lightingControl_.localLightIntensity[static_cast<std::size_t>(localShadowSource.lightIndex)]<=0.001f))localShadowSource.enabled=false;
-    const bool directionalShadow=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,lightingResponse,resolvedSun.direction,shadowQuality);
-    const bool localFixtureShadow=mappedRequested&&!directionalShadow&&!menuPresentation&&renderLocalShadowDepth(state,lightingResponse,localShadowSource,shadowQuality);
+    const bool directionalShadow=mappedRequested&&resolvedSun.castsDirectionalShadows&&!menuPresentation&&renderShadowDepth(state,plan,lightingResponse,resolvedSun.direction,shadowQuality);
+    const bool localFixtureShadow=mappedRequested&&!directionalShadow&&!menuPresentation&&renderLocalShadowDepth(state,plan,lightingResponse,localShadowSource,shadowQuality);
     const bool mappedReady=directionalShadow||localFixtureShadow;
     // A failed mapped request must not silently activate a different shadow
     // implementation. That made lighting ablations change two causal variables
@@ -2419,7 +2417,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         {state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear},lightingResponse,
         observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
     if(shadowControl_.geometryOnly){
-        glDisable(GL_LIGHTING);glDisable(GL_FOG);glEnable(GL_DEPTH_TEST);drawShadowGeometry(state,lightingResponse,requestedShadowQuality);glEnable(GL_FOG);glEnable(GL_LIGHTING);
+        glDisable(GL_LIGHTING);glDisable(GL_FOG);glEnable(GL_DEPTH_TEST);drawShadowGeometry(state,plan,lightingResponse,requestedShadowQuality);glEnable(GL_FOG);glEnable(GL_LIGHTING);
         if(mappedReady&&shadowControl_.showDepthMap)drawShadowDepthMap();
         if(codec&&codec->open)drawDeveloperCodec(*codec);
         return;
@@ -2467,7 +2465,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         constexpr int celestialSegments=28;for(int i=0;i<=celestialSegments;++i){const float a=2.0f*PI*static_cast<float>(i)/celestialSegments;const Vec3 edge=center+right*(std::cos(a)*radius)+up*(std::sin(a)*radius);glColor4f(color.r,color.g,color.b,0.0f);glVertex3f(edge.x,edge.y,edge.z);}glEnd();
         glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_FOG);glEnable(GL_LIGHTING);
     }
-    for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,tile,lightingResponse);
+    for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,plan,tile,lightingResponse);
 
     // The secret room is deliberately disconnected from the repeating corridor:
     // a tiny, cheap collection of boxes makes it feel like found backstage space.
@@ -2570,7 +2568,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         target.tetherAnchor.z+=mirrorShift;target.tetherDestination.z+=mirrorShift;target.latchPoint.z+=mirrorShift;
         target.pos = p;
         if (!target.slurpable) {
-            const auto setting=room_environment::roomPlan(state.roomSeed,state.roomIndex).setting;const VisualColor damageColor=humanDamageSurfaceColor(enemyShellColor(target.brute,target.attackVariant,state.roomIndex),setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
+            const auto setting=plan.setting;const VisualColor damageColor=humanDamageSurfaceColor(enemyShellColor(target.brute,target.attackVariant,state.roomIndex),setting,target.armor,target.brute?4.0f:2.0f,target.slurpable,target.hitFlash);
             if(humanModel_.valid())drawHumanModel(target,state.time,setting,slot);else drawProceduralHumanDesktop(target,state.time,damageColor.r,damageColor.g,damageColor.b);
         }
         if (target.slurpable && target.soulCubeAmount > 0.001f) {
@@ -2589,7 +2587,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         drawEnemyReactionBillboard(state,target);
     }
     if(mappedReady){
-        applyMappedShadow(state,lightingResponse,shadowQuality,mappedStrength);
+        applyMappedShadow(state,plan,lightingResponse,shadowQuality,mappedStrength);
         if(shadowControl_.showDepthMap)drawShadowDepthMap();
     }
     std::sort(translucentSouls.begin(),translucentSouls.begin()+translucentSoulCount,[](const auto& a,const auto& b){return a.distanceSquared>b.distanceSquared;});
@@ -2641,7 +2639,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     if(state.localSettings.particles)for(const auto& particle:state.particles) if(particle.life>0.0f) {
         const float t=particle.maxLife>0.0f?clampf(particle.life/particle.maxLife,0.0f,1.0f):0.0f;
         const float size=particle.size*t;
-        const VisualColor color=particleMaterialColor(particle.material,room_environment::roomPlan(state.roomSeed,state.roomIndex).setting,t);
+        const VisualColor color=particleMaterialColor(particle.material,plan.setting,t);
         if(particle.material==ParticleMaterial::SignalResidue&&particleSurfaceSettled(particle)){
             const float spread=std::max(0.035f,size);
             const unsigned int seed=(static_cast<unsigned int>(std::fabs(particle.pos.x)*7919.0f)^
