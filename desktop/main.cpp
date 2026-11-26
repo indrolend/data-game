@@ -4,6 +4,7 @@
 #include "DesktopPlaytestPolicy.hpp"
 #include "DesktopPersistencePolicy.hpp"
 #include "DeveloperCodec.hpp"
+#include "DeveloperPhoneMenu.hpp"
 #include "AgentPlaytestProtocol.hpp"
 #include "LightingControlCommand.hpp"
 #include "ShadowControlCommand.hpp"
@@ -38,6 +39,7 @@
 #include <array>
 #include <chrono>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <cmath>
 #include <filesystem>
@@ -135,6 +137,7 @@ struct HostState {
     bool previousGamepadMenuDown = false;
     dbmenu::MenuRepeatState controllerVerticalMenuRepeat;
     dbmenu::MenuRepeatState keyboardVerticalMenuRepeat;
+    dbmenu::MenuRepeatState developerVerticalMenuRepeat;
     unsigned int lastHapticAudioSerial = 0;
     unsigned int previousMeleeHitMask = 0;
     std::array<int,3> previousPermanentLevels{};
@@ -530,26 +533,39 @@ void interpolatePresentation(GameState& renderState,const FramePresentationSampl
         (current.hud.critMarkerOpacity-previous.critMarkerOpacity)*alpha;
 }
 
-int phoneMenuItemAt(const GameState& state,float cursorX,float cursorY,int fw,int fh){
-    if(state.camera.firstPerson&&!state.upgradeMenu.active)return -1;
-    if(state.started&&!soloPauseMenu(state)&&!state.upgradeMenu.active)return -1;
-    const PhoneDisplayMenuLayout layout=makePhoneDisplayMenuLayout(state);
+void applyDeveloperMenuCamera(GameState& state){
+    const auto& phone=state.phoneTransform;
+    state.camera.pos=phone.screenCenter+phone.screenNormal*0.34f+phone.screenUp*0.012f;
+    state.camera.lookTarget=phone.screenCenter-phone.screenUp*0.012f;
+    state.camera.forward=normalized(state.camera.lookTarget-state.camera.pos);
+    state.camera.verticalFovDegrees=40.0f;
+    state.camera.firstPerson=false;
+    state.attractMode=false;
+}
+
+int phoneMenuItemAt(const GameState& state,float cursorX,float cursorY,int fw,int fh,const DeveloperCodecState* codec=nullptr){
+    const bool developer=codec&&codec->open&&!codec->consoleFocused;
+    if(!developer&&state.camera.firstPerson&&!state.upgradeMenu.active)return -1;
+    if(!developer&&state.started&&!soloPauseMenu(state)&&!state.upgradeMenu.active)return -1;
+    const PhoneDisplayMenuLayout layout=developer?makePhoneDisplayMenuLayout(makeDeveloperPhonePage(*codec),codec->menuScroll):makePhoneDisplayMenuLayout(state);
     if(layout.selectableCount<=0)return -1;
     const PhoneTransformState& phone=state.phoneTransform;
-    const Vec3 forward=normalized(state.camera.lookTarget-state.camera.pos);
+    const Vec3 eye=developer?phone.screenCenter+phone.screenNormal*0.34f+phone.screenUp*0.012f:state.camera.pos;
+    const Vec3 target=developer?phone.screenCenter-phone.screenUp*0.012f:state.camera.lookTarget;
+    const Vec3 forward=normalized(target-eye);
     Vec3 right=normalized(cross3(forward,{0.0f,1.0f,0.0f}));
     if(lengthSq(right)<0.00001f)right={1.0f,0.0f,0.0f};
     const Vec3 up=cross3(right,forward);
     const float aspect=static_cast<float>(fw)/std::max(1,fh);
-    const float tanHalf=std::tan(state.camera.verticalFovDegrees*DB_PI/360.0f);
+    const float tanHalf=std::tan((developer?40.0f:state.camera.verticalFovDegrees)*DB_PI/360.0f);
     const float nx=cursorX/static_cast<float>(std::max(1,fw))*2.0f-1.0f;
     const float ny=1.0f-cursorY/static_cast<float>(std::max(1,fh))*2.0f;
     const Vec3 ray=normalized(forward+right*(nx*tanHalf*aspect)+up*(ny*tanHalf));
     const float denom=dot3(ray,phone.screenNormal);
     if(std::abs(denom)<0.00001f)return -1;
-    const float t=dot3(phone.screenCenter-state.camera.pos,phone.screenNormal)/denom;
+    const float t=dot3(phone.screenCenter-eye,phone.screenNormal)/denom;
     if(t<=0.0f)return -1;
-    const Vec3 hit=state.camera.pos+ray*t;
+    const Vec3 hit=eye+ray*t;
     const Vec3 local=hit-phone.screenCenter;
     const float screenW=PHONE_SCREEN_WIDTH*std::max(0.65f,state.phoneVisual.screenScale.x);
     const float screenH=PHONE_SCREEN_HEIGHT*std::max(0.65f,state.phoneVisual.screenScale.y);
@@ -640,7 +656,7 @@ void setMenuSelection(HostState& host,int selection) {
     host.audio.playMenuCue(false);
 }
 
-int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double windowY) {
+int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double windowY,const DeveloperCodecState* codec=nullptr) {
     int ww=1,wh=1,fw=1,fh=1;glfwGetWindowSize(window,&ww,&wh);glfwGetFramebufferSize(window,&fw,&fh);
     // Match DesktopRenderer's Retina logical-canvas scale followed by its
     // bounded menu scale (2.5 * 1.8 at the extreme), so visual and clickable
@@ -652,7 +668,7 @@ int menuItemAt(GLFWwindow* window,const HostState& host,double windowX,double wi
     const GameState& state=host.game.state();
     const int deathItem=deathMenuItemAt(state,x,y,canvasW,canvasH);
     if(deathItem>=0)return deathItem;
-    const int phoneItem=phoneMenuItemAt(state,framebufferX,framebufferY,fw,fh);
+    const int phoneItem=phoneMenuItemAt(state,framebufferX,framebufferY,fw,fh,codec);
     if(phoneItem>=0)return phoneItem;
     if(!state.started||soloPauseMenu(state)||state.upgradeMenu.active)return -1;
     if(state.uiPaused){const float pw=360.0f,px=canvasW-pw-12.0f,py=48.0f;if(x>=px+12&&x<=px+pw-12&&y>=py+34&&y<=py+92)return 0;}
@@ -979,11 +995,14 @@ void setMouseCaptured(GLFWwindow* window, HostState& host, bool captured) {
 
 void setDeveloperCodecOpen(GLFWwindow* window,HostState& host,bool open){
     if(open==host.codec.open)return;
+    dbmenu::resetMenuRepeat(host.developerVerticalMenuRepeat);
     if(open){
         if(host.game.state().multiplayer.enabled)return;
         host.codecPreviousPaused=host.game.state().uiPaused;host.codecPreviousMouseCaptured=host.mouseCaptured;
         host.game.clearInputState();host.lookX=host.lookY=0.0;host.haveMouse=false;host.mouseCaptured=false;
-        glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);host.game.setUiPaused(true);host.codec.open=true;host.codec.actionFocus=true;
+        glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);host.game.setUiPaused(true);host.codec.open=true;host.codec.actionFocus=false;
+        host.codec.page=DeveloperCodecState::Page::Root;
+        host.codec.selection=0;host.codec.menuScroll=0.0f;host.codec.consoleFocused=false;
         if(host.codec.outputCount==0){host.codec.write("READY / ACTION DECK ACTIVE");host.codec.write("ARROWS + ENTER / TAB FOR COMMAND");}
     }else{
         host.game.clearInputState();host.codec.open=false;host.mouseCaptured=host.codecPreviousMouseCaptured;
@@ -1084,7 +1103,7 @@ void executeDeveloperCodec(HostState& host){
 }
 
 void codecCharacterCallback(GLFWwindow* window,unsigned int codepoint){
-    HostState* host=stateFor(window);if(!host||host->playtestPolicy.automation||!host->codec.open||codepoint<32||codepoint>126||codepoint=='`'||host->codec.input.size()>=96)return;
+    HostState* host=stateFor(window);if(!host||host->playtestPolicy.automation||!host->codec.open||!host->codec.consoleFocused||codepoint<32||codepoint>126||codepoint=='`'||host->codec.input.size()>=96)return;
     host->codec.actionFocus=false;
     host->codec.input.push_back(static_cast<char>(codepoint));
 }
@@ -1099,16 +1118,93 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
 #endif
     if(host->codec.open){
         if(action!=GLFW_PRESS&&action!=GLFW_REPEAT)return;
-        if(key==GLFW_KEY_ESCAPE){setDeveloperCodecOpen(window,*host,false);return;}
-        if(key==GLFW_KEY_TAB&&action==GLFW_PRESS){host->codec.actionFocus=!host->codec.actionFocus;return;}
-        if(host->codec.actionFocus){
-            if(key==GLFW_KEY_LEFT){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,-1,0);return;}
-            if(key==GLFW_KEY_RIGHT){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,1,0);return;}
-            if(key==GLFW_KEY_UP){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,0,-1);return;}
-            if(key==GLFW_KEY_DOWN){host->codec.quickActionSelection=moveDeveloperCodecQuickSelection(host->codec.quickActionSelection,0,1);return;}
-            if(key==GLFW_KEY_ENTER){host->codec.input=DeveloperCodecQuickActions[host->codec.quickActionSelection].command;executeDeveloperCodec(*host);return;}
+        if(key==GLFW_KEY_TAB&&action==GLFW_PRESS){
+            host->codec.consoleFocused=!host->codec.consoleFocused;
             return;
         }
+        if(!host->codec.consoleFocused){
+            auto& codec=host->codec;
+            const int count=developerMenuItemCount(codec.page);
+            if(key==GLFW_KEY_ESCAPE&&action==GLFW_PRESS){
+                if(codec.page!=DeveloperCodecState::Page::Root){
+                    codec.page=DeveloperCodecState::Page::Root;
+                    codec.selection=0;
+                    codec.menuScroll=0.0f;
+                }else setDeveloperCodecOpen(window,*host,false);
+                return;
+            }
+            const bool developerUp=key==GLFW_KEY_UP||key==GLFW_KEY_W;
+            const bool developerDown=key==GLFW_KEY_DOWN||key==GLFW_KEY_S;
+            if((developerUp||developerDown)&&
+               (action==GLFW_PRESS||action==GLFW_REPEAT)){
+                const int direction=developerDown?1:-1;
+                if(dbmenu::menuRepeatMove(host->developerVerticalMenuRepeat,
+                                           direction,glfwGetTime()))
+                    codec.selection=(codec.selection+direction+count)%count;
+                return;
+            }
+            if((developerUp||developerDown)&&action==GLFW_RELEASE){
+                dbmenu::resetMenuRepeat(host->developerVerticalMenuRepeat);
+                return;
+            }
+            if(key==GLFW_KEY_ENTER&&action==GLFW_PRESS){
+                const DeveloperMenuAction menuAction=developerMenuEntry(codec.page,codec.selection).action;
+                DeveloperCodecState::Page targetPage=codec.page;
+                std::string command;
+                bool showResult=false;
+                switch(menuAction){
+                    case DeveloperMenuAction::OpenStatus:targetPage=DeveloperCodecState::Page::Status;break;
+                    case DeveloperMenuAction::OpenRendering:targetPage=DeveloperCodecState::Page::Rendering;break;
+                    case DeveloperMenuAction::OpenEnvironment:targetPage=DeveloperCodecState::Page::Environment;break;
+                    case DeveloperMenuAction::OpenPlaytest:targetPage=DeveloperCodecState::Page::Playtest;break;
+                    case DeveloperMenuAction::OpenConsole:codec.consoleFocused=true;return;
+                    case DeveloperMenuAction::Back:targetPage=DeveloperCodecState::Page::Root;break;
+                    case DeveloperMenuAction::StateShow:command="state";showResult=true;break;
+                    case DeveloperMenuAction::CollidersToggle:command="colliders toggle";break;
+                    case DeveloperMenuAction::BatteryFull:command="battery full";break;
+                    case DeveloperMenuAction::SoulSpawn:command="soul spawn";break;
+                    case DeveloperMenuAction::EnemiesToggle:command="enemies toggle";break;
+                    case DeveloperMenuAction::ShadowModeCycle:{
+                        const auto mode=host->renderer.shadowControl().mode;
+                        const char* next=
+                            mode==render_contract::ShadowMode::Automatic?"off":
+                            mode==render_contract::ShadowMode::Off?"cheap":
+                            mode==render_contract::ShadowMode::Cheap?"normal":
+                            mode==render_contract::ShadowMode::MappedNormal?"pretty":"auto";
+                        command=std::string("shadow mode ")+next;
+                        break;
+                    }
+                    case DeveloperMenuAction::ShadowDepthMapToggle:
+                        command=host->renderer.shadowControl().showDepthMap?"shadow depth-map off":"shadow depth-map on";break;
+                    case DeveloperMenuAction::ShadowGeometryToggle:
+                        command=host->renderer.shadowControl().geometryOnly?"shadow geometry off":"shadow geometry on";break;
+                    case DeveloperMenuAction::LightingShow:command="lighting show";showResult=true;break;
+                    case DeveloperMenuAction::ShadowShow:command="shadow show";showResult=true;break;
+                    case DeveloperMenuAction::ShadowReset:command="shadow reset";break;
+                    case DeveloperMenuAction::LightingReset:command="lighting reset";break;
+                    case DeveloperMenuAction::EnvironmentShow:command="environment show";showResult=true;break;
+                    case DeveloperMenuAction::EnvironmentCatalog:command="environment catalog";showResult=true;break;
+                    case DeveloperMenuAction::RoomNext:command="room next";break;
+                    case DeveloperMenuAction::RoomReroll:command="room reroll";break;
+                    case DeveloperMenuAction::PlaytestRally:command="playtest rally";break;
+                    case DeveloperMenuAction::PlaytestTraversal:command="playtest traversal";break;
+                    case DeveloperMenuAction::PlaytestRooms:command="playtest rooms";break;
+                    case DeveloperMenuAction::None:return;
+                }
+                if(targetPage!=codec.page){
+                    codec.page=targetPage;
+                    codec.selection=0;
+                    codec.menuScroll=0.0f;
+                }else if(!command.empty()){
+                    codec.input=command;
+                    executeDeveloperCodec(*host);
+                    codec.consoleFocused=showResult;
+                }
+                return;
+            }
+            return;
+        }
+        if(key==GLFW_KEY_ESCAPE){host->codec.consoleFocused=false;return;}
         if(key==GLFW_KEY_ENTER){executeDeveloperCodec(*host);return;}
         if(key==GLFW_KEY_BACKSPACE){if(!host->codec.input.empty())host->codec.input.pop_back();return;}
         if(key==GLFW_KEY_UP&&host->codec.historyCount>0){host->codec.historyCursor=std::max(0,host->codec.historyCursor-1);host->codec.input=host->codec.history[host->codec.historyCursor];return;}
@@ -1209,6 +1305,22 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
 void cursorCallback(GLFWwindow* window, double x, double y) {
     HostState* host = stateFor(window);
     if (!host) return;
+    if(host->codec.open){
+        auto& codec=host->codec;
+        if(codec.consoleFocused)return;
+
+        const int hovered=menuItemAt(window,*host,x,y,&codec);
+        if(hovered>=0&&hovered!=codec.selection){
+            codec.selection=hovered;
+            const auto layout=makePhoneDisplayMenuLayout(
+                makeDeveloperPhonePage(codec),codec.menuScroll);
+            codec.menuScroll=phoneDisplayScrollForSelection(layout,hovered);
+            touchpadHapticPulse(
+                TouchpadHapticNavigate,
+                host->game.state().localSettings.controllerVibration);
+        }
+        return;
+    }
     if(!host->mouseCaptured){const int hovered=menuItemAt(window,*host,x,y);if(hovered>=0){const int before=host->game.state().hud.menuSelection;setMenuSelection(*host,hovered);if(before!=host->game.state().hud.menuSelection)touchpadHapticPulse(TouchpadHapticNavigate,host->game.state().localSettings.controllerVibration);}return;}
 
     if (!host->haveMouse) {
@@ -1237,7 +1349,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void scrollCallback(GLFWwindow* window,double,double yOffset){
     HostState* host=stateFor(window);
-    if(!host||host->mouseCaptured||host->enteringJoinCode||yOffset==0.0)return;
+    if(!host||host->codec.open||host->mouseCaptured||host->enteringJoinCode||yOffset==0.0)return;
     const int count=menuItemCount(host->game.state());
     if(count<=0)return;
     const int direction=yOffset<0.0?1:-1;
@@ -1252,6 +1364,33 @@ void framebufferCallback(GLFWwindow* window, int width, int height) {
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     HostState* host = stateFor(window);
     if (!host || action != GLFW_PRESS) return;
+    if(host->codec.open){
+        auto& codec=host->codec;
+        if(codec.consoleFocused)return;
+
+        const auto pointerAction=dbmenu::pointerAction(
+            button,GLFW_MOUSE_BUTTON_LEFT,GLFW_MOUSE_BUTTON_RIGHT);
+
+        if(pointerAction==dbmenu::PointerAction::Back){
+            keyCallback(window,GLFW_KEY_ESCAPE,0,GLFW_PRESS,0);
+            return;
+        }
+
+        if(pointerAction==dbmenu::PointerAction::Activate){
+            double x=0,y=0;
+            glfwGetCursorPos(window,&x,&y);
+            const int hovered=menuItemAt(window,*host,x,y,&codec);
+
+            if(hovered>=0){
+                codec.selection=hovered;
+                const auto layout=makePhoneDisplayMenuLayout(
+                    makeDeveloperPhonePage(codec),codec.menuScroll);
+                codec.menuScroll=phoneDisplayScrollForSelection(layout,hovered);
+                keyCallback(window,GLFW_KEY_ENTER,0,GLFW_PRESS,0);
+            }
+        }
+        return;
+    }
     if(host->game.state().attractMode){host->game.dismissAttractMode();setMouseCaptured(window,*host,false);return;}
     if(menuItemCount(host->game.state())>0){
         const dbmenu::PointerAction pointerAction=dbmenu::pointerAction(button,GLFW_MOUSE_BUTTON_LEFT,GLFW_MOUSE_BUTTON_RIGHT);
@@ -2596,6 +2735,8 @@ int main(int argc, char** argv) {
         GameState& fixture=host.game.hostMutableState();
         fixture.cinematic.introActive=false;fixture.uiPaused=true;fixture.upgradeMenu.active=false;
         host.codec.open=true;host.codec.actionFocus=!(captureDeveloperFocus&&std::strcmp(captureDeveloperFocus,"command")==0);
+        host.codec.consoleFocused=!host.codec.actionFocus;
+        host.codec.selection=captureDeveloperSelection%developerMenuItemCount(host.codec.page);
         host.codec.quickActionSelection=captureDeveloperSelection;
         host.codec.write("READY / HIDDEN CAPTURE FIXTURE");
         if(captureDeveloperCommand){host.codec.actionFocus=false;host.codec.input=captureDeveloperCommand;executeDeveloperCodec(host);}
@@ -3194,6 +3335,7 @@ int main(int argc, char** argv) {
             renderState.camera.verticalFovDegrees=44.0f;
             renderState.camera.firstPerson=false;
         }
+        if(host.codec.open&&!host.codec.consoleFocused)applyDeveloperMenuCamera(renderState);
         const auto renderBegin=std::chrono::steady_clock::now();
         host.renderer.draw(renderState,&host.codec);
         if(host.liveCaptureRequested){

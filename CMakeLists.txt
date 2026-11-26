@@ -469,6 +469,10 @@ add_executable(DeveloperCodecTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_c
 target_include_directories(DeveloperCodecTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
 target_compile_features(DeveloperCodecTest PRIVATE cxx_std_17)
 
+add_executable(DeveloperPhoneMenuTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_phone_menu_test.cpp")
+target_include_directories(DeveloperPhoneMenuTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(DeveloperPhoneMenuTest PRIVATE cxx_std_17)
+
 add_executable(AgentPlaytestProtocolTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/agent_playtest_protocol_test.cpp")
 target_include_directories(AgentPlaytestProtocolTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
 target_compile_features(AgentPlaytestProtocolTest PRIVATE cxx_std_17)
@@ -643,6 +647,7 @@ add_test(NAME LightingReplayDeterminismTest COMMAND DigitalBreakdown --lighting-
 add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
 add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
 add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)
+add_test(NAME DeveloperPhoneMenuTest COMMAND DeveloperPhoneMenuTest)
 add_test(NAME AgentPlaytestProtocolTest COMMAND AgentPlaytestProtocolTest)
 add_test(NAME SoulEconomyTest COMMAND SoulEconomyTest)
 add_test(NAME SoulProjectileLifecycleTest COMMAND SoulProjectileLifecycleTest)

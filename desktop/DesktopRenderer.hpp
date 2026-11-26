@@ -126,7 +126,7 @@ private:
     static void drawEnemyReactionBillboard(const GameState& state,const TargetState& target);
     static void drawSoulFlesh(const TargetState& target,const Vec3& center);
     void drawSecretTvScreen(const GameState& state, float phoneProximity) const;
-    void drawPhoneDisplayTexture(const GameState& state) const;
+    void drawPhoneDisplayTexture(const GameState& state, const DeveloperCodecState* codec) const;
     void drawHud(const GameState& state) const;
     void drawDeveloperCodec(const DeveloperCodecState& codec) const;
     void drawDoorDataMosh(const GameState& state) const;

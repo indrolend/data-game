@@ -1,7 +1,9 @@
 #include "DesktopRenderer.hpp"
+#include "DeveloperPhoneMenu.hpp"
 #include "HumanVisual.hpp"
 #include "BitmapFont.hpp"
 #include "RoomEnvironment.hpp"
+#include "FieldIsland.hpp"
 #include "RoomLighting.hpp"
 #include "PhoneDisplayLayout.hpp"
 #include "PhoneStencilReveal.hpp"
@@ -782,7 +784,7 @@ void drawPaletteMenuTitle(const std::string& text, float centerX, float centerY,
     glEnd();
 }
 
-void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>& pixels) {
+void renderPhoneDisplayPixels(const GameState& state, const DeveloperCodecState* codec, std::vector<unsigned char>& pixels) {
     pixels.resize(PhoneDisplayState::LogicalWidth * PhoneDisplayState::LogicalHeight * 4);
     CpuCanvas canvas{PhoneDisplayState::LogicalWidth, PhoneDisplayState::LogicalHeight, pixels};
     const PhoneDisplayState& display = state.phoneDisplay;
@@ -794,7 +796,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     cpuClear(canvas, 0.025f + tint.x * 0.18f, 0.045f + tint.y * 0.16f, 0.060f + tint.z * 0.15f, 1.0f);
     cpuRect(canvas, 0, 0, static_cast<float>(canvas.w), static_cast<float>(canvas.h), 0.03f, 0.55f, 0.62f, 0.10f + display.brightness * 0.08f);
 
-    const bool menuVisible = state.upgradeMenu.active || state.cinematic.introActive || !state.started ||
+    const bool menuVisible = (codec && codec->open && !codec->consoleFocused) || state.upgradeMenu.active || state.cinematic.introActive || !state.started ||
         (state.started && state.uiPaused && !state.multiplayer.enabled);
     if (!menuVisible) {
         const GameplayPhoneModel phone = makeGameplayPhoneModel(state);
@@ -870,7 +872,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
         return;
     }
 
-    const PhoneDisplayMenuLayout layout = makePhoneDisplayMenuLayout(state, cpuTextWidth);
+    const PhoneDisplayMenuLayout layout = codec && codec->open ? makePhoneDisplayMenuLayout(makeDeveloperPhonePage(*codec), codec->menuScroll, cpuTextWidth) : makePhoneDisplayMenuLayout(state, cpuTextWidth);
     const float stencilAge=phone_stencil::appearanceAge(display.transitionProgress);
     const Vec3 resolvedAccent=phoneDisplayResolvedAccent(display);
     const VisualColor channelAccent{resolvedAccent.x,resolvedAccent.y,resolvedAccent.z};
@@ -905,7 +907,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     for (int i = 0; i < layout.rowCount; ++i) {
         const PhoneDisplayMenuRow& row = layout.rows[i];
         if (!row.visible) continue;
-        const bool selected = row.selectable && state.hud.menuSelection == row.selectableIndex;
+        const bool selected = row.selectable && (codec && codec->open ? codec->selection : state.hud.menuSelection) == row.selectableIndex;
         if (row.peek) {
             const float top = std::max(row.visual.y, layout.content.y);
             const float bottom = std::min(row.visual.y + row.visual.h, layout.content.y + layout.content.h);
@@ -947,7 +949,7 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
                 cpuRect(canvas,thumbX,trackY-2.0f,trackH,trackH+4.0f,fill.r,fill.g,fill.b,selected?1.0f:0.76f);
             }
         } else {
-            const bool centered=state.dead&&row.action==PhoneMenuAction::Restart;
+            const bool centered=(codec&&codec->open)||(state.dead&&row.action==PhoneMenuAction::Restart);
             const VisualColor actionColor=emphasis==PhoneMenuEmphasis::Destructive?VisualIdentity::Copper:
                 (selected&&emphasis==PhoneMenuEmphasis::Primary?VisualIdentity::AcidChartreuse:VisualColor{selected?1.0f:0.70f,selected?1.0f:0.88f,1.0f});
             if(selected)cpuLetterSplatter(canvas,row.label,centered?layout.logicalW*0.5f:row.labelX,row.baselineY,row.fontPx,focusColor,0.38f+response*0.36f,gesture,centered);
@@ -961,8 +963,14 @@ void renderPhoneDisplayPixels(const GameState& state, std::vector<unsigned char>
     }
 }
 
-std::uint64_t phoneDisplayRenderKey(const GameState& state) {
+std::uint64_t phoneDisplayRenderKey(const GameState& state, const DeveloperCodecState* codec) {
     std::uint64_t hash = 1469598103934665603ull;
+    hashPhoneDisplayValue(hash, codec && codec->open ? 1u : 0u);
+    if (codec && codec->open) {
+        hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(codec->page));
+        hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(codec->selection));
+        hashPhoneDisplayFloat(hash, codec->menuScroll, 10.0f);
+    }
     const PhoneDisplayState& display = state.phoneDisplay;
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(display.mode));
     hashPhoneDisplayValue(hash, static_cast<std::uint64_t>(display.previousMode));
@@ -1112,7 +1120,7 @@ void DesktopRenderer::drawSecretTvScreen(const GameState& state, float phoneProx
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glDisable(GL_TEXTURE_2D);glEnable(GL_LIGHTING);
 }
 
-void DesktopRenderer::drawPhoneDisplayTexture(const GameState& state) const {
+void DesktopRenderer::drawPhoneDisplayTexture(const GameState& state, const DeveloperCodecState* codec) const {
     if (!phoneDisplayTexture_) glGenTextures(1, &phoneDisplayTexture_);
     glBindTexture(GL_TEXTURE_2D, phoneDisplayTexture_);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1120,9 +1128,9 @@ void DesktopRenderer::drawPhoneDisplayTexture(const GameState& state) const {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    const std::uint64_t renderKey = phoneDisplayRenderKey(state);
+    const std::uint64_t renderKey = phoneDisplayRenderKey(state, codec);
     if (!phoneDisplayCacheValid_ || renderKey != phoneDisplayCacheKey_ || !phoneDisplayTextureAllocated_) {
-        renderPhoneDisplayPixels(state, phoneDisplayPixels_);
+        renderPhoneDisplayPixels(state, codec, phoneDisplayPixels_);
         if (!phoneDisplayTextureAllocated_) {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PhoneDisplayState::LogicalWidth, PhoneDisplayState::LogicalHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, phoneDisplayPixels_.data());
             phoneDisplayTextureAllocated_ = true;
@@ -1140,7 +1148,9 @@ void DesktopRenderer::drawPhoneDisplayTexture(const GameState& state) const {
     const Vec3 rx = phone.screenRight * halfW;
     const Vec3 uy = phone.screenUp * halfH;
     const PhoneDisplayState& display = state.phoneDisplay;
-    const float alpha = clampf(0.12f + display.brightness * 0.88f, 0.0f, 1.0f);
+    const float alpha = codec&&codec->open&&!codec->consoleFocused
+        ? 1.0f
+        : clampf(0.12f + display.brightness * 0.88f, 0.0f, 1.0f);
 
     glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
@@ -2518,7 +2528,10 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     }
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
 
-    if (state.phoneVisual.visible || state.upgradeMenu.active) {
+    const bool developerPhoneOverlay=codec&&codec->open&&!codec->consoleFocused;
+    const GLboolean phoneDepthWasEnabled=developerPhoneOverlay?glIsEnabled(GL_DEPTH_TEST):GL_FALSE;
+    if(developerPhoneOverlay)glDisable(GL_DEPTH_TEST);
+    if (developerPhoneOverlay || state.phoneVisual.visible || state.upgradeMenu.active) {
         const Vec3 phonePos=state.phoneTransform.position;
         const auto& pv=state.phoneVisual;
         const Quat phoneOrientation=state.phoneTransform.orientation;
@@ -2528,8 +2541,8 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         const float glow=std::min(1.0f,0.45f+pv.screenGlow*0.36f);
         {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneGlass,{VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow}));
         drawBox(state.phoneTransform.screenCenter,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*pv.screenScale.x,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*pv.screenScale.y,PHONE_SCREEN_DEPTH*0.30f},phoneOrientation,VisualIdentity::PhoneEmission.r*glow,VisualIdentity::PhoneEmission.g*glow,VisualIdentity::PhoneEmission.b*glow);}
-        if(state.phoneDisplay.mode!=PhoneDisplayMode::Off&&state.phoneDisplay.mode!=PhoneDisplayMode::Death)
-            drawPhoneDisplayTexture(state);
+        if(developerPhoneOverlay||(state.phoneDisplay.mode!=PhoneDisplayMode::Off&&state.phoneDisplay.mode!=PhoneDisplayMode::Death))
+            drawPhoneDisplayTexture(state, codec);
         const float idleScreenAura=0.055f+(openSky?1.0f-render_contract::celestialDaylight(atmosphereInputs.time):0.42f)*0.085f;
         glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);
         drawBox(state.phoneTransform.screenCenter+state.phoneTransform.screenNormal*0.010f,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*1.055f,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*1.035f,PHONE_SCREEN_DEPTH*0.18f},phoneOrientation,state.phoneDisplay.emissionColor.x,state.phoneDisplay.emissionColor.y,state.phoneDisplay.emissionColor.z,idleScreenAura);
@@ -2537,6 +2550,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         const float captureAura=clampf(pv.captureContactAmount*0.72f+std::max(0.0f,pv.ingestBulge)*0.58f+captureActivity*0.34f+completionAfterglow*0.42f,0.0f,1.0f);
         if(captureAura>0.015f){glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glDepthMask(GL_FALSE);const float pulse=0.92f+0.08f*std::sin(state.time*24.0f);drawBox(state.phoneTransform.screenCenter+state.phoneTransform.screenNormal*0.012f,{PHONE_SCREEN_WIDTH*PHONE_DISPLAY_INSET_X*(1.04f+captureAura*0.12f)*pulse,PHONE_SCREEN_HEIGHT*PHONE_DISPLAY_INSET_Y*(1.03f+captureAura*0.10f)*pulse,PHONE_SCREEN_DEPTH*0.22f},phoneOrientation,VisualIdentity::ElectricCyan.r,VisualIdentity::ElectricCyan.g,VisualIdentity::ElectricCyan.b,0.14f+captureAura*0.24f);glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);}
     }
+    if(developerPhoneOverlay&&phoneDepthWasEnabled)glEnable(GL_DEPTH_TEST);
     if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){
         const auto& pv=peer.phoneVisual;
         {const ScopedMaterial material(semanticMaterial(SemanticSurface::PhoneMetal,{0.32f,0.86f,1.0f}));
@@ -2702,6 +2716,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
 }
 
 void DesktopRenderer::drawDeveloperCodec(const DeveloperCodecState& codec) const{
+    if (!codec.consoleFocused) return;
     glDisable(GL_DEPTH_TEST);glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();
     const auto quad=[](float x,float y,float w,float h,float r,float g,float b,float a){glColor4f(r,g,b,a);glBegin(GL_QUADS);glVertex2f(x,y);glVertex2f(x+w,y);glVertex2f(x+w,y+h);glVertex2f(x,y+h);glEnd();};
