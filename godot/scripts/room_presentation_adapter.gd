@@ -392,6 +392,7 @@ func _sync_coastal_water(snapshot: Dictionary) -> void:
         _coastal_water.material_override = _coastal_water_material
         add_child(_coastal_water)
     _coastal_water.visible = true
+    _coastal_water.position.y = float(water.get("base_y", 0.0))
     _coastal_water.position.z = (float(water.tile_offset_z) +
         (float(water.min_z) + float(water.max_z)) * 0.5)
     _coastal_water_material.set_shader_parameter("native_time", float(water.native_time))

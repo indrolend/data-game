@@ -897,6 +897,7 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
     coastal_water["min_z"] = coastal_water::MinZ;
     coastal_water["max_z"] = coastal_water::MaxZ;
     coastal_water["tile_offset_z"] = static_cast<float>(snapshot.tileIndex) * world::RoomDepth;
+    coastal_water["base_y"] = snapshot.fieldIsland ? world::GroundY : 0.0f;
     coastal_water["native_time"] = snapshot.presentationTime;
     coastal_water["source_position"] = v(snapshot.waterSourcePosition);
     coastal_water["source_speed"] = snapshot.waterSourceSpeed;

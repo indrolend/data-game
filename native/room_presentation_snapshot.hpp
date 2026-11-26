@@ -196,6 +196,7 @@ struct RoomPresentationSnapshot {
                 const auto& surface = surfaces[i];
                 const float centerZ = z0 + (surface.minZ + surface.maxZ) * 0.5f;
                 const float depth = surface.maxZ - surface.minZ;
+                if (depth <= 0.0f) continue;
                 const float coreDepth = i == 0 ? 1.2f : 0.84f;
                 addStructure(coreIds[i], RoomStructureKind::FieldIslandCore,
                     {0, world::GroundY - turfThickness - coreDepth * 0.5f, centerZ},

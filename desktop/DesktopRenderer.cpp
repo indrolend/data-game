@@ -1744,6 +1744,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
         for (const auto& surface : frameGroundFootprint_.surfaces()) {
             const float minZ = z0 + surface.minZ;
             const float maxZ = z0 + surface.maxZ;
+            if (maxZ <= minZ) continue;
             const float coreDepth = surface.halfWidth == frameGroundFootprint_.halfWidth ? 1.28f : 0.92f;
             glPushMatrix();
             glTranslatef(0, world::GroundY - coreDepth * 0.5f, (minZ + maxZ) * 0.5f);
@@ -1813,13 +1814,16 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
         const float x0=coastal_water::ShoreX,x1=coastal_water::FarX,zMin=z0+coastal_water::MinZ,zMax=z0+coastal_water::MaxZ;
         // The existing Ground054 sand becomes darker and finer where it is
         // saturated. Reusing one source material keeps the shore coherent.
-        drawTexturedBox(sandTexture_,{x0-0.34f,0.026f,z0},{0.86f,0.018f,ROOM_DEPTH*0.98f},0,0,0,{0.64f,0.60f,0.49f},1.65f,std::fmod((state.roomIndex+tileIndex)*0.217f,1.0f));
+        field_island::forEachGroundOverlay({x0-0.34f,0.026f,z0},{0.86f,0.018f,ROOM_DEPTH*0.98f},z0,island,
+            [&](std::size_t,Vec3 center,Vec3 size){
+                drawTexturedBox(sandTexture_,center,size,0,0,0,{0.64f,0.60f,0.49f},1.65f,std::fmod((state.roomIndex+tileIndex)*0.217f,1.0f));
+            },frameGroundFootprint_);
         const float playerLocalZ=state.player.pos.z-z0;
         const float playerSpeed=std::sqrt(state.player.vel.x*state.player.vel.x+state.player.vel.z*state.player.vel.z);
         const bool playerInThisWater=tileIndex==state.topology.currentTileIndex&&coastal_water::contains(state.player.pos.x,playerLocalZ);
-        const auto waterHeight=[&](float x,float localZ){return coastal_water::surfaceHeight(x,localZ,state.time)+(tileIndex==state.topology.currentTileIndex?coastalWaterSimulation_.sample(x,localZ):0.0f);};
+        const auto waterHeight=[&](float x,float localZ){return coastal_water::surfaceHeight(x,localZ,state.time)+(island?world::GroundY:0.0f)+(tileIndex==state.topology.currentTileIndex?coastalWaterSimulation_.sample(x,localZ):0.0f);};
         glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);glBegin(GL_TRIANGLES);
-        const auto waterVertex=[&](float x,float z){const float localZ=z-z0;constexpr float epsilon=0.055f;const float y=waterHeight(x,localZ);const Vec3 normal=normalized(Vec3{waterHeight(x-epsilon,localZ)-waterHeight(x+epsilon,localZ),epsilon*2.0f,waterHeight(x,localZ-epsilon)-waterHeight(x,localZ+epsilon)});glNormal3f(normal.x,normal.y,normal.z);const float shore=coastal_water::shoreAmount(x);const float crest=clampf((y-0.025f)*4.8f,0.0f,0.22f);glColor4f(0.035f+shore*0.025f+crest,0.30f+shore*0.17f+crest,0.43f+shore*0.23f+crest,0.74f+shore*0.12f);glVertex3f(x,y,z);};
+        const auto waterVertex=[&](float x,float z){const float localZ=z-z0;constexpr float epsilon=0.055f;const float y=waterHeight(x,localZ);const Vec3 normal=normalized(Vec3{waterHeight(x-epsilon,localZ)-waterHeight(x+epsilon,localZ),epsilon*2.0f,waterHeight(x,localZ-epsilon)-waterHeight(x,localZ+epsilon)});glNormal3f(normal.x,normal.y,normal.z);const float shore=coastal_water::shoreAmount(x);const float crest=clampf((y-(island?world::GroundY:0.0f)-0.025f)*4.8f,0.0f,0.22f);glColor4f(0.035f+shore*0.025f+crest,0.30f+shore*0.17f+crest,0.43f+shore*0.23f+crest,0.74f+shore*0.12f);glVertex3f(x,y,z);};
         for(int ix=0;ix<strips;++ix)for(int iz=0;iz<steps;++iz){const float xa=x0+(x1-x0)*ix/strips,xb=x0+(x1-x0)*(ix+1)/strips,za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;waterVertex(xa,za);waterVertex(xb,za);waterVertex(xb,zb);waterVertex(xa,za);waterVertex(xb,zb);waterVertex(xa,zb);}glEnd();
         glDisable(GL_LIGHTING);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glBegin(GL_LINES);for(int foam=0;foam<4;++foam){const float x=x0+0.12f+foam*0.36f+std::sin(state.time*0.64f+foam*1.7f+tileIndex)*0.10f;glColor4f(0.72f,0.92f,0.96f,0.34f-foam*0.045f);for(int iz=0;iz<steps;++iz){const float za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;const float waveXa=x+std::sin(za*0.55f+state.time)*0.035f,waveXb=x+std::sin(zb*0.55f+state.time)*0.035f;glVertex3f(waveXa,waterHeight(waveXa,za-z0)+0.012f,za);glVertex3f(waveXb,waterHeight(waveXb,zb-z0)+0.012f,zb);}}glEnd();
         if(playerInThisWater){

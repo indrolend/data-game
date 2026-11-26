@@ -31,10 +31,11 @@ struct Footprint {
     float halfDepth = MainHalfDepth;
 
     constexpr std::array<Surface,3> surfaces() const {
+        const float bridgeStart = std::min(halfDepth,DoorBridgeHalfDepth);
         return {{
             {halfWidth,-halfDepth,halfDepth},
-            {DoorBridgeHalfWidth,halfDepth,DoorBridgeHalfDepth},
-            {DoorBridgeHalfWidth,-DoorBridgeHalfDepth,-halfDepth},
+            {DoorBridgeHalfWidth,bridgeStart,DoorBridgeHalfDepth},
+            {DoorBridgeHalfWidth,-DoorBridgeHalfDepth,-bridgeStart},
         }};
     }
 };

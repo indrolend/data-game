@@ -65,9 +65,10 @@ func _run() -> void:
 
     scene_runtime.start_city_room_fixture()
     scene._sync()
-    check(not scene.get_node("AdjacentRoomBefore").visible and
-        not scene.get_node("AdjacentRoomAfter").visible,
-        "leaving the floating footprint hides adjacent presentation")
+    var city: Dictionary = scene_runtime.room_presentation_snapshot(-1)
+    check(city.field_island.enabled and scene.get_node("AdjacentRoomBefore").visible and
+        scene.get_node("AdjacentRoomAfter").visible,
+        "City uses finite ground and retains adjacent static presentation")
 
     var runtime = ClassDB.instantiate("ParentGameNode")
     runtime.start_field_island_fixture()

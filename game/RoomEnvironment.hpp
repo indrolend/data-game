@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "Math.hpp"
+#include "CoastalWater.hpp"
 #include "world/RoomGeometry.hpp"
 #include "gameplay/TraversalCapabilities.hpp"
 #include "gameplay/TraversalGraph.hpp"
@@ -234,17 +235,8 @@ inline RoomSetting roomSetting(std::uint32_t key, int roomIndex, RoomCondition c
     return roll<0.27f?RoomSetting::Field:(roll<0.60f?RoomSetting::City:(roll<0.82f?RoomSetting::Sterile:RoomSetting::Coastal));
 }
 
-inline RoomBoundary roomBoundary(std::uint32_t key, int roomIndex, RoomSetting setting) {
-    // The opening island remains authored. Until other settings validate
-    // their perimeter structures, select later islands from Field only.
-    constexpr float LaterFieldFloatingChance = 0.125f;
-    return roomIndex==1 || (roomIndex>1 && setting==RoomSetting::Field && unit(key+467u)<LaterFieldFloatingChance)
-        ? RoomBoundary::Floating : RoomBoundary::Enclosed;
-}
-
-inline RoomBoundary roomBoundary(int roomSeed, int roomIndex) {
-    const auto key = roomKey(roomSeed,roomIndex);
-    return roomBoundary(key,roomIndex,roomSetting(key,roomIndex,roomCondition(key,roomIndex)));
+constexpr RoomBoundary roomBoundary(int, int) {
+    return RoomBoundary::Floating;
 }
 
 inline RoomEnvironmentPlan roomPlan(int roomSeed,int roomIndex) {
@@ -252,7 +244,7 @@ inline RoomEnvironmentPlan roomPlan(int roomSeed,int roomIndex) {
     const auto key=roomKey(roomSeed,roomIndex);
     plan.condition=roomCondition(key,roomIndex);
     plan.setting=roomSetting(key,roomIndex,plan.condition);
-    plan.boundary=roomBoundary(key,roomIndex,plan.setting);
+    plan.boundary=roomBoundary(roomSeed,roomIndex);
     plan.traversalIntent=roomTraversalIntent(roomSeed,roomIndex);
 
     plan.scale=unit(key+143u)<0.18f?RoomScale::Compact:(unit(key+143u)<0.82f?RoomScale::Standard:RoomScale::Large);
@@ -429,9 +421,17 @@ inline int environmentRoleCount(const RoomEnvironmentPlan& plan,int roomSeed,int
 inline world::finite_ground::Footprint roomGroundFootprint(
     const RoomEnvironmentPlan& plan, int roomSeed, int roomIndex) {
     world::finite_ground::Footprint footprint;
-    if (!hasFiniteGround(plan.boundary) || plan.setting != RoomSetting::City ||
-        plan.form != RoomForm::Canyon) return footprint;
-    // Preserve the authored end rows and perimeter houses. The fixed
+    if (!hasFiniteGround(plan.boundary) || roomIndex == 1) return footprint;
+    if (plan.setting == RoomSetting::Sterile) {
+        // The enclosed shell has side walls and doorway walls at the tile edges.
+        footprint.halfWidth = world::RoomWidth * 0.5f;
+        footprint.halfDepth = world::RoomDepth * 0.5f;
+    }
+    if (plan.setting == RoomSetting::Coastal) {
+        footprint.halfWidth = std::max(footprint.halfWidth, coastal_water::FarX);
+        footprint.halfDepth = std::max(footprint.halfDepth, coastal_water::MaxZ);
+    }
+    // Preserve authored structures and the land beneath them. The fixed
     // bridge width and tile boundary are independent of the deck extent.
     constexpr float foundationMargin = 0.05f;
     const auto include = [&](const ObstacleSpec& box) {
