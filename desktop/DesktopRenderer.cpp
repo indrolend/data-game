@@ -226,7 +226,7 @@ void cube(bool drawTop = true) {
 
 bool usesFieldIsland(const GameState& state) {
     return room_environment::hasFiniteGround(room_environment::roomBoundary(state.roomSeed,state.roomIndex),
-        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+        state.rallyLab || state.traversalLab || state.slopeLab);
 }
 
 float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,float radius){

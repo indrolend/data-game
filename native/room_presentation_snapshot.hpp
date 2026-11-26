@@ -119,7 +119,7 @@ struct RoomPresentationSnapshot {
         snapshot.grassAmount = plan.grassAmount;
         snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
         snapshot.fieldIsland = room_environment::hasFiniteGround(plan.boundary,
-            state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+            state.rallyLab || state.traversalLab || state.slopeLab);
         const auto footprint = room_environment::roomGroundFootprint(plan,state.roomSeed,state.roomIndex);
         const auto surfaces = footprint.surfaces();
         snapshot.fieldIslandMainHalfWidth = footprint.halfWidth;

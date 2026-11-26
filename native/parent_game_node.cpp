@@ -1081,7 +1081,7 @@ Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
     const bool island = room_environment::hasFiniteGround(plan.boundary,
-        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+        state.rallyLab || state.traversalLab || state.slopeLab);
     Array result;
     if (!plan.grass) return result;
     result.resize(room_environment::GrassBladeCountLow);
@@ -1105,7 +1105,7 @@ Array ParentGameNode::grass_blade_tip_presentation_snapshot(int tile_index) cons
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
     const bool island = room_environment::hasFiniteGround(plan.boundary,
-        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+        state.rallyLab || state.traversalLab || state.slopeLab);
     Array result;
     if (!plan.grass) return result;
     result.resize(room_environment::GrassBladeCountLow);

@@ -1996,7 +1996,7 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
 
 bool Game::isFieldIslandActive() const {
     return room_environment::hasFiniteGround(room_environment::roomBoundary(state_.roomSeed,state_.roomIndex),
-        state_.rallyLab || state_.traversalLab || state_.slopeLab || state_.roomInspector);
+        state_.rallyLab || state_.traversalLab || state_.slopeLab);
 }
 
 world::finite_ground::Footprint Game::groundFootprint() const {
