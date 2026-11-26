@@ -42,7 +42,7 @@ int main(){
     assert(remnantSupport.height>bodySupport.height);
 
     int remnantCollider=-1;
-    for(int i=0;i<game.state().debug.colliderCount;++i){
+    for(int i=0;i<game.state().roomColliderCount;++i){
         const auto& collider=game.state().roomColliders[i];
         if(near(collider.center.x,remnant.center.x)&&near(collider.center.z,remnant.center.z)&&near(collider.topY,remnantTop)){
             remnantCollider=i;

@@ -26,6 +26,15 @@ func _run() -> void:
         scene.room_adapter.structure("room/%d/structure/island/bridge-top/back" % tile) != null and
         scene.room_adapter.structure("room/%d/structure/abyss" % tile) == null,
         "Godot materializes the finite island and bridges with open space below")
+    for offset in [-1, 1]:
+        var adjacent: Dictionary = scene_runtime.room_presentation_snapshot(-1, true, offset)
+        var expected_tile: int = tile + offset
+        check(int(adjacent.tile_index) == expected_tile, "relative snapshot resolves signed neighbor")
+        var adapter: Node = scene.get_node_or_null("AdjacentRoomBefore" if offset < 0 else "AdjacentRoomAfter")
+        check(adapter != null and adapter.visible and
+            adapter.structure("room/%d/structure/floor" % expected_tile) != null and
+            adapter.capture_point_count() == 0,
+            "Godot presents adjacent static floor without duplicating live objectives")
     var floor_node: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/floor" % tile)
     var bridge: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/island/bridge-top/back" % tile)
     var foot: MeshInstance3D = scene.room_adapter.structure("room/%d/structure/door-frame/0/right" % tile)
@@ -53,6 +62,13 @@ func _run() -> void:
         check(absf(blade_root.x) < float(initial.field_island.main_half_width) and
             absf(blade_root.z - floor_node.position.z) < float(initial.field_island.main_half_depth) and
             is_equal_approx(blade_root.y, 0.08), "grass roots stay inside the island top")
+
+    scene_runtime.start_city_room_fixture()
+    scene._sync()
+    var city: Dictionary = scene_runtime.room_presentation_snapshot(-1)
+    check(city.field_island.enabled and scene.get_node("AdjacentRoomBefore").visible and
+        scene.get_node("AdjacentRoomAfter").visible,
+        "City uses finite ground and retains adjacent static presentation")
 
     var runtime = ClassDB.instantiate("ParentGameNode")
     runtime.start_field_island_fixture()

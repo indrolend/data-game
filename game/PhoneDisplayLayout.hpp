@@ -84,40 +84,10 @@ inline void addPhoneDisplayRow(PhoneDisplayMenuLayout& layout, PhoneDisplayMenuR
     layout.rows[layout.rowCount++] = row;
 }
 
-inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state,PhoneDisplayTextMeasure measure=estimatePhoneDisplayTextWidth) {
-    PhoneMenuPageViewModel page = makePhoneMenuPageModel(state);
-    if (state.upgradeMenu.active && !state.dead) {
-        page = {};
-        page.title = "ROOM " + std::to_string(state.roomIndex) + " / RECOMPILE";
-        page.navigationHint = state.multiplayer.enabled && !state.multiplayer.authoritativeHost
-            ? "WAITING FOR HOST"
-            : "UP / DOWN SELECT   ENTER / A CONFIRM";
-        page.tablePage = true;
-        const std::array<std::string, 3> labels{"SHOT", "LUNGE", "ATTACK"};
-        addPhoneMenuSection(page, state.multiplayer.enabled && !state.multiplayer.authoritativeHost
-            ? "TEMPORARY / HOST AUTHORITY"
-            : "TEMPORARY / SELECT ONE");
-        for (int track = 0; track < 3; ++track) {
-            PhoneMenuElement element;
-            element.kind = PhoneMenuRowKind::TwoColumn;
-            element.label = labels[track];
-            const int level = state.progression.run.temporaryLevels[track];
-            element.value = "RUN " + std::to_string(level) + " / NEXT " + std::to_string(std::min(12, level + 1));
-            element.selectable = true;
-            addPhoneMenuElement(page, element);
-        }
-        addPhoneMenuSection(page, "PERMANENT / TOKENS " + std::to_string(state.progression.permanent.tokens));
-        for (int track = 0; track < 3; ++track) {
-            PhoneMenuElement element;
-            element.kind = PhoneMenuRowKind::TwoColumn;
-            element.label = labels[track];
-            const int level = state.progression.permanent.levels[track];
-            element.value = "PERM " + std::to_string(level) + "/5";
-            if (state.progression.permanent.tokens <= 0 || level >= 5) element.value += " / UNAVAILABLE";
-            element.selectable = true;
-            addPhoneMenuElement(page, element);
-        }
-    }
+inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(
+    const PhoneMenuPageViewModel& page, float scrollOffset,
+    PhoneDisplayTextMeasure measure=estimatePhoneDisplayTextWidth
+) {
     PhoneDisplayMenuLayout layout;
     layout.title = page.title;
     layout.navigationHint = page.navigationHint;
@@ -139,7 +109,7 @@ inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state,
     layout.titleCenterY = layout.header.y + layout.header.h * 0.50f;
     layout.titleMaxWidth=layout.header.w;
     layout.titlePx=fitPhoneDisplayTextPx(layout.title,page.paletteTitle?PhoneDisplayStyle::PaletteTitlePx:PhoneDisplayStyle::TitlePx,layout.titleMaxWidth,true,measure);
-    layout.scrollOffset = std::max(0.0f, state.localSettings.menuScroll);
+    layout.scrollOffset = std::max(0.0f, scrollOffset);
 
     for (int i = 0; i < page.elementCount; ++i) {
         const PhoneMenuElement& element = page.elements[i];
@@ -220,6 +190,43 @@ inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state,
         row.baselineY=row.visual.y+row.visual.h*0.5f+row.fontPx*0.34f;
     }
     return layout;
+}
+
+inline PhoneDisplayMenuLayout makePhoneDisplayMenuLayout(const GameState& state,PhoneDisplayTextMeasure measure=estimatePhoneDisplayTextWidth) {
+    PhoneMenuPageViewModel page = makePhoneMenuPageModel(state);
+    if (state.upgradeMenu.active && !state.dead) {
+        page = {};
+        page.title = "ROOM " + std::to_string(state.roomIndex) + " / RECOMPILE";
+        page.navigationHint = state.multiplayer.enabled && !state.multiplayer.authoritativeHost
+            ? "WAITING FOR HOST"
+            : "UP / DOWN SELECT   ENTER / A CONFIRM";
+        page.tablePage = true;
+        const std::array<std::string, 3> labels{"SHOT", "LUNGE", "ATTACK"};
+        addPhoneMenuSection(page, state.multiplayer.enabled && !state.multiplayer.authoritativeHost
+            ? "TEMPORARY / HOST AUTHORITY"
+            : "TEMPORARY / SELECT ONE");
+        for (int track = 0; track < 3; ++track) {
+            PhoneMenuElement element;
+            element.kind = PhoneMenuRowKind::TwoColumn;
+            element.label = labels[track];
+            const int level = state.progression.run.temporaryLevels[track];
+            element.value = "RUN " + std::to_string(level) + " / NEXT " + std::to_string(std::min(12, level + 1));
+            element.selectable = true;
+            addPhoneMenuElement(page, element);
+        }
+        addPhoneMenuSection(page, "PERMANENT / TOKENS " + std::to_string(state.progression.permanent.tokens));
+        for (int track = 0; track < 3; ++track) {
+            PhoneMenuElement element;
+            element.kind = PhoneMenuRowKind::TwoColumn;
+            element.label = labels[track];
+            const int level = state.progression.permanent.levels[track];
+            element.value = "PERM " + std::to_string(level) + "/5";
+            if (state.progression.permanent.tokens <= 0 || level >= 5) element.value += " / UNAVAILABLE";
+            element.selectable = true;
+            addPhoneMenuElement(page, element);
+        }
+    }
+    return makePhoneDisplayMenuLayout(page,state.localSettings.menuScroll,measure);
 }
 
 inline const PhoneDisplayMenuRow* phoneDisplayRowForSelection(const PhoneDisplayMenuLayout& layout, int selection) {

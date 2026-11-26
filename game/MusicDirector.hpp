@@ -6,7 +6,7 @@ namespace music_director {
 
 enum class MenuTheme : unsigned char { Title, Pensive, Count };
 constexpr bool menuMusicAllowed(bool started,bool dead,bool attractMode) noexcept {
-    return !dead&&(!started||attractMode);
+    return attractMode || (!started && !dead);
 }
 enum class StageTheme : unsigned char { Original, Turnt, Wacky, Boss, Count };
 

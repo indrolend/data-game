@@ -66,6 +66,24 @@ int main() {
     assert(recovery.brace > calm.brace);
     assert(recovery.paceExpression < calm.paceExpression);
 
+    // Observed head-lunge damage leaves local experience and changes later steering.
+    EnemyMotorMemory hitMemory{}, baselineMemory{};
+    EnemyMotorInput approach = representativeInput();
+    approach.playerDistance = 3.0f;
+    const auto baseline = updateEnemyMotor(approach, baselineMemory, Dt, 0.21f);
+    registerEnemyLungeHeadHit(hitMemory);
+    const auto firstAvoidance = updateEnemyMotor(approach, hitMemory, Dt, 0.21f);
+    assert(baseline.lungeEvasion == 0.0f);
+    assert(firstAvoidance.lungeEvasion > 0.0f);
+    registerEnemyLungeHeadHit(hitMemory);
+    const auto repeatedAvoidance = updateEnemyMotor(approach, hitMemory, Dt, 0.21f);
+    assert(repeatedAvoidance.lungeEvasion > firstAvoidance.lungeEvasion);
+    const float reinforced = repeatedAvoidance.lungeEvasion;
+    for (int step = 0; step < 3600; ++step)
+        updateEnemyMotor(approach, hitMemory, Dt, 0.21f);
+    const auto faded = updateEnemyMotor(approach, hitMemory, Dt, 0.21f);
+    assert(faded.lungeEvasion < reinforced);
+
     EnemyMotorMemory poisoned{};
     poisoned.hidden.fill(NAN);
     poisoned.tendency.fill(INFINITY);

@@ -23,7 +23,7 @@ int main(){
     assert(authored.rootSpread>=0.82f&&authored.rootSpread<=1.24f);
 
     Game game;game.debugStartGeneratedRoomFixture(seed,room);bool found=false;
-    for(int i=0;i<game.state().debug.colliderCount;++i){const auto& collider=game.state().roomColliders[i];if(collider.kind!=RoomColliderKind::TreeTrunk)continue;if(std::abs(collider.center.x-prop.center.x)>0.05f||std::abs(collider.center.z-prop.center.z)>0.05f)continue;assert(std::abs(collider.climbTopY-(tree_geometry::climbTopY(prop)+0.08f))<0.0002f);found=true;break;}
+    for(int i=0;i<game.state().roomColliderCount;++i){const auto& collider=game.state().roomColliders[i];if(collider.kind!=RoomColliderKind::TreeTrunk)continue;if(std::abs(collider.center.x-prop.center.x)>0.05f||std::abs(collider.center.z-prop.center.z)>0.05f)continue;assert(std::abs(collider.climbTopY-(tree_geometry::climbTopY(prop)+0.08f))<0.0002f);found=true;break;}
     assert(found);
     std::puts("TREE_GEOMETRY_OK shared-trunk shared-crowns deterministic climb-top-authority production-tree");
     return 0;

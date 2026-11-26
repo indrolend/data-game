@@ -24,7 +24,8 @@ enum class RoomStructureKind : unsigned char {
     CityStreetFixture,
     CityServiceFixture,
     FieldIslandCore,
-    Abyss
+    Abyss,
+    AuthoredObstacle
 };
 
 struct RoomStructureRecord {
@@ -100,13 +101,9 @@ struct RoomPresentationSnapshot {
     std::vector<CapturePointPresentationRecord> capturePoints;
     std::vector<computed_scene::Object> objects;
 
-    static RoomPresentationSnapshot from(const GameState& state, int tileIndex) {
+    static RoomPresentationSnapshot from(const GameState& state, int tileIndex, bool includeStatic = true) {
         RoomPresentationSnapshot snapshot;
         const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-        const auto capacity = state.slopeLab
-            ? room_environment::RoomGeometryCapacityPlan{}
-            : room_environment::roomGeometryCapacityPlan(
-                plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         snapshot.roomSeed = state.roomSeed;
         snapshot.roomIndex = state.roomIndex;
         snapshot.tileIndex = tileIndex;
@@ -122,10 +119,12 @@ struct RoomPresentationSnapshot {
         snapshot.sidewalks = plan.sidewalks;
         snapshot.grassAmount = plan.grassAmount;
         snapshot.coastalWater = plan.setting == room_environment::RoomSetting::Coastal;
-        snapshot.fieldIsland = field_island::active(state.roomSeed, state.roomIndex,
-            state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
-        snapshot.fieldIslandMainHalfWidth = field_island::MainHalfWidth;
-        snapshot.fieldIslandMainHalfDepth = field_island::MainHalfDepth;
+        snapshot.fieldIsland = room_environment::hasFiniteGround(plan.boundary,
+            state.rallyLab || state.traversalLab || state.slopeLab);
+        const auto footprint = room_environment::roomGroundFootprint(plan,state.roomSeed,state.roomIndex);
+        const auto surfaces = footprint.surfaces();
+        snapshot.fieldIslandMainHalfWidth = footprint.halfWidth;
+        snapshot.fieldIslandMainHalfDepth = footprint.halfDepth;
         snapshot.fieldIslandBridgeHalfWidth = field_island::DoorBridgeHalfWidth;
         snapshot.fieldIslandBridgeHalfDepth = field_island::DoorBridgeHalfDepth;
         snapshot.abyssRecoveryY = field_island::AbyssRecoveryY;
@@ -140,8 +139,10 @@ struct RoomPresentationSnapshot {
             state.player.pos.x, state.player.pos.z - currentTileOffset) &&
             snapshot.waterSourceSpeed >= 0.35f;
         const float z0 = static_cast<float>(tileIndex) * world::RoomDepth;
-        const float doorWidth = 5.35f;
-        const float doorHeight = 3.95f;
+        constexpr float doorWidth = world::DoorwayHalfWidth * 2.0f;
+        constexpr float frameWidth = 5.35f;
+        constexpr float doorHeight = world::DoorwayLintelY;
+        constexpr float frameHeight = 3.95f;
         const bool field = plan.setting == room_environment::RoomSetting::Field;
         const bool city = plan.setting == room_environment::RoomSetting::City;
         const bool sterile = plan.setting == room_environment::RoomSetting::Sterile;
@@ -153,6 +154,21 @@ struct RoomPresentationSnapshot {
                 "room/" + std::to_string(tileIndex) + "/structure/" + suffix,
                 kind, center, size, material});
         };
+        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
+            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
+        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
+        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
+        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
+            const auto& capture=state.captures[captureIndex];
+            snapshot.capturePoints.push_back({
+                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
+                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
+        }
+        if (!includeStatic) return snapshot;
+        const auto capacity = state.slopeLab
+            ? room_environment::RoomGeometryCapacityPlan{}
+            : room_environment::acceptedRoomGeometry(
+                plan, state.roomSeed, state.roomIndex, ROOM_COLLIDER_COUNT);
         const VisualColor floorColor = field ? VisualIdentity::FieldGround
             : (sterile ? VisualColor{0.58f, 0.61f, 0.63f}
                 : (coastal ? roomSubstrateColor(plan.setting)
@@ -171,26 +187,17 @@ struct RoomPresentationSnapshot {
             plan.setting, state.roomInspector).color;
         const auto traversalMaterial = semanticMaterial(SemanticSurface::Default,
             {traversalColor.x, traversalColor.y, traversalColor.z});
-        const auto captureSurroundMaterial=semanticMaterial(SemanticSurface::Default,
-            {VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f});
-        const auto captureRecessMaterial=semanticMaterial(SemanticSurface::Default,{0.02f,0.03f,0.04f});
-        const auto capturedSoulMaterial=semanticMaterial(SemanticSurface::Default,VisualIdentity::SoulBase);
-        for(int captureIndex=0;captureIndex<state.requiredSouls&&captureIndex<CAPTURE_COUNT;++captureIndex){
-            const auto& capture=state.captures[captureIndex];
-            snapshot.capturePoints.push_back({
-                "room/"+std::to_string(tileIndex)+"/capture/"+std::to_string(captureIndex),
-                capture.pos+Vec3{0,0,z0},capture.filled,captureSurroundMaterial,captureRecessMaterial,capturedSoulMaterial});
-        }
         if(snapshot.fieldIsland){
             const auto islandCoreMaterial=semanticMaterial(SemanticSurface::Default,
                 VisualColor{0.12f,0.10f,0.075f});
             const char* coreIds[] = {"island/core", "island/bridge-core/front", "island/bridge-core/back"};
             const char* topIds[] = {"floor", "island/bridge-top/front", "island/bridge-top/back"};
             constexpr float turfThickness = 0.08f;
-            for (std::size_t i = 0; i < field_island::Surfaces.size(); ++i) {
-                const auto& surface = field_island::Surfaces[i];
+            for (std::size_t i = 0; i < surfaces.size(); ++i) {
+                const auto& surface = surfaces[i];
                 const float centerZ = z0 + (surface.minZ + surface.maxZ) * 0.5f;
                 const float depth = surface.maxZ - surface.minZ;
+                if (depth <= 0.0f) continue;
                 const float coreDepth = i == 0 ? 1.2f : 0.84f;
                 addStructure(coreIds[i], RoomStructureKind::FieldIslandCore,
                     {0, world::GroundY - turfThickness - coreDepth * 0.5f, centerZ},
@@ -212,14 +219,14 @@ struct RoomPresentationSnapshot {
             for (float seam : {-world::RoomDepth * 0.5f, world::RoomDepth * 0.5f}) {
                 const std::string prefix = "door-frame/" + std::to_string(seamIndex++);
                 addStructure((prefix + "/left").c_str(), RoomStructureKind::DoorFrame,
-                    {-doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
+                    {-frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/right").c_str(), RoomStructureKind::DoorFrame,
-                    {doorWidth * 0.56f, doorHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {0.24f, doorHeight * 0.96f, 0.28f}, frameMaterial);
+                    {frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/top").c_str(), RoomStructureKind::DoorFrame,
-                    {0, doorHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
-                    {doorWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
+                    {0, frameHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {frameWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
             }
         } else if (!city) {
             const float sideWidth = (world::RoomWidth - doorWidth) * 0.5f;
@@ -245,6 +252,19 @@ struct RoomPresentationSnapshot {
                 {world::RoomWidth * 0.5f, world::RoomWallHeight * 0.5f, z0},
                 {0.5f, world::RoomWallHeight, world::RoomDepth}, wallMaterial);
         }
+        if (sterile || coastal) {
+            const int count = std::min(state.roomColliderCount, plan.obstacleCount);
+            const auto substrate = semanticMaterial(
+                sterile ? SemanticSurface::SterilePanel : SemanticSurface::Default,
+                sterile ? VisualColor{0.46f,0.50f,0.51f} : VisualColor{0.48f,0.44f,0.35f});
+            for (int i = 0; i < count; ++i) {
+                const auto& collider = state.roomColliders[i];
+                const std::string id = "authored-obstacle/" + std::to_string(i);
+                addStructure(id.c_str(), RoomStructureKind::AuthoredObstacle,
+                    collider.center + Vec3{0,0,z0},
+                    {collider.width, collider.height, collider.depth}, substrate);
+            }
+        }
         for (int surfaceIndex = 0; surfaceIndex < plan.traversal.surfaceCount; ++surfaceIndex) {
             if (!capacity.traversalIncluded[surfaceIndex]) continue;
             const auto obstacle = room_environment::physicalTraversalObstacle(
@@ -261,8 +281,13 @@ struct RoomPresentationSnapshot {
                 plan.form, key, state.localSettings.graphicsPreset);
             const auto addStreetBox = [&](const std::string& suffix, Vec3 center, Vec3 size,
                                           VisualColor color) {
-                addStructure(suffix.c_str(), RoomStructureKind::CityStreet,
-                    center, size, semanticMaterial(SemanticSurface::Default, color));
+                field_island::forEachGroundOverlay(center,size,z0,snapshot.fieldIsland,
+                    [&](std::size_t part,Vec3 p,Vec3 dims){
+                        const auto id = snapshot.fieldIsland
+                            ? suffix + "/surface-" + std::to_string(part) : suffix;
+                        addStructure(id.c_str(), RoomStructureKind::CityStreet,
+                            p, dims, semanticMaterial(SemanticSurface::Default, color));
+                    },footprint);
             };
             const float sidewalkCenter = street.roadHalfWidth + street.sidewalkWidth * 0.5f;
             addStreetBox("city/road", {0, 0.010f, z0},
@@ -360,7 +385,7 @@ struct RoomPresentationSnapshot {
             // The desktop renderer draws the native City obstacle boxes as
             // building masses. Keep the same authoritative boxes visible in
             // Godot; these records are presentation only and add no collision.
-            const int authoredObstacleCount = std::min(state.debug.colliderCount, plan.obstacleCount);
+            const int authoredObstacleCount = std::min(state.roomColliderCount, plan.obstacleCount);
             for (int obstacleIndex = 0; obstacleIndex < authoredObstacleCount; ++obstacleIndex) {
                 const auto& obstacle = state.roomColliders[obstacleIndex];
                 const VisualColor plaster = (obstacleIndex % 3) == 0
@@ -430,7 +455,7 @@ struct RoomPresentationSnapshot {
             // native collision/support mass; these module records are visual.
             const int authoredCadence = state.localSettings.graphicsPreset >= 2 ? 2 : 3;
             const float storyLimit = state.localSettings.graphicsPreset >= 2 ? 3.0f : 2.0f;
-            for (int obstacleIndex = 0; obstacleIndex < state.debug.colliderCount; ++obstacleIndex) {
+            for (int obstacleIndex = 0; obstacleIndex < state.roomColliderCount; ++obstacleIndex) {
                 const auto& obstacle = state.roomColliders[obstacleIndex];
                 const unsigned int facadeKey = room_environment::roomKey(
                     state.roomSeed, state.roomIndex) ^

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "HumanVisual.hpp"
@@ -630,7 +631,6 @@ struct PlayerDebugState {
     float phoneLift = 0.0f;
     float phoneForward = 0.0f;
     float phoneSide = 0.0f;
-    int colliderCount = 0;
 };
 
 enum class RoomReviewRating : unsigned char { Keep, Tune, Redesign, Remove };
@@ -740,6 +740,7 @@ struct GameState {
     AudioState audio;
     std::array<int, 5> captureSoundSlots{{0,1,2,3,4}};
     std::array<RoomCollider, ROOM_COLLIDER_COUNT> roomColliders;
+    int roomColliderCount = 0;
     std::array<SlopeSupport, SLOPE_SUPPORT_COUNT> slopeSupports;
     int slopeSupportCount = 0;
     std::array<faceted_rock::Support, ROCK_SUPPORT_COUNT> rockSupports;
@@ -791,7 +792,28 @@ struct HostRemotePeerSimulationIsolationAccess;
 struct SoulProjectileLifecycleAccess;
 
 class Game {
+    struct EnemyRuntimePool {
+        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
+        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
+        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
+        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
+        std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> motors{};
+        std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> motorOutputs{};
+        int perceptionCursor = 0;
+    };
+
 public:
+    struct Checkpoint {
+        GameState state;
+        EnemyRuntimePool enemyRuntime;
+        bool hasEnemyRuntime = false;
+        int simulationPlayerId = 0;
+        bool enemyMotorExpressionEnabled = true;
+    };
+
+    Checkpoint captureCheckpoint() const;
+    void restoreCheckpoint(const Checkpoint& checkpoint);
+
     void reset();
     void restart();
     void prepareStartScreen();
@@ -867,18 +889,10 @@ private:
     friend struct HostRemotePeerSimulationIsolationAccess;
     friend struct SoulProjectileLifecycleAccess;
     friend struct SignalResidueLifecycleAccess;
+    friend struct FieldIslandTraversalAccess;
     enum class BatteryReason { Continuous, Jump, DoubleJump, Melee, Shoot, Hit, Climb, Ingest, NextRoom, Combo, Chain, Headshot, Loop };
     GameState state_;
     int simulationPlayerId_ = 0;
-    struct EnemyRuntimePool {
-        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
-        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
-        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
-        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
-        std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> motors{};
-        std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> motorOutputs{};
-        int perceptionCursor = 0;
-    };
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
     bool enemyMotorExpressionEnabled_ = true;
     EnemyRuntimePool& enemyRuntime();
@@ -912,7 +926,7 @@ private:
     void updatePhoneDisplay(float dt);
     void updateTargets(float dt);
     void chooseHumanWalkTarget(int index);
-    Vec3 chooseHumanSpawnPoint(int index, const Vec3* avoid = nullptr) const;
+    std::optional<Vec3> chooseHumanSpawnPoint(int index, const Vec3* avoid = nullptr) const;
     bool isHumanPointBlocked(float x, float z, float radius) const;
     bool isHumanMovementBlocked(float x,float z,float feetY,float radius,Vec3* obstructionNormal=nullptr) const;
     void updateMeleeDash(float dt);
@@ -977,7 +991,7 @@ private:
     void captureSoul(int index);
     void queueSoulCapture(int index);
     void processQueuedSoulCaptures();
-    void respawnTarget(int index);
+    bool respawnTarget(int index);
     int activeHumanTarget() const;
     void queueHumanRespawn(const Vec3& avoid);
     void advanceRunRulesForRoom();
@@ -991,6 +1005,11 @@ private:
     WorldSupportSample getWorldSupport(float x,float z,float radius) const;
     WorldSupportSample getPlayerSupport(float x, float z) const;
     bool isFieldIslandActive() const;
+    world::finite_ground::Footprint groundFootprint() const;
+    mutable int footprintSeed_ = 0;
+    mutable int footprintRoom_ = -1;
+    mutable world::finite_ground::Footprint groundFootprint_{};
+    bool hasBaseGroundSupport(float x, float localZ, float radius) const;
     float getPlayerSupportY(float x, float z) const { return getPlayerSupport(x,z).height; }
     void resolvePlayerObstacleCollisions(float previousX, float previousZ);
     void resolveDoorwayCollisions(float previousX, float previousZ);

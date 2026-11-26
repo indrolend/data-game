@@ -21,14 +21,14 @@ void setBox(RoomCollider& box,float x,float z,float width,float depth,float heig
 }
 
 bool activeEnemyIntersectsCollider(const GameState& state){
-    for(const auto& target:state.targets)if(gameplay::isActiveHuman(target))for(int index=0;index<state.debug.colliderCount;++index){const auto& collider=state.roomColliders[index];if(target.pos.x>collider.minX-0.20f&&target.pos.x<collider.maxX+0.20f&&target.pos.z>collider.minZ-0.20f&&target.pos.z<collider.maxZ+0.20f)return true;}
+    for(const auto& target:state.targets)if(gameplay::isActiveHuman(target))for(int index=0;index<state.roomColliderCount;++index){const auto& collider=state.roomColliders[index];if(target.pos.x>collider.minX-0.20f&&target.pos.x<collider.maxX+0.20f&&target.pos.z>collider.minZ-0.20f&&target.pos.z<collider.maxZ+0.20f)return true;}
     return false;
 }
 
 bool runJumpTrial(float gap,int timingOffset,float steeringError,float targetHeight=PlatformTop,float targetWidth=5.0f){
     Game game;game.reset();
     GameState& state=game.fixtureMutableState();
-    state.debug.colliderCount=2;
+    state.roomColliderCount=2;
     for(auto& collider:state.roomColliders)collider={};
     constexpr float depth=6.0f;
     const float sourceCenterZ=4.0f;
@@ -74,7 +74,7 @@ bool runTreeClimbContract(){
     GameState& state=game.fixtureMutableState();
     for(auto& target:state.targets)target={};
     for(auto& collider:state.roomColliders)collider={};
-    state.debug.colliderCount=1;
+    state.roomColliderCount=1;
     RoomCollider& tree=state.roomColliders[0];
     setBox(tree,0.0f,0.0f,0.80f,0.80f,3.20f);
     tree.kind=RoomColliderKind::TreeTrunk;
@@ -116,7 +116,7 @@ bool runTreeClimbContract(){
     Game descent;descent.reset();GameState& descentState=descent.fixtureMutableState();
     for(auto& target:descentState.targets)target={};
     for(auto& collider:descentState.roomColliders)collider={};
-    descentState.debug.colliderCount=1;setBox(descentState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
+    descentState.roomColliderCount=1;setBox(descentState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
     descentState.roomColliders[0].kind=RoomColliderKind::TreeTrunk;descentState.roomColliders[0].climbTopY=5.60f;
     descentState.player.pos={0.0f,crownY,-0.745f};descentState.player.vel={};descentState.player.grounded=false;
     descentState.player.treeClimbing=true;descentState.player.treeCollider=0;descentState.player.treeNormal={0.0f,0.0f,-1.0f};descentState.camera.yaw=0.0f;
@@ -129,7 +129,7 @@ bool runTreeClimbContract(){
     Game offCenter;offCenter.reset();GameState& offCenterState=offCenter.fixtureMutableState();
     for(auto& target:offCenterState.targets)target={};
     for(auto& collider:offCenterState.roomColliders)collider={};
-    offCenterState.debug.colliderCount=1;setBox(offCenterState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
+    offCenterState.roomColliderCount=1;setBox(offCenterState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
     offCenterState.roomColliders[0].kind=RoomColliderKind::TreeTrunk;offCenterState.roomColliders[0].climbTopY=5.60f;
     offCenterState.player.pos={0.34f,0.08f,0.80f};offCenterState.player.vel={};offCenterState.player.grounded=true;offCenterState.camera.yaw=0.0f;
     offCenter.setTouchControls(0.0f,1.0f,0.0f,0.0f,false,false,false,false,false,false);offCenter.update(Dt);
@@ -138,7 +138,7 @@ bool runTreeClimbContract(){
     Game lungeGrip;lungeGrip.reset();GameState& lungeGripState=lungeGrip.fixtureMutableState();
     for(auto& target:lungeGripState.targets)target={};
     for(auto& collider:lungeGripState.roomColliders)collider={};
-    lungeGripState.debug.colliderCount=1;setBox(lungeGripState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
+    lungeGripState.roomColliderCount=1;setBox(lungeGripState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
     lungeGripState.roomColliders[0].kind=RoomColliderKind::TreeTrunk;lungeGripState.roomColliders[0].climbTopY=5.60f;
     lungeGripState.player.pos={0.0f,1.20f,0.80f};lungeGripState.player.vel={0.0f,0.0f,-5.0f};lungeGripState.player.jumpVel=-0.2f;lungeGripState.player.grounded=false;lungeGripState.camera.yaw=0.0f;
     lungeGripState.meleeVisual.locomotionLunge=true;lungeGripState.meleeVisual.airLungeTimer=0.20f;lungeGripState.meleeVisual.airLungeLandingPending=true;
@@ -148,7 +148,7 @@ bool runTreeClimbContract(){
     Game passiveContact;passiveContact.reset();GameState& passiveState=passiveContact.fixtureMutableState();
     for(auto& target:passiveState.targets)target={};
     for(auto& collider:passiveState.roomColliders)collider={};
-    passiveState.debug.colliderCount=1;setBox(passiveState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
+    passiveState.roomColliderCount=1;setBox(passiveState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
     passiveState.roomColliders[0].kind=RoomColliderKind::TreeTrunk;passiveState.roomColliders[0].climbTopY=5.60f;
     passiveState.player.pos={0.0f,1.20f,0.80f};passiveState.player.vel={0.0f,0.0f,-5.0f};passiveState.player.jumpVel=-0.2f;passiveState.player.grounded=false;passiveState.camera.yaw=0.0f;
     passiveContact.setTouchControls(0.0f,0.0f,0.0f,0.0f,false,false,false,false,false,false);passiveContact.update(Dt);
@@ -157,7 +157,7 @@ bool runTreeClimbContract(){
     Game wall;wall.reset();GameState& wallState=wall.fixtureMutableState();
     for(auto& target:wallState.targets)target={};
     for(auto& collider:wallState.roomColliders)collider={};
-    wallState.debug.colliderCount=1;setBox(wallState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
+    wallState.roomColliderCount=1;setBox(wallState.roomColliders[0],0.0f,0.0f,0.80f,0.80f,3.20f);
     wallState.player.pos={0.0f,0.08f,0.80f};wallState.player.vel={};wallState.player.grounded=true;wallState.camera.yaw=0.0f;
     for(int frame=0;frame<20;++frame){wall.setTouchControls(0.0f,1.0f,0.0f,0.0f,false,false,false,false,false,false);wall.update(Dt);}
     if(wall.state().player.treeClimbing){std::fprintf(stderr,"TREE_CLIMB_STAGE isolation generic wall attached\n");return false;}
@@ -169,7 +169,7 @@ bool runLandingSlideIntentContract(){
         Game game;game.reset();GameState& state=game.fixtureMutableState();
         for(auto& target:state.targets)target={};
         for(auto& collider:state.roomColliders)collider={};
-        state.debug.colliderCount=0;
+        state.roomColliderCount=0;
         state.player.pos={0.0f,0.55f,0.0f};
         state.player.vel={8.0f,0.0f,0.0f};
         state.player.jumpVel=-7.0f;
@@ -196,7 +196,7 @@ bool runRaisedSupportContract(){
     GameState& state=game.fixtureMutableState();
     for(auto& target:state.targets)target={};
     for(auto& collider:state.roomColliders)collider={};
-    state.debug.colliderCount=1;
+    state.roomColliderCount=1;
     RoomCollider& platform=state.roomColliders[0];
     setBox(platform,0.0f,0.0f,2.0f,4.0f,PlatformTop);
 
@@ -298,7 +298,7 @@ int main(){
         return 1;
     }
     Game lab;lab.debugStartTraversalLab();const GameState& labState=lab.state();
-    if(!labState.traversalLab||labState.debug.colliderCount!=12||!labState.roomClear||labState.requiredSouls!=0){
+    if(!labState.traversalLab||labState.roomColliderCount!=12||!labState.roomClear||labState.requiredSouls!=0){
         std::fprintf(stderr,"TRAVERSAL_CALIBRATION_FAIL playable lab did not establish its bounded fixture\n");
         return 1;
     }
@@ -331,7 +331,7 @@ int main(){
         if(!state.roomInspector||state.roomInspectorPremise!=premise||!room_environment::matchesInspectorPremise(plan,premise)||!state.roomClear||state.requiredSouls!=0||!report.seedSelectionValid||
            report.seed!=state.roomSeed||report.roomIndex!=state.roomIndex||report.setting!=plan.setting||report.form!=plan.form||report.scale!=plan.scale||report.condition!=plan.condition||report.traversalIntent!=plan.traversalIntent||
            !report.requiredRouteValid||report.traversalSurfaceCount!=plan.traversal.surfaceCount||report.traversalEdgeCount!=plan.traversal.edgeCount||report.requiredEdgeCount!=expectedRequiredEdges||
-           report.colliderCount!=state.debug.colliderCount||report.colliderCount+state.slopeSupportCount+state.rockSupportCount!=expectedColliders||report.presentationPropCount!=expectedProps||report.enemyCount!=0){
+           report.colliderCount!=state.roomColliderCount||report.colliderCount+state.slopeSupportCount+state.rockSupportCount!=expectedColliders||report.presentationPropCount!=expectedProps||report.enemyCount!=0){
             std::fprintf(stderr,"TRAVERSAL_CALIBRATION_FAIL room inspector premise %s report does not match production state\n",room_environment::premiseName(premise));return 1;
         }
         if(physicalSurfaces){
@@ -339,7 +339,7 @@ int main(){
             if(plan.traversalIntent==room_environment::RoomTraversalIntent::Funnel){sawPhysicalFunnel=true;physicalFunnelSeed=state.roomSeed;}
             const auto& surface=plan.traversal.surfaces[plan.traversal.surfaceCount-1];const auto expected=room_environment::physicalTraversalObstacle(surface);bool materialized=false;
             if(room_environment::usesShallowElevation(plan,surface))for(int i=0;i<state.slopeSupportCount;++i){const auto& slope=state.slopeSupports[i];materialized|=slope.minX==expected.center.x-expected.size.x*0.5f&&slope.maxX==expected.center.x+expected.size.x*0.5f&&slope.minZ==expected.center.z-expected.size.z*0.5f&&slope.maxZ==expected.center.z+expected.size.z*0.5f&&slope.highHeight==expected.size.y;}
-            else for(int i=0;i<state.debug.colliderCount;++i){const auto& collider=state.roomColliders[i];materialized|=collider.bottomY==0.0f&&collider.topY==expected.size.y&&collider.center.x==expected.center.x&&collider.center.y==expected.center.y&&collider.center.z==expected.center.z&&collider.width==expected.size.x&&collider.height==expected.size.y&&collider.depth==expected.size.z;}
+            else for(int i=0;i<state.roomColliderCount;++i){const auto& collider=state.roomColliders[i];materialized|=collider.bottomY==0.0f&&collider.topY==expected.size.y&&collider.center.x==expected.center.x&&collider.center.y==expected.center.y&&collider.center.z==expected.center.z&&collider.width==expected.size.x&&collider.height==expected.size.y&&collider.depth==expected.size.z;}
             if((plan.traversalIntent!=room_environment::RoomTraversalIntent::Playground&&plan.traversalIntent!=room_environment::RoomTraversalIntent::Funnel)||surface.required||!materialized){std::fprintf(stderr,"TRAVERSAL_CALIBRATION_FAIL optional traversal surface was not materialized as one ground-supported shape\n");return 1;}
         }
         const std::string review=inspector.debugRoomReviewLine(RoomReviewRating::Tune);

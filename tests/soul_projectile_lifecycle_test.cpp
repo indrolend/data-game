@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdio>
+#include <memory>
 
 #include "Game.hpp"
 
@@ -25,12 +26,12 @@ void isolate(Game& game) {
     state.player.storedSoulBrute.fill(false);
     state.player.storedSouls.fill(SoulRecord{});
     state.vacuum=VacuumState{};
-    state.debug.colliderCount=0;
+    state.roomColliderCount=0;
     for(auto& collider:state.roomColliders)collider=RoomCollider{};
 }
 
 void box(Game& game,int index,Vec3 center,Vec3 size){
-    auto& state=game.fixtureMutableState();state.debug.colliderCount=std::max(state.debug.colliderCount,index+1);
+    auto& state=game.fixtureMutableState();state.roomColliderCount=std::max(state.roomColliderCount,index+1);
     auto& c=state.roomColliders[index];c.center=center;c.width=size.x;c.height=size.y;c.depth=size.z;
     c.minX=center.x-size.x*0.5f;c.maxX=center.x+size.x*0.5f;c.bottomY=center.y-size.y*0.5f;c.topY=center.y+size.y*0.5f;c.minZ=center.z-size.z*0.5f;c.maxZ=center.z+size.z*0.5f;
 }
@@ -57,6 +58,43 @@ int main(){
     Game floor;isolate(floor);auto& fb=soul(floor);fb.pos={0,0.20f,0};fb.vel={0,-8,0};
     SoulProjectileLifecycleAccess::bullets(floor,kDt);
     ok&=fb.alive&&fb.dropped&&near(speed(fb.vel),0.0f)&&fb.soul.id==77;
+
+    auto abyss = std::make_unique<Game>();
+    isolate(*abyss);
+    auto& fallen = soul(*abyss, 911);
+    fallen.pos = {13.5f, 0.34f, 0.0f};
+    fallen.vel = {0.0f,-4.0f,0.0f};
+    for (int frame=0;frame<12;++frame) SoulProjectileLifecycleAccess::bullets(*abyss,kDt);
+    ok &= fallen.alive && !fallen.dropped && fallen.pos.y<0.0f && fallen.soul.id==911;
+    for (int frame=0;frame<180;++frame) SoulProjectileLifecycleAccess::bullets(*abyss,kDt);
+    ok &= fallen.alive && fallen.dropped && near(fallen.pos.x,0.0f) &&
+        fallen.pos.y>0.08f && fallen.soul.id==911;
+
+    auto shelf = std::make_unique<Game>();
+    isolate(*shelf);
+    box(*shelf,0,{0.0f,0.75f,0.0f},{2.0f,1.5f,2.0f});
+    auto& landed=soul(*shelf,912);
+    landed.pos={0.0f,1.8f,0.0f};
+    landed.vel={0.0f,-8.0f,0.0f};
+    SoulProjectileLifecycleAccess::bullets(*shelf,kDt);
+    const float shelfContact=landed.pos.y;
+    SoulProjectileLifecycleAccess::bullets(*shelf,kDt);
+    ok &= landed.dropped && shelfContact>1.5f && near(landed.pos.y,shelfContact) &&
+        landed.soul.id==912;
+
+    auto raisedEnemy = std::make_unique<Game>();
+    isolate(*raisedEnemy);
+    auto& target = raisedEnemy->fixtureMutableState().targets[0];
+    target.alive=true;target.health=1.0f;target.armor=2.0f;target.pos={0.0f,3.0f,0.0f};
+    auto& highShot=soul(*raisedEnemy,913);
+    highShot.pos={-0.4f,3.57f,0.0f};highShot.vel={12.0f,0.0f,0.0f};
+    SoulProjectileLifecycleAccess::bullets(*raisedEnemy,kDt);
+    ok &= target.armor<2.0f;
+    const float armorAfterHighShot=target.armor;
+    auto& lowShot=soul(*raisedEnemy,914);
+    lowShot.pos={-0.4f,0.65f,0.0f};lowShot.vel={12.0f,0.0f,0.0f};
+    SoulProjectileLifecycleAccess::bullets(*raisedEnemy,kDt);
+    ok &= target.armor==armorAfterHighShot;
 
     Game melee;isolate(melee);auto& mb=soul(melee);mb.pos={0,0.45f,-1.0f};mb.vel={0,0,1};
     auto& ms=melee.fixtureMutableState();ms.player.pos={0,0.08f,0};ms.phoneTransform.position={0,0.45f,0};
@@ -109,7 +147,7 @@ int main(){
     const auto playgroundPlan=room_environment::roomPlan(ps.roomSeed,ps.roomIndex);const int playgroundCollider=playgroundPlan.obstacleCount;const RoomCollider& platform=ps.roomColliders[playgroundCollider];
     auto& pb=soul(playground,484);pb.pos={platform.minX-1.0f,platform.center.y,platform.center.z};pb.vel={90,0,0};SoulProjectileLifecycleAccess::bullets(playground,1.0f/30.0f);
     ok&=playgroundPlan.setting==room_environment::RoomSetting::City&&playgroundPlan.form==room_environment::RoomForm::Corridor&&playgroundPlan.traversalIntent==room_environment::RoomTraversalIntent::Playground&&
-        playgroundCollider<ps.debug.colliderCount&&pb.alive&&!pb.dropped&&pb.vel.x<0&&pb.soul.id==484;
+        playgroundCollider<ps.roomColliderCount&&pb.alive&&!pb.dropped&&pb.vel.x<0&&pb.soul.id==484;
 
     if(!ok){std::fprintf(stderr,"SOUL_PROJECTILE_LIFECYCLE_FAILED wall=%.2f ceiling=%.2f melee=%.2f lunge=%.2f recovered=%d replay=%llu/%llu\n",wb.vel.x,cb.vel.y,speed(mb.vel),speed(lb.vel),rs.player.souls,static_cast<unsigned long long>(a.soul.id),static_cast<unsigned long long>(b.soul.id));return 1;}
     std::printf("SOUL_PROJECTILE_LIFECYCLE_OK wall=REFLECT ceiling=REFLECT floor=DROP melee=%.2f lunge=%.2f recovery_id=%llu deterministic=MATCH\n",speed(mb.vel),speed(lb.vel),static_cast<unsigned long long>(rs.player.storedSouls[0].id));

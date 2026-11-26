@@ -26,6 +26,7 @@ var phone_adapter: Node
 var particle_adapter: Node
 var melee_arc_adapter: Node3D
 var room_adapter: Node
+var _adjacent_room_adapters: Array[Node3D] = []
 var camera: Camera3D
 var world_environment: WorldEnvironment
 var scene_environment: Environment
@@ -44,7 +45,7 @@ var fill_light: DirectionalLight3D
 var drama_spotlight: SpotLight3D
 var native_point_lights: Array[OmniLight3D] = []
 var _grass_snapshot_key := ""
-var _room_static_snapshot_key := ""
+var _room_static_snapshot_key: Array = []
 var targets: Array[Node3D] = []
 var souls: Array[Node3D] = []
 var projectile_nodes := {}
@@ -449,6 +450,29 @@ func _uses_skeleton_enemy(index: int) -> bool:
     return skeleton_enemies_enabled or \
         (skeleton_enemy_slice_enabled and index == skeleton_enemy_slice_index)
 
+# Use the same native room specification on neighboring periodic tiles.
+# The current tile alone owns live captures, grass and water.
+func _sync_adjacent_rooms(floating: bool) -> void:
+    if not floating:
+        for adapter in _adjacent_room_adapters:
+            adapter.hide()
+        return
+    if _adjacent_room_adapters.is_empty():
+        for offset in [-1, 1]:
+            var adapter = RoomPresentationAdapter.new()
+            adapter.name = "AdjacentRoomBefore" if offset < 0 else "AdjacentRoomAfter"
+            add_child(adapter)
+            adapter.set_native_field_grass_pixels(runtime.field_grass_texture_pixels())
+            adapter.set_native_city_asphalt_pixels(runtime.city_asphalt_texture_pixels())
+            _adjacent_room_adapters.append(adapter)
+    for i in range(_adjacent_room_adapters.size()):
+        var snapshot: Dictionary = runtime.room_presentation_snapshot(-1, true, -1 if i == 0 else 1)
+        snapshot["capture_points"] = []
+        snapshot["grass"] = false
+        snapshot["coastal_water"] = {}
+        _adjacent_room_adapters[i].show()
+        _adjacent_room_adapters[i].call("sync_snapshot", snapshot)
+
 func _sync() -> void:
     var sync_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     _restore_base_camera_transform()
@@ -456,8 +480,7 @@ func _sync() -> void:
     _sync_lighting(lighting_snapshot)
     var room_bridge_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     var room_identity: Dictionary = runtime.room_presentation_identity_snapshot(-1)
-    var room_static_key := "%d:%d:%d" % [int(room_identity.room_seed),
-        int(room_identity.room_index), int(room_identity.tile_index)]
+    var room_static_key: Array = room_identity.static_geometry_key
     var include_room_static := OS.get_environment("DB_DISABLE_ROOM_STATIC_SPLIT") == "1" or \
         room_static_key != _room_static_snapshot_key
     var room_snapshot: Dictionary = runtime.room_presentation_snapshot(-1, include_room_static)
@@ -480,6 +503,8 @@ func _sync() -> void:
         performance_profile_last["room_bridge_us"] = Time.get_ticks_usec() - room_bridge_started
     var room_adapter_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     room_adapter.call("sync_snapshot", room_snapshot)
+    if include_room_static:
+        _sync_adjacent_rooms(bool(room_snapshot.get("field_island", {}).get("enabled", false)))
     if performance_profile_enabled:
         performance_profile_last["room_adapter_us"] = Time.get_ticks_usec() - room_adapter_started
     camera.position = runtime.camera_position()

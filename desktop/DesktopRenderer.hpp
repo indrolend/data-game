@@ -1,6 +1,8 @@
+#include "../game/RoomEnvironment.hpp"
 #pragma once
 
 #include "Game.hpp"
+#include "RoomEnvironment.hpp"
 #include "ModelData.hpp"
 #include "HumanModelData.hpp"
 #include "DeveloperCodec.hpp"
@@ -9,6 +11,7 @@
 #include "LightingStateSnapshot.hpp"
 #include "CoastalWaterSimulation.hpp"
 
+#include <array>
 #include <filesystem>
 #include <vector>
 #include "../game/TvGifWall.hpp"
@@ -56,7 +59,8 @@ private:
     unsigned int cityWallCornerModelList_ = 0;
     unsigned int cityCrownModelList_ = 0;
     HumanModelData humanModel_;
-    mutable std::vector<float> humanVertices_;
+    mutable std::array<std::vector<float>, TARGET_COUNT> humanVerticesBySlot_;
+    mutable std::array<bool, TARGET_COUNT> humanVerticesReady_{};
     mutable unsigned int datamoshTexture_ = 0;
     mutable unsigned int tvScreenTexture_ = 0;
     mutable unsigned int phoneDisplayTexture_ = 0;
@@ -86,6 +90,8 @@ private:
     mutable int shadowMapSize_ = 0;
     mutable bool shadowSupportChecked_ = false;
     mutable bool shadowMapSupported_ = false;
+    mutable room_environment::RoomGeometryCapacityPlan frameRoomGeometry_{};
+    mutable world::finite_ground::Footprint frameGroundFootprint_{};
     mutable bool shadowGeometryPass_ = false;
     mutable render_contract::ShadowQuality frameShadowQuality_ = render_contract::ShadowQuality::Off;
     mutable float shadowProjection_[16]{};
@@ -98,29 +104,29 @@ private:
     mutable int coastalWaterRoom_ = -1;
     mutable Vec3 coastalWaterPreviousPlayer_{};
 
-    void drawRoomTile(const GameState& state, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
+    void drawRoomTile(const GameState& state, const room_environment::RoomEnvironmentPlan& plan, int tileIndex, const scene_lighting_response::Response& lightingResponse) const;
     bool ensureShadowMap(int size) const;
-    bool renderShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
-    bool renderLocalShadowDepth(const GameState& state,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const;
-    void drawShadowGeometry(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
+    bool renderShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
+    bool renderLocalShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const;
+    void drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
     void drawLocalShadowReceivers(const GameState& state) const;
-    void applyMappedShadow(const GameState& state,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
+    void applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
     void drawShadowDepthMap() const;
-    void updateCoastalWater(const GameState& state) const;
+    void updateCoastalWater(const GameState& state, const room_environment::RoomEnvironmentPlan& plan) const;
     void drawFieldGrass(float halfWidth, float minZ, float maxZ, float y, bool worldAligned = false) const;
-    void drawCityGround(int tileIndex) const;
+    void drawCityGround(int tileIndex, bool finite) const;
     static void drawTexturedBox(unsigned int texture,const Vec3& position,const Vec3& scale,float pitch,float yaw,float roll,const VisualColor& tint,float textureWorldScale,float texturePhase=0.0f);
     void drawBirdFlocks(const GameState& state, int tileIndex, room_environment::RoomSetting setting) const;
     void drawFoliageCards(const Vec3& center,const Vec3& size,float yaw,const VisualColor& tint,unsigned int seed) const;
     void drawFieldBackdrop(const GameState& state,int tileIndex) const;
-    void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form) const;
+    void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form,bool finite) const;
     static void applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
-    void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, bool shadow = false) const;
+    void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, std::size_t slot, bool shadow = false) const;
     static void drawEnemyReactionBillboard(const GameState& state,const TargetState& target);
     static void drawSoulFlesh(const TargetState& target,const Vec3& center);
     void drawSecretTvScreen(const GameState& state, float phoneProximity) const;
-    void drawPhoneDisplayTexture(const GameState& state) const;
+    void drawPhoneDisplayTexture(const GameState& state, const DeveloperCodecState* codec) const;
     void drawHud(const GameState& state) const;
     void drawDeveloperCodec(const DeveloperCodecState& codec) const;
     void drawDoorDataMosh(const GameState& state) const;

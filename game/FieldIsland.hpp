@@ -9,33 +9,13 @@
 
 namespace field_island {
 
-constexpr int StageRoomIndex = 1;
-constexpr float MainHalfWidth = 13.0f;
-constexpr float MainHalfDepth = 17.5f;
-constexpr float DoorBridgeHalfWidth = 4.0f;
-constexpr float DoorBridgeHalfDepth = world::RoomDepth * 0.5f;
+using world::finite_ground::MainHalfWidth;
+using world::finite_ground::MainHalfDepth;
+using world::finite_ground::DoorBridgeHalfWidth;
+using world::finite_ground::DoorBridgeHalfDepth;
+using world::finite_ground::Surfaces;
+using world::finite_ground::hasGroundSupport;
 constexpr float AbyssRecoveryY = -8.0f;
-
-struct Surface {
-    float halfWidth;
-    float minZ;
-    float maxZ;
-};
-
-inline constexpr std::array<Surface, 3> Surfaces{{
-    {MainHalfWidth, -MainHalfDepth, MainHalfDepth},
-    {DoorBridgeHalfWidth, MainHalfDepth, DoorBridgeHalfDepth},
-    {DoorBridgeHalfWidth, -DoorBridgeHalfDepth, -MainHalfDepth},
-}};
-
-inline bool active(int roomSeed, int roomIndex) {
-    return roomIndex == StageRoomIndex &&
-        room_environment::roomPlan(roomSeed, roomIndex).setting == room_environment::RoomSetting::Field;
-}
-
-inline bool active(int seed, int room, bool fixtureOverride) {
-    return !fixtureOverride && active(seed, room);
-}
 
 inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blade) {
     blade.root.x *= (MainHalfWidth - 0.15f) / 13.2f;
@@ -44,13 +24,26 @@ inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blad
     return blade;
 }
 
-inline bool hasGroundSupport(float x, float localZ, float radius) {
-    const float inset = std::max(0.0f, radius);
-    const bool onMain = std::abs(x) <= MainHalfWidth - inset &&
-        std::abs(localZ) <= MainHalfDepth - inset;
-    const bool onDoorBridge = std::abs(x) <= DoorBridgeHalfWidth - inset &&
-        std::abs(localZ) <= DoorBridgeHalfDepth;
-    return onMain || onDoorBridge;
+// Split an axis-aligned surface overlay at the same tile-local footprint
+// edges used by support. World Z is restored only for the emitted pieces.
+template<class Emit>
+void forEachGroundOverlay(Vec3 center, Vec3 size, float tileZ, bool finite, Emit emit, world::finite_ground::Footprint footprint = {}) {
+    if (!finite) {
+        emit(0, center, size);
+        return;
+    }
+    const float localZ = center.z-tileZ;
+    const auto surfaces = footprint.surfaces();
+    for (std::size_t i=0;i<surfaces.size();++i) {
+        const auto& surface=surfaces[i];
+        const float minX=std::max(center.x-size.x*0.5f,-surface.halfWidth);
+        const float maxX=std::min(center.x+size.x*0.5f,surface.halfWidth);
+        const float minZ=std::max(localZ-size.z*0.5f,surface.minZ);
+        const float maxZ=std::min(localZ+size.z*0.5f,surface.maxZ);
+        if (minX>=maxX || minZ>=maxZ) continue;
+        emit(i,{(minX+maxX)*0.5f,center.y+world::GroundY,tileZ+(minZ+maxZ)*0.5f},
+            {maxX-minX,size.y,maxZ-minZ});
+    }
 }
 
 } // namespace field_island

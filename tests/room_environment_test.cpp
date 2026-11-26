@@ -12,7 +12,62 @@ int main(){
     assert(first.setting==RoomSetting::Field&&first.form==RoomForm::Open&&first.grass&&!first.sidewalks);
     assert(first.obstacleCount==0&&!first.recovery());
     assert(first.traversalIntent==RoomTraversalIntent::Playground);
-    assert(requiredRouteIsTraversable(first,12345,1));
+    if (!requiredRouteIsTraversable(first, 12345, 1)) return 1;
+    assert(first.boundary == RoomBoundary::Floating);
+    auto unsupported = first;
+    unsupported.traversal.surfaces[3].center.x = 6.0f;
+    assert(!requiredRouteIsTraversable(unsupported, 12345, 1));
+    // The same unobstructed route is valid when the whole room has ground.
+    unsupported.boundary = RoomBoundary::Enclosed;
+    assert(requiredRouteIsTraversable(unsupported, 12345, 1));
+
+    auto broken = first;
+    auto& graph = broken.traversal;
+    for (int i = 1; i + 1 < graph.edgeCount; ++i) graph.edges[i] = graph.edges[i + 1];
+    --graph.edgeCount;
+    if (requiredRouteIsTraversable(broken, 12345, 1)) {
+        std::fprintf(stderr, "disconnected required traversal accepted\n");
+        return 1;
+    }
+
+    const auto city = roomPlan(16, 12);
+    // Compare production foundations to a synthetic continuous-ground control.
+    int cases[4]{};
+    for (int room : {1,2,3,5,9,12,17,25}) {
+        for (int seed = 1; seed <= 256; ++seed) {
+            const auto plan = roomPlan(seed,room);
+            const auto footprint = roomGroundFootprint(plan,seed,room);
+            const auto finite = acceptedRoomGeometry(plan,seed,room,32);
+            auto control = plan;
+            control.boundary = RoomBoundary::Enclosed;
+            const auto continuous = acceptedRoomGeometry(control,seed,room,32);
+            if (!hasFiniteGround(plan.boundary) || !requiredRouteIsTraversable(plan,seed,room) ||
+                !finite.requiredGeometryComplete || finite.authoredColliderCount != plan.obstacleCount ||
+                finite.propIncluded != continuous.propIncluded ||
+                !world::finite_ground::hasGroundSupport(0,21,0.5f,footprint) ||
+                world::finite_ground::hasGroundSupport(footprint.halfWidth+0.1f,0,0,footprint)) {
+                std::fprintf(stderr,"finite layout mismatch seed=%d room=%d setting=%s form=%s deck=%g,%g\n",
+                    seed,room,settingName(plan.setting),formName(plan.form),footprint.halfWidth,footprint.halfDepth);
+                return 1;
+            }
+            for (int i = 0; i < plan.obstacleCount; ++i) {
+                const auto box = obstacle(plan,seed,room,i);
+                for (float x : {box.center.x-box.size.x*0.5f,box.center.x+box.size.x*0.5f})
+                    for (float z : {box.center.z-box.size.z*0.5f,box.center.z+box.size.z*0.5f})
+                        if (!world::finite_ground::hasGroundSupport(x,z,0,footprint)) return 1;
+            }
+            ++cases[static_cast<int>(plan.setting)];
+        }
+    }
+    for (int count : cases) if (!count) return 1;
+    std::printf("FINITE_FOUNDATIONS Field=%d City=%d Sterile=%d Coastal=%d\n",cases[0],cases[1],cases[2],cases[3]);
+    const auto accepted = acceptedRoomGeometry(city, 16, 12, 15);
+    if (selectedEnvironmentPropCount(city, accepted) == 0) return 1;
+    auto invalidRoute = city;
+    invalidRoute.traversal.surfaces[0].center.x = 100.0f;
+    const auto rejected = acceptedRoomGeometry(invalidRoute, 16, 12, 15);
+    if (rejected.totalColliderCount != 0 ||
+        selectedEnvironmentPropCount(invalidRoute, rejected) != 0) return 1;
 
     bool sawField=false,sawCity=false,sawSterile=false,sawCoastal=false,sawRecovery=false,sawCourtyard=false,sawCanyon=false,sawSkyline=false,sawChamber=false,sawCapacityPressure=false;
     bool sawCompactCourtyard=false,sawStandardCourtyard=false,sawLargeCourtyard=false;

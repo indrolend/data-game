@@ -46,6 +46,29 @@ func _initialize() -> void:
     check(cached_floor != null and adapter.structure("room/0/structure/floor") == cached_floor and
         cached_floor.material_override == cached_floor_material,
         "unchanged room identity preserves static nodes and material instances")
+    var identity: Dictionary = runtime.room_presentation_identity_snapshot(-1)
+    check(identity.static_geometry_key == snapshot.static_geometry_key,
+        "static payload and fast identity expose the same native dependencies")
+    var dynamic_only: Dictionary = runtime.room_presentation_snapshot(-1, false)
+    check(not dynamic_only.has("structures") and
+        dynamic_only.capture_points == snapshot.capture_points,
+        "dynamic-only snapshot omits static records and retains objective observations")
+    adapter.sync_snapshot(dynamic_only)
+    check(adapter.structure("room/0/structure/floor") == cached_floor,
+        "dynamic-only snapshot retains installed static geometry")
+    var replacement := snapshot.duplicate(true)
+    for record in replacement.structures:
+        if str(record.id) == "room/0/structure/floor":
+            record.center.x += 0.5
+    var old_floor_x := cached_floor.position.x
+    replacement.static_geometry_key = snapshot.static_geometry_key.duplicate()
+    replacement.static_geometry_key.append("same-count-placement-change")
+    adapter.sync_snapshot(replacement)
+    check(is_equal_approx(cached_floor.position.x, old_floor_x + 0.5),
+        "changed static dependency updates same-ID geometry with unchanged record count")
+    adapter.sync_snapshot(snapshot)
+    check(is_equal_approx(cached_floor.position.x, old_floor_x),
+        "restored static dependency restores geometry")
     var capture_records: Array = snapshot.get("capture_points", [])
     check(capture_records.size() == 5 and adapter.capture_point_count() == capture_records.size(),
         "native objective state supplies and Godot renders all five Field capture points")
@@ -227,6 +250,10 @@ func _initialize() -> void:
     runtime.start_city_room_fixture()
     var city_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     adapter.sync_snapshot(city_snapshot)
+    var city_identity: Dictionary = runtime.room_presentation_identity_snapshot(-1)
+    check(city_identity.static_geometry_key == city_snapshot.static_geometry_key and
+        city_identity.static_geometry_key != identity.static_geometry_key,
+        "City payload and fast identity share a key distinct from the Field key")
     var facade_modules: Array = city_snapshot.city_facade_modules
     check(not facade_modules.is_empty(),
         "native City obstacle grammar selects mature authored facade modules")
@@ -451,7 +478,24 @@ func _initialize() -> void:
                 "house presentation adds no Godot collision body")
     runtime.start_sterile_room_fixture()
     var sterile_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
+    var seam_top_count := 0
+    for record in sterile_snapshot.structures:
+        if str(record.id).contains("/door-wall/") and str(record.id).ends_with("/top"):
+            seam_top_count += 1
+            check(is_equal_approx(record.size.x, 4.2) and
+                is_equal_approx(record.center.y - record.size.y * 0.5, 3.72),
+                "solid seam opening matches the native doorway aperture")
+    check(seam_top_count == 2, "both solid room seams have the native doorway aperture")
     adapter.sync_snapshot(sterile_snapshot)
+    var sterile_obstacles := 0
+    for record in sterile_snapshot.structures:
+        if str(record.id).contains("/authored-obstacle/"):
+            sterile_obstacles += 1
+            var node: MeshInstance3D = adapter.structure(record.id)
+            check(node != null and node.position == record.center and
+                (node.mesh as BoxMesh).size == record.size,
+                "Sterile authored obstacle mesh uses the native collider box")
+    check(sterile_obstacles == 6, "Sterile retains all authored obstacle meshes")
     var marker_records: Array = []
     for object in sterile_snapshot.objects as Array:
         if int(object.primitive) == 3:
@@ -545,6 +589,15 @@ func _initialize() -> void:
         runtime.tick()
     var coastal_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     adapter.sync_snapshot(coastal_snapshot)
+    var coastal_obstacles := 0
+    for record in coastal_snapshot.structures:
+        if str(record.id).contains("/authored-obstacle/"):
+            coastal_obstacles += 1
+            var node: MeshInstance3D = adapter.structure(record.id)
+            check(node != null and node.position == record.center and
+                (node.mesh as BoxMesh).size == record.size,
+                "Coastal authored obstacle mesh uses the native collider box")
+    check(coastal_obstacles == 5, "Coastal retains all authored obstacle meshes")
     var coastal_water: Dictionary = coastal_snapshot.coastal_water
     var water_node: MeshInstance3D = adapter.coastal_water_node()
     var water_mesh := water_node.mesh as PlaneMesh if water_node != null else null

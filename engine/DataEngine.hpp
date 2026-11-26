@@ -74,6 +74,22 @@ struct Observation {
 
 class DataEngine {
 public:
+    struct Checkpoint {
+        Game::Checkpoint game;
+        std::vector<Event> events;
+        bool hasPrevious = false;
+        int previousRoom = 0;
+        int previousSouls = 0;
+        int previousFilledGoals = 0;
+        bool previousStarted = false;
+        bool previousDead = false;
+        bool previousRoomClear = false;
+        bool previousUpgradeOffered = false;
+    };
+
+    Checkpoint checkpoint() const;
+    void restore(const Checkpoint& checkpoint);
+
     void reset();
     void startGeneratedScenario(int seed, int room);
     Observation step(const Command& command);

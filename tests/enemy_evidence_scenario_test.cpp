@@ -1,6 +1,7 @@
 #include "diagnostics/EnemyEvidenceScenario.hpp"
 
 #include <cstdio>
+#include <memory>
 
 int main() {
     struct Result { evidence::EnemyObstructionObservation observation{},firstOverlap{},maximumRecovery{};bool finite=true,overlap=false,passed=false,rememberedWhileOccluded=false,reacquired=false,observedSearch=false,observedEngage=false,observedSupport=false;int maximumStall=0,firstOverlapTick=0;float maximumRecoveryUrgency=0.0f,maximumBodyAttitude=0.0f,minimumMotorPace=2.0f,maximumMotorPace=0.0f; };
@@ -69,5 +70,36 @@ int main() {
         first.minimumMotorPace,first.maximumMotorPace,observation.motorArousal,observation.motorCaution,observation.motorFixation,
         baseline.observation.maximumDetour,observation.maximumDetour,
         baseline.observation.footPlantChanges,observation.footPlantChanges);
+    // Same actual Game checkpoint; only the enemy's experienced head lunges differ.
+    auto fixture = std::make_unique<Game>();
+    evidence::configureEnemyObstruction(*fixture);
+    auto& fixtureState = fixture->fixtureMutableState();
+    fixtureState.roomColliderCount = 0;
+    fixtureState.targets[0].pos = {1.0f, 0.08f, 0.0f};
+    fixtureState.targets[0].vel = {};
+    fixtureState.targets[0].walkTarget = fixtureState.player.pos;
+    fixtureState.targets[0].attackCooldown = 999.0f;
+    fixtureState.targets[0].attackTimer = 0.0f;
+    auto checkpoint = std::make_unique<Game::Checkpoint>(fixture->captureCheckpoint());
+    auto untrained = std::make_unique<Game>();
+    untrained->restoreCheckpoint(*checkpoint);
+    for (int hit = 0; hit < 3; ++hit)
+        gameplay::registerEnemyLungeHeadHit(checkpoint->enemyRuntime.motors[0]);
+    auto trained = std::make_unique<Game>();
+    trained->restoreCheckpoint(*checkpoint);
+    for (int tick = 0; tick < 120; ++tick) {
+        untrained->setTouchControls(0,0,0,0,false,false,false,false,false,false);
+        trained->setTouchControls(0,0,0,0,false,false,false,false,false,false);
+        untrained->update(1.0f / 60.0f);
+        trained->update(1.0f / 60.0f);
+    }
+    const Vec3 naivePosition = untrained->state().targets[0].pos;
+    const Vec3 learnedPosition = trained->state().targets[0].pos;
+    const float learnedDifference = horizontalLength(learnedPosition - naivePosition);
+    if (!(learnedDifference > 0.03f)) {
+        std::fprintf(stderr, "ENEMY_LUNGE_RUNTIME_FAIL trajectory_difference=%.6f\n", learnedDifference);
+        return 1;
+    }
+    std::printf("ENEMY_LUNGE_RUNTIME_OK trajectory_difference=%.6f history_only=YES\n", learnedDifference);
     return 0;
 }

@@ -30,7 +30,7 @@ var _grass_tip_color := Color(0.27, 0.43, 0.25, 1.0)
 var _coastal_water: MeshInstance3D
 var _coastal_water_material: ShaderMaterial
 var _static_geometry_sync_enabled := true
-var _static_geometry_snapshot_key := ""
+var _static_geometry_snapshot_key: Array = []
 const PACKAGED_MODELS_ROOT := "res://runtime-assets/models"
 
 func _native_model_path(relative_path: String) -> String:
@@ -104,10 +104,7 @@ func sync_snapshot(snapshot: Dictionary) -> void:
     var objects: Array = snapshot.get("objects", [])
     var field_backdrop_trees: Array = snapshot.get("field_backdrop_trees", [])
     var city_facade_modules: Array = snapshot.get("city_facade_modules", [])
-    var static_geometry_key := "%d:%d:%d:%d:%d:%d:%d" % [
-        int(snapshot.room_seed), int(snapshot.room_index), int(snapshot.tile_index),
-        structures.size(), objects.size(), field_backdrop_trees.size(),
-        city_facade_modules.size()]
+    var static_geometry_key: Array = snapshot.get("static_geometry_key", [])
     var sync_static_geometry := static_geometry_included and _static_geometry_sync_enabled \
         and static_geometry_key != _static_geometry_snapshot_key
     if sync_static_geometry:
@@ -395,6 +392,7 @@ func _sync_coastal_water(snapshot: Dictionary) -> void:
         _coastal_water.material_override = _coastal_water_material
         add_child(_coastal_water)
     _coastal_water.visible = true
+    _coastal_water.position.y = float(water.get("base_y", 0.0))
     _coastal_water.position.z = (float(water.tile_offset_z) +
         (float(water.min_z) + float(water.max_z)) * 0.5)
     _coastal_water_material.set_shader_parameter("native_time", float(water.native_time))

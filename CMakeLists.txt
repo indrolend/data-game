@@ -370,6 +370,11 @@ target_compile_features(PhoneDisplayStateTest PRIVATE cxx_std_17)
 add_executable(RoomEnvironmentTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/room_environment_test.cpp")
 target_include_directories(RoomEnvironmentTest PRIVATE "${DB_GAME_ROOT}")
 target_compile_features(RoomEnvironmentTest PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(RoomEnvironmentTest PRIVATE /UNDEBUG)
+else()
+    target_compile_options(RoomEnvironmentTest PRIVATE -UNDEBUG)
+endif()
 
 add_executable(ComputedSceneObjectsTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/computed_scene_objects_test.cpp")
 target_include_directories(ComputedSceneObjectsTest PRIVATE "${DB_GAME_ROOT}")
@@ -463,6 +468,10 @@ target_compile_features(DesktopPlaytestPolicyTest PRIVATE cxx_std_17)
 add_executable(DeveloperCodecTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_codec_test.cpp")
 target_include_directories(DeveloperCodecTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
 target_compile_features(DeveloperCodecTest PRIVATE cxx_std_17)
+
+add_executable(DeveloperPhoneMenuTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/developer_phone_menu_test.cpp")
+target_include_directories(DeveloperPhoneMenuTest PRIVATE "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
+target_compile_features(DeveloperPhoneMenuTest PRIVATE cxx_std_17)
 
 add_executable(AgentPlaytestProtocolTest "${CMAKE_CURRENT_SOURCE_DIR}/tests/agent_playtest_protocol_test.cpp")
 target_include_directories(AgentPlaytestProtocolTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/desktop")
@@ -561,6 +570,19 @@ target_include_directories(DataEngineCausalExperimentTest PRIVATE
 target_compile_features(DataEngineCausalExperimentTest PRIVATE cxx_std_17)
 
 add_executable(
+    DataEngineCheckpointTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/data_engine_checkpoint_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/DataEngine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/CounterfactualEvaluator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/ReferenceScenario.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(DataEngineCheckpointTest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine" "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(DataEngineCheckpointTest PRIVATE cxx_std_17)
+
+add_executable(
     SecretTvPolicyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/secret_tv_policy_test.cpp"
     "${DB_GAME_ROOT}/Game.cpp"
@@ -625,6 +647,7 @@ add_test(NAME LightingReplayDeterminismTest COMMAND DigitalBreakdown --lighting-
 add_test(NAME EnemyEvidenceScenarioTest COMMAND EnemyEvidenceScenarioTest)
 add_test(NAME DesktopPlaytestPolicyTest COMMAND DesktopPlaytestPolicyTest)
 add_test(NAME DeveloperCodecTest COMMAND DeveloperCodecTest)
+add_test(NAME DeveloperPhoneMenuTest COMMAND DeveloperPhoneMenuTest)
 add_test(NAME AgentPlaytestProtocolTest COMMAND AgentPlaytestProtocolTest)
 add_test(NAME SoulEconomyTest COMMAND SoulEconomyTest)
 add_test(NAME SoulProjectileLifecycleTest COMMAND SoulProjectileLifecycleTest)
@@ -636,6 +659,7 @@ add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
 add_test(NAME AuthoritativeStateDigestTest COMMAND AuthoritativeStateDigestTest)
 add_test(NAME DataEngineReferenceTest COMMAND DataEngineReferenceTest)
 add_test(NAME DataEngineCausalExperimentTest COMMAND DataEngineCausalExperimentTest)
+add_test(NAME DataEngineCheckpointTest COMMAND DataEngineCheckpointTest)
 add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
 add_test(NAME SignalResidueLifecycleTest COMMAND SignalResidueLifecycleTest)
 

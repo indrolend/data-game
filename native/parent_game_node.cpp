@@ -85,8 +85,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("door_transition_presentation_snapshot"),&ParentGameNode::door_transition_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("projectile_presentation_snapshot"),&ParentGameNode::projectile_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_identity_snapshot","tile_index"),&ParentGameNode::room_presentation_identity_snapshot);
-    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index","include_static"),
-        &ParentGameNode::room_presentation_snapshot,DEFVAL(true));
+    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index","include_static","tile_offset"),
+        &ParentGameNode::room_presentation_snapshot,DEFVAL(true),DEFVAL(0));
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
     ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
     ClassDB::bind_method(D_METHOD("grass_blade_presentation_snapshot","tile_index"),&ParentGameNode::grass_blade_presentation_snapshot);
@@ -821,6 +821,30 @@ Dictionary ParentGameNode::audio_presentation_snapshot() const {
     result["muted"] = state.localSettings.sfxMuted;
     return result;
 }
+// Dependencies of the static records. City masses and facade modules use
+// accepted native collider placement, including same-room fixture replacements.
+static Array roomStaticGeometryKey(const GameState& state, int tileIndex,
+                                   room_environment::RoomSetting setting) {
+    Array key;
+    key.append(state.roomSeed);
+    key.append(state.roomIndex);
+    key.append(tileIndex);
+    key.append(state.rallyLab);
+    key.append(state.traversalLab);
+    key.append(state.slopeLab);
+    key.append(state.roomInspector);
+    if (setting == room_environment::RoomSetting::City) {
+        key.append(state.localSettings.graphicsPreset);
+        for (int i = 0; i < state.roomColliderCount; ++i) {
+            const auto& collider = state.roomColliders[i];
+            key.append(Vector3(collider.center.x, collider.center.y, collider.center.z));
+            key.append(Vector3(collider.width, collider.height, collider.depth));
+            key.append(collider.bottomY);
+        }
+    }
+    return key;
+}
+
 Dictionary ParentGameNode::room_presentation_identity_snapshot(int tile_index) const {
     const auto& state=bridge.state();
     if(tile_index<0) tile_index=state.topology.currentTileIndex;
@@ -830,11 +854,13 @@ Dictionary ParentGameNode::room_presentation_identity_snapshot(int tile_index) c
     result["room_index"]=state.roomIndex;
     result["tile_index"]=tile_index;
     result["grass"]=plan.grass;
+    result["static_geometry_key"] = roomStaticGeometryKey(state, tile_index, plan.setting);
     return result;
 }
-Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool include_static) const {
+Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool include_static,int tile_offset) const {
     if(tile_index<0)tile_index=bridge.state().topology.currentTileIndex;
-    const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index);
+    tile_index += std::clamp(tile_offset,-1,1);
+    const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index, include_static);
     Dictionary result;
     result["room_seed"] = snapshot.roomSeed;
     result["room_index"] = snapshot.roomIndex;
@@ -871,24 +897,12 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
     coastal_water["min_z"] = coastal_water::MinZ;
     coastal_water["max_z"] = coastal_water::MaxZ;
     coastal_water["tile_offset_z"] = static_cast<float>(snapshot.tileIndex) * world::RoomDepth;
+    coastal_water["base_y"] = snapshot.fieldIsland ? world::GroundY : 0.0f;
     coastal_water["native_time"] = snapshot.presentationTime;
     coastal_water["source_position"] = v(snapshot.waterSourcePosition);
     coastal_water["source_speed"] = snapshot.waterSourceSpeed;
     coastal_water["source_active"] = snapshot.waterSourceActive;
     result["coastal_water"] = coastal_water;
-    result["static_geometry_included"] = include_static;
-    if(include_static) {
-    Array structures;
-    for (const auto& structure : snapshot.structures) {
-        Dictionary item;
-        item["id"] = structure.id.c_str();
-        item["kind"] = static_cast<int>(structure.kind);
-        item["center"] = v(structure.center);
-        item["size"] = v(structure.size);
-        item["material"] = material_dictionary(structure.material);
-        structures.push_back(item);
-    }
-    result["structures"] = structures;
     Array capture_points;
     for(const auto& capture:snapshot.capturePoints){
         Dictionary item;
@@ -901,6 +915,21 @@ Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool includ
         capture_points.push_back(item);
     }
     result["capture_points"]=capture_points;
+    result["static_geometry_included"] = include_static;
+    if(include_static) {
+    result["static_geometry_key"] = roomStaticGeometryKey(bridge.state(), tile_index,
+        static_cast<room_environment::RoomSetting>(snapshot.setting));
+    Array structures;
+    for (const auto& structure : snapshot.structures) {
+        Dictionary item;
+        item["id"] = structure.id.c_str();
+        item["kind"] = static_cast<int>(structure.kind);
+        item["center"] = v(structure.center);
+        item["size"] = v(structure.size);
+        item["material"] = material_dictionary(structure.material);
+        structures.push_back(item);
+    }
+    result["structures"] = structures;
     Array city_facade_modules;
     for (const auto& module : snapshot.cityFacadeModules) {
         Dictionary item;
@@ -1051,8 +1080,8 @@ Array ParentGameNode::grass_blade_presentation_snapshot(int tile_index) const {
     const auto& state = bridge.state();
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-    const bool island = field_island::active(state.roomSeed, state.roomIndex,
-        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+    const bool island = room_environment::hasFiniteGround(plan.boundary,
+        state.rallyLab || state.traversalLab || state.slopeLab);
     Array result;
     if (!plan.grass) return result;
     result.resize(room_environment::GrassBladeCountLow);
@@ -1075,8 +1104,8 @@ Array ParentGameNode::grass_blade_tip_presentation_snapshot(int tile_index) cons
     const auto& state = bridge.state();
     if (tile_index < 0) tile_index = state.topology.currentTileIndex;
     const auto plan = room_environment::roomPlan(state.roomSeed, state.roomIndex);
-    const bool island = field_island::active(state.roomSeed, state.roomIndex,
-        state.rallyLab || state.traversalLab || state.slopeLab || state.roomInspector);
+    const bool island = room_environment::hasFiniteGround(plan.boundary,
+        state.rallyLab || state.traversalLab || state.slopeLab);
     Array result;
     if (!plan.grass) return result;
     result.resize(room_environment::GrassBladeCountLow);

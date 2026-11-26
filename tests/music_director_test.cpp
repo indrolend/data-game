@@ -10,7 +10,13 @@ int main() {
     assert(menuMusicAllowed(false,false,false));
     assert(!menuMusicAllowed(true,false,false));
     assert(!menuMusicAllowed(false,true,false));
-    assert(!menuMusicAllowed(false,true,true));
+    // Keep the title voice selected through the attract simulation's death
+    // and reset. A human player's death must not select the title voice.
+    for (const bool dead : {false,true,false}) {
+        assert(menuMusicAllowed(true,dead,true));
+        assert(menuMusicAllowed(false,dead,true));
+    }
+    assert(!menuMusicAllowed(true,true,false));
     assert(menuMusicAllowed(true,false,true));
     assert(menuTheme(false) == MenuTheme::Title);
     assert(menuTheme(true) == MenuTheme::Pensive);

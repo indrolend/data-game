@@ -84,6 +84,20 @@ struct DeveloperCodecState {
     static constexpr int LineCount=9;
     bool open=false;
     bool showColliders=false;
+
+    enum class Page : unsigned char {
+        Root,
+        Status,
+        Rendering,
+        Environment,
+        Playtest
+    };
+
+    Page page=Page::Root;
+    int selection=0;
+    float menuScroll=0.0f;
+    bool consoleFocused=false;
+
     bool actionFocus=true;
     int quickActionSelection=0;
     std::string input;
