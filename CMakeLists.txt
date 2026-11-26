@@ -566,6 +566,19 @@ target_include_directories(DataEngineCausalExperimentTest PRIVATE
 target_compile_features(DataEngineCausalExperimentTest PRIVATE cxx_std_17)
 
 add_executable(
+    DataEngineCheckpointTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/data_engine_checkpoint_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/DataEngine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/CounterfactualEvaluator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/ReferenceScenario.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/network/MultiplayerProtocol.cpp"
+    "${DB_GAME_ROOT}/Game.cpp"
+)
+target_include_directories(DataEngineCheckpointTest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine" "${DB_GAME_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}/network")
+target_compile_features(DataEngineCheckpointTest PRIVATE cxx_std_17)
+
+add_executable(
     SecretTvPolicyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/secret_tv_policy_test.cpp"
     "${DB_GAME_ROOT}/Game.cpp"
@@ -641,6 +654,7 @@ add_test(NAME DeterministicInputSoak COMMAND DeterministicInputSoak)
 add_test(NAME AuthoritativeStateDigestTest COMMAND AuthoritativeStateDigestTest)
 add_test(NAME DataEngineReferenceTest COMMAND DataEngineReferenceTest)
 add_test(NAME DataEngineCausalExperimentTest COMMAND DataEngineCausalExperimentTest)
+add_test(NAME DataEngineCheckpointTest COMMAND DataEngineCheckpointTest)
 add_test(NAME SecretTvPolicyTest COMMAND SecretTvPolicyTest)
 add_test(NAME SignalResidueLifecycleTest COMMAND SignalResidueLifecycleTest)
 

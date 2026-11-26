@@ -2,9 +2,13 @@
 
 namespace data_engine {
 
+bool ReferenceScenario::prepareEncounter(DataEngine& engine) {
+    return engine.prepareReferenceEncounter();
+}
+
 bool ReferenceScenario::runCompleteLoop(DataEngine& engine, int seed, int room) {
     engine.startGeneratedScenario(seed, room);
-    if (!engine.prepareReferenceEncounter()) return false;
+    if (!prepareEncounter(engine)) return false;
     Command melee;
     melee.melee = true;
     engine.step(melee);

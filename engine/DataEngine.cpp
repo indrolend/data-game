@@ -41,6 +41,34 @@ void DataEngine::startGeneratedScenario(int seed, int room) {
     captureEvents();
 }
 
+DataEngine::Checkpoint DataEngine::checkpoint() const {
+    Checkpoint checkpoint;
+    checkpoint.game = game_.captureCheckpoint();
+    checkpoint.events = events_;
+    checkpoint.hasPrevious = hasPrevious_;
+    checkpoint.previousRoom = previousRoom_;
+    checkpoint.previousSouls = previousSouls_;
+    checkpoint.previousFilledGoals = previousFilledGoals_;
+    checkpoint.previousStarted = previousStarted_;
+    checkpoint.previousDead = previousDead_;
+    checkpoint.previousRoomClear = previousRoomClear_;
+    checkpoint.previousUpgradeOffered = previousUpgradeOffered_;
+    return checkpoint;
+}
+
+void DataEngine::restore(const Checkpoint& checkpoint) {
+    game_.restoreCheckpoint(checkpoint.game);
+    events_ = checkpoint.events;
+    hasPrevious_ = checkpoint.hasPrevious;
+    previousRoom_ = checkpoint.previousRoom;
+    previousSouls_ = checkpoint.previousSouls;
+    previousFilledGoals_ = checkpoint.previousFilledGoals;
+    previousStarted_ = checkpoint.previousStarted;
+    previousDead_ = checkpoint.previousDead;
+    previousRoomClear_ = checkpoint.previousRoomClear;
+    previousUpgradeOffered_ = checkpoint.previousUpgradeOffered;
+}
+
 bool DataEngine::prepareReferenceEncounter() {
     GameState& state = game_.fixtureMutableState();
     for (TargetState& target : state.targets) target = TargetState{};

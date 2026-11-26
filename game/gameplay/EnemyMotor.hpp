@@ -38,6 +38,8 @@ struct EnemyMotorMemory {
     float caution = 0.0f;
     float fixation = 0.0f;
     float animalPhase = 0.0f;
+    // Memory of surviving head-directed player lunges.
+    float headLungeExposure = 0.0f;
 };
 
 struct EnemyMotorOutput {
@@ -48,7 +50,14 @@ struct EnemyMotorOutput {
     // of continuous internal condition. Cognition still owns whether to
     // travel, locomotion owns feasible travel, and the body owns response.
     float paceExpression = 1.0f;
+    // Bounded lateral correction applied through existing pursuit movement.
+    float lungeEvasion = 0.0f;
 };
+
+inline void registerEnemyLungeHeadHit(EnemyMotorMemory& memory) {
+    const float prior = std::isfinite(memory.headLungeExposure) ? memory.headLungeExposure : 0.0f;
+    memory.headLungeExposure = std::min(1.0f, std::max(0.0f, prior) + 0.24f);
+}
 
 inline float motorClamp(float value) {
     return std::max(-1.0f, std::min(1.0f, value));
@@ -74,6 +83,8 @@ inline EnemyMotorOutput updateEnemyMotor(
     memory.caution = std::max(0.0f, std::min(1.0f, finiteMotorValue(memory.caution)));
     memory.fixation = std::max(0.0f, std::min(1.0f, finiteMotorValue(memory.fixation)));
     memory.animalPhase = finiteMotorValue(memory.animalPhase);
+    memory.headLungeExposure = std::max(0.0f, std::min(1.0f,
+        finiteMotorValue(memory.headLungeExposure)));
 
     const float distance = std::min(1.0f, std::max(0.0f, finiteMotorValue(input.playerDistance) / 24.0f));
     const float allyDistance = std::min(1.0f, std::max(0.0f, finiteMotorValue(input.nearestAllyDistance, 10.0f) / 10.0f));
@@ -130,6 +141,7 @@ inline EnemyMotorOutput updateEnemyMotor(
     // the activity that preceded it. All habits continuously decay, so old
     // competence and dysfunction can both regress.
     const float learningDt = std::min(0.05f, std::max(0.0f, finiteMotorValue(dt)));
+    memory.headLungeExposure = std::max(0.0f, memory.headLungeExposure - learningDt * 0.008f);
     const float closeAlly = 1.0f - allyDistance;
     const float useful = std::max(0.0f, progress) * (1.0f - disruption);
     const float adverse = std::max(disruption, vacuum * (1.0f - traction));
@@ -219,6 +231,10 @@ inline EnemyMotorOutput updateEnemyMotor(
         + (memory.fixation - 0.5f) * 0.08f
         - memory.caution * 0.08f
         + rawPersonality * 0.025f));
+    const float approach = std::max(0.0f, std::min(1.0f,
+        (9.0f - std::max(0.0f, finiteMotorValue(input.playerDistance))) / 6.0f));
+    output.lungeEvasion = memory.headLungeExposure * approach * certainty
+        * (rawPersonality >= 0.0f ? 0.38f : -0.38f);
     return output;
 }
 

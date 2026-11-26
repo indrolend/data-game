@@ -9,6 +9,7 @@ namespace data_engine {
 // legacy mutable Game state internally.
 class ReferenceScenario {
 public:
+    static bool prepareEncounter(DataEngine& engine);
     static bool runCompleteLoop(DataEngine& engine, int seed, int room);
 };
 

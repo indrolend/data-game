@@ -426,6 +426,27 @@ int secretTvSignalGain(int souls) {
 }
 }
 
+Game::Checkpoint Game::captureCheckpoint() const {
+    Checkpoint checkpoint;
+    checkpoint.state = state_;
+    checkpoint.simulationPlayerId = simulationPlayerId_;
+    checkpoint.enemyMotorExpressionEnabled = enemyMotorExpressionEnabled_;
+    checkpoint.hasEnemyRuntime = static_cast<bool>(enemyRuntime_);
+    if (enemyRuntime_) checkpoint.enemyRuntime = *enemyRuntime_;
+    return checkpoint;
+}
+
+void Game::restoreCheckpoint(const Checkpoint& checkpoint) {
+    state_ = checkpoint.state;
+    simulationPlayerId_ = checkpoint.simulationPlayerId;
+    enemyMotorExpressionEnabled_ = checkpoint.enemyMotorExpressionEnabled;
+    if (checkpoint.hasEnemyRuntime) {
+        enemyRuntime_ = std::make_unique<EnemyRuntimePool>(checkpoint.enemyRuntime);
+    } else {
+        enemyRuntime_.reset();
+    }
+}
+
 void Game::reset() {
     const PermanentProgressionState permanent=state_.progression.permanent;
     const LocalSettingsState localSettings=state_.localSettings;
@@ -3418,6 +3439,10 @@ int Game::applyMeleeHits() {
             synergyDamage+=state_.progression.run.relayPrimerStacks*RELAY_PRIMER_DAMAGE_PER_STACK;
         }
         if(headshot&&t.grabbedPlayerId>=0)releaseTargetGrab(i);
+        // A head-directed lunge is observed by this enemy, not by a global director.
+        // Preserve the shipped multiplayer behavior.
+        if(headshot&&!state_.multiplayer.enabled)
+            gameplay::registerEnemyLungeHeadHit(enemyRuntime().motors[i]);
         damageSoulShell(i,headshot?headshotDamage(t):visual.damage*synergyDamage*outgoingDamageMultiplier()*(1.0f+std::min(0.75f,totalHits*0.12f)));
         if(!headshot){state_.progression.run.accuracyStacks=0;state_.progression.run.accuracyMultiplier=1.0f;state_.progression.run.accuracyDecayTimer=0.0f;}
         if(headshot){const float armorMax=t.brute?SOUL_ARMOR_BRUTE:SOUL_ARMOR_NORMAL;headshotPositions[headshots]=headCenter;headshotCritical[headshots]=t.slurpable||t.armor<=armorMax*HEADSHOT_CRITICAL_ARMOR_FRACTION;headshotAttackProgress[headshots]=t.attackTimer>0.0f?1.0f-clampf(t.attackTimer/HUMAN_ATTACK_DURATION,0.0f,1.0f):-1.0f;headshotKillCharge[headshots]=t.slurpable?1.0f:1.0f-clampf(t.armor/armorMax,0.0f,1.0f);++headshots;}
@@ -4072,6 +4097,7 @@ void Game::updateTargets(float dt) {
             Vec3 toPlayer{attackedPlayerPos.x-t.pos.x,0,attackedPlayerPos.z-t.pos.z};
             float playerDist=perception.hasSpatialBelief?horizontalLength(toPlayer):9999.0f;
             float motorPaceExpression=1.0f;
+            float motorLungeEvasion=0.0f;
             {
                 const float toPlayerLength=horizontalLength(toPlayer);
                 const Vec3 toPlayerDirection=toPlayerLength>0.001f?toPlayer*(1.0f/toPlayerLength):Vec3{};
@@ -4096,7 +4122,10 @@ void Game::updateTargets(float dt) {
                 motorInput.pursuitCertainty=perception.confidence;
                 auto& motorOutput=enemyRuntimeState.motorOutputs[i];
                 motorOutput=gameplay::updateEnemyMotor(motorInput,enemyRuntimeState.motors[i],dt,std::sin(static_cast<float>(i)*12.9898f));
-                if(enemyMotorExpressionEnabled_)motorPaceExpression=motorOutput.paceExpression;
+                if(enemyMotorExpressionEnabled_){
+                    motorPaceExpression=motorOutput.paceExpression;
+                    motorLungeEvasion=motorOutput.lungeEvasion;
+                }
             }
             const auto canReachPlayerVertically=[&](const Vec3& playerPosition){
                 const float humanBottom=t.pos.y;
@@ -4186,6 +4215,10 @@ void Game::updateTargets(float dt) {
                 if(dist<HUMAN_WALK_TARGET_RADIUS && playerDist>=noticeRange){chooseHumanWalkTarget(i); delta=t.walkTarget-t.pos; delta.y=0; dist=horizontalLength(delta);}
                 if(dist>0.001f){
                     Vec3 dir=delta*(1.0f/dist); constexpr bool physicalPursuit=true;
+                    if(motorLungeEvasion!=0.0f&&playerDist<noticeRange&&!pursuedTree){
+                        const Vec3 lateral{-dir.z,0.0f,dir.x};
+                        dir=normalized(dir+lateral*motorLungeEvasion);
+                    }
                     auto& routeLocomotion=enemyRuntimeState.locomotions[i];
                     const float aggro=playerDist<noticeRange?1.28f:1.0f;
                     const float variation=0.82f+0.18f*std::sin(static_cast<float>(i)*12.9898f);

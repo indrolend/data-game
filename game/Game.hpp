@@ -792,7 +792,28 @@ struct HostRemotePeerSimulationIsolationAccess;
 struct SoulProjectileLifecycleAccess;
 
 class Game {
+    struct EnemyRuntimePool {
+        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
+        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
+        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
+        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
+        std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> motors{};
+        std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> motorOutputs{};
+        int perceptionCursor = 0;
+    };
+
 public:
+    struct Checkpoint {
+        GameState state;
+        EnemyRuntimePool enemyRuntime;
+        bool hasEnemyRuntime = false;
+        int simulationPlayerId = 0;
+        bool enemyMotorExpressionEnabled = true;
+    };
+
+    Checkpoint captureCheckpoint() const;
+    void restoreCheckpoint(const Checkpoint& checkpoint);
+
     void reset();
     void restart();
     void prepareStartScreen();
@@ -872,15 +893,6 @@ private:
     enum class BatteryReason { Continuous, Jump, DoubleJump, Melee, Shoot, Hit, Climb, Ingest, NextRoom, Combo, Chain, Headshot, Loop };
     GameState state_;
     int simulationPlayerId_ = 0;
-    struct EnemyRuntimePool {
-        std::array<gameplay::EnemyPerceptionState,TARGET_COUNT> perceptions{};
-        std::array<gameplay::EnemyBehaviorState,TARGET_COUNT> behaviors{};
-        std::array<gameplay::EnemyLocomotionState,TARGET_COUNT> locomotions{};
-        std::array<gameplay::PhysicalEnemyBodyState,TARGET_COUNT> bodies{};
-        std::array<gameplay::EnemyMotorMemory,TARGET_COUNT> motors{};
-        std::array<gameplay::EnemyMotorOutput,TARGET_COUNT> motorOutputs{};
-        int perceptionCursor = 0;
-    };
     std::unique_ptr<EnemyRuntimePool> enemyRuntime_;
     bool enemyMotorExpressionEnabled_ = true;
     EnemyRuntimePool& enemyRuntime();
