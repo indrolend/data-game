@@ -487,6 +487,15 @@ func _initialize() -> void:
                 "solid seam opening matches the native doorway aperture")
     check(seam_top_count == 2, "both solid room seams have the native doorway aperture")
     adapter.sync_snapshot(sterile_snapshot)
+    var sterile_obstacles := 0
+    for record in sterile_snapshot.structures:
+        if str(record.id).contains("/authored-obstacle/"):
+            sterile_obstacles += 1
+            var node: MeshInstance3D = adapter.structure(record.id)
+            check(node != null and node.position == record.center and
+                (node.mesh as BoxMesh).size == record.size,
+                "Sterile authored obstacle mesh uses the native collider box")
+    check(sterile_obstacles == 6, "Sterile retains all authored obstacle meshes")
     var marker_records: Array = []
     for object in sterile_snapshot.objects as Array:
         if int(object.primitive) == 3:
@@ -580,6 +589,15 @@ func _initialize() -> void:
         runtime.tick()
     var coastal_snapshot: Dictionary = runtime.room_presentation_snapshot(-1)
     adapter.sync_snapshot(coastal_snapshot)
+    var coastal_obstacles := 0
+    for record in coastal_snapshot.structures:
+        if str(record.id).contains("/authored-obstacle/"):
+            coastal_obstacles += 1
+            var node: MeshInstance3D = adapter.structure(record.id)
+            check(node != null and node.position == record.center and
+                (node.mesh as BoxMesh).size == record.size,
+                "Coastal authored obstacle mesh uses the native collider box")
+    check(coastal_obstacles == 5, "Coastal retains all authored obstacle meshes")
     var coastal_water: Dictionary = coastal_snapshot.coastal_water
     var water_node: MeshInstance3D = adapter.coastal_water_node()
     var water_mesh := water_node.mesh as PlaneMesh if water_node != null else null

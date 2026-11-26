@@ -24,7 +24,8 @@ enum class RoomStructureKind : unsigned char {
     CityStreetFixture,
     CityServiceFixture,
     FieldIslandCore,
-    Abyss
+    Abyss,
+    AuthoredObstacle
 };
 
 struct RoomStructureRecord {
@@ -250,6 +251,19 @@ struct RoomPresentationSnapshot {
             addStructure("wall/right", RoomStructureKind::BoundaryWall,
                 {world::RoomWidth * 0.5f, world::RoomWallHeight * 0.5f, z0},
                 {0.5f, world::RoomWallHeight, world::RoomDepth}, wallMaterial);
+        }
+        if (sterile || coastal) {
+            const int count = std::min(state.roomColliderCount, plan.obstacleCount);
+            const auto substrate = semanticMaterial(
+                sterile ? SemanticSurface::SterilePanel : SemanticSurface::Default,
+                sterile ? VisualColor{0.46f,0.50f,0.51f} : VisualColor{0.48f,0.44f,0.35f});
+            for (int i = 0; i < count; ++i) {
+                const auto& collider = state.roomColliders[i];
+                const std::string id = "authored-obstacle/" + std::to_string(i);
+                addStructure(id.c_str(), RoomStructureKind::AuthoredObstacle,
+                    collider.center + Vec3{0,0,z0},
+                    {collider.width, collider.height, collider.depth}, substrate);
+            }
         }
         for (int surfaceIndex = 0; surfaceIndex < plan.traversal.surfaceCount; ++surfaceIndex) {
             if (!capacity.traversalIncluded[surfaceIndex]) continue;
