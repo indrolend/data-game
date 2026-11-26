@@ -508,13 +508,15 @@ inline RoomGeometryCapacityPlan roomGeometryCapacityPlan(const RoomEnvironmentPl
     const auto footprint = roomGroundFootprint(plan,roomSeed,roomIndex);
     const bool propsValid=environmentPropsValid(plan,roomSeed,roomIndex);
     const int propCount=std::min(EnvironmentPropCapacity,environmentPropCount(plan));
-    if(propsValid)for(int index=0;index<propCount;++index)if(!environmentPropSolid(environmentProp(plan,roomSeed,roomIndex,index)))result.propIncluded[index]=true;
+    std::array<EnvironmentPropSpec,EnvironmentPropCapacity> props{};
+    if(propsValid)for(int index=0;index<propCount;++index)props[index]=environmentProp(plan,roomSeed,roomIndex,index);
+    if(propsValid)for(int index=0;index<propCount;++index)if(!environmentPropSolid(props[index]))result.propIncluded[index]=true;
     constexpr float separation=0.55f;
     const auto overlaps=[&](const ObstacleSpec& a,const ObstacleSpec& b){return a.center.x+a.size.x*0.5f+separation>b.center.x-b.size.x*0.5f&&a.center.x-a.size.x*0.5f-separation<b.center.x+b.size.x*0.5f&&a.center.z+a.size.z*0.5f+separation>b.center.z-b.size.z*0.5f&&a.center.z-a.size.z*0.5f-separation<b.center.z+b.size.z*0.5f;};
-    const auto reserveProps=[&](EnvironmentRole role,int& count,bool avoidTraversal){if(!propsValid)return;for(int index=0;index<propCount&&remaining>0;++index){const auto prop=environmentProp(plan,roomSeed,roomIndex,index);if(!environmentPropSolid(prop)||prop.role!=role||!solidPropHasGround(plan,prop,footprint))continue;const int colliderCost=environmentPropColliderCount(plan.setting,prop);if(colliderCost>remaining)continue;if(avoidTraversal){bool blocked=false;const auto propBox=environmentPropCollider(prop);for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount;++surfaceIndex)if(result.traversalIncluded[surfaceIndex]&&overlaps(propBox,physicalTraversalObstacle(plan.traversal.surfaces[surfaceIndex]))){blocked=true;break;}if(blocked)continue;}result.propIncluded[index]=true;count+=colliderCost;remaining-=colliderCost;}};
+    const auto reserveProps=[&](EnvironmentRole role,int& count,bool avoidTraversal){if(!propsValid)return;for(int index=0;index<propCount&&remaining>0;++index){const auto prop=props[index];if(!environmentPropSolid(prop)||prop.role!=role||!solidPropHasGround(plan,prop,footprint))continue;const int colliderCost=environmentPropColliderCount(plan.setting,prop);if(colliderCost>remaining)continue;if(avoidTraversal){bool blocked=false;const auto propBox=environmentPropCollider(prop);for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount;++surfaceIndex)if(result.traversalIncluded[surfaceIndex]&&overlaps(propBox,physicalTraversalObstacle(plan.traversal.surfaces[surfaceIndex]))){blocked=true;break;}if(blocked)continue;}result.propIncluded[index]=true;count+=colliderCost;remaining-=colliderCost;}};
     reserveProps(EnvironmentRole::Landmark,result.identityColliderCount,false);
     reserveProps(EnvironmentRole::Mass,result.identityColliderCount,false);
-    for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount&&remaining>0;++surfaceIndex){const auto& surface=plan.traversal.surfaces[surfaceIndex];if(!physicalTraversalSurface(plan,surface))continue;const auto traversalBox=physicalTraversalObstacle(surface);bool blockedByIdentity=false;for(int propIndex=0;propIndex<propCount;++propIndex)if(result.propIncluded[propIndex]){const auto prop=environmentProp(plan,roomSeed,roomIndex,propIndex);if(environmentPropSolid(prop)&&overlaps(traversalBox,environmentPropCollider(prop))){blockedByIdentity=true;break;}}if(blockedByIdentity)continue;result.traversalIncluded[surfaceIndex]=true;++result.optionalTraversalColliderCount;--remaining;}
+    for(int surfaceIndex=0;surfaceIndex<plan.traversal.surfaceCount&&remaining>0;++surfaceIndex){const auto& surface=plan.traversal.surfaces[surfaceIndex];if(!physicalTraversalSurface(plan,surface))continue;const auto traversalBox=physicalTraversalObstacle(surface);bool blockedByIdentity=false;for(int propIndex=0;propIndex<propCount;++propIndex)if(result.propIncluded[propIndex]){const auto prop=props[propIndex];if(environmentPropSolid(prop)&&overlaps(traversalBox,environmentPropCollider(prop))){blockedByIdentity=true;break;}}if(blockedByIdentity)continue;result.traversalIncluded[surfaceIndex]=true;++result.optionalTraversalColliderCount;--remaining;}
     reserveProps(EnvironmentRole::Detail,result.decorativeColliderCount,true);
     result.totalColliderCount=result.authoredColliderCount+result.identityColliderCount+result.optionalTraversalColliderCount+result.decorativeColliderCount;
     return result;
@@ -566,8 +568,11 @@ inline bool requiredRouteIsTraversable(const RoomEnvironmentPlan& plan,int roomS
         for(int sample=0;sample<=samples;++sample){
             const float t=static_cast<float>(sample)/static_cast<float>(samples),x=a.x+dx*t,z=a.z+dz*t;
             if (hasFiniteGround(plan.boundary) && !world::finite_ground::hasGroundSupport(x,z,clearance,footprint)) return false;
-            for(int index=0;index<plan.obstacleCount;++index){
-                const ObstacleSpec spec=obstacle(plan,roomSeed,roomIndex,index);
+        }
+        for(int index=0;index<plan.obstacleCount;++index){
+            const ObstacleSpec spec=obstacle(plan,roomSeed,roomIndex,index);
+            for(int sample=0;sample<=samples;++sample){
+                const float t=static_cast<float>(sample)/static_cast<float>(samples),x=a.x+dx*t,z=a.z+dz*t;
                 if(x>spec.center.x-spec.size.x*0.5f-clearance&&x<spec.center.x+spec.size.x*0.5f+clearance&&
                    z>spec.center.z-spec.size.z*0.5f-clearance&&z<spec.center.z+spec.size.z*0.5f+clearance)return false;
             }
