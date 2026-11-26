@@ -26,6 +26,7 @@ var phone_adapter: Node
 var particle_adapter: Node
 var melee_arc_adapter: Node3D
 var room_adapter: Node
+var _adjacent_room_adapters: Array[Node3D] = []
 var camera: Camera3D
 var world_environment: WorldEnvironment
 var scene_environment: Environment
@@ -449,6 +450,29 @@ func _uses_skeleton_enemy(index: int) -> bool:
     return skeleton_enemies_enabled or \
         (skeleton_enemy_slice_enabled and index == skeleton_enemy_slice_index)
 
+# Use the same native room specification on neighboring periodic tiles.
+# The current tile alone owns live captures, grass and water.
+func _sync_adjacent_rooms(floating: bool) -> void:
+    if not floating:
+        for adapter in _adjacent_room_adapters:
+            adapter.hide()
+        return
+    if _adjacent_room_adapters.is_empty():
+        for offset in [-1, 1]:
+            var adapter = RoomPresentationAdapter.new()
+            adapter.name = "AdjacentRoomBefore" if offset < 0 else "AdjacentRoomAfter"
+            add_child(adapter)
+            adapter.set_native_field_grass_pixels(runtime.field_grass_texture_pixels())
+            adapter.set_native_city_asphalt_pixels(runtime.city_asphalt_texture_pixels())
+            _adjacent_room_adapters.append(adapter)
+    for i in range(_adjacent_room_adapters.size()):
+        var snapshot: Dictionary = runtime.room_presentation_snapshot(-1, true, -1 if i == 0 else 1)
+        snapshot["capture_points"] = []
+        snapshot["grass"] = false
+        snapshot["coastal_water"] = {}
+        _adjacent_room_adapters[i].show()
+        _adjacent_room_adapters[i].call("sync_snapshot", snapshot)
+
 func _sync() -> void:
     var sync_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     _restore_base_camera_transform()
@@ -479,6 +503,8 @@ func _sync() -> void:
         performance_profile_last["room_bridge_us"] = Time.get_ticks_usec() - room_bridge_started
     var room_adapter_started := Time.get_ticks_usec() if performance_profile_enabled else 0
     room_adapter.call("sync_snapshot", room_snapshot)
+    if include_room_static:
+        _sync_adjacent_rooms(bool(room_snapshot.get("field_island", {}).get("enabled", false)))
     if performance_profile_enabled:
         performance_profile_last["room_adapter_us"] = Time.get_ticks_usec() - room_adapter_started
     camera.position = runtime.camera_position()

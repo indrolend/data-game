@@ -85,8 +85,8 @@ void ParentGameNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("door_transition_presentation_snapshot"),&ParentGameNode::door_transition_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("projectile_presentation_snapshot"),&ParentGameNode::projectile_presentation_snapshot);
     ClassDB::bind_method(D_METHOD("room_presentation_identity_snapshot","tile_index"),&ParentGameNode::room_presentation_identity_snapshot);
-    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index","include_static"),
-        &ParentGameNode::room_presentation_snapshot,DEFVAL(true));
+    ClassDB::bind_method(D_METHOD("room_presentation_snapshot","tile_index","include_static","tile_offset"),
+        &ParentGameNode::room_presentation_snapshot,DEFVAL(true),DEFVAL(0));
     ClassDB::bind_method(D_METHOD("field_grass_texture_pixels"),&ParentGameNode::field_grass_texture_pixels);
     ClassDB::bind_method(D_METHOD("city_asphalt_texture_pixels"),&ParentGameNode::city_asphalt_texture_pixels);
     ClassDB::bind_method(D_METHOD("grass_blade_presentation_snapshot","tile_index"),&ParentGameNode::grass_blade_presentation_snapshot);
@@ -857,8 +857,9 @@ Dictionary ParentGameNode::room_presentation_identity_snapshot(int tile_index) c
     result["static_geometry_key"] = roomStaticGeometryKey(state, tile_index, plan.setting);
     return result;
 }
-Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool include_static) const {
+Dictionary ParentGameNode::room_presentation_snapshot(int tile_index,bool include_static,int tile_offset) const {
     if(tile_index<0)tile_index=bridge.state().topology.currentTileIndex;
+    tile_index += std::clamp(tile_offset,-1,1);
     const RoomPresentationSnapshot snapshot = RoomPresentationSnapshot::from(bridge.state(), tile_index, include_static);
     Dictionary result;
     result["room_seed"] = snapshot.roomSeed;

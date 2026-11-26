@@ -81,7 +81,7 @@ public:
     Dictionary door_transition_presentation_snapshot() const;
     Array projectile_presentation_snapshot() const;
     Dictionary room_presentation_identity_snapshot(int tile_index) const;
-    Dictionary room_presentation_snapshot(int tile_index, bool include_static = true) const;
+    Dictionary room_presentation_snapshot(int tile_index, bool include_static = true, int tile_offset = 0) const;
     PackedByteArray field_grass_texture_pixels() const;
     PackedByteArray city_asphalt_texture_pixels() const;
     Array grass_blade_presentation_snapshot(int tile_index) const;
