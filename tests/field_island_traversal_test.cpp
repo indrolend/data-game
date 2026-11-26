@@ -288,6 +288,34 @@ int main(){
     std::printf("LATER_FIELD_OK cases=%d peak_population=%d max_respawn_ticks=%d tv_entry_return=1\n",
         cases,maxRequested,maxRetryTicks);
 
+    // Inspect the actual simulation outside each generated foundation. Sterile
+    // side walls remain authored obstructions, so seed the fall beyond the wall.
+    for (int seed : {8,26,16,4,2,1,7,11}) {
+        constexpr int room = 12;
+        const auto plan = roomPlan(seed,room);
+        const auto footprint = roomGroundFootprint(plan,seed,room);
+        later->debugStartGeneratedRoomFixture(seed,room);
+        FieldIslandTraversalAccess::populate(*later);
+        auto& state = later->fixtureMutableState();
+        const auto initialRecoveries = state.player.abyssRecoveryCount;
+        const float x = footprint.halfWidth + 1.0f;
+        state.player.pos = {x,world::GroundY,0};
+        state.player.vel = {};
+        state.player.jumpVel = 0;
+        state.player.grounded = false;
+        if (!later->debugPlayerSupportAt(0,15.5f).available ||
+            later->debugPlayerSupportAt(x,0).available ||
+            later->debugWorldSupportAt(x,0,0).available) return 1;
+        neutral(*later,16);
+        if (state.player.grounded || state.player.pos.y >= world::GroundY-0.2f) return 1;
+        for (int tick=0; tick<120 && state.player.abyssRecoveryCount==initialRecoveries; ++tick)
+            neutral(*later);
+        if (state.player.abyssRecoveryCount!=initialRecoveries+1 ||
+            !state.player.grounded || state.roomIndex!=room || state.roomSeed!=seed) return 1;
+        std::printf("FINITE_EDGE_RUNTIME seed=%d setting=%s form=%s\n",
+            seed,settingName(plan.setting),formName(plan.form));
+    }
+
     // City overlays and local shadow receivers both use this projection.
     const float tileZ = 2.0f * world::RoomDepth;
     int clips = 0, controls = 0;
