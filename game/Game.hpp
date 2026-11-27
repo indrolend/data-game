@@ -1009,6 +1009,15 @@ private:
     mutable int footprintSeed_ = 0;
     mutable int footprintRoom_ = -1;
     mutable world::finite_ground::Footprint groundFootprint_{};
+    struct PreparedRock {
+        faceted_rock::Support source;
+        faceted_rock::Mesh mesh;
+        faceted_rock::Bounds bounds;
+        bool valid = false;
+    };
+    mutable std::unique_ptr<std::array<PreparedRock, ROCK_SUPPORT_COUNT>> preparedRocks_;
+    const PreparedRock& preparedRock(int index) const;
+
     bool hasBaseGroundSupport(float x, float localZ, float radius) const;
     float getPlayerSupportY(float x, float z) const { return getPlayerSupport(x,z).height; }
     void resolvePlayerObstacleCollisions(float previousX, float previousZ);

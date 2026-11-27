@@ -50,6 +50,22 @@ PhoneWorldBounds phoneWorldBounds(const GameState& state){
 }
 
 int main(int argc,char** argv){
+    {
+        auto game=std::make_unique<Game>();
+        game->debugStartSlopeLab();
+        auto checkpoint=std::make_unique<Game::Checkpoint>(game->captureCheckpoint());
+        const auto original=game->debugWorldSupportAt(6.0f,7.0f,0.0f);
+        game->fixtureMutableState().rockSupports[0].prop.center.y+=3.0f;
+        const auto raised=game->debugWorldSupportAt(6.0f,7.0f,0.0f);
+        game->restoreCheckpoint(*checkpoint);
+        const auto restored=game->debugWorldSupportAt(6.0f,7.0f,0.0f);
+        if(original.identity.source!=SupportSource::Generated ||
+           !near(raised.height,original.height+3.0f) || restored.height!=original.height) {
+            std::fprintf(stderr,"ROCK_SUPPORT_FAIL descriptor mutation or checkpoint restore\n");
+            return 1;
+        }
+    }
+
     const bool boundedCheck=argc==2&&std::string_view(argv[1])=="--check";
     auto ascentStorage=std::make_unique<Game>();Game& ascent=*ascentStorage;ascent.debugStartSlopeLab();const auto fixture=ascent.state().slopeSupports[0];
     if(!ascent.state().slopeLab||ascent.state().slopeSupportCount!=1||ascent.state().roomColliderCount!=1||classifySupport(fixture)!=SupportClassification::TraversableSlope){std::fprintf(stderr,"SLOPE_FIXTURE_FAIL authority\n");return 1;}
