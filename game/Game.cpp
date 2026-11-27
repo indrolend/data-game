@@ -1205,7 +1205,7 @@ void Game::updateBattery(float dt) {
     float waterDrain=0.0f;
     const auto roomPlan=room_environment::roomPlan(state_.roomSeed,state_.roomIndex);
     if(roomPlan.setting==room_environment::RoomSetting::Coastal&&!state_.player.inSecretRoom){
-        const float wetness=coastal_water::immersion(state_.player.pos.x,wrapZ(state_.player.pos.z),state_.player.pos.y-PHONE_SOLID_HALF_Y-(isFieldIslandActive()?world::GroundY:0.0f),state_.time);
+        const float wetness=coastal_water::immersion(state_.player.pos.x,wrapZ(state_.player.pos.z),state_.player.pos.y-PHONE_SOLID_HALF_Y-(isFieldIslandActive()?world::GroundSurfaceY:0.0f),state_.time);
         waterDrain=coastal_water::BatteryDrainPerSecond*wetness;
     }
     if(demand.active||waterDrain>0.0f)state_.progression.run.batteryRegenLock=std::max(state_.progression.run.batteryRegenLock,PASSIVE_RECHARGE_DELAY);

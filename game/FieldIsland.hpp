@@ -20,7 +20,7 @@ constexpr float AbyssRecoveryY = -8.0f;
 inline room_environment::GrassBlade placeGrass(room_environment::GrassBlade blade) {
     blade.root.x *= (MainHalfWidth - 0.15f) / 13.2f;
     blade.root.z *= (MainHalfDepth - 0.15f) / 18.0f;
-    blade.root.y = world::GroundY;
+    blade.root.y = world::GroundSurfaceY;
     return blade;
 }
 
@@ -41,7 +41,7 @@ void forEachGroundOverlay(Vec3 center, Vec3 size, float tileZ, bool finite, Emit
         const float minZ=std::max(localZ-size.z*0.5f,surface.minZ);
         const float maxZ=std::min(localZ+size.z*0.5f,surface.maxZ);
         if (minX>=maxX || minZ>=maxZ) continue;
-        emit(i,{(minX+maxX)*0.5f,center.y+world::GroundY,tileZ+(minZ+maxZ)*0.5f},
+        emit(i,{(minX+maxX)*0.5f,center.y+world::GroundSurfaceY,tileZ+(minZ+maxZ)*0.5f},
             {maxX-minX,size.y,maxZ-minZ});
     }
 }

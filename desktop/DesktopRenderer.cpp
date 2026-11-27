@@ -231,7 +231,7 @@ bool usesFieldIsland(const GameState& state) {
 
 float shadowReceiverHeight(const GameState& state,float worldX,float worldZ,float radius){
     const float localZ=worldZ-std::floor((worldZ+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH;
-    float height=usesFieldIsland(state) ? world::GroundY : 0.0f;
+    float height=usesFieldIsland(state) ? world::GroundSurfaceY : 0.0f;
     for(int i=0;i<state.roomColliderCount;++i){const RoomCollider& c=state.roomColliders[i];if(worldX>c.minX-radius&&worldX<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)height=std::max(height,c.topY);}
     for(int i=0;i<state.slopeSupportCount;++i){const auto sample=sampleSlopeSupport(state.slopeSupports[i],worldX,localZ);if(sample.inside&&sample.classification!=SupportClassification::Steep)height=std::max(height,sample.height);}
     for(int i=0;i<state.rockSupportCount;++i){const auto sample=faceted_rock::sampleSupportFootprint(state.rockSupports[i],worldX,localZ,radius);if(sample.inside)height=std::max(height,sample.height);}
@@ -1757,12 +1757,12 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
             if (maxZ <= minZ) continue;
             const float coreDepth = surface.halfWidth == frameGroundFootprint_.halfWidth ? 1.28f : 0.92f;
             glPushMatrix();
-            glTranslatef(0, world::GroundY - coreDepth * 0.5f, (minZ + maxZ) * 0.5f);
+            glTranslatef(0, world::GroundSurfaceY - coreDepth * 0.5f, (minZ + maxZ) * 0.5f);
             glScalef(surface.halfWidth * 2.0f, coreDepth, maxZ - minZ);
             gradedColor(0.12f, 0.10f, 0.075f);
             cube(false);
             glPopMatrix();
-            if (field) drawFieldGrass(surface.halfWidth, minZ, maxZ, world::GroundY, true);
+            if (field) drawFieldGrass(surface.halfWidth, minZ, maxZ, world::GroundSurfaceY, true);
         }
     } else drawBox({0,-0.04f,z0},{openNatural?ROOM_WIDTH*2.8f:ROOM_WIDTH,0.08f,ROOM_DEPTH},0,0,0,field?VisualIdentity::FieldGround.r:(sterile?0.58f:(coastal?0.24f:VisualIdentity::RoomFloor.r)),field?VisualIdentity::FieldGround.g:(sterile?0.61f:(coastal?0.43f:VisualIdentity::RoomFloor.g)),field?VisualIdentity::FieldGround.b:(sterile?0.63f:(coastal?0.50f:VisualIdentity::RoomFloor.b)));
     if(!island&&field&&plan.form==room_environment::RoomForm::Open){
@@ -1783,9 +1783,9 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
     if(openNatural){
         for(float seam:{-ROOM_DEPTH*0.5f,ROOM_DEPTH*0.5f}){
             const VisualColor frame=field?VisualColor{0.20f,0.27f,0.22f}:VisualColor{0.33f,0.36f,0.34f};
-            drawBox({-frameWidth*0.56f,frameHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,frameHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
-            drawBox({ frameWidth*0.56f,frameHeight*0.48f+(island ? world::GroundY : 0.0f),z0+seam},{0.24f,frameHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
-            drawBox({0,frameHeight*0.96f+(island ? world::GroundY : 0.0f),z0+seam},{frameWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({-frameWidth*0.56f,frameHeight*0.48f+(island ? world::GroundSurfaceY : 0.0f),z0+seam},{0.24f,frameHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({ frameWidth*0.56f,frameHeight*0.48f+(island ? world::GroundSurfaceY : 0.0f),z0+seam},{0.24f,frameHeight*0.96f,0.28f},0,0,0,frame.r,frame.g,frame.b);
+            drawBox({0,frameHeight*0.96f+(island ? world::GroundSurfaceY : 0.0f),z0+seam},{frameWidth*1.16f,0.24f,0.28f},0,0,0,frame.r,frame.g,frame.b);
         }
         if(field && !island)drawFieldBackdrop(state,tileIndex);
     }else if(city){
@@ -1831,9 +1831,9 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
         const float playerLocalZ=state.player.pos.z-z0;
         const float playerSpeed=std::sqrt(state.player.vel.x*state.player.vel.x+state.player.vel.z*state.player.vel.z);
         const bool playerInThisWater=tileIndex==state.topology.currentTileIndex&&coastal_water::contains(state.player.pos.x,playerLocalZ);
-        const auto waterHeight=[&](float x,float localZ){return coastal_water::surfaceHeight(x,localZ,state.time)+(island?world::GroundY:0.0f)+(tileIndex==state.topology.currentTileIndex?coastalWaterSimulation_.sample(x,localZ):0.0f);};
+        const auto waterHeight=[&](float x,float localZ){return coastal_water::surfaceHeight(x,localZ,state.time)+(island?world::GroundSurfaceY:0.0f)+(tileIndex==state.topology.currentTileIndex?coastalWaterSimulation_.sample(x,localZ):0.0f);};
         glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);glBegin(GL_TRIANGLES);
-        const auto waterVertex=[&](float x,float z){const float localZ=z-z0;constexpr float epsilon=0.055f;const float y=waterHeight(x,localZ);const Vec3 normal=normalized(Vec3{waterHeight(x-epsilon,localZ)-waterHeight(x+epsilon,localZ),epsilon*2.0f,waterHeight(x,localZ-epsilon)-waterHeight(x,localZ+epsilon)});glNormal3f(normal.x,normal.y,normal.z);const float shore=coastal_water::shoreAmount(x);const float crest=clampf((y-(island?world::GroundY:0.0f)-0.025f)*4.8f,0.0f,0.22f);glColor4f(0.035f+shore*0.025f+crest,0.30f+shore*0.17f+crest,0.43f+shore*0.23f+crest,0.74f+shore*0.12f);glVertex3f(x,y,z);};
+        const auto waterVertex=[&](float x,float z){const float localZ=z-z0;constexpr float epsilon=0.055f;const float y=waterHeight(x,localZ);const Vec3 normal=normalized(Vec3{waterHeight(x-epsilon,localZ)-waterHeight(x+epsilon,localZ),epsilon*2.0f,waterHeight(x,localZ-epsilon)-waterHeight(x,localZ+epsilon)});glNormal3f(normal.x,normal.y,normal.z);const float shore=coastal_water::shoreAmount(x);const float crest=clampf((y-(island?world::GroundSurfaceY:0.0f)-0.025f)*4.8f,0.0f,0.22f);glColor4f(0.035f+shore*0.025f+crest,0.30f+shore*0.17f+crest,0.43f+shore*0.23f+crest,0.74f+shore*0.12f);glVertex3f(x,y,z);};
         for(int ix=0;ix<strips;++ix)for(int iz=0;iz<steps;++iz){const float xa=x0+(x1-x0)*ix/strips,xb=x0+(x1-x0)*(ix+1)/strips,za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;waterVertex(xa,za);waterVertex(xb,za);waterVertex(xb,zb);waterVertex(xa,za);waterVertex(xb,zb);waterVertex(xa,zb);}glEnd();
         glDisable(GL_LIGHTING);glBlendFunc(GL_SRC_ALPHA,GL_ONE);glBegin(GL_LINES);for(int foam=0;foam<4;++foam){const float x=x0+0.12f+foam*0.36f+std::sin(state.time*0.64f+foam*1.7f+tileIndex)*0.10f;glColor4f(0.72f,0.92f,0.96f,0.34f-foam*0.045f);for(int iz=0;iz<steps;++iz){const float za=zMin+(zMax-zMin)*iz/steps,zb=zMin+(zMax-zMin)*(iz+1)/steps;const float waveXa=x+std::sin(za*0.55f+state.time)*0.035f,waveXb=x+std::sin(zb*0.55f+state.time)*0.035f;glVertex3f(waveXa,waterHeight(waveXa,za-z0)+0.012f,za);glVertex3f(waveXb,waterHeight(waveXb,zb-z0)+0.012f,zb);}}glEnd();
         if(playerInThisWater){
@@ -2040,7 +2040,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
                 // single source of truth for climbing and world scale.
                 glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);
                 if(!shadowGeometryPass_&&render_contract::usesProceduralGroundShadows(frameShadowQuality_))
-                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,island ? world::GroundY : 0.0f,frameSunDirection_,island,frameGroundFootprint_);
+                    drawGroundShadow(p,prop.size.x*0.18f,prop.size.z*0.16f,prop.size.y*0.32f,0.22f,island ? world::GroundSurfaceY : 0.0f,frameSunDirection_,island,frameGroundFootprint_);
                 glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_LIGHTING);
                 drawStaticModel(authoredTree,p+Vec3{0,0.008f,0},{prop.size.y*widthCorrection*authoredVariant.widthScale,prop.size.y,prop.size.y*widthCorrection*authoredVariant.depthScale},quaternionFromEulerXYZ(authoredVariant.pitch,prop.yaw+authoredVariant.yawJitter,authoredVariant.roll));
                 const VisualColor bark{0.28f,0.205f,0.13f};

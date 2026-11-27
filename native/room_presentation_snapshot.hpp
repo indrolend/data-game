@@ -200,10 +200,10 @@ struct RoomPresentationSnapshot {
                 if (depth <= 0.0f) continue;
                 const float coreDepth = i == 0 ? 1.2f : 0.84f;
                 addStructure(coreIds[i], RoomStructureKind::FieldIslandCore,
-                    {0, world::GroundY - turfThickness - coreDepth * 0.5f, centerZ},
+                    {0, world::GroundSurfaceY - turfThickness - coreDepth * 0.5f, centerZ},
                     {surface.halfWidth * 2.0f, coreDepth, depth}, islandCoreMaterial);
                 addStructure(topIds[i], RoomStructureKind::Floor,
-                    {0, world::GroundY - turfThickness * 0.5f, centerZ},
+                    {0, world::GroundSurfaceY - turfThickness * 0.5f, centerZ},
                     {surface.halfWidth * 2.0f, turfThickness, depth}, floorMaterial);
             }
         }else{
@@ -219,13 +219,13 @@ struct RoomPresentationSnapshot {
             for (float seam : {-world::RoomDepth * 0.5f, world::RoomDepth * 0.5f}) {
                 const std::string prefix = "door-frame/" + std::to_string(seamIndex++);
                 addStructure((prefix + "/left").c_str(), RoomStructureKind::DoorFrame,
-                    {-frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {-frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundSurfaceY : 0.0f), z0 + seam},
                     {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/right").c_str(), RoomStructureKind::DoorFrame,
-                    {frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {frameWidth * 0.56f, frameHeight * 0.48f + (snapshot.fieldIsland ? world::GroundSurfaceY : 0.0f), z0 + seam},
                     {0.24f, frameHeight * 0.96f, 0.28f}, frameMaterial);
                 addStructure((prefix + "/top").c_str(), RoomStructureKind::DoorFrame,
-                    {0, frameHeight * 0.96f + (snapshot.fieldIsland ? world::GroundY : 0.0f), z0 + seam},
+                    {0, frameHeight * 0.96f + (snapshot.fieldIsland ? world::GroundSurfaceY : 0.0f), z0 + seam},
                     {frameWidth * 1.16f, 0.24f, 0.28f}, frameMaterial);
             }
         } else if (!city) {
