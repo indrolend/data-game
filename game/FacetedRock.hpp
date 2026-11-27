@@ -23,6 +23,10 @@ struct Mesh {
     int vertexCount=0;
 };
 
+inline Vec3 surfaceNormal(const Mesh& mesh,int vertex,const Vec3&,const Vec3&,const Vec3&){
+    return {mesh.normals[vertex*3],mesh.normals[vertex*3+1],mesh.normals[vertex*3+2]};
+}
+
 struct Bounds { Vec3 minimum{};Vec3 maximum{}; };
 
 inline Bounds meshBounds(const Mesh& mesh){

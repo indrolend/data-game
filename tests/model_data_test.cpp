@@ -25,6 +25,35 @@ void validateNormalizedArchitecturalMesh(const char* path,std::size_t minimumVer
     require(near(minimumY,0.0f)&&near(maximumY,1.0f),"architectural normalized bounds changed");
     require(finiteNormals>static_cast<int>(minimumVertices*0.80f),"architectural normals are invalid");
 }
+void validateCityCorner(){
+    StaticModelData model;
+    require(model.load(DB_CITY_WALL_CORNER_MODEL_PATH),"City corner failed to load");
+    require(model.vertices.size()==36 && model.batches.size()==1,
+            "City corner must contain four triangles in one material batch");
+    const auto& batch=model.batches.front();
+    require(batch.start==0 && batch.count==12 && near(batch.color[0],0.49f) &&
+            near(batch.color[1],0.475f) && near(batch.color[2],0.435f) &&
+            near(batch.color[3],1.0f),"City corner material changed");
+
+    int faceCounts[2]{};
+    unsigned corners[2]{};
+    for(std::size_t i=0;i<model.vertices.size();i+=9){
+        const bool side=near(model.normals[i],-1.0f);
+        require(side || near(model.normals[i+2],1.0f),"City corner face winding changed");
+        const int face=side?0:1;
+        ++faceCounts[face];
+        for(std::size_t v=i;v<i+9;v+=3){
+            const float x=model.vertices[v], y=model.vertices[v+1], z=model.vertices[v+2];
+            const float across=side?z:x;
+            require((side?near(x,-0.5f):near(z,0.5f)) &&
+                    (near(across,-0.5f)||near(across,0.5f)) &&
+                    (near(y,0.0f)||near(y,1.0f)),"City corner coverage changed");
+            corners[face]|=1u<<((across>0.0f?1:0)+(y>0.5f?2:0));
+        }
+    }
+    require(faceCounts[0]==2 && faceCounts[1]==2 &&
+            corners[0]==15 && corners[1]==15,"City corner must cover both rectangular faces");
+}
 }
 
 int main(){
@@ -51,7 +80,7 @@ int main(){
     require(rejected==16,"phone rejected normal count changed");
     validateNormalizedArchitecturalMesh(DB_CITY_WALL_WINDOW_MODEL_PATH,8000);
     validateNormalizedArchitecturalMesh(DB_CITY_WALL_DOOR_MODEL_PATH,6000);
-    validateNormalizedArchitecturalMesh(DB_CITY_WALL_CORNER_MODEL_PATH,27000);
+    validateCityCorner();
     validateNormalizedArchitecturalMesh(DB_CITY_CROWN_MODEL_PATH,2000);
     std::printf("MODEL_NORMAL_VALIDATION_OK valid=%d rejected=%d\n",valid,rejected);
     return 0;

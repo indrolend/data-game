@@ -1982,7 +1982,7 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
         if(candidate>support.height+0.0001f){support.height=candidate;support.normal=sample.normal;support.classification=sample.classification;support.identity={SupportSource::Slope,i};}
     }
     for(int i=0;i<state_.rockSupportCount;++i){
-        const auto sample=faceted_rock::sampleSupportFootprint(state_.rockSupports[i],x,localZ,radius);
+        const auto sample=faceted_rock::sampleMeshFootprint(preparedRock(i).mesh,x,localZ,radius,true);
         if(!sample.inside)continue;const float candidate=sample.height+GROUND_Y;
         if(candidate>support.height+0.0001f){support.height=candidate;support.normal=sample.normal;support.classification=SupportClassification::TraversableSlope;support.identity={SupportSource::Generated,i};}
     }
@@ -1997,6 +1997,31 @@ WorldSupportSample Game::getWorldSupport(float x,float z,float radius) const {
 bool Game::isFieldIslandActive() const {
     return room_environment::hasFiniteGround(room_environment::roomBoundary(state_.roomSeed,state_.roomIndex),
         state_.rallyLab || state_.traversalLab || state_.slopeLab);
+}
+
+const Game::PreparedRock& Game::preparedRock(int index) const {
+    const auto& source = state_.rockSupports[index];
+    if (!preparedRocks_) {
+        preparedRocks_ = std::make_unique<std::array<PreparedRock, ROCK_SUPPORT_COUNT>>();
+    }
+    auto& prepared = (*preparedRocks_)[index];
+    const auto& old = prepared.source;
+    const auto& prop = source.prop;
+    const auto& prior = old.prop;
+    const auto sameVector = [](const Vec3& a, const Vec3& b) {
+        return a.x == b.x && a.y == b.y && a.z == b.z;
+    };
+    // The descriptor is authoritative, including after a restore or fixture edit.
+    if (!prepared.valid || old.roomSeed != source.roomSeed ||
+        old.roomIndex != source.roomIndex || old.propIndex != source.propIndex ||
+        prior.role != prop.role || prior.yaw != prop.yaw ||
+        !sameVector(prior.center, prop.center) || !sameVector(prior.size, prop.size)) {
+        prepared.source = source;
+        prepared.mesh = faceted_rock::makeMesh(prop, source.roomSeed, source.roomIndex, source.propIndex);
+        prepared.bounds = faceted_rock::meshBounds(prepared.mesh);
+        prepared.valid = true;
+    }
+    return prepared;
 }
 
 world::finite_ground::Footprint Game::groundFootprint() const {
@@ -2027,7 +2052,7 @@ void Game::resolvePlayerObstacleCollisions(float previousX,float previousZ) {
     const float tileOriginZ = getRoomTileOriginZ(getRoomTileIndex(player.pos.z));
     float localPlayerZ = player.pos.z - tileOriginZ;
     const float previousLocalZ=previousZ-getRoomTileOriginZ(getRoomTileIndex(previousZ));
-    if(player.supportIdentity.source==SupportSource::Generated){const int index=player.supportIdentity.index;if(index<0||index>=state_.rockSupportCount||!faceted_rock::sampleEnvelopeFootprint(state_.rockSupports[index],previousX,previousLocalZ,radius).inside)player.supportIdentity={};}
+    if(player.supportIdentity.source==SupportSource::Generated){const int index=player.supportIdentity.index;if(index<0||index>=state_.rockSupportCount||!faceted_rock::sampleEnvelopeFootprint(preparedRock(index).mesh,previousX,previousLocalZ,radius).inside)player.supportIdentity={};}
     else if(player.supportIdentity.source==SupportSource::Slope){const int index=player.supportIdentity.index;if(index<0||index>=state_.slopeSupportCount||!surface_geometry::sample(makeSlopeWedgeMesh(state_.slopeSupports[index]),previousX,previousLocalZ,radius,0.819152f).inside)player.supportIdentity={};}
     for (int i = 0; i < state_.roomColliderCount; ++i) {
         const RoomCollider& c = state_.roomColliders[i];
@@ -2080,7 +2105,7 @@ void Game::resolvePlayerObstacleCollisions(float previousX,float previousZ) {
     }
     for(int i=0;i<state_.slopeSupportCount;++i){const auto mesh=makeSlopeWedgeMesh(state_.slopeSupports[i]);const bool departing=player.supportIdentity==SupportIdentity{SupportSource::Slope,i};const auto resolved=surface_geometry::resolveBoundedHorizontal(mesh,previousX,previousLocalZ,player.pos.x,localPlayerZ,player.pos.y-PHONE_SOLID_HALF_Y,player.pos.y+PHONE_SOLID_HALF_Y,radius,0.819152f,departing);if(!resolved.blocked)continue;player.pos.x=resolved.x;localPlayerZ=resolved.z;player.pos.z=tileOriginZ+localPlayerZ;const float into=dotXZ(player.vel,resolved.normal);if(into<0.0f)player.vel-=resolved.normal*into;}
     for(int i=0;i<state_.rockSupportCount;++i){
-        const auto& rock=state_.rockSupports[i];const auto mesh=faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex);
+        const auto& mesh=preparedRock(i).mesh;
         // PlayerState::pos is the center of the upright gameplay body. A rock
         // is only beneath the player when the body's bottom clears its visible
         // envelope; PHONE_BODY_DEPTH is not a vertical clearance.
@@ -3012,7 +3037,7 @@ void Game::constrainThirdPersonCamera(Vec3& desired, const Vec3& lookBase) const
         const float halfZ=(rock.prop.size.x*s+rock.prop.size.z*c)*0.5f+CAMERA_COLLISION_RADIUS;
         const float minSegmentX=std::min(localStart.x,localEnd.x),maxSegmentX=std::max(localStart.x,localEnd.x),minSegmentY=std::min(localStart.y,localEnd.y),maxSegmentY=std::max(localStart.y,localEnd.y),minSegmentZ=std::min(localStart.z,localEnd.z),maxSegmentZ=std::max(localStart.z,localEnd.z);
         if(maxSegmentX<rock.prop.center.x-halfX||minSegmentX>rock.prop.center.x+halfX||maxSegmentZ<rock.prop.center.z-halfZ||minSegmentZ>rock.prop.center.z+halfZ||maxSegmentY<GROUND_Y-CAMERA_COLLISION_RADIUS||minSegmentY>rock.prop.center.y+rock.prop.size.y+GROUND_Y+CAMERA_COLLISION_RADIUS)continue;
-        const auto mesh=faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex);
+        const auto& mesh=preparedRock(rockIndex).mesh;
         // A camera-boom sample is a point along a ray, not a grounded body
         // footprint. Taking the highest facet beneath the whole camera radius
         // can select an adjacent uphill face and report a false overlap that
@@ -3853,7 +3878,7 @@ bool Game::isHumanPointBlocked(float x,float z,float radius) const {
     for(int i=0;i<state_.roomColliderCount;++i){const RoomCollider& c=state_.roomColliders[i];
         if(x>c.minX-radius && x<c.maxX+radius && localZ>c.minZ-radius && localZ<c.maxZ+radius) return true;}
     for(int i=0;i<state_.rockSupportCount;++i){
-        const auto& rock=state_.rockSupports[i];const auto mesh=faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex);
+        const auto& mesh=preparedRock(i).mesh;
         if(surface_geometry::obstructsBody(mesh,x,localZ,0.0f,HUMAN_VISUAL_SPEC.totalHeight,radius,faceted_rock::WalkableNormalY))return true;
     }
     return false;
@@ -3867,7 +3892,7 @@ bool Game::isHumanMovementBlocked(float x,float z,float feetY,float radius,Vec3*
         if(x>c.minX-radius&&x<c.maxX+radius&&localZ>c.minZ-radius&&localZ<c.maxZ+radius)return true;
     }
     for(int i=0;i<state_.rockSupportCount;++i){
-        const auto& rock=state_.rockSupports[i];const auto mesh=faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex);
+        const auto& mesh=preparedRock(i).mesh;
         Vec3 normal{};
         if(surface_geometry::obstructsBody(mesh,x,localZ,feetY-GROUND_Y,feetY-GROUND_Y+HUMAN_VISUAL_SPEC.totalHeight,radius,faceted_rock::WalkableNormalY,obstructionNormal?&normal:nullptr)){
             if(obstructionNormal)*obstructionNormal=normal;
@@ -4031,8 +4056,7 @@ void Game::updateTargets(float dt) {
                         }
                     }
                     for(int rockIndex=0;rockIndex<state_.rockSupportCount;++rockIndex){
-                        const auto& rock=state_.rockSupports[rockIndex];
-                        const auto bounds=faceted_rock::meshBounds(faceted_rock::makeMesh(rock.prop,rock.roomSeed,rock.roomIndex,rock.propIndex));
+                        const auto& bounds=preparedRock(rockIndex).bounds;
                         for(int tileOffset=-1;tileOffset<=1;++tileOffset){
                             float entry=1.0f;const Vec3 offset{0.0f,0.0f,static_cast<float>(tileOffset)*ROOM_DEPTH};
                             if(gameplay::perceptionSegmentHitsBox(localHead,localTarget,bounds.minimum+offset,bounds.maximum+offset,entry))nearestOpaque=std::min(nearestOpaque,entry);

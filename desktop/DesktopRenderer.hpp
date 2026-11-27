@@ -33,6 +33,7 @@ public:
     const ShadowObservation& lastShadowObservation() const { return shadowObservation_; }
     render_contract::SceneAtmosphere resolvedAtmosphere(const GameState& state) const;
     void draw(const GameState& state, const DeveloperCodecState* codec=nullptr) const;
+    void enableLightingObservation() { lightingObservationEnabled_ = true; }
     const lighting_evidence::RendererLightingObservation& lastLightingObservation() const { return lightingObservation_; }
 
 private:
@@ -84,6 +85,7 @@ private:
     render_contract::RuntimeLightingControl lightingControl_{};
     render_contract::RuntimeShadowControl shadowControl_{};
     mutable ShadowObservation shadowObservation_{};
+    bool lightingObservationEnabled_ = false;
     mutable lighting_evidence::RendererLightingObservation lightingObservation_{};
     mutable unsigned int shadowFramebuffer_ = 0;
     mutable unsigned int shadowDepthTexture_ = 0;
@@ -108,9 +110,9 @@ private:
     bool ensureShadowMap(int size) const;
     bool renderShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const Vec3& sunDirection,render_contract::ShadowQuality quality) const;
     bool renderLocalShadowDepth(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,const room_lighting::LocalShadowSource& source,render_contract::ShadowQuality quality) const;
-    void drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const;
+    void drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality, const Vec3* doorwayEye=nullptr) const;
     void drawLocalShadowReceivers(const GameState& state) const;
-    void applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const;
+    void applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength,const Vec3* doorwayEye) const;
     void drawShadowDepthMap() const;
     void updateCoastalWater(const GameState& state, const room_environment::RoomEnvironmentPlan& plan) const;
     void drawFieldGrass(float halfWidth, float minZ, float maxZ, float y, bool worldAligned = false) const;
@@ -120,7 +122,7 @@ private:
     void drawFoliageCards(const Vec3& center,const Vec3& size,float yaw,const VisualColor& tint,unsigned int seed) const;
     void drawFieldBackdrop(const GameState& state,int tileIndex) const;
     void drawCityStreet(const GameState& state,int tileIndex,room_environment::RoomForm form,bool finite) const;
-    static void applyCamera(const GameState& state, float aspect);
+    static Vec3 applyCamera(const GameState& state, float aspect);
     static void drawStaticModel(unsigned int list, const Vec3& position, const Vec3& scale, const Quat& orientation);
     void drawHumanModel(const TargetState& target, float time, room_environment::RoomSetting setting, std::size_t slot, bool shadow = false) const;
     static void drawEnemyReactionBillboard(const GameState& state,const TargetState& target);
