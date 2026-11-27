@@ -107,6 +107,66 @@ auto fpsWindowStart=std::chrono::steady_clock::now();
 constexpr float ROOM_WIDTH = world::RoomWidth;
 constexpr float ROOM_DEPTH = world::RoomDepth;
 constexpr int ROOM_VISUAL_HORIZON = 2;
+constexpr float NaturalDoorFrameWidth = 5.35f;
+constexpr float NaturalDoorFrameHeight = 3.95f;
+
+// Intersect the view cones of aligned, equal-sized apertures. For each edge,
+// one of the nearest and furthest seams provides the tighter ray constraint.
+class DoorwayView {
+public:
+    DoorwayView(const Vec3& eye, int currentTile, bool enabled)
+        : eye_(eye), currentTile_(currentTile), enabled_(enabled) {}
+
+    void select(int offset) {
+        if (!enabled_ || offset == offset_) return;
+        clear();
+        if (offset == 0) return;
+        const float direction = offset < 0 ? -1.0f : 1.0f;
+        const float nearSeam = (currentTile_ + direction * 0.5f) * ROOM_DEPTH;
+        const float farSeam = nearSeam + (std::abs(offset) - 1) * direction * ROOM_DEPTH;
+        const float farDistance = (farSeam - eye_.z) * direction;
+        if (farDistance <= 0.05f) return;
+        // A trailing third-person camera can remain across the first seam
+        // after the player advances. Only clip through seams in front of it.
+        const float nearDistance = (nearSeam - eye_.z) * direction;
+        const float nearest = nearDistance > 0.05f ? nearDistance : farDistance;
+        constexpr float halfWidth = NaturalDoorFrameWidth * 0.56f - 0.12f;
+        constexpr float bottom = world::GroundSurfaceY - 0.001f;
+        constexpr float top = NaturalDoorFrameHeight * 0.96f - 0.12f;
+        edge(GL_CLIP_PLANE0, true, 1.0f, -halfWidth, nearest, farDistance, direction);
+        edge(GL_CLIP_PLANE1, true, -1.0f, halfWidth, nearest, farDistance, direction);
+        edge(GL_CLIP_PLANE2, false, 1.0f, bottom, nearest, farDistance, direction);
+        edge(GL_CLIP_PLANE3, false, -1.0f, top, nearest, farDistance, direction);
+        offset_ = offset;
+    }
+
+    void clear() {
+        if (offset_ == 0) return;
+        for (GLenum plane = GL_CLIP_PLANE0; plane <= GL_CLIP_PLANE3; ++plane)
+            glDisable(plane);
+        offset_ = 0;
+    }
+
+    ~DoorwayView() { clear(); }
+
+private:
+    void edge(GLenum plane, bool horizontal, float inward, float boundary,
+              float nearest, float furthest, float direction) const {
+        const double eyeAxis = horizontal ? eye_.x : eye_.y;
+        const double delta = inward * (boundary - eyeAxis);
+        const double z = -direction * delta / (delta > 0.0 ? nearest : furthest);
+        const GLdouble equation[] = {horizontal ? inward : 0.0,
+            horizontal ? 0.0 : inward, z, -inward * eyeAxis - z * eye_.z};
+        glClipPlane(plane, equation);
+        glEnable(plane);
+    }
+
+    Vec3 eye_;
+    int currentTile_;
+    bool enabled_;
+    int offset_ = 0;
+};
+
 constexpr float ROOM_WALL_HEIGHT = world::RoomWallHeight;
 constexpr float PI = 3.14159265358979323846f;
 constexpr float SHADOW_PROJECTION_SCALE = 0.5f;
@@ -1614,14 +1674,20 @@ bool DesktopRenderer::ensureShadowMap(int size) const{
     return shadowMapSupported_;
 }
 
-void DesktopRenderer::drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality) const{
+void DesktopRenderer::drawShadowGeometry(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,const Vec3* doorwayEye) const{
     shadowGeometryPass_=true;
     const int horizon=quality==render_contract::ShadowQuality::MappedPretty?2:1;
-    for(int tile=state.topology.currentTileIndex-horizon;tile<=state.topology.currentTileIndex+horizon;++tile)drawRoomTile(state,plan,tile,response);
+    DoorwayView doorwayView(doorwayEye ? *doorwayEye : Vec3{}, state.topology.currentTileIndex, doorwayEye != nullptr);
+    for (int offset=-horizon; offset<=horizon; ++offset) {
+        doorwayView.select(offset);
+        drawRoomTile(state,plan,state.topology.currentTileIndex+offset,response);
+    }
+    doorwayView.clear();
     if(!state.camera.firstPerson&&state.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,state.phoneTransform.position,state.phoneVisual.bodyScale,state.phoneTransform.orientation);else drawBox(state.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},state.phoneTransform.orientation,0,0,0);}
     if(state.multiplayer.enabled)for(const auto& peer:state.multiplayer.peers)if(peer.active&&peer.playerId!=state.multiplayer.localPlayerId&&peer.player.alive){if(phoneModelList_)drawStaticModel(phoneModelList_,peer.phoneTransform.position,peer.phoneVisual.bodyScale,peer.phoneTransform.orientation);else drawBox(peer.phoneTransform.position,{PHONE_BODY_WIDTH,PHONE_BODY_HEIGHT,PHONE_BODY_DEPTH},peer.phoneTransform.orientation,0,0,0);}
     const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;const auto setting=plan.setting;
     for (int offset = -1; offset <= 1; ++offset) {
+        doorwayView.select(offset);
         for (std::size_t slot = 0; slot < state.targets.size(); ++slot) {
             const auto& source = state.targets[slot];
             if (!source.alive || source.slurpable) continue;
@@ -1685,7 +1751,7 @@ void DesktopRenderer::drawShadowDepthMap() const{
     glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);glEnable(GL_FOG);glEnable(GL_LIGHTING);
 }
 
-void DesktopRenderer::applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength) const{
+void DesktopRenderer::applyMappedShadow(const GameState& state, const room_environment::RoomEnvironmentPlan& plan,const scene_lighting_response::Response& response,render_contract::ShadowQuality quality,float strength,const Vec3* doorwayEye) const{
     if(!shadowMapSupported_||!shadowDepthTexture_||strength<=0.001f)return;
     float cameraView[16],inverseCamera[16],lightVp[16],worldToShadow[16];glGetFloatv(GL_MODELVIEW_MATRIX,cameraView);invertRigidMatrix(cameraView,inverseCamera);multiplyMatrix(shadowProjection_,shadowView_,lightVp);multiplyMatrix(lightVp,inverseCamera,worldToShadow);
     const float bias[16]={0.5f,0,0,0, 0,0.5f,0,0, 0,0,0.5f,0, 0.5f,0.5f,0.5f,1};float textureMatrix[16];multiplyMatrix(bias,worldToShadow,textureMatrix);
@@ -1694,7 +1760,7 @@ void DesktopRenderer::applyMappedShadow(const GameState& state, const room_envir
     shadowActiveTexture(GL_TEXTURE1);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,shadowDepthTexture_);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_COMBINE);glTexEnvi(GL_TEXTURE_ENV,GL_COMBINE_ALPHA,GL_REPLACE);glTexEnvi(GL_TEXTURE_ENV,GL_SOURCE0_ALPHA,GL_TEXTURE);glTexEnvi(GL_TEXTURE_ENV,GL_OPERAND0_ALPHA,GL_SRC_ALPHA);
     glMatrixMode(GL_TEXTURE);glPushMatrix();glLoadMatrixf(textureMatrix);glMatrixMode(GL_MODELVIEW);
     glPushMatrix();glLoadIdentity();const GLfloat sPlane[]{1,0,0,0},tPlane[]{0,1,0,0},rPlane[]{0,0,1,0},qPlane[]{0,0,0,1};glTexGenfv(GL_S,GL_EYE_PLANE,sPlane);glTexGenfv(GL_T,GL_EYE_PLANE,tPlane);glTexGenfv(GL_R,GL_EYE_PLANE,rPlane);glTexGenfv(GL_Q,GL_EYE_PLANE,qPlane);glPopMatrix();glEnable(GL_TEXTURE_GEN_S);glEnable(GL_TEXTURE_GEN_T);glEnable(GL_TEXTURE_GEN_R);glEnable(GL_TEXTURE_GEN_Q);shadowActiveTexture(GL_TEXTURE0);
-    if(shadowObservation_.localFixture)drawLocalShadowReceivers(state);else drawShadowGeometry(state,plan,response,quality);
+    if(shadowObservation_.localFixture)drawLocalShadowReceivers(state);else drawShadowGeometry(state,plan,response,quality,doorwayEye);
     shadowActiveTexture(GL_TEXTURE1);glDisable(GL_TEXTURE_GEN_S);glDisable(GL_TEXTURE_GEN_T);glDisable(GL_TEXTURE_GEN_R);glDisable(GL_TEXTURE_GEN_Q);glMatrixMode(GL_TEXTURE);glPopMatrix();glMatrixMode(GL_MODELVIEW);glDisable(GL_TEXTURE_2D);shadowActiveTexture(GL_TEXTURE0);
     glDisable(GL_ALPHA_TEST);glDepthFunc(GL_LEQUAL);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glStencilMask(0);glStencilFunc(GL_EQUAL,1,0xff);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);glDisable(GL_DEPTH_TEST);glDisable(GL_LIGHTING);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();glOrtho(0,width_,height_,0,-1,1);glMatrixMode(GL_MODELVIEW);glPushMatrix();glLoadIdentity();glColor4f(0.015f,0.020f,0.028f,strength);glBegin(GL_QUADS);glVertex2f(0,0);glVertex2f(static_cast<float>(width_),0);glVertex2f(static_cast<float>(width_),static_cast<float>(height_));glVertex2f(0,static_cast<float>(height_));glEnd();glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();glMatrixMode(GL_MODELVIEW);
@@ -1726,9 +1792,9 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
     const auto lightRig=room_lighting::roomLightRig(plan.setting,plan.form);
     const float z0 = static_cast<float>(tileIndex) * ROOM_DEPTH;
     constexpr float doorWidth = world::DoorwayHalfWidth * 2.0f;
-    constexpr float frameWidth = 5.35f;
+    constexpr float frameWidth = NaturalDoorFrameWidth;
     constexpr float doorHeight = world::DoorwayLintelY;
-    constexpr float frameHeight = 3.95f;
+    constexpr float frameHeight = NaturalDoorFrameHeight;
     const float sideW = (ROOM_WIDTH - doorWidth) * 0.5f;
     const float sideX = doorWidth * 0.5f + sideW * 0.5f;
     const float topH = ROOM_WALL_HEIGHT - doorHeight;
@@ -2100,7 +2166,7 @@ void DesktopRenderer::drawRoomTile(const GameState& state, const room_environmen
     if(plan.grass&&!shadowGeometryPass_){const ScopedMaterial material(semanticMaterial(SemanticSurface::FieldVegetation));const int maximum=state.localSettings.graphicsPreset<=0?room_environment::GrassBladeCountLow:room_environment::GrassBladeCountHigh,grassCount=static_cast<int>(maximum*plan.grassAmount);room_environment::GrassReactionInputs reaction{state.player.pos,state.phoneTransform.vacuumPullPoint,state.environmentVisual.latestShotOrigin,state.vacuum.power,state.environmentVisual.latestShotAge};const VisualColor bladeRoot=gummyMutation?VisualColor{0.72f,0.12f,0.46f}:(festiveMutation?VisualColor{0.56f,0.68f,0.68f}:field_material_family::BladeRoot);const VisualColor bladeTip=gummyMutation?VisualColor{0.98f,0.48f,0.82f}:(festiveMutation?VisualColor{0.90f,0.97f,1.0f}:field_material_family::BladeTip);glBegin(GL_TRIANGLES);for(int i=0;i<grassCount;++i){auto blade=room_environment::grassBlade(state.roomSeed,state.roomIndex,tileIndex,i);if(island)blade=field_island::placeGrass(blade);blade.root.z+=z0;const Vec3 tip=room_environment::grassTip(blade,state.time,reaction),side{std::cos(blade.phase)*blade.width*0.5f,0,std::sin(blade.phase)*blade.width*0.5f};const Vec3 rootL=blade.root-side,rootR=blade.root+side;const float tone=0.82f+room_environment::unit(static_cast<unsigned int>(i*17+tileIndex*131))*0.22f;gradedColor(bladeRoot.r*tone,bladeRoot.g*tone,bladeRoot.b*tone);glNormal3f(0.18f*std::cos(blade.phase),0.96f,0.18f*std::sin(blade.phase));glVertex3f(rootL.x,rootL.y,rootL.z);glVertex3f(rootR.x,rootR.y,rootR.z);gradedColor(bladeTip.r*tone,bladeTip.g*tone,bladeTip.b*tone);glVertex3f(tip.x,tip.y,tip.z);}glEnd();}
 }
 
-void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
+Vec3 DesktopRenderer::applyCamera(const GameState& state, float aspect) {
     Vec3 renderPos=state.camera.pos,renderTarget=state.camera.lookTarget;
     float renderFov=state.camera.verticalFovDegrees;
     const bool gameplayCamera=state.started&&!state.camera.firstPerson&&state.camera.spectatedPlayerId<0&&!state.cinematic.introActive&&!state.cinematic.deathActive;
@@ -2129,6 +2195,7 @@ void DesktopRenderer::applyCamera(const GameState& state, float aspect) {
     }
     glMatrixMode(GL_PROJECTION); glLoadIdentity(); perspective(renderFov, aspect, VisualIdentity::CameraNearPlane, VisualIdentity::CameraFarPlane);
     glMatrixMode(GL_MODELVIEW); glLoadIdentity(); lookAt(renderPos, renderTarget, {0,1,0});
+    return renderPos;
 }
 
 void DesktopRenderer::drawHud(const GameState& state) const {
@@ -2414,7 +2481,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     const float mappedStrength=(localFixtureShadow?(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.62f:0.52f):(requestedShadowQuality==render_contract::ShadowQuality::MappedPretty?0.38f:0.31f)*resolvedSun.daylight)*shadowControl_.strengthScale;
     shadowObservation_={};shadowObservation_.requested=requestedShadowQuality;shadowObservation_.effective=shadowQuality;shadowObservation_.mappedRequested=mappedRequested;shadowObservation_.mappedReady=mappedReady;shadowObservation_.directional=directionalShadow;shadowObservation_.localFixture=localFixtureShadow;shadowObservation_.supported=shadowMapSupported_;shadowObservation_.sourceIndex=localFixtureShadow?localShadowSource.lightIndex:-1;shadowObservation_.sourcePosition=localFixtureShadow?localShadowSource.worldPosition:Vec3{};shadowObservation_.resolution=mappedRequested?(shadowControl_.resolution>0?shadowControl_.resolution:render_contract::shadowMapResolution(requestedShadowQuality)):0;shadowObservation_.strength=mappedReady?mappedStrength:0.0f;shadowObservation_.coverage=mappedRequested?(localShadowSource.enabled?localShadowSource.coverage:render_contract::shadowCoverage(requestedShadowQuality))*shadowControl_.coverageScale:0.0f;shadowObservation_.biasFactor=shadowControl_.biasFactor;shadowObservation_.biasUnits=shadowControl_.biasUnits;shadowObservation_.projectionHash=mappedReady?shadowProjectionHash_:0;
     glClearColor(atmosphere.background.r,atmosphere.background.g,atmosphere.background.b,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
+    const Vec3 renderEye = applyCamera(state, static_cast<float>(width_)/static_cast<float>(height_));
     glEnable(GL_LIGHTING);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);glEnable(GL_COLOR_MATERIAL);
     applyMaterial(semanticMaterial(SemanticSurface::Default));
     const float lightTileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
@@ -2482,7 +2549,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         constexpr int celestialSegments=28;for(int i=0;i<=celestialSegments;++i){const float a=2.0f*PI*static_cast<float>(i)/celestialSegments;const Vec3 edge=center+right*(std::cos(a)*radius)+up*(std::sin(a)*radius);glColor4f(color.r,color.g,color.b,0.0f);glVertex3f(edge.x,edge.y,edge.z);}glEnd();
         glDepthMask(GL_TRUE);glDisable(GL_BLEND);glEnable(GL_FOG);glEnable(GL_LIGHTING);
     }
-    for(int tile=state.topology.currentTileIndex-ROOM_VISUAL_HORIZON;tile<=state.topology.currentTileIndex+ROOM_VISUAL_HORIZON;++tile)drawRoomTile(state,plan,tile,lightingResponse);
+    const bool framedIsland = usesFieldIsland(state) && !state.player.inSecretRoom &&
+        (plan.setting == room_environment::RoomSetting::Field ||
+         plan.setting == room_environment::RoomSetting::Coastal);
+    DoorwayView doorwayView(renderEye, state.topology.currentTileIndex, framedIsland);
+    for (int offset=-ROOM_VISUAL_HORIZON; offset<=ROOM_VISUAL_HORIZON; ++offset) {
+        doorwayView.select(offset);
+        drawRoomTile(state,plan,state.topology.currentTileIndex+offset,lightingResponse);
+    }
+    doorwayView.clear();
 
     // The secret room is deliberately disconnected from the repeating corridor:
     // a tiny, cheap collection of boxes makes it feel like found backstage space.
@@ -2576,12 +2651,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
         glDisable(GL_BLEND); glEnable(GL_LIGHTING);
     }
 
-    struct TranslucentSoulDraw { Vec3 center; Vec3 scale; float rotationY; VisualColor color; float opacity; float distanceSquared; };
+    struct TranslucentSoulDraw { Vec3 center; Vec3 scale; float rotationY; VisualColor color; float opacity; float distanceSquared; int tileOffset; };
     std::array<TranslucentSoulDraw,TARGET_COUNT*3> translucentSouls{};
     int translucentSoulCount=0;
     const float tileOrigin=static_cast<float>(state.topology.currentTileIndex)*ROOM_DEPTH;
     for(int offset=-1;offset<=1;++offset)for (std::size_t slot = 0; slot < state.targets.size(); ++slot) {
         if (!state.targets[slot].alive) continue;
+        doorwayView.select(offset);
         auto target = state.targets[slot];
         Vec3 p=target.pos; p.z=tileOrigin+static_cast<float>(offset)*ROOM_DEPTH+(target.pos.z-std::floor((target.pos.z+ROOM_DEPTH*0.5f)/ROOM_DEPTH)*ROOM_DEPTH);
         if(!actorVisible(p))continue;
@@ -2601,14 +2677,15 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
             const Vec3 delta=soulCenter-state.camera.pos;
             const VisualColor prismColor={sv.color.r*0.48f+VisualIdentity::SoulPrism.r*0.52f,sv.color.g*0.48f+VisualIdentity::SoulPrism.g*0.52f,sv.color.b*0.48f+VisualIdentity::SoulPrism.b*0.52f};
             const float readableShellOpacity=clampf(sv.shellOpacity*0.64f,0.08f,0.42f);
-            translucentSouls[translucentSoulCount++]={soulCenter,{cube*sv.scale.x,cube*sv.scale.y,cube*sv.scale.z},sv.rotationY,prismColor,readableShellOpacity,delta.x*delta.x+delta.y*delta.y+delta.z*delta.z};
+            translucentSouls[translucentSoulCount++]={soulCenter,{cube*sv.scale.x,cube*sv.scale.y,cube*sv.scale.z},sv.rotationY,prismColor,readableShellOpacity,delta.x*delta.x+delta.y*delta.y+delta.z*delta.z,offset};
         }
         // Let the final startled utterance bridge the physical body and its
         // newly exposed data substrate instead of vanishing on the kill tick.
         drawEnemyReactionBillboard(state,target);
     }
+    doorwayView.clear();
     if(mappedReady){
-        applyMappedShadow(state,plan,lightingResponse,shadowQuality,mappedStrength);
+        applyMappedShadow(state,plan,lightingResponse,shadowQuality,mappedStrength,framedIsland ? &renderEye : nullptr);
         if(shadowControl_.showDepthMap)drawShadowDepthMap();
     }
     std::sort(translucentSouls.begin(),translucentSouls.begin()+translucentSoulCount,[](const auto& a,const auto& b){return a.distanceSquared>b.distanceSquared;});
@@ -2616,15 +2693,18 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     // Draw one camera-facing surface of each convex shell. With culling
     // disabled, several cube faces compound alpha and produce false opacity.
     glEnable(GL_CULL_FACE); glCullFace(GL_BACK);
-    for(int i=0;i<translucentSoulCount;++i){const auto& soul=translucentSouls[i];drawBox(soul.center,soul.scale,0,soul.rotationY,0,soul.color.r,soul.color.g,soul.color.b,soul.opacity);}
+    for(int i=0;i<translucentSoulCount;++i){const auto& soul=translucentSouls[i];doorwayView.select(soul.tileOffset);drawBox(soul.center,soul.scale,0,soul.rotationY,0,soul.color.r,soul.color.g,soul.color.b,soul.opacity);}
+    doorwayView.clear();
     glDisable(GL_CULL_FACE); glDepthMask(GL_TRUE); glDisable(GL_BLEND);
     for(int offset=-ROOM_VISUAL_HORIZON;offset<=ROOM_VISUAL_HORIZON;++offset)for (int captureIndex=0;captureIndex<state.requiredSouls;++captureIndex) {
+        doorwayView.select(offset);
         const auto& capture=state.captures[captureIndex];
         Vec3 p=capture.pos; p.z+=tileOrigin+static_cast<float>(offset)*ROOM_DEPTH;
         drawBox(p+Vec3{0,0,-0.04f},{0.72f,0.72f,0.06f},0,0,0,VisualIdentity::MetallicTeal.r*0.74f,VisualIdentity::MetallicTeal.g*0.74f,VisualIdentity::MetallicTeal.b*0.74f);
         drawBox(p,{0.52f,0.52f,0.08f},0,0,0,0.02f,0.03f,0.04f);
         if(capture.filled) drawBox(p+Vec3{0,0,0.12f},{0.36f,0.36f,0.36f},state.time*1.5f,state.time*2.0f,state.time,VisualIdentity::SoulBase.r,VisualIdentity::SoulBase.g,VisualIdentity::SoulBase.b);
     }
+    doorwayView.clear();
     // Opaque soul projectiles resolve first. Power flowers then retain their
     // own readable shell/core/glyph hierarchy instead of being visually
     // replaced by a coincident brown cube.
@@ -2634,6 +2714,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     }
     for(const auto& flower:state.flowers) if(flower.active){
         for(int offset=-ROOM_VISUAL_HORIZON;offset<=ROOM_VISUAL_HORIZON;++offset){
+            doorwayView.select(offset);
             const Vec3 center{flower.pos.x,flower.pos.y,flower.pos.z+static_cast<float>(state.topology.currentTileIndex+offset)*ROOM_DEPTH};
             constexpr char flowerGlyphs[]="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             const unsigned int phase=static_cast<unsigned int>(state.time*3.0f),positionHash=static_cast<unsigned int>(std::abs(flower.pos.x)*97.0f+std::abs(flower.pos.z)*193.0f)+static_cast<unsigned int>(state.roomIndex)*17u;
@@ -2648,6 +2729,7 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
             glDisable(GL_LIGHTING);for(int row=0;row<7;++row)for(int col=0;col<5;++col)if(rows[row]&(1u<<(4-col))){const Vec3 pixel=center+toCamera*0.375f+glyphRight*((static_cast<float>(col)-2.0f)*0.072f)+glyphUp*((3.0f-static_cast<float>(row))*0.072f);drawBox(pixel,{0.058f,0.058f,0.018f},0,glyphYaw,0,0.94f,1.0f,0.86f);}glEnable(GL_LIGHTING);
         }
     }
+    doorwayView.clear();
     if(completionAfterglow>0.015f&&completionWeight>0.001f){
         const float release=1.0f-completionAfterglow;
         const float span=0.34f+release*0.82f;
