@@ -2426,11 +2426,13 @@ void DesktopRenderer::draw(const GameState& state,const DeveloperCodecState* cod
     applyLight(GL_LIGHT6,resolvedLighting.shot);applyLight(GL_LIGHT7,resolvedLighting.exit);
     glEnable(GL_FOG);const GLfloat fogColor[]={resolvedLighting.fog.color.r,resolvedLighting.fog.color.g,resolvedLighting.fog.color.b,1.0f};glFogfv(GL_FOG_COLOR,fogColor);glFogi(GL_FOG_MODE,GL_EXP2);glFogf(GL_FOG_DENSITY,resolvedLighting.fog.density);
     glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_LIGHTING); glEnable(GL_NORMALIZE);
-    // Observation point: every world-pass light is set; HUD and later passes have not touched GL state yet.
-    // Rigs with CeilingFixtures disable the global sun/fill (GL_LIGHT0/1); the enabled flags record that.
-    lightingObservation_={true,atmosphere,atmosphereInputs,lightRig,
-        {state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear},lightingResponse,
-        observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
+    if (lightingObservationEnabled_) {
+        // Observation point: every world-pass light is set; HUD and later passes have not touched GL state yet.
+        // Rigs with CeilingFixtures disable the global sun/fill (GL_LIGHT0/1); the enabled flags record that.
+        lightingObservation_={true,atmosphere,atmosphereInputs,lightRig,
+            {state.vacuum.power,state.energy.dischargePositionAmount,state.environmentVisual.latestShotAge,state.hud.criticalHitPulse,objectiveProgress,state.roomClear},lightingResponse,
+            observeGlFixedFunctionState("DesktopRenderer::draw:world-pass-lights-set")};
+    }
     if(shadowControl_.geometryOnly){
         glDisable(GL_LIGHTING);glDisable(GL_FOG);glEnable(GL_DEPTH_TEST);drawShadowGeometry(state,plan,lightingResponse,requestedShadowQuality);glEnable(GL_FOG);glEnable(GL_LIGHTING);
         if(mappedReady&&shadowControl_.showDepthMap)drawShadowDepthMap();

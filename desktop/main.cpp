@@ -2466,6 +2466,7 @@ int runEnemyObstructionEvidence(GLFWwindow* window,HostState& host,const std::fi
 }
 
 int runLightingComparisonEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height,bool machineControlProvided){
+    host.renderer.enableLightingObservation();
     const auto manifestPath=outputDirectory/"manifest.json";
     if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
     std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"clean",error);std::filesystem::create_directories(outputDirectory/"frames"/"video",error);
@@ -2496,6 +2497,7 @@ int runLightingComparisonEvidence(GLFWwindow* window,HostState& host,const std::
 }
 
 int runLightingReplayEvidence(GLFWwindow* window,HostState& host,const std::filesystem::path& outputDirectory,int width,int height){
+    host.renderer.enableLightingObservation();
     const auto manifestPath=outputDirectory/"manifest.json";
     if(std::filesystem::exists(manifestPath)){std::fprintf(stderr,"EVIDENCE_RUN=PROTOCOL_FAILURE reason=output_exists manifest=%s\n",manifestPath.string().c_str());return 4;}
     std::error_code error;std::filesystem::create_directories(outputDirectory/"frames"/"clean",error);std::filesystem::create_directories(outputDirectory/"frames"/"video",error);

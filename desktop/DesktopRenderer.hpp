@@ -33,6 +33,7 @@ public:
     const ShadowObservation& lastShadowObservation() const { return shadowObservation_; }
     render_contract::SceneAtmosphere resolvedAtmosphere(const GameState& state) const;
     void draw(const GameState& state, const DeveloperCodecState* codec=nullptr) const;
+    void enableLightingObservation() { lightingObservationEnabled_ = true; }
     const lighting_evidence::RendererLightingObservation& lastLightingObservation() const { return lightingObservation_; }
 
 private:
@@ -84,6 +85,7 @@ private:
     render_contract::RuntimeLightingControl lightingControl_{};
     render_contract::RuntimeShadowControl shadowControl_{};
     mutable ShadowObservation shadowObservation_{};
+    bool lightingObservationEnabled_ = false;
     mutable lighting_evidence::RendererLightingObservation lightingObservation_{};
     mutable unsigned int shadowFramebuffer_ = 0;
     mutable unsigned int shadowDepthTexture_ = 0;
